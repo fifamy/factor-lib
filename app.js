@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "802c93d" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "40b3f55" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "802c93d";
+const _DEPLOY = "40b3f55";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -1967,38 +1967,18 @@ function composeCondFor(factors, baseTable) {
   };
 }
 
-// 对比专用基表（含所有参与对比组合的因子并集），独立于 live 的 cps_base，避免相互重建
-let _cmpBaseKey = null, _cmpBaseBuild = null;
-async function ensureCmpBase(codes) {
-  const sorted = [...new Set(codes)].sort();
-  const key = sorted.join(",");
-  if (_cmpBaseBuild) { try { await _cmpBaseBuild; } catch (_) {} }
-  if (key === _cmpBaseKey) return;
-  _cmpBaseBuild = (async () => {
-    _cmpBaseKey = null;
-    if (!sorted.length) { await state.db.query(`DROP TABLE IF EXISTS cps_cmp_base`); }
-    else {
-      const inList = sorted.map(c => `'${c}'`).join(",");
-      await state.db.query(`CREATE OR REPLACE TABLE cps_cmp_base AS
-        SELECT trade_date, stock_code, factor_code, score FROM factor_score_full
-        WHERE factor_code IN (${inList}) AND score IS NOT NULL`);
-    }
-    _cmpBaseKey = key;
-  })();
-  try { await _cmpBaseBuild; } finally { _cmpBaseBuild = null; }
-}
-
-// 给定组合配置 → 逐月净值/收益（口径同 renderComposeBacktest：加权得分选 top-N、月末调仓、0.2%双边成本）
-async function comboBacktest(factors, N) {
+// 给定组合配置 + 基表 → 逐月净值/收益（口径同 renderComposeBacktest）。暂存时用 live 的 cps_base
+// 算一次并缓存，对比区只读缓存、不再重算（之前每次重建大表 + 逐组合重算导致很慢/图出不来）。
+async function comboBacktest(factors, N, baseTable) {
   const nF = factors.length;
   const vals = factors.map(f => `('${f.code}',${f.weight})`).join(",");
-  const cond = composeCondFor(factors, "cps_cmp_base");
+  const cond = composeCondFor(factors, baseTable);
   const res = await state.db.query(`
     WITH w(code, weight) AS (VALUES ${vals}),
     ${cond.cte}
     comp AS (
       SELECT s.trade_date, s.stock_code, SUM(s.score * w.weight) AS cs, COUNT(*) AS cnt
-      FROM cps_cmp_base s JOIN w ON s.factor_code = w.code
+      FROM ${baseTable} s JOIN w ON s.factor_code = w.code
       WHERE s.score IS NOT NULL GROUP BY s.trade_date, s.stock_code
     ),
     ranked AS (
@@ -2031,15 +2011,18 @@ async function comboBacktest(factors, N) {
   return { x, navArr, retArr };
 }
 
-function saveCurrentCombo() {
-  if (!state.composeFactors.length) { return; }
+async function saveCurrentCombo() {
+  if (!state.composeFactors.length) return;
+  const factors = state.composeFactors.map(f => ({ ...f }));
+  const N = state.composeN;
   const i = state.savedCombos.length;
-  state.savedCombos.push({
-    name: `组合${i + 1}`,
-    factors: state.composeFactors.map(f => ({ ...f })),
-    N: state.composeN,
-    color: STRAT_COLORS[i % STRAT_COLORS.length],
-  });
+  const combo = { name: `组合${i + 1}`, factors, N, color: STRAT_COLORS[i % STRAT_COLORS.length], bt: null };
+  state.savedCombos.push(combo);
+  renderSavedCombos();                  // 先把 chip 显示出来
+  try {
+    await ensureComposeBase();          // cps_base 已是当前因子（一般秒回）
+    combo.bt = await comboBacktest(factors, N, "cps_base");   // 存时算一次并缓存，后续对比只读它
+  } catch (e) { console.error("combo backtest failed", e); }
   renderSavedCombos();
   renderComboCompare();
 }
@@ -2070,78 +2053,60 @@ function renderSavedCombos() {
 }
 
 let cpsCompareChart = null;
-let _cmpRenderToken = 0;
 async function renderComboCompare() {
   const panel = document.getElementById("cps-compare-panel");
   if (!panel) return;
-  if (!state.savedCombos.length) { panel.style.display = "none"; return; }
+  // 只读各暂存组合在「暂存时」缓存好的回测结果，不再现算（快）
+  const combos = state.savedCombos.filter(c => c.bt && c.bt.x && c.bt.x.length);
+  if (!combos.length) { panel.style.display = "none"; return; }
   panel.style.display = "";
   const navDiv = document.getElementById("cps-compare-nav");
   const tblDiv = document.getElementById("cps-compare-table");
-  const token = ++_cmpRenderToken;
-  navDiv.innerHTML = `<div class="loading">计算各组合回测…</div>`; tblDiv.innerHTML = "";
 
-  // 参与对比：所有暂存组合 +（当前实时组合，如有因子，用虚线区分）
-  const combos = state.savedCombos.map(c => ({ name: c.name, factors: c.factors, N: c.N, color: c.color, dashed: false }));
-  if (state.composeFactors.length) {
-    combos.push({ name: "当前(未存)", factors: state.composeFactors.map(f => ({ ...f })), N: state.composeN, color: "#444", dashed: true });
+  const allMonths = [...new Set(combos.flatMap(c => c.bt.x))].sort();
+  const series = combos.map(c => {
+    const mp = {}; c.bt.x.forEach((m, k) => mp[m] = c.bt.navArr[k]);
+    return { name: c.name, type: "line", symbol: "none", connectNulls: true,
+      data: allMonths.map(m => m in mp ? +mp[m].toFixed(3) : null),
+      color: c.color, lineStyle: { width: 2 } };
+  });
+  if (state.hasBenchmarks && allMonths.length) {
+    const bmRes = await state.db.query(`
+      SELECT strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
+      WHERE index_code='HS300' AND strftime(trade_date,'%Y-%m') >= '${allMonths[0]}'
+        AND strftime(trade_date,'%Y-%m') <= '${allMonths[allMonths.length - 1]}' ORDER BY trade_date`);
+    const mp = {}; for (const r of bmRes.toArray()) mp[r.dt] = r.nav;
+    const aligned = allMonths.map(m => m in mp ? mp[m] : null);
+    const b = aligned.find(v => v !== null);
+    series.push({ name: "沪深300", type: "line", symbol: "none", connectNulls: true,
+      data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
+      color: "#aaa", lineStyle: { width: 1.2, type: "dashed" } });
   }
-  const union = [...new Set(combos.flatMap(c => c.factors.map(f => f.code)))];
-  try {
-    await ensureCmpBase(union);
-    const results = [];
-    for (const c of combos) { results.push({ ...c, bt: await comboBacktest(c.factors, c.N) }); }
-    if (token !== _cmpRenderToken) return;   // 已有更新的渲染，丢弃本次
+  if (cpsCompareChart) { cpsCompareChart.dispose(); cpsCompareChart = null; }
+  navDiv.innerHTML = "";
+  cpsCompareChart = echarts.init(navDiv);
+  cpsCompareChart.setOption({
+    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 28 },
+    xAxis: { type: "category", data: allMonths, axisLabel: { fontSize: 10 } },
+    yAxis: { type: "value", scale: true }, series,
+  });
 
-    const allMonths = [...new Set(results.flatMap(r => r.bt.x))].sort();
-    const series = results.map(r => {
-      const mp = {}; r.bt.x.forEach((m, k) => mp[m] = r.bt.navArr[k]);
-      return { name: r.name, type: "line", symbol: "none", connectNulls: true,
-        data: allMonths.map(m => m in mp ? +mp[m].toFixed(3) : null),
-        color: r.color, lineStyle: { width: r.dashed ? 1.6 : 2, type: r.dashed ? "dashed" : "solid" } };
-    });
-    // 基准 HS300（淡灰参照）
-    if (state.hasBenchmarks && allMonths.length) {
-      const bmRes = await state.db.query(`
-        SELECT strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
-        WHERE index_code='HS300' AND strftime(trade_date,'%Y-%m') >= '${allMonths[0]}'
-          AND strftime(trade_date,'%Y-%m') <= '${allMonths[allMonths.length-1]}' ORDER BY trade_date`);
-      const mp = {}; for (const r of bmRes.toArray()) mp[r.dt] = r.nav;
-      const aligned = allMonths.map(m => m in mp ? mp[m] : null);
-      const b = aligned.find(v => v !== null);
-      series.push({ name: "沪深300", type: "line", symbol: "none", connectNulls: true,
-        data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
-        color: "#aaa", lineStyle: { width: 1.2, type: "dashed" } });
-    }
-    if (cpsCompareChart) { cpsCompareChart.dispose(); cpsCompareChart = null; }
-    navDiv.innerHTML = "";
-    cpsCompareChart = echarts.init(navDiv);
-    cpsCompareChart.setOption({
-      grid: { left: 50, right: 20, top: 30, bottom: 30 },
-      tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 28 },
-      xAxis: { type: "category", data: allMonths, axisLabel: { fontSize: 10 } },
-      yAxis: { type: "value", scale: true }, series,
-    });
-
-    // 指标对比表
-    const pct = v => (v == null || !Number.isFinite(v)) ? "—" : (v * 100).toFixed(1) + "%";
-    const ba = await benchAnnuals();
-    let rows = "";
-    for (const r of results) {
-      const m = computeMetrics(r.bt.retArr, r.bt.navArr);
-      if (!m) { rows += `<tr><td>${r.name}</td><td colspan="6">数据不足</td></tr>`; continue; }
-      const ex = ("HS300" in ba) ? pct(m.annual - ba.HS300) : "—";
-      rows += `<tr>
-        <td><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${r.color};margin-right:5px"></span>${r.name}</td>
-        <td>${pct(m.annual)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
-        <td>${(m.winRate * 100).toFixed(0)}%</td><td>${ex}</td><td>${m.navEnd.toFixed(2)}</td></tr>`;
-    }
-    tblDiv.innerHTML = `<table class="kpi-table"><thead><tr>
-      <th>组合</th><th>年化收益</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>超额vs300</th><th>期末净值</th>
-      </tr></thead><tbody>${rows}</tbody></table>`;
-  } catch (e) {
-    if (token === _cmpRenderToken) navDiv.innerHTML = `<div class="empty">对比计算失败：${e.message || e}</div>`;
+  const pct = v => (v == null || !Number.isFinite(v)) ? "—" : (v * 100).toFixed(1) + "%";
+  const ba = await benchAnnuals();
+  let rows = "";
+  for (const c of combos) {
+    const m = computeMetrics(c.bt.retArr, c.bt.navArr);
+    if (!m) { rows += `<tr><td>${c.name}</td><td colspan="6">数据不足</td></tr>`; continue; }
+    const ex = ("HS300" in ba) ? pct(m.annual - ba.HS300) : "—";
+    rows += `<tr>
+      <td><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c.color};margin-right:5px"></span>${c.name}</td>
+      <td>${pct(m.annual)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
+      <td>${(m.winRate * 100).toFixed(0)}%</td><td>${ex}</td><td>${m.navEnd.toFixed(2)}</td></tr>`;
   }
+  tblDiv.innerHTML = `<table class="kpi-table"><thead><tr>
+    <th>组合</th><th>年化收益</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>超额vs300</th><th>期末净值</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // ============ 最优权重网格搜索 ============
@@ -2312,7 +2277,13 @@ function bindComposeButtons() {
   const saveBtn = document.getElementById("cps-save");
   if (saveBtn) saveBtn.onclick = () => {
     if (!state.composeFactors.length) { alert("先选至少一个因子并设好权重，再暂存"); return; }
-    saveCurrentCombo();
+    saveCurrentCombo().catch(e => console.error("save combo failed", e));
+  };
+  const resetBtn = document.getElementById("cps-reset");
+  if (resetBtn) resetBtn.onclick = () => {
+    state.composeFactors = [];
+    updateTreeHighlight();
+    renderCompose();
   };
   document.querySelectorAll(".cpsn-btn[data-n]").forEach(b => {
     b.onclick = () => {
