@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "bc213b1" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "fbf8907" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "bc213b1";
+const _DEPLOY = "fbf8907";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -1092,13 +1092,16 @@ async function renderCmpCorr() {
   const n = codes.length;
   // 自适应尺寸：每格约 18px，让格子接近正方形、字够清。
   // 全量 46 → ~830px 见方，超出面板宽度时由外层容器横向滚动（见下方 overflow）。
-  // 自适应方形尺寸：宽=高、每格固定像素。原来选中模式宽度用 100%，少量因子(2~3个)时
-  // 格子被横向拉成巨大的宽矩形；改为始终用像素方形宽，2×2 也是紧凑方形。
-  const cell = n > 20 ? 17 : 40;
+  // 自适应方形尺寸：宽=高。少量因子时按面板可用宽放大格子（封顶 110px，避免过大），
+  // 因子多时格子缩小、超 16 个横向滚动。既不被横向拉伸，也不会缩成一点点。
+  div.style.width = "";
+  const panelW = (div.parentElement && div.parentElement.clientWidth) || 560;
+  const target = Math.min(560, Math.max(300, panelW - 8));     // 目标边长
+  const cell = n > 20 ? 17 : Math.min(110, Math.max(30, Math.floor((target - 110) / n)));
   const plotH = n * cell + 110;          // 上下留刻度 + 图例
   const plotW = n * cell + 110;          // 左右留 y 轴标签
   div.style.height = plotH + "px";
-  div.style.width = plotW + "px";        // 始终像素方形宽（不再 100% 拉伸）
+  div.style.width = plotW + "px";
   div.style.minWidth = "0";
   div.parentElement.style.overflowX = (n > 16 ? "auto" : "visible");
   // 格子里的数字：因子多了必糊，>16 个时关掉，靠颜色 + 悬停 tooltip；少量因子才标数值
