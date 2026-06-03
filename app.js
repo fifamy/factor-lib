@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "40b3f55" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "9aaa049" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "40b3f55";
+const _DEPLOY = "9aaa049";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -1967,8 +1967,29 @@ function composeCondFor(factors, baseTable) {
   };
 }
 
-// 给定组合配置 + 基表 → 逐月净值/收益（口径同 renderComposeBacktest）。暂存时用 live 的 cps_base
-// 算一次并缓存，对比区只读缓存、不再重算（之前每次重建大表 + 逐组合重算导致很慢/图出不来）。
+// 对比惰性补算用的并集基表（只在有未算组合时建一次；不再每次渲染重建）
+let _cmpBaseKey = null, _cmpBaseBuild = null;
+async function ensureCmpBase(codes) {
+  const sorted = [...new Set(codes)].sort();
+  const key = sorted.join(",");
+  if (_cmpBaseBuild) { try { await _cmpBaseBuild; } catch (_) {} }
+  if (key === _cmpBaseKey) return;
+  _cmpBaseBuild = (async () => {
+    _cmpBaseKey = null;
+    if (!sorted.length) { await state.db.query(`DROP TABLE IF EXISTS cps_cmp_base`); }
+    else {
+      const inList = sorted.map(c => `'${c}'`).join(",");
+      await state.db.query(`CREATE OR REPLACE TABLE cps_cmp_base AS
+        SELECT trade_date, stock_code, factor_code, score FROM factor_score_full
+        WHERE factor_code IN (${inList}) AND score IS NOT NULL`);
+    }
+    _cmpBaseKey = key;
+  })();
+  try { await _cmpBaseBuild; } finally { _cmpBaseBuild = null; }
+}
+
+// 给定组合配置 + 基表 → 逐月净值/收益（口径同 renderComposeBacktest）。暂存时优先用 live 的
+// cps_base 快算并缓存；若失败，对比区用并集基表 cps_cmp_base 惰性补算。只算未缓存的组合。
 async function comboBacktest(factors, N, baseTable) {
   const nF = factors.length;
   const vals = factors.map(f => `('${f.code}',${f.weight})`).join(",");
@@ -2019,12 +2040,11 @@ async function saveCurrentCombo() {
   const combo = { name: `组合${i + 1}`, factors, N, color: STRAT_COLORS[i % STRAT_COLORS.length], bt: null };
   state.savedCombos.push(combo);
   renderSavedCombos();                  // 先把 chip 显示出来
-  try {
-    await ensureComposeBase();          // cps_base 已是当前因子（一般秒回）
-    combo.bt = await comboBacktest(factors, N, "cps_base");   // 存时算一次并缓存，后续对比只读它
-  } catch (e) { console.error("combo backtest failed", e); }
+  // 快路径：cps_base 此刻正是当前因子，直接在小表上算（快）。失败则留给对比区惰性补算。
+  try { await ensureComposeBase(); combo.bt = await comboBacktest(factors, N, "cps_base"); }
+  catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
   renderSavedCombos();
-  renderComboCompare();
+  await renderComboCompare();
 }
 function removeSavedCombo(i) { state.savedCombos.splice(i, 1); renderSavedCombos(); renderComboCompare(); }
 function renameSavedCombo(i) {
@@ -2056,12 +2076,27 @@ let cpsCompareChart = null;
 async function renderComboCompare() {
   const panel = document.getElementById("cps-compare-panel");
   if (!panel) return;
-  // 只读各暂存组合在「暂存时」缓存好的回测结果，不再现算（快）
-  const combos = state.savedCombos.filter(c => c.bt && c.bt.x && c.bt.x.length);
-  if (!combos.length) { panel.style.display = "none"; return; }
+  if (!state.savedCombos.length) { panel.style.display = "none"; return; }
   panel.style.display = "";
   const navDiv = document.getElementById("cps-compare-nav");
   const tblDiv = document.getElementById("cps-compare-table");
+  // 惰性补算未缓存的组合（只在确有未算组合时建并集基表+算；之后只读缓存）
+  const missing = state.savedCombos.filter(c => !c.bt);
+  if (missing.length) {
+    navDiv.innerHTML = `<div class="loading">计算暂存组合回测…</div>`; tblDiv.innerHTML = "";
+    try {
+      const union = [...new Set(state.savedCombos.flatMap(c => c.factors.map(f => f.code)))];
+      await ensureCmpBase(union);
+      for (const c of missing) c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base");
+    } catch (e) {
+      navDiv.innerHTML = `<div class="empty">对比计算失败：${e.message || e}</div>`; return;
+    }
+  }
+  const combos = state.savedCombos.filter(c => c.bt && c.bt.x && c.bt.x.length);
+  if (!combos.length) {
+    navDiv.innerHTML = `<div class="empty">暂存组合回测无数据（过滤过严或因子覆盖不足）</div>`; tblDiv.innerHTML = "";
+    return;
+  }
 
   const allMonths = [...new Set(combos.flatMap(c => c.bt.x))].sort();
   const series = combos.map(c => {
