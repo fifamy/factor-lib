@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "f3858f3" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "802c93d" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "f3858f3";
+const _DEPLOY = "802c93d";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -27,6 +27,8 @@ const state = {
   // 合成模式：[{code, weight, op:'>='|'<=', thr:number|null}]，thr=null 表示该因子不参与过滤
   composeFactors: [],
   composeN: 30,
+  // 暂存的合成组合快照：[{name, factors:[...], N, color}]，供多组合对比
+  savedCombos: [],
   db: null,
 };
 
@@ -1744,6 +1746,7 @@ async function renderCompose() {
   document.getElementById("cps-selected").textContent =
     state.composeFactors.length ? `（已选 ${state.composeFactors.length} 个因子）` : "";
   renderComposeControls();
+  renderSavedCombos();
   // 首次进入合成需下载约 38MB 因子全历史数据，给明确提示（避免误以为卡死）
   if (!_composeLoadedOnce && state.composeFactors.length > 0) {
     document.getElementById("cps-stocks").innerHTML =
@@ -1758,6 +1761,7 @@ async function renderCompose() {
         `<h3>合成 Top 股票</h3><div class="empty">合成数据未生成（需跑 scripts/09_export_compose_data.py）</div>`;
       return;
     }
+    renderComboCompare();   // 暂存组合对比（自带基表，不依赖当前因子；异步，不阻塞主渲染）
     if (state.composeFactors.length === 0) {
       await ensureComposeBase();   // 清掉缓存窄表
       document.getElementById("cps-stocks").innerHTML = `<h3>合成 Top 股票</h3><div class="empty">选因子后显示</div>`;
@@ -1948,6 +1952,198 @@ async function renderComposeBacktest() {
     <tbody>${krows}</tbody></table>`;
 }
 
+// ============ 暂存组合 + 多组合对比 ============
+
+// 参数化版 composeCond（指定因子集 + 基表名），供对比里各组合复用
+function composeCondFor(factors, baseTable) {
+  const conds = factors.filter(f => f.thr !== null && Number.isFinite(f.thr));
+  if (conds.length === 0) return { cte: "", join: "", nConds: 0 };
+  const orC = conds.map(f => `(factor_code='${f.code}' AND score ${f.op} ${f.thr})`).join(" OR ");
+  return {
+    cte: `cond AS (SELECT trade_date, stock_code, COUNT(*) AS p FROM ${baseTable}
+            WHERE score IS NOT NULL AND (${orC}) GROUP BY trade_date, stock_code),`,
+    join: `JOIN cond cd ON cd.trade_date = c.trade_date AND cd.stock_code = c.stock_code AND cd.p = ${conds.length}`,
+    nConds: conds.length,
+  };
+}
+
+// 对比专用基表（含所有参与对比组合的因子并集），独立于 live 的 cps_base，避免相互重建
+let _cmpBaseKey = null, _cmpBaseBuild = null;
+async function ensureCmpBase(codes) {
+  const sorted = [...new Set(codes)].sort();
+  const key = sorted.join(",");
+  if (_cmpBaseBuild) { try { await _cmpBaseBuild; } catch (_) {} }
+  if (key === _cmpBaseKey) return;
+  _cmpBaseBuild = (async () => {
+    _cmpBaseKey = null;
+    if (!sorted.length) { await state.db.query(`DROP TABLE IF EXISTS cps_cmp_base`); }
+    else {
+      const inList = sorted.map(c => `'${c}'`).join(",");
+      await state.db.query(`CREATE OR REPLACE TABLE cps_cmp_base AS
+        SELECT trade_date, stock_code, factor_code, score FROM factor_score_full
+        WHERE factor_code IN (${inList}) AND score IS NOT NULL`);
+    }
+    _cmpBaseKey = key;
+  })();
+  try { await _cmpBaseBuild; } finally { _cmpBaseBuild = null; }
+}
+
+// 给定组合配置 → 逐月净值/收益（口径同 renderComposeBacktest：加权得分选 top-N、月末调仓、0.2%双边成本）
+async function comboBacktest(factors, N) {
+  const nF = factors.length;
+  const vals = factors.map(f => `('${f.code}',${f.weight})`).join(",");
+  const cond = composeCondFor(factors, "cps_cmp_base");
+  const res = await state.db.query(`
+    WITH w(code, weight) AS (VALUES ${vals}),
+    ${cond.cte}
+    comp AS (
+      SELECT s.trade_date, s.stock_code, SUM(s.score * w.weight) AS cs, COUNT(*) AS cnt
+      FROM cps_cmp_base s JOIN w ON s.factor_code = w.code
+      WHERE s.score IS NOT NULL GROUP BY s.trade_date, s.stock_code
+    ),
+    ranked AS (
+      SELECT c.trade_date, c.stock_code, r.fwd_return,
+             ROW_NUMBER() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC) AS rk
+      FROM comp c
+      ${cond.join}
+      JOIN stock_meta m ON m.stock_code = c.stock_code
+      JOIN monthly_return r ON r.trade_date = c.trade_date AND r.stock_code = c.stock_code
+      WHERE c.cnt = ${nF} AND COALESCE(m.is_st, FALSE) = FALSE
+    )
+    SELECT strftime(trade_date, '%Y-%m') AS dt, stock_code, fwd_return
+    FROM ranked WHERE rk <= ${N} ORDER BY trade_date`);
+  const byMonth = new Map();
+  for (const r of res.toArray()) {
+    if (!byMonth.has(r.dt)) byMonth.set(r.dt, { rets: [], stocks: new Set() });
+    const o = byMonth.get(r.dt); o.stocks.add(r.stock_code);
+    if (r.fwd_return != null) o.rets.push(r.fwd_return);
+  }
+  const months = [...byMonth.keys()].sort();
+  const COST = 0.002; let prev = null, nav = 1; const x = [], navArr = [], retArr = [];
+  for (const mth of months) {
+    const o = byMonth.get(mth);
+    const gross = o.rets.length ? o.rets.reduce((s, v) => s + v, 0) / o.rets.length : 0;
+    let turnover = 1;
+    if (prev) { let diff = 0; for (const s of o.stocks) if (!prev.has(s)) diff++; for (const s of prev) if (!o.stocks.has(s)) diff++; turnover = diff / (2 * N); }
+    const net = gross - 2 * COST * turnover;
+    nav *= (1 + net); x.push(mth); navArr.push(nav); retArr.push(net); prev = o.stocks;
+  }
+  return { x, navArr, retArr };
+}
+
+function saveCurrentCombo() {
+  if (!state.composeFactors.length) { return; }
+  const i = state.savedCombos.length;
+  state.savedCombos.push({
+    name: `组合${i + 1}`,
+    factors: state.composeFactors.map(f => ({ ...f })),
+    N: state.composeN,
+    color: STRAT_COLORS[i % STRAT_COLORS.length],
+  });
+  renderSavedCombos();
+  renderComboCompare();
+}
+function removeSavedCombo(i) { state.savedCombos.splice(i, 1); renderSavedCombos(); renderComboCompare(); }
+function renameSavedCombo(i) {
+  const c = state.savedCombos[i]; if (!c) return;
+  const v = prompt("组合名", c.name); if (v && v.trim()) { c.name = v.trim(); renderSavedCombos(); renderComboCompare(); }
+}
+
+function renderSavedCombos() {
+  const box = document.getElementById("cps-saved-list");
+  if (!box) return;
+  if (!state.savedCombos.length) {
+    box.innerHTML = `<span style="color:#bbb;font-size:11px">还没暂存组合。设好权重/条件后点上面「📌 暂存当前组合」，可存多个再对比。</span>`;
+    return;
+  }
+  box.innerHTML = state.savedCombos.map((c, i) => {
+    const summ = c.factors.map(f => `${f.code}×${f.weight}${f.thr != null ? `(${f.op}${f.thr})` : ""}`).join(" + ") + `，top${c.N}`;
+    return `<div style="display:inline-flex;align-items:center;gap:6px;background:#f2f5f9;border:1px solid #e0e6ee;border-radius:14px;padding:3px 10px;margin:0 6px 6px 0;font-size:11px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex:none"></span>
+      <b class="cps-saved-rename" data-idx="${i}" style="cursor:pointer" title="点击改名">${c.name}</b>
+      <span style="color:#888">${summ}</span>
+      <span class="cps-saved-rm" data-idx="${i}" style="cursor:pointer;color:#c14545;padding-left:2px">×</span>
+    </div>`;
+  }).join("");
+  box.querySelectorAll(".cps-saved-rm").forEach(el => el.onclick = () => removeSavedCombo(parseInt(el.dataset.idx, 10)));
+  box.querySelectorAll(".cps-saved-rename").forEach(el => el.onclick = () => renameSavedCombo(parseInt(el.dataset.idx, 10)));
+}
+
+let cpsCompareChart = null;
+let _cmpRenderToken = 0;
+async function renderComboCompare() {
+  const panel = document.getElementById("cps-compare-panel");
+  if (!panel) return;
+  if (!state.savedCombos.length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  const navDiv = document.getElementById("cps-compare-nav");
+  const tblDiv = document.getElementById("cps-compare-table");
+  const token = ++_cmpRenderToken;
+  navDiv.innerHTML = `<div class="loading">计算各组合回测…</div>`; tblDiv.innerHTML = "";
+
+  // 参与对比：所有暂存组合 +（当前实时组合，如有因子，用虚线区分）
+  const combos = state.savedCombos.map(c => ({ name: c.name, factors: c.factors, N: c.N, color: c.color, dashed: false }));
+  if (state.composeFactors.length) {
+    combos.push({ name: "当前(未存)", factors: state.composeFactors.map(f => ({ ...f })), N: state.composeN, color: "#444", dashed: true });
+  }
+  const union = [...new Set(combos.flatMap(c => c.factors.map(f => f.code)))];
+  try {
+    await ensureCmpBase(union);
+    const results = [];
+    for (const c of combos) { results.push({ ...c, bt: await comboBacktest(c.factors, c.N) }); }
+    if (token !== _cmpRenderToken) return;   // 已有更新的渲染，丢弃本次
+
+    const allMonths = [...new Set(results.flatMap(r => r.bt.x))].sort();
+    const series = results.map(r => {
+      const mp = {}; r.bt.x.forEach((m, k) => mp[m] = r.bt.navArr[k]);
+      return { name: r.name, type: "line", symbol: "none", connectNulls: true,
+        data: allMonths.map(m => m in mp ? +mp[m].toFixed(3) : null),
+        color: r.color, lineStyle: { width: r.dashed ? 1.6 : 2, type: r.dashed ? "dashed" : "solid" } };
+    });
+    // 基准 HS300（淡灰参照）
+    if (state.hasBenchmarks && allMonths.length) {
+      const bmRes = await state.db.query(`
+        SELECT strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
+        WHERE index_code='HS300' AND strftime(trade_date,'%Y-%m') >= '${allMonths[0]}'
+          AND strftime(trade_date,'%Y-%m') <= '${allMonths[allMonths.length-1]}' ORDER BY trade_date`);
+      const mp = {}; for (const r of bmRes.toArray()) mp[r.dt] = r.nav;
+      const aligned = allMonths.map(m => m in mp ? mp[m] : null);
+      const b = aligned.find(v => v !== null);
+      series.push({ name: "沪深300", type: "line", symbol: "none", connectNulls: true,
+        data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
+        color: "#aaa", lineStyle: { width: 1.2, type: "dashed" } });
+    }
+    if (cpsCompareChart) { cpsCompareChart.dispose(); cpsCompareChart = null; }
+    navDiv.innerHTML = "";
+    cpsCompareChart = echarts.init(navDiv);
+    cpsCompareChart.setOption({
+      grid: { left: 50, right: 20, top: 30, bottom: 30 },
+      tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 28 },
+      xAxis: { type: "category", data: allMonths, axisLabel: { fontSize: 10 } },
+      yAxis: { type: "value", scale: true }, series,
+    });
+
+    // 指标对比表
+    const pct = v => (v == null || !Number.isFinite(v)) ? "—" : (v * 100).toFixed(1) + "%";
+    const ba = await benchAnnuals();
+    let rows = "";
+    for (const r of results) {
+      const m = computeMetrics(r.bt.retArr, r.bt.navArr);
+      if (!m) { rows += `<tr><td>${r.name}</td><td colspan="6">数据不足</td></tr>`; continue; }
+      const ex = ("HS300" in ba) ? pct(m.annual - ba.HS300) : "—";
+      rows += `<tr>
+        <td><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${r.color};margin-right:5px"></span>${r.name}</td>
+        <td>${pct(m.annual)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
+        <td>${(m.winRate * 100).toFixed(0)}%</td><td>${ex}</td><td>${m.navEnd.toFixed(2)}</td></tr>`;
+    }
+    tblDiv.innerHTML = `<table class="kpi-table"><thead><tr>
+      <th>组合</th><th>年化收益</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>超额vs300</th><th>期末净值</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+  } catch (e) {
+    if (token === _cmpRenderToken) navDiv.innerHTML = `<div class="empty">对比计算失败：${e.message || e}</div>`;
+  }
+}
+
 // ============ 最优权重网格搜索 ============
 
 // 生成非负、和为 1、步长 step 的权重组合（nF 个因子）。用整数划分避免浮点误差。
@@ -2113,6 +2309,11 @@ function bindComposeButtons() {
   if (optBtn) optBtn.onclick = () => optimizeWeights().catch(e => {
     document.getElementById("cps-opt").innerHTML = `<pre style="color:#c00;font-size:11px">最优权重失败：${e.message}</pre>`;
   });
+  const saveBtn = document.getElementById("cps-save");
+  if (saveBtn) saveBtn.onclick = () => {
+    if (!state.composeFactors.length) { alert("先选至少一个因子并设好权重，再暂存"); return; }
+    saveCurrentCombo();
+  };
   document.querySelectorAll(".cpsn-btn[data-n]").forEach(b => {
     b.onclick = () => {
       state.composeN = parseInt(b.dataset.n, 10);
