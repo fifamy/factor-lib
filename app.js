@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "e974858" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "12f95fb" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "e974858";
+const _DEPLOY = "12f95fb";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -18,7 +18,7 @@ const state = {
   catalog: [],
   activeFactor: null,
   selectedNs: [30],        // 单因子模式：要对比的持仓数集合（至少 1 个）
-  scanMetric: "annual",    // 指标-N 曲线的纵轴：annual / sharpe / mdd / nav
+  scanMetric: "annual",    // 指标-N 曲线的纵轴：annual / sharpe / mdd / vol
   singleStart: null,       // 单因子回测区间起/止月（YYYY-MM）；null=不限
   singleEnd: null,
   mode: "single",          // single | compare | compose
@@ -712,7 +712,7 @@ async function renderKpiTable(code) {
 
 // 指标-N 曲线：横轴持仓数 1-100，纵轴当前选定指标
 async function renderNScan(code) {
-  const metricLabels = { annual: "年化收益", sharpe: "夏普", mdd: "最大回撤", nav: "期末净值" };
+  const metricLabels = { annual: "年化收益", sharpe: "夏普", mdd: "最大回撤", vol: "波动率" };
   document.getElementById("scan-title").textContent =
     `${code} · ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
   const chartDiv = document.getElementById("scan-chart");
@@ -741,7 +741,7 @@ async function renderNScan(code) {
     if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
     if (state.scanMetric === "sharpe") return +m.sharpe.toFixed(3);
     if (state.scanMetric === "mdd") return +(m.mdd * 100).toFixed(2);
-    return +m.navEnd.toFixed(3);
+    return +(m.vol * 100).toFixed(2);   // 波动率（年化，%）
   });
   // 标出当前所选的 N
   const marks = state.selectedNs.map(n => {
