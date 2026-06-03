@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "1cdcc83" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "5e524b8" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "1cdcc83";
+const _DEPLOY = "5e524b8";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -2040,11 +2040,14 @@ async function saveCurrentCombo() {
   const combo = { name: `组合${i + 1}`, factors, N, color: STRAT_COLORS[i % STRAT_COLORS.length], bt: null };
   state.savedCombos.push(combo);
   renderSavedCombos();                  // 先把 chip 显示出来
-  // 立刻显示对比面板 + 计算中提示（回测在 wasm 里跑，可能要几秒）
+  // 立刻显示对比面板 + 计算中提示（回测在 wasm 里跑，可能要几秒）。
+  // 注意：不要清空 navDiv，否则已有组合的图会先消失；用标题做「计算中」状态，已有图保留。
   const panel = document.getElementById("cps-compare-panel");
   const navDiv = document.getElementById("cps-compare-nav");
+  const titleEl = document.getElementById("cps-compare-title");
   if (panel) panel.style.display = "";
-  if (navDiv) navDiv.innerHTML = `<div class="loading">正在计算 ${combo.name} 的回测，请稍候…</div>`;
+  if (titleEl) titleEl.textContent = `暂存组合对比 · 正在计算 ${combo.name}…`;
+  if (navDiv && !cpsCompareChart) navDiv.innerHTML = `<div class="loading">正在计算 ${combo.name} 的回测，请稍候…</div>`;
   const saveBtn = document.getElementById("cps-save");
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "计算中…"; }
   try {
@@ -2091,18 +2094,23 @@ async function renderComboCompare() {
   panel.style.display = "";
   const navDiv = document.getElementById("cps-compare-nav");
   const tblDiv = document.getElementById("cps-compare-table");
-  // 惰性补算未缓存的组合（只在确有未算组合时建并集基表+算；之后只读缓存）
+  const titleEl = document.getElementById("cps-compare-title");
+  // 惰性补算未缓存的组合（只在确有未算组合时建并集基表+算；之后只读缓存）。
+  // 计算时保留已有的图（用标题做状态），只有还没图时才显示文字占位。
   const missing = state.savedCombos.filter(c => !c.bt);
   if (missing.length) {
-    navDiv.innerHTML = `<div class="loading">计算暂存组合回测…</div>`; tblDiv.innerHTML = "";
+    if (titleEl) titleEl.textContent = "暂存组合对比 · 计算中…";
+    if (!cpsCompareChart) { navDiv.innerHTML = `<div class="loading">计算暂存组合回测…</div>`; tblDiv.innerHTML = ""; }
     try {
       const union = [...new Set(state.savedCombos.flatMap(c => c.factors.map(f => f.code)))];
       await ensureCmpBase(union);
       for (const c of missing) c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base");
     } catch (e) {
+      if (titleEl) titleEl.textContent = "暂存组合对比";
       navDiv.innerHTML = `<div class="empty">对比计算失败：${e.message || e}</div>`; return;
     }
   }
+  if (titleEl) titleEl.textContent = "暂存组合对比";
   const combos = state.savedCombos.filter(c => c.bt && c.bt.x && c.bt.x.length);
   if (!combos.length) {
     navDiv.innerHTML = `<div class="empty">暂存组合回测无数据（过滤过严或因子覆盖不足）</div>`; tblDiv.innerHTML = "";
