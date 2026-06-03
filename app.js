@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "fbf8907" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "f3858f3" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "fbf8907";
+const _DEPLOY = "f3858f3";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -914,27 +914,23 @@ async function renderCmpTable() {
   const pct = (v) => (v * 100).toFixed(1) + "%";
   const num = (v, d = 2) => (v === null || v === undefined || !Number.isFinite(v) ? "—" : Number(v).toFixed(d));
 
-  let rows = "";
+  // 收集成行对象（数值留原始值，渲染时再格式化），供点表头排序用
+  const factors = [];
   for (const f of state.compareFactors) {
     const code = f.code;
     const d = byKey[`${code}_${f.n}`];
     const m = d ? computeMetrics(d.rets, d.navs) : null;
     const ic = icMap[code] || {};
     const label = `${code} <span style="color:#888;font-weight:400">top${f.n}</span>`;
-    if (!m) { rows += `<tr><td>${label}</td><td colspan="7">无数据</td></tr>`; continue; }
-    const ex300 = ("HS300" in ba) ? ((m.annual - ba.HS300) * 100).toFixed(1) + "%" : "—";
-    rows += `<tr>
-      <td>${label}</td>
-      <td>${pct(m.annual)}</td>
-      <td>${m.sharpe.toFixed(2)}</td>
-      <td>${pct(m.mdd)}</td>
-      <td>${(m.winRate * 100).toFixed(0)}%</td>
-      <td>${ex300}</td>
-      <td>${num(ic.ic_mean, 3)}</td>
-      <td>${num(icirMap[code], 2)}</td>
-    </tr>`;
+    if (!m) { factors.push({ label, noData: true }); continue; }
+    factors.push({
+      label, annual: m.annual, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
+      ex300: ("HS300" in ba) ? (m.annual - ba.HS300) : null,
+      ic_mean: (ic.ic_mean ?? null), icir: (icirMap[code] ?? null),
+    });
   }
-  // 基准行
+  // 基准行（固定排在底部，不参与排序）
+  const benches = [];
   if (state.hasBenchmarks) {
     const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
     const bRes = await state.db.query(`
@@ -950,21 +946,60 @@ async function renderCmpTable() {
       const navs = bg[idx]; if (!navs || navs.length < 2) continue;
       const rets = navs.slice(1).map((v, i) => v / navs[i] - 1);
       const m = computeMetrics(rets, navs);
-      rows += `<tr style="color:#888;border-top:2px solid #ddd">
-        <td style="color:#888">${cn[idx]}</td>
-        <td>${pct(m.annual)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
-        <td>${(m.winRate * 100).toFixed(0)}%</td><td>—</td><td>—</td><td>—</td>
-      </tr>`;
+      benches.push({ label: cn[idx], annual: m.annual, sharpe: m.sharpe, mdd: m.mdd,
+                     winRate: m.winRate, ex300: null, ic_mean: null, icir: null });
     }
   }
-  target.innerHTML = `
-    <table class="kpi-table">
-      <thead><tr>
-        <th>因子 / 基准</th><th>年化收益</th><th>夏普</th><th>最大回撤</th>
-        <th>月度胜率</th><th>超额 vs 300</th><th>IC 均值</th><th>IC_IR</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+  _cmpRows = { factors, benches };
+  drawCmpTable();
+}
+
+// 对比表列定义 + 排序状态。点表头排序（因子行排序，基准行始终在底部）。
+let _cmpRows = null;
+let _cmpSort = { key: null, dir: -1 };
+function drawCmpTable() {
+  const target = document.getElementById("cmp-table");
+  if (!target || !_cmpRows) return;
+  const pct = v => (v == null || !Number.isFinite(v)) ? "—" : (v * 100).toFixed(1) + "%";
+  const num = (v, d = 2) => (v == null || !Number.isFinite(v)) ? "—" : Number(v).toFixed(d);
+  const COLS = [
+    { key: "label",   label: "因子 / 基准", sortable: false, cell: r => r.label },
+    { key: "annual",  label: "年化收益",   cell: r => pct(r.annual) },
+    { key: "sharpe",  label: "夏普",       cell: r => num(r.sharpe, 2) },
+    { key: "mdd",     label: "最大回撤",   cell: r => pct(r.mdd) },
+    { key: "winRate", label: "月度胜率",   cell: r => r.winRate == null ? "—" : (r.winRate * 100).toFixed(0) + "%" },
+    { key: "ex300",   label: "超额 vs 300", cell: r => pct(r.ex300) },
+    { key: "ic_mean", label: "IC 均值",    cell: r => num(r.ic_mean, 3) },
+    { key: "icir",    label: "IC_IR",      cell: r => num(r.icir, 2) },
+  ];
+  const factors = _cmpRows.factors.slice();
+  const sk = _cmpSort.key;
+  if (sk) {
+    factors.sort((a, b) => {
+      const va = a[sk], vb = b[sk];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;            // 无值（含 noData）永远排末尾
+      if (vb == null) return -1;
+      return (va < vb ? -1 : va > vb ? 1 : 0) * _cmpSort.dir;
+    });
+  }
+  const arrow = k => _cmpSort.key === k ? (_cmpSort.dir < 0 ? " ▼" : " ▲") : "";
+  const thead = COLS.map(c => c.sortable === false
+    ? `<th>${c.label}</th>`
+    : `<th class="cmp-sort" data-key="${c.key}">${c.label}${arrow(c.key)}</th>`).join("");
+  const rowHtml = (r, bench) => {
+    if (r.noData) return `<tr><td>${r.label}</td><td colspan="7">无数据</td></tr>`;
+    const tds = COLS.map(c => `<td>${c.cell(r)}</td>`).join("");
+    return `<tr${bench ? ' style="color:#888;border-top:2px solid #ddd"' : ''}>${tds}</tr>`;
+  };
+  const body = factors.map(r => rowHtml(r, false)).join("") + _cmpRows.benches.map(r => rowHtml(r, true)).join("");
+  target.innerHTML = `<table class="kpi-table"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
+  target.querySelectorAll("th.cmp-sort").forEach(th => th.onclick = () => {
+    const k = th.dataset.key;
+    if (_cmpSort.key === k) _cmpSort.dir = -_cmpSort.dir;
+    else { _cmpSort.key = k; _cmpSort.dir = -1; }   // 首次点某列默认降序
+    drawCmpTable();
+  });
 }
 
 async function renderCmpNav() {
