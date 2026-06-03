@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "5e524b8" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "d699908" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "5e524b8";
+const _DEPLOY = "d699908";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -1761,7 +1761,8 @@ async function renderCompose() {
         `<h3>合成 Top 股票</h3><div class="empty">合成数据未生成（需跑 scripts/09_export_compose_data.py）</div>`;
       return;
     }
-    renderComboCompare();   // 暂存组合对比（自带基表，不依赖当前因子；异步，不阻塞主渲染）
+    // 注：暂存组合对比只在「暂存/删除/改名」时更新（各自调用 renderComboCompare），
+    // 不在每次 renderCompose 重画，避免切因子/改权重时对比图频繁 dispose+重画闪烁。
     if (state.composeFactors.length === 0) {
       await ensureComposeBase();   // 清掉缓存窄表
       document.getElementById("cps-stocks").innerHTML = `<h3>合成 Top 股票</h3><div class="empty">选因子后显示</div>`;
