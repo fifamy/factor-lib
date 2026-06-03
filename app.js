@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "9aaa049" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "1cdcc83" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "9aaa049";
+const _DEPLOY = "1cdcc83";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -2040,11 +2040,22 @@ async function saveCurrentCombo() {
   const combo = { name: `组合${i + 1}`, factors, N, color: STRAT_COLORS[i % STRAT_COLORS.length], bt: null };
   state.savedCombos.push(combo);
   renderSavedCombos();                  // 先把 chip 显示出来
-  // 快路径：cps_base 此刻正是当前因子，直接在小表上算（快）。失败则留给对比区惰性补算。
-  try { await ensureComposeBase(); combo.bt = await comboBacktest(factors, N, "cps_base"); }
-  catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
-  renderSavedCombos();
-  await renderComboCompare();
+  // 立刻显示对比面板 + 计算中提示（回测在 wasm 里跑，可能要几秒）
+  const panel = document.getElementById("cps-compare-panel");
+  const navDiv = document.getElementById("cps-compare-nav");
+  if (panel) panel.style.display = "";
+  if (navDiv) navDiv.innerHTML = `<div class="loading">正在计算 ${combo.name} 的回测，请稍候…</div>`;
+  const saveBtn = document.getElementById("cps-save");
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "计算中…"; }
+  try {
+    // 快路径：cps_base 此刻正是当前因子，直接在小表上算（快）。失败则留给对比区惰性补算。
+    try { await ensureComposeBase(); combo.bt = await comboBacktest(factors, N, "cps_base"); }
+    catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
+    renderSavedCombos();
+    await renderComboCompare();
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "📌 暂存当前组合"; }
+  }
 }
 function removeSavedCombo(i) { state.savedCombos.splice(i, 1); renderSavedCombos(); renderComboCompare(); }
 function renameSavedCombo(i) {
