@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "f466b88" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "b27ec19" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "f466b88";
+const _DEPLOY = "b27ec19";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -515,11 +515,13 @@ async function renderNavChart(code) {
   `);
   const byN = {};
   for (const r of res.toArray()) {
-    if (!byN[r.top_n]) byN[r.top_n] = { dt: [], nav: [] };
+    if (!byN[r.top_n]) byN[r.top_n] = { dt: [], nav: [], _pr: null };
     const o = byN[r.top_n];
     o.dt.push(r.dt);
-    const prev = o.nav.length ? o.nav[o.nav.length - 1] : 1;
-    o.nav.push(prev * (1 + (r.port_ret ?? 0)));
+    // 起点=1.0；port_ret 是「未来收益」(T→T+1)，当月收益体现在下一个点，
+    // 与基准（月末价归一、首点=1.0）口径一致，避免净值首点≠1、且因 N 不同而异。
+    o.nav.push(o.nav.length ? o.nav[o.nav.length - 1] * (1 + (o._pr ?? 0)) : 1.0);
+    o._pr = r.port_ret;
   }
   // x 轴用第一个 N 的月份（各 N 月份一致）
   const x = (byN[ns[0]] || { dt: [] }).dt;
