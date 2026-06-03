@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "277524a" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "84f8823" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "277524a";
+const _DEPLOY = "84f8823";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -43,6 +43,7 @@ const STRAT_COLORS = ["#1a4d80", "#e07b39", "#3a9d6e", "#9b59b6", "#c0392b", "#1
 async function init() {
   await loadCatalog();
   renderTree();
+  bindFactorSearch();
   document.getElementById("meta").textContent =
     `${state.catalog.length} 因子可用`;
 }
@@ -52,29 +53,57 @@ async function loadCatalog() {
   state.catalog = await res.json();
 }
 
-function renderTree() {
+const _treeCollapsed = new Set();   // 记住被折叠的一级/二级（键 "L1:xx" / "L2:xx/yy"）
+function renderTree(filter) {
   const tree = document.getElementById("factor-tree");
   tree.innerHTML = "";
   tree.className = "";
 
+  const q = (filter || "").trim().toLowerCase();
+  const searching = !!q;
+  const match = f => !q
+    || f.code.toLowerCase().includes(q)
+    || (f.name_cn || "").toLowerCase().includes(q)
+    || (f.l1 + f.l2).toLowerCase().includes(q);
+
   const byL1 = {};
   for (const f of state.catalog) {
-    if (!byL1[f.l1]) byL1[f.l1] = {};
-    if (!byL1[f.l1][f.l2]) byL1[f.l1][f.l2] = [];
-    byL1[f.l1][f.l2].push(f);
+    if (!match(f)) continue;
+    (byL1[f.l1] ||= {});
+    (byL1[f.l1][f.l2] ||= []).push(f);
+  }
+  if (!Object.keys(byL1).length) {
+    tree.innerHTML = `<div class="empty" style="font-size:12px;padding:10px">无匹配因子</div>`;
+    return;
   }
 
+  // 折叠头：点击切换下方容器显隐 + 箭头方向；搜索时一律展开
+  const makeHead = (cls, key, label, body) => {
+    const collapsed = !searching && _treeCollapsed.has(key);
+    const head = document.createElement("div");
+    head.className = cls;
+    head.innerHTML = `<span class="tw">${collapsed ? "▶" : "▼"}</span>${label}`;
+    if (collapsed) body.style.display = "none";
+    head.onclick = () => {
+      const nowCollapsed = body.style.display !== "none";
+      body.style.display = nowCollapsed ? "none" : "";
+      head.querySelector(".tw").textContent = nowCollapsed ? "▶" : "▼";
+      if (nowCollapsed) _treeCollapsed.add(key); else _treeCollapsed.delete(key);
+    };
+    return head;
+  };
+
   for (const [l1, l2map] of Object.entries(byL1)) {
-    const l1Div = document.createElement("div");
-    l1Div.className = "tree-l1";
-    l1Div.textContent = "▼ " + l1;
-    tree.appendChild(l1Div);
+    const l1Body = document.createElement("div");
+    l1Body.className = "tree-children";
+    tree.appendChild(makeHead("tree-l1", "L1:" + l1, l1, l1Body));
+    tree.appendChild(l1Body);
 
     for (const [l2, factors] of Object.entries(l2map)) {
-      const l2Div = document.createElement("div");
-      l2Div.className = "tree-l2";
-      l2Div.textContent = "▼ " + l2;
-      tree.appendChild(l2Div);
+      const l2Body = document.createElement("div");
+      l2Body.className = "tree-children";
+      l1Body.appendChild(makeHead("tree-l2", "L2:" + l1 + "/" + l2, l2, l2Body));
+      l1Body.appendChild(l2Body);
 
       for (const f of factors) {
         const l3Div = document.createElement("div");
@@ -83,10 +112,21 @@ function renderTree() {
         l3Div.dataset.code = f.code;
         l3Div.title = `${f.code} · ${f.name_cn || ""}`;
         l3Div.onclick = () => onTreeClick(f.code);
-        tree.appendChild(l3Div);
+        l2Body.appendChild(l3Div);
       }
     }
   }
+  updateTreeHighlight();   // 重建后恢复选中高亮
+}
+
+// 绑定搜索框（只绑一次）
+let _searchBound = false;
+function bindFactorSearch() {
+  if (_searchBound) return;
+  const inp = document.getElementById("factor-search");
+  if (!inp) return;
+  inp.addEventListener("input", () => renderTree(inp.value));
+  _searchBound = true;
 }
 
 let _dbPromise = null;
