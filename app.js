@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "177eebb" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "291c2b7" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "177eebb";
+const _DEPLOY = "291c2b7";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -2174,15 +2174,23 @@ async function renderComboCompare() {
     });
     if (state.hasBenchmarks && allMonths.length) {
       const bmRes = await state.db.query(`
-        SELECT strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
-        WHERE index_code='HS300' AND strftime(trade_date,'%Y-%m') >= '${allMonths[0]}'
-          AND strftime(trade_date,'%Y-%m') <= '${allMonths[allMonths.length - 1]}' ORDER BY trade_date`);
-      const mp = {}; for (const r of bmRes.toArray()) mp[r.dt] = r.nav;
-      const aligned = allMonths.map(m => m in mp ? mp[m] : null);
-      const b = aligned.find(v => v !== null);
-      series.push({ name: "沪深300", type: "line", symbol: "none", connectNulls: true,
-        data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
-        color: "#aaa", lineStyle: { width: 1.2, type: "dashed" } });
+        SELECT index_code, strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
+        WHERE index_code IN ('HS300','CSI800','CSI500')
+          AND strftime(trade_date,'%Y-%m') >= '${allMonths[0]}'
+          AND strftime(trade_date,'%Y-%m') <= '${allMonths[allMonths.length - 1]}'
+        ORDER BY index_code, trade_date`);
+      const byIdx = {};
+      for (const r of bmRes.toArray()) (byIdx[r.index_code] ||= {})[r.dt] = r.nav;
+      const bcolors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
+      const bcn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
+      for (const idx of ["HS300", "CSI800", "CSI500"]) {
+        const mp = byIdx[idx]; if (!mp) continue;
+        const aligned = allMonths.map(m => m in mp ? mp[m] : null);
+        const b = aligned.find(v => v !== null);
+        series.push({ name: `${bcn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
+          data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
+          color: bcolors[idx], lineStyle: { width: 1.2, type: "dashed" } });
+      }
     }
     navDiv.innerHTML = "";
     cpsCompareChart = echarts.init(navDiv);
