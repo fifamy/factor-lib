@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>因子库 v1.0</title>
-  <link rel="stylesheet" href="styles.css?v=291c2b7">
+  <link rel="stylesheet" href="styles.css?v=20260604163846">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -16,7 +16,10 @@
 <body>
   <div id="topbar">
     <span><b>因子库 v1.0</b>　·　A股 · 98因子</span>
-    <span id="meta">加载中…</span>
+    <div id="top-actions">
+      <button id="combo-manager-btn" type="button">组合管理</button>
+      <span id="meta">加载中…</span>
+    </div>
   </div>
   <div id="main">
     <div id="sidebar">
@@ -145,11 +148,14 @@
           <div id="cps-opt" style="margin-top:8px"></div>
           <div style="margin-top:8px">
             <button id="cps-reset" class="cpsn-btn" style="border-color:#c14545;color:#c14545">🗑 重置选择</button>
-            <span style="color:#999;font-size:11px">清空当前所选因子，重新挑（已暂存组合不受影响）</span>
+            <span style="color:#999;font-size:11px">清空当前所选因子，重新挑（组合库和已加入对比不受影响）</span>
           </div>
           <div id="cps-save-row" style="margin-top:12px;border-top:1px solid #eee;padding-top:10px">
-            <button id="cps-save" class="cpsn-btn" style="border-color:#1a4d80;color:#1a4d80">📌 暂存当前组合</button>
-            <span style="color:#999;font-size:11px">存下当前因子/权重/条件/持仓数；改完再存一个，下方对比净值与指标</span>
+            <button id="cps-save" class="cpsn-btn" style="border-color:#1a4d80;color:#1a4d80">📌 加入临时对比</button>
+            <button id="cps-save-mine" class="cpsn-btn" style="margin-left:6px;border-color:#1a4d80;color:#1a4d80">保存当前组合</button>
+            <button id="cps-save-all-mine" class="cpsn-btn" style="margin-left:6px;border-color:#1a4d80;color:#1a4d80;display:none">保存全部临时组合</button>
+            <button id="cps-copy-json" class="cpsn-btn" style="margin-left:6px;border-color:#6e9a4f;color:#3a7d44">申请发布组合</button>
+            <span style="color:#999;font-size:11px">“当前组合”保存编辑器里这一组；“全部临时组合”会一次保存下方已加入对比的所有组合</span>
             <div id="cps-saved-list" style="margin-top:8px"></div>
           </div>
         </div>
@@ -169,6 +175,19 @@
           <h3 id="cps-compare-title">暂存组合对比</h3>
           <div id="cps-compare-nav" style="width:100%;height:340px"></div>
           <div id="cps-compare-table" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- 组合管理视图 -->
+      <div id="combo-library-view" style="display:none">
+        <div class="panel" id="cps-library-panel">
+          <h3>组合管理</h3>
+          <div class="combo-tabs">
+            <button class="combo-tab active" data-tab="published">已发布组合</button>
+            <button class="combo-tab" data-tab="mine">我的组合</button>
+          </div>
+          <div id="cps-published-list"><div class="empty">组合库加载中…</div></div>
+          <div id="cps-my-list" style="display:none"><div class="empty">还没有我的组合</div></div>
         </div>
       </div>
 
@@ -254,6 +273,6 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script type="module" src="app.js?v=291c2b7"></script>
+  <script type="module" src="app.js?v=20260604163846"></script>
 </body>
 </html>

@@ -113,7 +113,7 @@
     "formula": "股息率 = AShareValuationIndicator.S_VAL_DIVIDENDYIELD2（Wind 已算好，月末截面取值）",
     "wind_source": "AShareValuationIndicator.S_VAL_DIVIDENDYIELD2",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -126,7 +126,7 @@
     "formula": "收益市值比 = DailyValuationFactor.S_DFA_PROFITTOMV（Wind 已算好，月末截面取值）",
     "wind_source": "DailyValuationFactor.S_DFA_PROFITTOMV",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -139,7 +139,7 @@
     "formula": "扣非市盈率 = DailyValuationFactor.S_DFA_PETTM_DEDUCTED（Wind 已算好，月末截面取值）",
     "wind_source": "DailyValuationFactor.S_DFA_PETTM_DEDUCTED",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -152,7 +152,7 @@
     "formula": "EV/EBITDA = DailyValuationFactor.S_DFA_MVTOEBITDA（Wind 已算好，月末截面取值）",
     "wind_source": "DailyValuationFactor.S_DFA_MVTOEBITDA",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -217,7 +217,7 @@
     "formula": "净利率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_NETPROFITMARGIN_TTM（Wind 已算好，月末截面取值）",
     "wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_NETPROFITMARGIN_TTM",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "持续低效"
   },
   {
@@ -373,7 +373,7 @@
     "formula": "毛利率同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_GM（Wind 已算好，月末截面取值）",
     "wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_GM",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "持续低效"
   },
   {
@@ -685,7 +685,7 @@
     "formula": "",
     "wind_source": "",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -693,26 +693,26 @@
     "name_cn": "近一年最大回撤",
     "l1": "市场交易信息",
     "l2": "波动",
-    "direction": -1,
-    "description": "近 252 日最大回撤（按复权价）；回撤越深风险越大，方向负。",
+    "direction": 1,
+    "description": "近 252 日最大回撤（按复权价，负数）；越接近 0 回撤越浅，方向正。",
     "formula": "",
     "wind_source": "",
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期转强"
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "RETSKEW",
     "name_cn": "收益偏度",
     "l1": "市场交易信息",
     "l2": "波动",
-    "direction": -1,
-    "description": "近 252 日日收益偏度；负偏（左尾厚、易暴跌）更差，方向负。",
+    "direction": 1,
+    "description": "近 252 日日收益偏度；负偏（左尾厚、易暴跌）更差，方向正。",
     "formula": "",
     "wind_source": "",
     "is_event": false,
     "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "time_tag": "近期失效"
   },
   {
     "code": "RETKURT",
@@ -776,7 +776,7 @@
     "formula": "",
     "wind_source": "",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
   {
@@ -867,7 +867,7 @@
     "formula": "EPS预期上修(1M) = ConsensusExpectationFactor.S_WEST_EPS_FY1_1M（当月值）",
     "wind_source": "ConsensusExpectationFactor.S_WEST_EPS_FY1_1M",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
   {
@@ -880,7 +880,7 @@
     "formula": "营收预期上修(1M) = ConsensusExpectationFactor.S_WEST_SALES_FTM_1M（当月值）",
     "wind_source": "ConsensusExpectationFactor.S_WEST_SALES_FTM_1M",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期转强"
   },
   {
@@ -1010,8 +1010,8 @@
     "formula": "市净率 PB 在自身过去36个月的分位（0~1）；分位越低=相对自身越便宜，方向负。",
     "wind_source": "派生（已有数据计算）",
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "RELRET60",

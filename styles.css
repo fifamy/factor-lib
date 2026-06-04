@@ -5,9 +5,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFa
        height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
 
 #topbar { background: #1a4d80; color: #fff; padding: 10px 16px;
-          display: flex; justify-content: space-between; font-size: 14px;
+          display: flex; justify-content: space-between; align-items: center; font-size: 14px;
           flex: 0 0 auto; }
 #topbar b { letter-spacing: 0.5px; }
+#top-actions { display: flex; align-items: center; gap: 12px; }
+#combo-manager-btn { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.45);
+                     color: #fff; border-radius: 5px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+#combo-manager-btn:hover { background: rgba(255,255,255,.2); border-color: #fff; }
 
 /* flex:1 占满 topbar 以下全部高度；min-height:0 允许内部子项滚动 */
 #main { display: grid; grid-template-columns: 240px 1fr; flex: 1 1 auto; min-height: 0; overflow: hidden; }
@@ -104,7 +108,28 @@ tr.stock-row:hover td:nth-child(2) { text-decoration: underline; }
             font-size: 11px; cursor: pointer; color: #555; }
 .cmpn-btn:hover, .cmpdef-btn:hover, .cpsn-btn:hover, .rkrange-btn:hover, .sgrange-btn:hover { border-color: #1a4d80; }
 .cmpn-btn.active, .cmpdef-btn.active, .cpsn-btn.active, .rkrange-btn.active, .sgrange-btn.active { background: #1a4d80; color: #fff; border-color: #1a4d80; }
-#single-view, #compare-view, #compose-view, #filter-view, #ranking-view { display: flex; flex-direction: column; gap: 12px; }
+.cpsn-btn:disabled { color: #aaa; border-color: #ddd; cursor: not-allowed; background: #f8f8f8; }
+.combo-tabs { display: flex; gap: 6px; margin-bottom: 10px; border-bottom: 1px solid #dde5ee; }
+.combo-tab { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 5px 10px; color: #666; cursor: pointer; font-size: 12px; }
+.combo-tab:hover { color: #1a4d80; }
+.combo-tab.active { color: #1a4d80; border-bottom-color: #1a4d80; font-weight: 600; }
+.published-combo-card { background: #fff; border: 1px solid #dde5ee; border-radius: 5px; padding: 9px 10px; margin-bottom: 8px; }
+.published-combo-card.invalid { border-color: #efd0c8; background: #fff8f6; }
+.published-combo-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.published-combo-name { color: #1a4d80; font-size: 13px; margin-right: 6px; }
+.published-n { color: #666; font-size: 11px; background: #eef3f8; border: 1px solid #d7e2ec; border-radius: 10px; padding: 1px 7px; margin-right: 5px; }
+.published-tag { display: inline-block; color: #3a7d44; background: #eef6ef; border: 1px solid #d7e8d9; border-radius: 10px; padding: 1px 7px; margin-right: 4px; font-size: 11px; }
+.published-actions { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; flex: none; }
+.published-summary { color: #555; font-size: 12px; margin-top: 6px; line-height: 1.5; }
+.published-desc { color: #888; font-size: 11px; margin-top: 3px; line-height: 1.5; }
+.published-invalid { color: #c14545; font-size: 11px; margin-top: 5px; }
+.published-detail { margin-top: 8px; border-top: 1px dashed #e2e7ed; padding-top: 8px; color: #666; font-size: 11px; }
+.published-detail-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
+.published-detail-table th { background: #f4f7fa; color: #666; text-align: left; padding: 4px 6px; border-bottom: 1px solid #e1e6ec; }
+.published-detail-table td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; }
+.published-meta { color: #aaa; margin-top: 5px; }
+.my-delete { border-color: #c14545; color: #c14545; }
+#single-view, #compare-view, #compose-view, #combo-library-view, #filter-view, #ranking-view { display: flex; flex-direction: column; gap: 12px; }
 table.rank-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 table.rank-table th { background: #f0f3f7; padding: 6px 8px; text-align: right; cursor: pointer; white-space: nowrap; user-select: none; border-bottom: 2px solid #d8dee6; }
 table.rank-table th.lcol, table.rank-table td.lcol { text-align: left; }

@@ -3,16 +3,19 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "291c2b7" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "DEPLOY_VERSION" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "291c2b7";
+const _DEPLOY = "DEPLOY_VERSION";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const F_BT    = DATA_DIR + "preset_backtest.parquet" + V;
 const F_IC    = DATA_DIR + "factor_ic.parquet" + V;
+const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
+const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
+let _myComboIdSeq = 0;
 
 const state = {
   catalog: [],
@@ -21,7 +24,7 @@ const state = {
   scanMetric: "annual",    // 指标-N 曲线的纵轴：annual / sharpe / mdd / vol
   singleStart: null,       // 单因子回测区间起/止月（YYYY-MM）；null=不限
   singleEnd: null,
-  mode: "single",          // single | compare | compose
+  mode: "single",          // single | compare | compose | library | ranking
   compareFactors: [],      // 对比模式：[{code, n}]，每个因子可设不同持仓数
   compareDefaultN: 30,     // 新加入因子的默认持仓数
   // 合成模式：[{code, weight, op:'>='|'<=', thr:number|null}]，thr=null 表示该因子不参与过滤
@@ -29,6 +32,13 @@ const state = {
   composeN: 30,
   // 暂存的合成组合快照：[{name, factors:[...], N, color}]，供多组合对比
   savedCombos: [],
+  publishedCombos: [],
+  publishedComboErrors: [],
+  publishedCombosLoaded: false,
+  publishedComboOpen: new Set(),
+  myCombos: [],
+  myComboOpen: new Set(),
+  comboLibraryTab: "published",
   db: null,
 };
 
@@ -42,6 +52,8 @@ const STRAT_COLORS = ["#1a4d80", "#e07b39", "#3a9d6e", "#9b59b6", "#c0392b", "#1
 
 async function init() {
   await loadCatalog();
+  await loadPublishedCombos();
+  loadMyCombos();
   renderTree();
   bindFactorSearch();
   document.getElementById("meta").textContent =
@@ -51,6 +63,183 @@ async function init() {
 async function loadCatalog() {
   const res = await fetch("data/factor_catalog.json" + V);
   state.catalog = await res.json();
+}
+
+function normalizeComposeFactor(f) {
+  return {
+    code: f.code,
+    weight: Number.isFinite(Number(f.weight)) ? Number(f.weight) : 0,
+    op: f.op === "<=" ? "<=" : ">=",
+    thr: f.thr !== null && Number.isFinite(Number(f.thr)) ? Number(f.thr) : null,
+  };
+}
+
+function cloneComposeFactors(factors) {
+  return (factors || []).map(normalizeComposeFactor);
+}
+
+function validatePublishedCombo(raw, idx, validCodes) {
+  const reasons = [];
+  const combo = {
+    id: typeof raw?.id === "string" && raw.id.trim() ? raw.id.trim() : `invalid-${idx + 1}`,
+    name: typeof raw?.name === "string" && raw.name.trim() ? raw.name.trim() : `未命名组合 ${idx + 1}`,
+    description: typeof raw?.description === "string" ? raw.description.trim() : "",
+    N: Number(raw?.N),
+    factors: [],
+    tags: Array.isArray(raw?.tags) ? raw.tags.filter(t => typeof t === "string" && t.trim()).map(t => t.trim()) : [],
+    created_at: typeof raw?.created_at === "string" ? raw.created_at.trim() : "",
+    valid: true,
+    invalidReason: "",
+  };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) reasons.push("组合必须是对象");
+  if (!raw?.id || typeof raw.id !== "string" || !raw.id.trim()) reasons.push("缺少 id");
+  if (!raw?.name || typeof raw.name !== "string" || !raw.name.trim()) reasons.push("缺少名称");
+  if (!Number.isInteger(combo.N) || combo.N < 1 || combo.N > 100) reasons.push("topN 必须在 1-100");
+  if (!Array.isArray(raw?.factors) || raw.factors.length === 0) {
+    reasons.push("缺少因子");
+  } else {
+    const seen = new Set();
+    combo.factors = raw.factors.map((f, j) => {
+      const nf = normalizeComposeFactor(f || {});
+      if (!nf.code || typeof nf.code !== "string") reasons.push(`第 ${j + 1} 个因子缺少代码`);
+      else if (!validCodes.has(nf.code)) reasons.push(`因子不存在：${nf.code}`);
+      if (seen.has(nf.code)) reasons.push(`因子重复：${nf.code}`);
+      seen.add(nf.code);
+      if (!Number.isFinite(Number(f?.weight)) || typeof f?.weight === "boolean") reasons.push(`${nf.code || "未知因子"} 权重无效`);
+      if (f?.op !== undefined && f.op !== ">=" && f.op !== "<=") reasons.push(`${nf.code || "未知因子"} 过滤方向无效`);
+      if (f?.thr !== null && f?.thr !== undefined && (!Number.isFinite(Number(f.thr)) || typeof f.thr === "boolean")) reasons.push(`${nf.code || "未知因子"} 阈值无效`);
+      return nf;
+    });
+  }
+  combo.valid = reasons.length === 0;
+  combo.invalidReason = reasons.join("；");
+  return combo;
+}
+
+async function loadPublishedCombos() {
+  state.publishedCombos = [];
+  state.publishedComboErrors = [];
+  state.publishedCombosLoaded = false;
+  state.publishedComboOpen = new Set();
+  try {
+    const res = await fetch(SAVED_COMBOS);
+    if (!res.ok) {
+      state.publishedCombosLoaded = true;
+      if (res.status !== 404) state.publishedComboErrors.push(`读取组合库失败：HTTP ${res.status}`);
+      return;
+    }
+    const raw = await res.json();
+    if (!Array.isArray(raw)) {
+      state.publishedComboErrors.push("saved_combos.json 必须是数组");
+      state.publishedCombosLoaded = true;
+      return;
+    }
+    const validCodes = new Set(state.catalog.map(f => f.code));
+    const ids = new Set();
+    state.publishedCombos = raw.map((combo, idx) => {
+      const normalized = validatePublishedCombo(combo, idx, validCodes);
+      if (ids.has(normalized.id)) {
+        normalized.valid = false;
+        normalized.invalidReason = normalized.invalidReason
+          ? normalized.invalidReason + "；id 重复"
+          : "id 重复";
+      }
+      ids.add(normalized.id);
+      return normalized;
+    });
+    state.publishedCombosLoaded = true;
+  } catch (err) {
+    state.publishedCombosLoaded = true;
+    state.publishedComboErrors.push(`组合库配置有误：${err.message || err}`);
+    console.error("loadPublishedCombos failed:", err);
+  }
+}
+
+function createMyComboId(existingIds = new Set()) {
+  let id = "";
+  do {
+    _myComboIdSeq += 1;
+    const rand = Math.random().toString(36).slice(2, 8);
+    id = `mine-${Date.now()}-${_myComboIdSeq}-${rand}`;
+  } while (existingIds.has(id));
+  return id;
+}
+
+function rawComboFromCurrent(name = "我的组合", existingIds = new Set()) {
+  return {
+    id: createMyComboId(existingIds),
+    name,
+    description: "",
+    N: state.composeN,
+    factors: cloneComposeFactors(state.composeFactors),
+    tags: [],
+    created_at: new Date().toISOString().slice(0, 10),
+  };
+}
+
+function rawComboFromSavedCombo(combo, existingIds = new Set()) {
+  return {
+    id: createMyComboId(existingIds),
+    name: combo.name || "我的组合",
+    description: "",
+    N: combo.N,
+    factors: cloneComposeFactors(combo.factors),
+    tags: [],
+    created_at: new Date().toISOString().slice(0, 10),
+  };
+}
+
+function uniqueComboName(baseName, existingNames = new Set()) {
+  const base = (baseName || "我的组合").trim() || "我的组合";
+  if (!existingNames.has(base)) return base;
+  let i = 2;
+  let name = `${base} (${i})`;
+  while (existingNames.has(name)) {
+    i += 1;
+    name = `${base} (${i})`;
+  }
+  return name;
+}
+
+function loadMyCombos() {
+  state.myCombos = [];
+  state.myComboOpen = new Set();
+  try {
+    const rawText = localStorage.getItem(MY_COMBOS_KEY);
+    if (!rawText) return;
+    const raw = JSON.parse(rawText);
+    if (!Array.isArray(raw)) throw new Error("我的组合数据不是数组");
+    const validCodes = new Set(state.catalog.map(f => f.code));
+    const seenIds = new Set();
+    let repaired = false;
+    state.myCombos = raw.map((combo, idx) => validatePublishedCombo(combo, idx, validCodes))
+      .map(c => {
+        const next = { ...c, source: "mine" };
+        if (!next.id || seenIds.has(next.id)) {
+          next.id = createMyComboId(seenIds);
+          repaired = true;
+        }
+        seenIds.add(next.id);
+        return next;
+      });
+    if (repaired) persistMyCombos();
+  } catch (err) {
+    console.error("loadMyCombos failed:", err);
+    state.myCombos = [];
+  }
+}
+
+function persistMyCombos() {
+  const rows = state.myCombos.filter(c => c.valid).map(c => ({
+    id: c.id,
+    name: c.name,
+    description: c.description || "",
+    N: c.N,
+    factors: cloneComposeFactors(c.factors),
+    tags: c.tags || [],
+    created_at: c.created_at || new Date().toISOString().slice(0, 10),
+  }));
+  localStorage.setItem(MY_COMBOS_KEY, JSON.stringify(rows, null, 2));
 }
 
 const _treeCollapsed = new Set();   // 记住被折叠的一级/二级（键 "L1:xx" / "L2:xx/yy"）
@@ -813,7 +1002,11 @@ async function renderNScan(code) {
 function onTreeClick(code) {
   if (state.mode === "single") selectFactor(code);
   else if (state.mode === "compare") addCompareFactor(code);   // 对比：每次点击加一行（允许重复）
-  else toggleComposeFactor(code);                               // 合成：toggle
+  else if (state.mode === "compose") toggleComposeFactor(code);  // 合成：toggle
+  else {
+    switchMode("single");
+    selectFactor(code);
+  }
 }
 
 function cmpHas(code) { return state.compareFactors.some(f => f.code === code); }
@@ -825,7 +1018,7 @@ function updateTreeHighlight() {
     let on = false;
     if (state.mode === "single") on = (c === state.activeFactor);
     else if (state.mode === "compare") on = cmpHas(c);
-    else on = cpsHas(c);
+    else if (state.mode === "compose") on = cpsHas(c);
     el.classList.toggle("active", on);
   });
 }
@@ -837,10 +1030,12 @@ function switchMode(mode) {
   document.getElementById("single-view").style.display = mode === "single" ? "flex" : "none";
   document.getElementById("compare-view").style.display = mode === "compare" ? "flex" : "none";
   document.getElementById("compose-view").style.display = mode === "compose" ? "flex" : "none";
+  document.getElementById("combo-library-view").style.display = mode === "library" ? "flex" : "none";
   document.getElementById("ranking-view").style.display = mode === "ranking" ? "flex" : "none";
   updateTreeHighlight();
   if (mode === "compare") renderCompare();
   if (mode === "compose") renderCompose();
+  if (mode === "library") renderComboLibrary();
   if (mode === "ranking") renderRanking();
 }
 
@@ -1205,6 +1400,8 @@ function bindModeButtons() {
   document.querySelectorAll(".mode-btn").forEach(b => {
     b.onclick = () => switchMode(b.dataset.mode);
   });
+  const comboBtn = document.getElementById("combo-manager-btn");
+  if (comboBtn) comboBtn.onclick = () => switchMode("library");
 }
 
 function bindCmpDefaultButtons() {
@@ -1669,6 +1866,26 @@ function rankSendTo(mode) {
 // 因子集变化（增删因子）才重建；权重、阈值、N 改变不触发重建。
 let _cpsBaseKey = null;
 let _cpsBaseBuild = null;     // 进行中的重建 promise（串行锁）
+let _cpsMatrixCodes = [];
+let _latestComposeBtKey = null;
+let _latestComposeBt = null;
+const _composeBtCache = new Map();
+const _composeBtBuilds = new Map();
+
+function composeConfigKey(factors = state.composeFactors, N = state.composeN) {
+  const norm = cloneComposeFactors(factors).sort((a, b) => a.code.localeCompare(b.code));
+  return JSON.stringify({ N, factors: norm });
+}
+
+function cloneBacktest(bt) {
+  return bt ? { x: bt.x.slice(), navArr: bt.navArr.slice(), retArr: bt.retArr.slice() } : null;
+}
+
+function rememberComposeBacktest(key, bt) {
+  _composeBtCache.set(key, cloneBacktest(bt));
+  while (_composeBtCache.size > 12) _composeBtCache.delete(_composeBtCache.keys().next().value);
+}
+
 async function ensureComposeBase() {
   const codes = state.composeFactors.map(f => f.code).sort();
   const key = codes.join(",");
@@ -1681,6 +1898,9 @@ async function ensureComposeBase() {
     _cpsBaseKey = null;
     if (codes.length === 0) {
       await state.db.query(`DROP TABLE IF EXISTS cps_base`);
+      await state.db.query(`DROP TABLE IF EXISTS cps_latest_base`);
+      await state.db.query(`DROP TABLE IF EXISTS cps_matrix`);
+      _cpsMatrixCodes = [];
     } else {
       const inList = codes.map(c => `'${c}'`).join(",");
       // 一次性从 parquet view 取选中因子（DuckDB 借 factor_code 聚簇做 row-group 裁剪 + Range 读），
@@ -1691,7 +1911,36 @@ async function ensureComposeBase() {
         FROM factor_score_full
         WHERE factor_code IN (${inList}) AND score IS NOT NULL
       `);
+      await state.db.query(`
+        CREATE OR REPLACE TABLE cps_latest_base AS
+        SELECT * FROM cps_base WHERE trade_date = (SELECT MAX(trade_date) FROM cps_base)
+      `);
+
+      const scoreCols = codes.map((c, i) =>
+        `MAX(CASE WHEN factor_code = '${c}' THEN score END) AS f${i}`
+      ).join(",\n               ");
+      const matrixCols = codes.map((_, i) => `w.f${i}`).join(", ");
+      await state.db.query(`
+        CREATE OR REPLACE TABLE cps_matrix AS
+        WITH wide AS (
+          SELECT trade_date, stock_code,
+                 ${scoreCols},
+                 COUNT(DISTINCT factor_code) AS factor_count
+          FROM cps_base
+          GROUP BY trade_date, stock_code
+        )
+        SELECT w.trade_date, w.stock_code, ${matrixCols}, r.fwd_return
+        FROM wide w
+        JOIN stock_meta m ON m.stock_code = w.stock_code
+        JOIN monthly_return r ON r.trade_date = w.trade_date AND r.stock_code = w.stock_code
+        WHERE w.factor_count = ${codes.length} AND COALESCE(m.is_st, FALSE) = FALSE
+      `);
+      _cpsMatrixCodes = codes;
     }
+    _latestComposeBtKey = null;
+    _latestComposeBt = null;
+    _composeBtCache.clear();
+    _composeBtBuilds.clear();
     _cpsBaseKey = key;
   })();
   try { await _cpsBaseBuild; } finally { _cpsBaseBuild = null; }
@@ -1702,31 +1951,337 @@ function toggleComposeFactor(code) {
   if (i >= 0) state.composeFactors.splice(i, 1);
   else state.composeFactors.push({ code, weight: 1, op: ">=", thr: null });
   updateTreeHighlight();
-  renderCompose();
+  renderComposeSoon();
 }
 
-// 过滤条件 SQL 片段：返回 {cte, join, nConds}。基于设了阈值(thr非null)的因子。
-function composeCond() {
-  const conds = state.composeFactors.filter(f => f.thr !== null && Number.isFinite(f.thr));
+// 参数化版过滤条件 SQL 片段。基于设了阈值(thr非null)的因子。
+function composeCondFor(factors, baseTable) {
+  const conds = factors.filter(f => f.thr !== null && Number.isFinite(f.thr));
   if (conds.length === 0) return { cte: "", join: "", nConds: 0 };
   const orC = conds.map(f => `(factor_code='${f.code}' AND score ${f.op} ${f.thr})`).join(" OR ");
   return {
-    cte: `cond AS (SELECT trade_date, stock_code, COUNT(*) AS p FROM cps_base
+    cte: `cond AS (SELECT trade_date, stock_code, COUNT(*) AS p FROM ${baseTable}
             WHERE score IS NOT NULL AND (${orC}) GROUP BY trade_date, stock_code),`,
     join: `JOIN cond cd ON cd.trade_date = c.trade_date AND cd.stock_code = c.stock_code AND cd.p = ${conds.length}`,
     nConds: conds.length,
   };
 }
 
+// 过滤条件 SQL 片段：返回 {cte, join, nConds}。基于设了阈值(thr非null)的因子。
+function composeCond() {
+  return composeCondFor(state.composeFactors, "cps_base");
+}
+
 function removeComposeAt(i) {
   state.composeFactors.splice(i, 1);
   updateTreeHighlight();
-  renderCompose();
+  renderComposeSoon();
 }
 
 // 合成 SQL 的 VALUES 子句： (VALUES ('PE',0.4),('ROE',0.6)) w(code,weight)
 function composeValues() {
   return state.composeFactors.map(f => `('${f.code}',${f.weight})`).join(",");
+}
+
+function comboSummary(combo) {
+  return cloneComposeFactors(combo.factors)
+    .map(f => `${f.code}×${f.weight}${f.thr !== null ? `(${f.op}${f.thr})` : ""}`)
+    .join(" + ") + `，top${combo.N}`;
+}
+
+function comboDetailHtml(combo) {
+  const rows = cloneComposeFactors(combo.factors).map(f => {
+    const meta = state.catalog.find(x => x.code === f.code);
+    const thr = f.thr === null ? "不过滤" : `得分 ${f.op} ${f.thr}`;
+    return `<tr><td>${f.code}</td><td>${meta?.name_cn || ""}</td><td>${f.weight}</td><td>${thr}</td></tr>`;
+  }).join("");
+  return `<div class="published-detail">
+    ${combo.description ? `<p>${combo.description}</p>` : ""}
+    <table class="published-detail-table"><thead><tr><th>因子</th><th>名称</th><th>权重</th><th>过滤</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="published-meta">${combo.created_at ? "创建：" + combo.created_at + " · " : ""}ID：${combo.id}</p>
+  </div>`;
+}
+
+function comboToTempCompare(combo) {
+  return {
+    name: combo.name,
+    factors: cloneComposeFactors(combo.factors),
+    N: combo.N,
+    color: STRAT_COLORS[state.savedCombos.length % STRAT_COLORS.length],
+    bt: null,
+  };
+}
+
+function syncComposeNButtons() {
+  document.querySelectorAll(".cpsn-btn[data-n]").forEach(b => {
+    b.classList.toggle("active", Number(b.dataset.n) === state.composeN);
+  });
+  const inp = document.getElementById("cpsn-input");
+  if (inp) inp.value = [10, 30, 50].includes(state.composeN) ? "" : state.composeN;
+}
+
+function getLibraryCombo(source, id) {
+  const list = source === "mine" ? state.myCombos : state.publishedCombos;
+  return list.find(c => c.id === id && c.valid);
+}
+
+function loadLibraryCombo(source, id) {
+  const combo = getLibraryCombo(source, id);
+  if (!combo) return;
+  state.composeFactors = cloneComposeFactors(combo.factors);
+  state.composeN = combo.N;
+  syncComposeNButtons();
+  switchMode("compose");
+}
+
+async function compareLibraryCombo(source, id) {
+  const combo = getLibraryCombo(source, id);
+  if (!combo) return;
+  state.savedCombos.push(comboToTempCompare(combo));
+  renderSavedCombos();
+  await renderComboCompare();
+}
+
+function toggleLibraryDetail(source, id) {
+  const openSet = source === "mine" ? state.myComboOpen : state.publishedComboOpen;
+  if (openSet.has(id)) openSet.delete(id);
+  else openSet.add(id);
+  renderComboLibrary();
+}
+
+function renderComboCards(box, combos, source, emptyText) {
+  if (!box) return;
+  if (!combos.length) {
+    box.innerHTML = `<div class="empty">${emptyText}</div>`;
+    return;
+  }
+  const openSet = source === "mine" ? state.myComboOpen : state.publishedComboOpen;
+  const cardClass = source === "mine" ? "my-combo-card" : "published-combo-card";
+  box.innerHTML = combos.map(combo => {
+    const tags = combo.tags.length
+      ? combo.tags.map(t => `<span class="published-tag">${t}</span>`).join("")
+      : "";
+    const detail = openSet.has(combo.id) ? comboDetailHtml(combo) : "";
+    const disabled = combo.valid ? "" : " disabled";
+    const invalid = combo.valid ? "" : `<div class="published-invalid">配置无效：${combo.invalidReason}</div>`;
+    const deleteBtn = source === "mine"
+      ? `<button class="cpsn-btn my-delete" data-source="${source}" data-id="${combo.id}"${disabled}>删除</button>`
+      : "";
+    const renameBtn = source === "mine"
+      ? `<button class="cpsn-btn my-rename" data-source="${source}" data-id="${combo.id}"${disabled}>改名</button>`
+      : "";
+    return `<div class="published-combo-card ${cardClass}${combo.valid ? "" : " invalid"}" data-id="${combo.id}">
+      <div class="published-combo-head">
+        <div>
+          <b class="published-combo-name">${combo.name}</b>
+          <span class="published-n">top${combo.N}</span>
+          ${tags}
+        </div>
+        <div class="published-actions">
+          <button class="cpsn-btn library-load" data-source="${source}" data-id="${combo.id}"${disabled}>载入</button>
+          <button class="cpsn-btn library-compare" data-source="${source}" data-id="${combo.id}"${disabled}>加入对比</button>
+          <button class="cpsn-btn library-detail-toggle" data-source="${source}" data-id="${combo.id}">${openSet.has(combo.id) ? "收起" : "详情"}</button>
+          ${renameBtn}
+          ${deleteBtn}
+        </div>
+      </div>
+      <div class="published-summary">${comboSummary(combo)}</div>
+      ${combo.description ? `<div class="published-desc">${combo.description}</div>` : ""}
+      ${invalid}
+      ${detail}
+    </div>`;
+  }).join("");
+  box.querySelectorAll(".library-load").forEach(btn => {
+    btn.onclick = () => loadLibraryCombo(btn.dataset.source, btn.dataset.id);
+  });
+  box.querySelectorAll(".library-compare").forEach(btn => {
+    btn.onclick = () => compareLibraryCombo(btn.dataset.source, btn.dataset.id).catch(e => console.error("compare library combo failed:", e));
+  });
+  box.querySelectorAll(".library-detail-toggle").forEach(btn => {
+    btn.onclick = () => toggleLibraryDetail(btn.dataset.source, btn.dataset.id);
+  });
+  box.querySelectorAll(".my-delete").forEach(btn => {
+    btn.onclick = () => deleteMyCombo(btn.dataset.id);
+  });
+  box.querySelectorAll(".my-rename").forEach(btn => {
+    btn.onclick = () => renameMyCombo(btn.dataset.id);
+  });
+}
+
+function renderPublishedCombos() {
+  const box = document.getElementById("cps-published-list");
+  if (!box) return;
+  if (!state.publishedCombosLoaded) {
+    box.innerHTML = `<div class="empty">组合库加载中…</div>`;
+    return;
+  }
+  if (state.publishedComboErrors.length) {
+    box.innerHTML = `<div class="empty" style="color:#c14545">${state.publishedComboErrors.join("；")}</div>`;
+    return;
+  }
+  renderComboCards(box, state.publishedCombos, "published", "暂无已发布组合");
+}
+
+function renderMyCombos() {
+  renderComboCards(document.getElementById("cps-my-list"), state.myCombos, "mine", "还没有我的组合。可在多因子合成里保存当前组合，或先加入临时对比后一次保存全部。");
+}
+
+function renderComboLibrary() {
+  document.querySelectorAll(".combo-tab").forEach(btn => {
+    const active = btn.dataset.tab === state.comboLibraryTab;
+    btn.classList.toggle("active", active);
+  });
+  const pub = document.getElementById("cps-published-list");
+  const mine = document.getElementById("cps-my-list");
+  if (pub) pub.style.display = state.comboLibraryTab === "published" ? "" : "none";
+  if (mine) mine.style.display = state.comboLibraryTab === "mine" ? "" : "none";
+  renderPublishedCombos();
+  renderMyCombos();
+  document.querySelectorAll(".combo-tab").forEach(btn => {
+    btn.onclick = () => {
+      state.comboLibraryTab = btn.dataset.tab === "mine" ? "mine" : "published";
+      renderComboLibrary();
+    };
+  });
+}
+
+function saveCurrentComboToMine() {
+  if (!state.composeFactors.length) {
+    alert("先选至少一个因子并设好权重，再保存当前组合");
+    return;
+  }
+  const name = prompt("组合名", `我的组合${state.myCombos.length + 1}`);
+  if (!name || !name.trim()) return;
+  const trimmedName = name.trim();
+  if (state.myCombos.some(c => c.name === trimmedName)) {
+    alert(`“${trimmedName}”已存在，请换一个名称`);
+    return;
+  }
+  const validCodes = new Set(state.catalog.map(f => f.code));
+  const existingIds = new Set(state.myCombos.map(c => c.id));
+  const combo = validatePublishedCombo(rawComboFromCurrent(trimmedName, existingIds), state.myCombos.length, validCodes);
+  combo.source = "mine";
+  state.myCombos.push(combo);
+  persistMyCombos();
+  state.comboLibraryTab = "mine";
+  renderComboLibrary();
+}
+
+function saveAllTempCombosToMine() {
+  const validSaved = state.savedCombos.filter(c => c && c.factors && c.factors.length);
+  if (!validSaved.length) {
+    alert("先把要保存的组合加入临时对比，再一键保存");
+    return;
+  }
+  const validCodes = new Set(state.catalog.map(f => f.code));
+  const existingIds = new Set(state.myCombos.map(c => c.id));
+  const existingNames = new Set(state.myCombos.map(c => c.name));
+  const startIdx = state.myCombos.length;
+  const combos = validSaved.map((saved, i) => {
+    const raw = rawComboFromSavedCombo(saved, existingIds);
+    raw.name = uniqueComboName(raw.name, existingNames);
+    const combo = validatePublishedCombo(raw, startIdx + i, validCodes);
+    existingIds.add(combo.id);
+    existingNames.add(combo.name);
+    combo.source = "mine";
+    return combo;
+  });
+  state.myCombos.push(...combos);
+  persistMyCombos();
+  state.comboLibraryTab = "mine";
+  renderComboLibrary();
+}
+
+function renameMyCombo(id) {
+  const combo = state.myCombos.find(c => c.id === id);
+  if (!combo) return;
+  const name = prompt("组合名", combo.name);
+  if (!name || !name.trim()) return;
+  const trimmedName = name.trim();
+  if (state.myCombos.some(c => c.id !== id && c.name === trimmedName)) {
+    alert(`“${trimmedName}”已存在，请换一个名称`);
+    return;
+  }
+  combo.name = trimmedName;
+  persistMyCombos();
+  renderComboLibrary();
+}
+
+function deleteMyCombo(id) {
+  const combo = state.myCombos.find(c => c.id === id);
+  if (!combo) return;
+  if (!confirm(`删除“${combo.name}”？`)) return;
+  state.myCombos = state.myCombos.filter(c => c.id !== id);
+  state.myComboOpen.delete(id);
+  persistMyCombos();
+  renderComboLibrary();
+}
+
+function currentComboPublishPayload() {
+  const name = state.composeFactors.length
+    ? "自定义组合"
+    : "未命名组合";
+  return {
+    id: `custom-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}`,
+    name,
+    description: "",
+    N: state.composeN,
+    factors: cloneComposeFactors(state.composeFactors),
+    tags: [],
+    created_at: new Date().toISOString().slice(0, 10),
+  };
+}
+
+function currentComboPublishRequestText() {
+  const payload = currentComboPublishPayload();
+  const factorLines = cloneComposeFactors(payload.factors).map(f => {
+    const meta = state.catalog.find(x => x.code === f.code);
+    const thr = f.thr === null ? "不过滤" : `过滤：得分 ${f.op} ${f.thr}`;
+    return `- ${f.code}${meta?.name_cn ? `（${meta.name_cn}）` : ""}：权重 ${f.weight}，${thr}`;
+  }).join("\n");
+  return [
+    "申请发布组合",
+    "",
+    "请发给管理员审核。审核通过后，管理员会发布到全站组合库，其他人打开页面也能看到。",
+    "",
+    `组合名称：${payload.name}`,
+    `选股数：top${payload.N}`,
+    "因子：",
+    factorLines,
+    "",
+    "发布配置(JSON)：",
+    JSON.stringify(payload, null, 2),
+  ].join("\n");
+}
+
+async function copyPublishRequest() {
+  if (!state.composeFactors.length) {
+    alert("先选至少一个因子并设好权重，再申请发布组合");
+    return;
+  }
+  const btn = document.getElementById("cps-copy-json");
+  const text = currentComboPublishRequestText();
+  window.__lastCopiedPublishRequest = text;
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+    else prompt("复制以下内容，发给管理员审核发布", text);
+    if (btn) {
+      const old = btn.textContent;
+      btn.textContent = "投稿已复制";
+      setTimeout(() => { btn.textContent = old; }, 1200);
+    }
+  } catch (_) {
+    prompt("复制以下内容，发给管理员审核发布", text);
+  }
+}
+
+function renderComposeSoon(delay = 180) {
+  _composeRenderSeq++;
+  clearTimeout(renderComposeSoon._timer);
+  renderComposeSoon._timer = setTimeout(() => {
+    renderComposeSoon._timer = null;
+    renderCompose();
+  }, delay);
 }
 
 function renderComposeControls() {
@@ -1760,12 +2315,12 @@ function renderComposeControls() {
       if (!f) return;
       const w = parseFloat(inp.value);
       if (!Number.isFinite(w)) { inp.value = f.weight; return; }
-      f.weight = w; renderCompose();
+      f.weight = w; renderComposeSoon();
     });
   });
   box.querySelectorAll(".cps-op").forEach(sel => sel.onchange = () => {
     state.composeFactors[parseInt(sel.dataset.idx, 10)].op = sel.value;
-    if (state.composeFactors[parseInt(sel.dataset.idx, 10)].thr !== null) renderCompose();
+    if (state.composeFactors[parseInt(sel.dataset.idx, 10)].thr !== null) renderComposeSoon();
   });
   box.querySelectorAll(".cps-thr").forEach(inp => {
     inp.addEventListener("change", () => {
@@ -1773,7 +2328,7 @@ function renderComposeControls() {
       if (!f) return;
       const v = inp.value.trim();
       f.thr = v === "" ? null : (Number.isFinite(parseFloat(v)) ? parseFloat(v) : null);
-      renderCompose();
+      renderComposeSoon();
     });
   });
   box.querySelectorAll(".cps-remove").forEach(x => {
@@ -1782,7 +2337,14 @@ function renderComposeControls() {
 }
 
 let _composeLoadedOnce = false;
+let _composeRenderSeq = 0;
+
+function isComposeRenderStale(seq) {
+  return seq !== _composeRenderSeq;
+}
+
 async function renderCompose() {
+  const renderSeq = ++_composeRenderSeq;
   document.getElementById("cps-selected").textContent =
     state.composeFactors.length ? `（已选 ${state.composeFactors.length} 个因子）` : "";
   renderComposeControls();
@@ -1794,7 +2356,9 @@ async function renderCompose() {
   }
   try {
     await ensureDB();
+    if (isComposeRenderStale(renderSeq)) return;
     await ensureComposeData();   // 懒加载合成专用大表
+    if (isComposeRenderStale(renderSeq)) return;
     _composeLoadedOnce = true;
     if (!state.hasComposeData) {
       document.getElementById("cps-stocks").innerHTML =
@@ -1812,24 +2376,27 @@ async function renderCompose() {
       return;
     }
     await ensureComposeBase();   // 因子集变了才重建窄表；权重/阈值/N 变则复用缓存
-    await Promise.all([renderComposeStocks(), renderComposeBacktest()]);
+    if (isComposeRenderStale(renderSeq)) return;
+    await Promise.all([renderComposeStocks(renderSeq), renderComposeBacktest(renderSeq)]);
   } catch (err) {
+    if (isComposeRenderStale(renderSeq)) return;
     console.error("renderCompose failed:", err);
     document.getElementById("cps-stocks").innerHTML =
       `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">合成失败：${err.message || err}\n\n${err.stack || ""}</pre>`;
   }
 }
 
-async function renderComposeStocks() {
+async function renderComposeStocks(renderSeq) {
+  if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
   const target = document.getElementById("cps-stocks");
   const nF = state.composeFactors.length;
-  const cond = composeCond();
+  const cond = composeCondFor(state.composeFactors, "cps_latest_base");
   const res = await state.db.query(`
     WITH w(code, weight) AS (VALUES ${composeValues()}),
     ${cond.cte}
     comp AS (
-      SELECT s.trade_date, s.stock_code, SUM(s.score * w.weight) AS cs, COUNT(*) AS cnt
-      FROM cps_base s JOIN w ON s.factor_code = w.code
+      SELECT s.trade_date, s.stock_code, ROUND(SUM(s.score * w.weight), 6) AS cs, COUNT(*) AS cnt
+      FROM cps_latest_base s JOIN w ON s.factor_code = w.code
       WHERE s.score IS NOT NULL
       GROUP BY s.trade_date, s.stock_code
     )
@@ -1839,12 +2406,13 @@ async function renderComposeStocks() {
     ${cond.join}
     LEFT JOIN stock_meta m ON m.stock_code = c.stock_code
     LEFT JOIN stock_descriptors d ON d.stock_code = c.stock_code
-    WHERE c.trade_date = (SELECT MAX(trade_date) FROM comp) AND c.cnt = ${nF}
+    WHERE c.cnt = ${nF}
       AND COALESCE(m.is_st, FALSE) = FALSE
       AND COALESCE(m.is_active_latest, FALSE) = TRUE
-    ORDER BY c.cs DESC
+    ORDER BY c.cs DESC, c.stock_code
     LIMIT ${state.composeN}
   `);
+  if (isComposeRenderStale(renderSeq)) return;
   const rows = res.toArray();
   const condDesc = state.composeFactors.filter(f => f.thr !== null && Number.isFinite(f.thr))
     .map(f => `${f.code}得分${f.op}${f.thr}`).join(" 且 ");
@@ -1869,61 +2437,17 @@ async function renderComposeStocks() {
   target.innerHTML = html + "</tbody></table>";
 }
 
-async function renderComposeBacktest() {
-  const nF = state.composeFactors.length;
+async function renderComposeBacktest(renderSeq) {
+  if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
   document.getElementById("cps-nav-title").textContent =
     `合成组合净值（top-${state.composeN}，月末等权调仓，0.2% 双边成本，起点=1.0）`;
-  const cond = composeCond();
-  // 逐月：先按条件过滤（cond），再按合成得分排序选 top-N（剔 ST、当月可交易），取下月收益
-  const res = await state.db.query(`
-    WITH w(code, weight) AS (VALUES ${composeValues()}),
-    ${cond.cte}
-    comp AS (
-      SELECT s.trade_date, s.stock_code, SUM(s.score * w.weight) AS cs, COUNT(*) AS cnt
-      FROM cps_base s JOIN w ON s.factor_code = w.code
-      WHERE s.score IS NOT NULL
-      GROUP BY s.trade_date, s.stock_code
-    ),
-    ranked AS (
-      SELECT c.trade_date, c.stock_code, r.fwd_return,
-             ROW_NUMBER() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC) AS rk
-      FROM comp c
-      ${cond.join}
-      JOIN stock_meta m ON m.stock_code = c.stock_code
-      JOIN monthly_return r ON r.trade_date = c.trade_date AND r.stock_code = c.stock_code
-      WHERE c.cnt = ${nF} AND COALESCE(m.is_st, FALSE) = FALSE
-    )
-    SELECT strftime(trade_date, '%Y-%m') AS dt, stock_code, fwd_return
-    FROM ranked WHERE rk <= ${state.composeN}
-    ORDER BY trade_date
-  `);
-  // JS 按月聚合：gross 收益 + 换手 + 净收益 + 净值
-  const byMonth = new Map();
-  for (const r of res.toArray()) {
-    if (!byMonth.has(r.dt)) byMonth.set(r.dt, { rets: [], stocks: new Set() });
-    const o = byMonth.get(r.dt);
-    o.stocks.add(r.stock_code);
-    if (r.fwd_return !== null && r.fwd_return !== undefined) o.rets.push(r.fwd_return);
-  }
-  const months = [...byMonth.keys()].sort();
-  const COST = 0.002;
-  let prev = null, nav = 1;
-  const x = [], navArr = [], retArr = [];
-  for (const mth of months) {
-    const o = byMonth.get(mth);
-    const gross = o.rets.length ? o.rets.reduce((s, v) => s + v, 0) / o.rets.length : 0;
-    let turnover = 1;
-    if (prev) {
-      let diff = 0;
-      for (const s of o.stocks) if (!prev.has(s)) diff++;
-      for (const s of prev) if (!o.stocks.has(s)) diff++;
-      turnover = diff / (2 * state.composeN);
-    }
-    const net = gross - 2 * COST * turnover;
-    nav *= (1 + net);
-    x.push(mth); navArr.push(nav); retArr.push(net);
-    prev = o.stocks;
-  }
+  const key = composeConfigKey();
+  const bt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix");
+  if (isComposeRenderStale(renderSeq)) return;
+  _latestComposeBtKey = key;
+  _latestComposeBt = cloneBacktest(bt);
+  rememberComposeBacktest(key, bt);
+  const { x, navArr, retArr } = bt;
 
   // 画净值 + 基准
   const div = document.getElementById("cps-nav-chart");
@@ -1936,6 +2460,7 @@ async function renderComposeBacktest() {
       SELECT index_code, strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
       WHERE strftime(trade_date,'%Y-%m') >= '${x[0]}' AND strftime(trade_date,'%Y-%m') <= '${x[x.length-1]}'
       ORDER BY index_code, trade_date`);
+    if (isComposeRenderStale(renderSeq)) return;
     const byIdx = {};
     for (const r of bmRes.toArray()) (byIdx[r.index_code] ||= {})[r.dt] = r.nav;
     const colors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
@@ -1960,6 +2485,7 @@ async function renderComposeBacktest() {
   // KPI（合成组合行 + 三基准行）
   const m = computeMetrics(retArr, navArr);
   const ba = await benchAnnuals();
+  if (isComposeRenderStale(renderSeq)) return;
   const kdiv = document.getElementById("cps-kpi");
   if (!m) { kdiv.innerHTML = `<div class="empty">数据不足</div>`; return; }
   const pct = v => (v * 100).toFixed(1) + "%";
@@ -1977,6 +2503,7 @@ async function renderComposeBacktest() {
         AND trade_date BETWEEN (SELECT MIN(trade_date) FROM preset_backtest)
                            AND (SELECT MAX(trade_date) FROM preset_backtest)
       ORDER BY index_code, trade_date`);
+    if (isComposeRenderStale(renderSeq)) return;
     const bg = {};
     for (const r of bRes.toArray()) (bg[r.index_code] ||= []).push(r.nav);
     for (const idx of ["HS300", "CSI800", "CSI500"]) {
@@ -1994,19 +2521,6 @@ async function renderComposeBacktest() {
 }
 
 // ============ 暂存组合 + 多组合对比 ============
-
-// 参数化版 composeCond（指定因子集 + 基表名），供对比里各组合复用
-function composeCondFor(factors, baseTable) {
-  const conds = factors.filter(f => f.thr !== null && Number.isFinite(f.thr));
-  if (conds.length === 0) return { cte: "", join: "", nConds: 0 };
-  const orC = conds.map(f => `(factor_code='${f.code}' AND score ${f.op} ${f.thr})`).join(" OR ");
-  return {
-    cte: `cond AS (SELECT trade_date, stock_code, COUNT(*) AS p FROM ${baseTable}
-            WHERE score IS NOT NULL AND (${orC}) GROUP BY trade_date, stock_code),`,
-    join: `JOIN cond cd ON cd.trade_date = c.trade_date AND cd.stock_code = c.stock_code AND cd.p = ${conds.length}`,
-    nConds: conds.length,
-  };
-}
 
 // 对比惰性补算用的并集基表（只在有未算组合时建一次；不再每次渲染重建）
 let _cmpBaseKey = null, _cmpBaseBuild = null;
@@ -2029,35 +2543,12 @@ async function ensureCmpBase(codes) {
   try { await _cmpBaseBuild; } finally { _cmpBaseBuild = null; }
 }
 
-// 给定组合配置 + 基表 → 逐月净值/收益（口径同 renderComposeBacktest）。暂存时优先用 live 的
-// cps_base 快算并缓存；若失败，对比区用并集基表 cps_cmp_base 惰性补算。只算未缓存的组合。
-async function comboBacktest(factors, N, baseTable) {
-  const nF = factors.length;
-  const vals = factors.map(f => `('${f.code}',${f.weight})`).join(",");
-  const cond = composeCondFor(factors, baseTable);
-  const res = await state.db.query(`
-    WITH w(code, weight) AS (VALUES ${vals}),
-    ${cond.cte}
-    comp AS (
-      SELECT s.trade_date, s.stock_code, SUM(s.score * w.weight) AS cs, COUNT(*) AS cnt
-      FROM ${baseTable} s JOIN w ON s.factor_code = w.code
-      WHERE s.score IS NOT NULL GROUP BY s.trade_date, s.stock_code
-    ),
-    ranked AS (
-      SELECT c.trade_date, c.stock_code, r.fwd_return,
-             ROW_NUMBER() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC) AS rk
-      FROM comp c
-      ${cond.join}
-      JOIN stock_meta m ON m.stock_code = c.stock_code
-      JOIN monthly_return r ON r.trade_date = c.trade_date AND r.stock_code = c.stock_code
-      WHERE c.cnt = ${nF} AND COALESCE(m.is_st, FALSE) = FALSE
-    )
-    SELECT strftime(trade_date, '%Y-%m') AS dt, stock_code, fwd_return
-    FROM ranked WHERE rk <= ${N} ORDER BY trade_date`);
+function buildBacktestFromRows(rows, N) {
   const byMonth = new Map();
-  for (const r of res.toArray()) {
+  for (const r of rows) {
     if (!byMonth.has(r.dt)) byMonth.set(r.dt, { rets: [], stocks: new Set() });
-    const o = byMonth.get(r.dt); o.stocks.add(r.stock_code);
+    const o = byMonth.get(r.dt);
+    o.stocks.add(r.stock_code);
     if (r.fwd_return != null) o.rets.push(r.fwd_return);
   }
   const months = [...byMonth.keys()].sort();
@@ -2068,9 +2559,89 @@ async function comboBacktest(factors, N, baseTable) {
     let turnover = 1;
     if (prev) { let diff = 0; for (const s of o.stocks) if (!prev.has(s)) diff++; for (const s of prev) if (!o.stocks.has(s)) diff++; turnover = diff / (2 * N); }
     const net = gross - 2 * COST * turnover;
-    nav *= (1 + net); x.push(mth); navArr.push(nav); retArr.push(net); prev = o.stocks;
+    x.push(mth); navArr.push(nav); retArr.push(net);
+    nav *= (1 + net);
+    prev = o.stocks;
   }
   return { x, navArr, retArr };
+}
+
+function matrixBacktestSql(factors, N, baseTable) {
+  const idxMap = new Map(_cpsMatrixCodes.map((code, i) => [code, i]));
+  const terms = [];
+  const conds = [];
+  for (const f of factors) {
+    const idx = idxMap.get(f.code);
+    if (idx === undefined) return null;
+    const col = `f${idx}`;
+    const weight = Number.isFinite(Number(f.weight)) ? Number(f.weight) : 0;
+    terms.push(`${col} * ${weight}`);
+    if (f.thr !== null && Number.isFinite(Number(f.thr))) conds.push(`${col} ${f.op} ${Number(f.thr)}`);
+  }
+  const scoreExpr = terms.length ? terms.join(" + ") : "0";
+  const condSql = conds.length ? "AND " + conds.join(" AND ") : "";
+  return `
+    WITH scored AS (
+      SELECT trade_date, stock_code, fwd_return, ROUND(${scoreExpr}, 6) AS cs
+      FROM ${baseTable}
+      WHERE fwd_return IS NOT NULL ${condSql}
+    ),
+    ranked AS (
+      SELECT trade_date, stock_code, fwd_return,
+             ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY cs DESC, stock_code) AS rk
+      FROM scored
+    )
+    SELECT strftime(trade_date, '%Y-%m') AS dt, stock_code, fwd_return
+    FROM ranked WHERE rk <= ${N} ORDER BY trade_date`;
+}
+
+// 给定组合配置 + 基表 → 逐月净值/收益（口径同 renderComposeBacktest）。
+// cps_matrix 是当前因子集宽表快路径；其它表保留长表 SQL 作为对比惰性补算兜底。
+async function comboBacktest(factors, N, baseTable) {
+  const cacheKey = baseTable === "cps_matrix" ? composeConfigKey(factors, N) : null;
+  if (cacheKey && _composeBtCache.has(cacheKey)) return cloneBacktest(_composeBtCache.get(cacheKey));
+  if (cacheKey && _composeBtBuilds.has(cacheKey)) return cloneBacktest(await _composeBtBuilds.get(cacheKey));
+
+  const fastSql = baseTable === "cps_matrix" ? matrixBacktestSql(factors, N, baseTable) : null;
+  if (fastSql) {
+    const build = (async () => {
+      const res = await state.db.query(fastSql);
+      const bt = buildBacktestFromRows(res.toArray(), N);
+      if (cacheKey) rememberComposeBacktest(cacheKey, bt);
+      return bt;
+    })();
+    if (cacheKey) _composeBtBuilds.set(cacheKey, build);
+    try {
+      return cloneBacktest(await build);
+    } finally {
+      if (cacheKey) _composeBtBuilds.delete(cacheKey);
+    }
+  }
+  if (baseTable === "cps_matrix") throw new Error("cps_matrix does not cover requested factors");
+
+  const nF = factors.length;
+  const vals = factors.map(f => `('${f.code}',${f.weight})`).join(",");
+  const cond = composeCondFor(factors, baseTable);
+  const res = await state.db.query(`
+    WITH w(code, weight) AS (VALUES ${vals}),
+    ${cond.cte}
+    comp AS (
+      SELECT s.trade_date, s.stock_code, ROUND(SUM(s.score * w.weight), 6) AS cs, COUNT(*) AS cnt
+      FROM ${baseTable} s JOIN w ON s.factor_code = w.code
+      WHERE s.score IS NOT NULL GROUP BY s.trade_date, s.stock_code
+    ),
+    ranked AS (
+      SELECT c.trade_date, c.stock_code, r.fwd_return,
+             ROW_NUMBER() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC, c.stock_code) AS rk
+      FROM comp c
+      ${cond.join}
+      JOIN stock_meta m ON m.stock_code = c.stock_code
+      JOIN monthly_return r ON r.trade_date = c.trade_date AND r.stock_code = c.stock_code
+      WHERE c.cnt = ${nF} AND COALESCE(m.is_st, FALSE) = FALSE
+    )
+    SELECT strftime(trade_date, '%Y-%m') AS dt, stock_code, fwd_return
+    FROM ranked WHERE rk <= ${N} ORDER BY trade_date`);
+  return buildBacktestFromRows(res.toArray(), N);
 }
 
 async function saveCurrentCombo() {
@@ -2078,7 +2649,16 @@ async function saveCurrentCombo() {
   const factors = state.composeFactors.map(f => ({ ...f }));
   const N = state.composeN;
   const i = state.savedCombos.length;
-  const combo = { name: `组合${i + 1}`, factors, N, color: STRAT_COLORS[i % STRAT_COLORS.length], bt: null };
+  const comboKey = composeConfigKey(factors, N);
+  const combo = {
+    name: `组合${i + 1}`,
+    factors,
+    N,
+    color: STRAT_COLORS[i % STRAT_COLORS.length],
+    bt: _composeBtCache.has(comboKey)
+      ? cloneBacktest(_composeBtCache.get(comboKey))
+      : (comboKey === _latestComposeBtKey ? cloneBacktest(_latestComposeBt) : null),
+  };
   state.savedCombos.push(combo);
   renderSavedCombos();                  // 先把 chip 显示出来
   // 立刻显示对比面板 + 计算中提示（回测在 wasm 里跑，可能要几秒）。
@@ -2087,36 +2667,47 @@ async function saveCurrentCombo() {
   const navDiv = document.getElementById("cps-compare-nav");
   const titleEl = document.getElementById("cps-compare-title");
   if (panel) panel.style.display = "";
-  if (titleEl) titleEl.textContent = `暂存组合对比 · 正在计算 ${combo.name}…`;
-  if (navDiv && !cpsCompareChart) navDiv.innerHTML = `<div class="loading">正在计算 ${combo.name} 的回测，请稍候…</div>`;
+  if (titleEl) titleEl.textContent = combo.bt ? "暂存组合对比" : `暂存组合对比 · 正在计算 ${combo.name}…`;
+  if (navDiv && !cpsCompareChart && !combo.bt) navDiv.innerHTML = `<div class="loading">正在计算 ${combo.name} 的回测，请稍候…</div>`;
   const saveBtn = document.getElementById("cps-save");
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "计算中…"; }
+  if (saveBtn && !combo.bt) { saveBtn.disabled = true; saveBtn.textContent = "计算中…"; }
   try {
-    await ensureDB(); await ensureComposeData();   // 确保 factor_score_full 视图已就绪
-    // 快路径：cps_base 此刻正是当前因子，直接在小表上算（快）。结果为空（可能 cps_base 因子不全）
-    // 或失败则不缓存，留给对比区用并集基表惰性补算（更可靠）。
-    try {
-      await ensureComposeBase();
-      const bt = await comboBacktest(factors, N, "cps_base");
-      if (bt && bt.x && bt.x.length) combo.bt = bt;
-    } catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
+    if (!combo.bt) {
+      await ensureDB(); await ensureComposeData();   // 确保 factor_score_full 视图已就绪
+      try {
+        await ensureComposeBase();
+        const bt = await comboBacktest(factors, N, "cps_matrix");
+        if (bt && bt.x && bt.x.length) combo.bt = bt;
+      } catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
+    }
     renderSavedCombos();
     await renderComboCompare();
   } finally {
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "📌 暂存当前组合"; }
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "📌 加入临时对比"; }
   }
 }
 function removeSavedCombo(i) { state.savedCombos.splice(i, 1); renderSavedCombos(); renderComboCompare(); }
 function renameSavedCombo(i) {
   const c = state.savedCombos[i]; if (!c) return;
-  const v = prompt("组合名", c.name); if (v && v.trim()) { c.name = v.trim(); renderSavedCombos(); renderComboCompare(); }
+  const v = prompt("组合名", c.name);
+  if (!v || !v.trim()) return;
+  const name = v.trim();
+  if (state.savedCombos.some((combo, idx) => idx !== i && combo.name === name)) {
+    alert(`“${name}”已存在，请换一个名称`);
+    return;
+  }
+  c.name = name;
+  renderSavedCombos();
+  renderComboCompare();
 }
 
 function renderSavedCombos() {
   const box = document.getElementById("cps-saved-list");
+  const saveAllBtn = document.getElementById("cps-save-all-mine");
+  if (saveAllBtn) saveAllBtn.style.display = state.savedCombos.length ? "" : "none";
   if (!box) return;
   if (!state.savedCombos.length) {
-    box.innerHTML = `<span style="color:#bbb;font-size:11px">还没暂存组合。设好权重/条件后点上面「📌 暂存当前组合」，可存多个再对比。</span>`;
+    box.innerHTML = `<span style="color:#bbb;font-size:11px">还没有临时对比组合。设好权重/条件后点上面「📌 加入临时对比」，可存多个再对比。</span>`;
     return;
   }
   box.innerHTML = state.savedCombos.map((c, i) => {
@@ -2133,6 +2724,52 @@ function renderSavedCombos() {
 }
 
 let cpsCompareChart = null;
+let _cpsCompareRows = null;
+let _cpsCompareSort = { key: null, dir: -1 };
+
+function drawCpsCompareTable() {
+  const tblDiv = document.getElementById("cps-compare-table");
+  if (!tblDiv || !_cpsCompareRows) return;
+  const pct = v => (v == null || !Number.isFinite(v)) ? "—" : (v * 100).toFixed(1) + "%";
+  const num = (v, d = 2) => (v == null || !Number.isFinite(v)) ? "—" : Number(v).toFixed(d);
+  const COLS = [
+    { key: "label",   label: "组合 / 基准", sortable: false, cell: r => r.labelHtml || r.label },
+    { key: "annual",  label: "年化收益",   cell: r => pct(r.annual) },
+    { key: "sharpe",  label: "夏普",       cell: r => num(r.sharpe, 2) },
+    { key: "mdd",     label: "最大回撤",   cell: r => pct(r.mdd) },
+    { key: "winRate", label: "月度胜率",   cell: r => r.winRate == null ? "—" : (r.winRate * 100).toFixed(0) + "%" },
+    { key: "ex300",   label: "超额vs300", cell: r => pct(r.ex300) },
+    { key: "navEnd",  label: "期末净值",   cell: r => num(r.navEnd, 2) },
+  ];
+  const rows = _cpsCompareRows.slice();
+  const sk = _cpsCompareSort.key;
+  if (sk) {
+    rows.sort((a, b) => {
+      const va = a[sk], vb = b[sk];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return (va < vb ? -1 : va > vb ? 1 : 0) * _cpsCompareSort.dir;
+    });
+  }
+  const arrow = k => _cpsCompareSort.key === k ? (_cpsCompareSort.dir < 0 ? " ▼" : " ▲") : "";
+  const thead = COLS.map(c => c.sortable === false
+    ? `<th>${c.label}</th>`
+    : `<th class="cmp-sort" data-key="${c.key}">${c.label}${arrow(c.key)}</th>`).join("");
+  const body = rows.map(r => {
+    if (r.noData) return `<tr><td>${r.labelHtml || r.label}</td><td colspan="${COLS.length - 1}" style="color:#aaa">无数据（过滤过严 / 因子覆盖不足）</td></tr>`;
+    const tds = COLS.map(c => `<td>${c.cell(r)}</td>`).join("");
+    return `<tr${r.isBench ? ' style="color:#888;border-top:2px solid #ddd"' : ""}>${tds}</tr>`;
+  }).join("");
+  tblDiv.innerHTML = `<table class="kpi-table"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
+  tblDiv.querySelectorAll("th.cmp-sort").forEach(th => th.onclick = () => {
+    const k = th.dataset.key;
+    if (_cpsCompareSort.key === k) _cpsCompareSort.dir = -_cpsCompareSort.dir;
+    else { _cpsCompareSort.key = k; _cpsCompareSort.dir = -1; }
+    drawCpsCompareTable();
+  });
+}
+
 async function renderComboCompare() {
   const panel = document.getElementById("cps-compare-panel");
   if (!panel) return;
@@ -2159,6 +2796,9 @@ async function renderComboCompare() {
   }
   if (titleEl) titleEl.textContent = "暂存组合对比";
   const withData = state.savedCombos.filter(c => c.bt && c.bt.x && c.bt.x.length);
+  const benchmarkRows = [];
+  const bcolors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
+  const bcn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
 
   // —— 净值叠加图（只画有数据的组合）——
   if (cpsCompareChart) { cpsCompareChart.dispose(); cpsCompareChart = null; }
@@ -2181,8 +2821,6 @@ async function renderComboCompare() {
         ORDER BY index_code, trade_date`);
       const byIdx = {};
       for (const r of bmRes.toArray()) (byIdx[r.index_code] ||= {})[r.dt] = r.nav;
-      const bcolors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
-      const bcn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
       for (const idx of ["HS300", "CSI800", "CSI500"]) {
         const mp = byIdx[idx]; if (!mp) continue;
         const aligned = allMonths.map(m => m in mp ? mp[m] : null);
@@ -2190,6 +2828,17 @@ async function renderComboCompare() {
         series.push({ name: `${bcn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
           data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
           color: bcolors[idx], lineStyle: { width: 1.2, type: "dashed" } });
+        const navs = aligned.filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+        if (navs.length >= 2) {
+          const rets = navs.slice(1).map((v, k) => v / navs[k] - 1);
+          const m = computeMetrics(rets, navs);
+          if (m) benchmarkRows.push({
+            label: bcn[idx],
+            labelHtml: `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${bcolors[idx]};margin-right:5px"></span>${bcn[idx]}`,
+            annual: m.annual, sharpe: m.sharpe, mdd: m.mdd,
+            winRate: m.winRate, ex300: null, navEnd: m.navEnd, isBench: true,
+          });
+        }
       }
     }
     navDiv.innerHTML = "";
@@ -2202,23 +2851,29 @@ async function renderComboCompare() {
     });
   }
 
-  // —— 指标对比表：列出所有暂存组合（空的显示「无数据」，不再静默消失）——
-  const pct = v => (v == null || !Number.isFinite(v)) ? "—" : (v * 100).toFixed(1) + "%";
-  const ba = await benchAnnuals();
-  let rows = "";
+  // —— 指标对比表：列出所有暂存组合和基准；点击表头可按指标排序 ——
+  const hs300Annual = benchmarkRows.find(r => r.label === "沪深300")?.annual;
+  const fallbackBa = await benchAnnuals();
+  const exBase = Number.isFinite(hs300Annual) ? hs300Annual : fallbackBa.HS300;
+  const rows = [];
   for (const c of state.savedCombos) {
     const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c.color};margin-right:5px"></span>`;
     const m = (c.bt && c.bt.retArr && c.bt.retArr.length) ? computeMetrics(c.bt.retArr, c.bt.navArr) : null;
-    if (!m) { rows += `<tr><td>${dot}${c.name}</td><td colspan="6" style="color:#aaa">无数据（过滤过严 / 因子覆盖不足）</td></tr>`; continue; }
-    const ex = ("HS300" in ba) ? pct(m.annual - ba.HS300) : "—";
-    rows += `<tr>
-      <td>${dot}${c.name}</td>
-      <td>${pct(m.annual)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
-      <td>${(m.winRate * 100).toFixed(0)}%</td><td>${ex}</td><td>${m.navEnd.toFixed(2)}</td></tr>`;
+    if (!m) {
+      rows.push({ label: c.name, labelHtml: `${dot}${c.name}`, noData: true });
+      continue;
+    }
+    rows.push({
+      label: c.name,
+      labelHtml: `${dot}${c.name}`,
+      annual: m.annual, sharpe: m.sharpe, mdd: m.mdd,
+      winRate: m.winRate,
+      ex300: Number.isFinite(exBase) ? m.annual - exBase : null,
+      navEnd: m.navEnd,
+    });
   }
-  tblDiv.innerHTML = `<table class="kpi-table"><thead><tr>
-    <th>组合</th><th>年化收益</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>超额vs300</th><th>期末净值</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
+  _cpsCompareRows = rows.concat(benchmarkRows);
+  drawCpsCompareTable();
 }
 
 // ============ 最优权重网格搜索 ============
@@ -2388,21 +3043,26 @@ function bindComposeButtons() {
   });
   const saveBtn = document.getElementById("cps-save");
   if (saveBtn) saveBtn.onclick = () => {
-    if (!state.composeFactors.length) { alert("先选至少一个因子并设好权重，再暂存"); return; }
+    if (!state.composeFactors.length) { alert("先选至少一个因子并设好权重，再加入临时对比"); return; }
     saveCurrentCombo().catch(e => console.error("save combo failed", e));
   };
+  const saveMineBtn = document.getElementById("cps-save-mine");
+  if (saveMineBtn) saveMineBtn.onclick = () => saveCurrentComboToMine();
+  const saveAllMineBtn = document.getElementById("cps-save-all-mine");
+  if (saveAllMineBtn) saveAllMineBtn.onclick = () => saveAllTempCombosToMine();
+  const copyBtn = document.getElementById("cps-copy-json");
+  if (copyBtn) copyBtn.onclick = () => copyPublishRequest().catch(e => console.error("copy publish request failed", e));
   const resetBtn = document.getElementById("cps-reset");
   if (resetBtn) resetBtn.onclick = () => {
     state.composeFactors = [];
     updateTreeHighlight();
-    renderCompose();
+    renderComposeSoon(0);
   };
   document.querySelectorAll(".cpsn-btn[data-n]").forEach(b => {
     b.onclick = () => {
       state.composeN = parseInt(b.dataset.n, 10);
-      document.querySelectorAll(".cpsn-btn").forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
-      renderCompose();
+      syncComposeNButtons();
+      renderComposeSoon();
     };
   });
   const inp = document.getElementById("cpsn-input");
@@ -2410,8 +3070,8 @@ function bindComposeButtons() {
     const n = parseInt(inp.value, 10);
     if (!Number.isFinite(n) || n < 1 || n > 100) { inp.value = ""; return; }
     state.composeN = n;
-    document.querySelectorAll(".cpsn-btn").forEach(x => x.classList.remove("active"));
-    renderCompose();
+    syncComposeNButtons();
+    renderComposeSoon();
   };
   inp.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("cpsn-add").onclick(); });
 }
