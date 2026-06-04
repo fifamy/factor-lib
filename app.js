@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "84f8823" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "177eebb" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "84f8823";
+const _DEPLOY = "177eebb";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
@@ -2093,9 +2093,13 @@ async function saveCurrentCombo() {
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "计算中…"; }
   try {
     await ensureDB(); await ensureComposeData();   // 确保 factor_score_full 视图已就绪
-    // 快路径：cps_base 此刻正是当前因子，直接在小表上算（快）。失败则留给对比区惰性补算。
-    try { await ensureComposeBase(); combo.bt = await comboBacktest(factors, N, "cps_base"); }
-    catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
+    // 快路径：cps_base 此刻正是当前因子，直接在小表上算（快）。结果为空（可能 cps_base 因子不全）
+    // 或失败则不缓存，留给对比区用并集基表惰性补算（更可靠）。
+    try {
+      await ensureComposeBase();
+      const bt = await comboBacktest(factors, N, "cps_base");
+      if (bt && bt.x && bt.x.length) combo.bt = bt;
+    } catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
     renderSavedCombos();
     await renderComboCompare();
   } finally {
@@ -2154,50 +2158,53 @@ async function renderComboCompare() {
     }
   }
   if (titleEl) titleEl.textContent = "暂存组合对比";
-  const combos = state.savedCombos.filter(c => c.bt && c.bt.x && c.bt.x.length);
-  if (!combos.length) {
-    navDiv.innerHTML = `<div class="empty">暂存组合回测无数据（过滤过严或因子覆盖不足）</div>`; tblDiv.innerHTML = "";
-    return;
-  }
+  const withData = state.savedCombos.filter(c => c.bt && c.bt.x && c.bt.x.length);
 
-  const allMonths = [...new Set(combos.flatMap(c => c.bt.x))].sort();
-  const series = combos.map(c => {
-    const mp = {}; c.bt.x.forEach((m, k) => mp[m] = c.bt.navArr[k]);
-    return { name: c.name, type: "line", symbol: "none", connectNulls: true,
-      data: allMonths.map(m => m in mp ? +mp[m].toFixed(3) : null),
-      color: c.color, lineStyle: { width: 2 } };
-  });
-  if (state.hasBenchmarks && allMonths.length) {
-    const bmRes = await state.db.query(`
-      SELECT strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
-      WHERE index_code='HS300' AND strftime(trade_date,'%Y-%m') >= '${allMonths[0]}'
-        AND strftime(trade_date,'%Y-%m') <= '${allMonths[allMonths.length - 1]}' ORDER BY trade_date`);
-    const mp = {}; for (const r of bmRes.toArray()) mp[r.dt] = r.nav;
-    const aligned = allMonths.map(m => m in mp ? mp[m] : null);
-    const b = aligned.find(v => v !== null);
-    series.push({ name: "沪深300", type: "line", symbol: "none", connectNulls: true,
-      data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
-      color: "#aaa", lineStyle: { width: 1.2, type: "dashed" } });
-  }
+  // —— 净值叠加图（只画有数据的组合）——
   if (cpsCompareChart) { cpsCompareChart.dispose(); cpsCompareChart = null; }
-  navDiv.innerHTML = "";
-  cpsCompareChart = echarts.init(navDiv);
-  cpsCompareChart.setOption({
-    grid: { left: 50, right: 20, top: 30, bottom: 30 },
-    tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 28 },
-    xAxis: { type: "category", data: allMonths, axisLabel: { fontSize: 10 } },
-    yAxis: { type: "value", scale: true }, series,
-  });
+  if (!withData.length) {
+    navDiv.innerHTML = `<div class="empty">暂存组合暂无可画数据（可能过滤过严 / 因子覆盖不足）</div>`;
+  } else {
+    const allMonths = [...new Set(withData.flatMap(c => c.bt.x))].sort();
+    const series = withData.map(c => {
+      const mp = {}; c.bt.x.forEach((m, k) => mp[m] = c.bt.navArr[k]);
+      return { name: c.name, type: "line", symbol: "none", connectNulls: true,
+        data: allMonths.map(m => m in mp ? +mp[m].toFixed(3) : null),
+        color: c.color, lineStyle: { width: 2 } };
+    });
+    if (state.hasBenchmarks && allMonths.length) {
+      const bmRes = await state.db.query(`
+        SELECT strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
+        WHERE index_code='HS300' AND strftime(trade_date,'%Y-%m') >= '${allMonths[0]}'
+          AND strftime(trade_date,'%Y-%m') <= '${allMonths[allMonths.length - 1]}' ORDER BY trade_date`);
+      const mp = {}; for (const r of bmRes.toArray()) mp[r.dt] = r.nav;
+      const aligned = allMonths.map(m => m in mp ? mp[m] : null);
+      const b = aligned.find(v => v !== null);
+      series.push({ name: "沪深300", type: "line", symbol: "none", connectNulls: true,
+        data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
+        color: "#aaa", lineStyle: { width: 1.2, type: "dashed" } });
+    }
+    navDiv.innerHTML = "";
+    cpsCompareChart = echarts.init(navDiv);
+    cpsCompareChart.setOption({
+      grid: { left: 50, right: 20, top: 30, bottom: 30 },
+      tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 28 },
+      xAxis: { type: "category", data: allMonths, axisLabel: { fontSize: 10 } },
+      yAxis: { type: "value", scale: true }, series,
+    });
+  }
 
+  // —— 指标对比表：列出所有暂存组合（空的显示「无数据」，不再静默消失）——
   const pct = v => (v == null || !Number.isFinite(v)) ? "—" : (v * 100).toFixed(1) + "%";
   const ba = await benchAnnuals();
   let rows = "";
-  for (const c of combos) {
-    const m = computeMetrics(c.bt.retArr, c.bt.navArr);
-    if (!m) { rows += `<tr><td>${c.name}</td><td colspan="6">数据不足</td></tr>`; continue; }
+  for (const c of state.savedCombos) {
+    const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c.color};margin-right:5px"></span>`;
+    const m = (c.bt && c.bt.retArr && c.bt.retArr.length) ? computeMetrics(c.bt.retArr, c.bt.navArr) : null;
+    if (!m) { rows += `<tr><td>${dot}${c.name}</td><td colspan="6" style="color:#aaa">无数据（过滤过严 / 因子覆盖不足）</td></tr>`; continue; }
     const ex = ("HS300" in ba) ? pct(m.annual - ba.HS300) : "—";
     rows += `<tr>
-      <td><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c.color};margin-right:5px"></span>${c.name}</td>
+      <td>${dot}${c.name}</td>
       <td>${pct(m.annual)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td><td>${ex}</td><td>${m.navEnd.toFixed(2)}</td></tr>`;
   }
