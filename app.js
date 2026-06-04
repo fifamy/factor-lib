@@ -14,6 +14,7 @@ const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const F_BT    = DATA_DIR + "preset_backtest.parquet" + V;
 const F_IC    = DATA_DIR + "factor_ic.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
+const COMPOSE_SCORE_DIR = DATA_DIR + "compose_scores/";
 const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
 let _myComboIdSeq = 0;
 
@@ -382,24 +383,17 @@ async function _initDB() {
   }
 }
 
-// 合成专用大表（25MB 全量得分 + 6MB 月收益）懒加载：只在合成模式首次用时串行加载，
-// 避免单因子/对比模式也并发拖大文件导致 ERR_EMPTY_RESPONSE。
+// 合成专用月收益表懒加载。历史因子得分按因子分片加载，避免首次合成请求 77MB 全量文件。
 let _composePromise = null;
 function ensureComposeData() {
   // promise 锁：并发调用共享同一次加载，避免重复 CREATE TABLE 竞态
   if (!_composePromise) {
     _composePromise = (async () => {
-      // factor_score_full（46 因子全历史，65MB）用 VIEW 直挂远程 parquet，不整表物化。
-      // parquet 已按 factor_code 聚簇排序（见 scripts/09），合成只选 2~5 个因子时，
-      // DuckDB 借 row-group 统计裁剪 + HTTP Range 只读相关字节，避免首次下载整表。
       // monthly_return 较小（~6MB）且回测每月都要 join 全集，物化成表更快。
-      const ok1 = await tryLoadOptional("factor_score_full", `
-        CREATE VIEW factor_score_full AS SELECT * FROM read_parquet('${DATA_DIR}factor_score_full.parquet${V}')
-      `, `CREATE TABLE factor_score_full (trade_date DATE, stock_code VARCHAR, factor_code VARCHAR, score DOUBLE)`);
-      const ok2 = await tryLoadOptional("monthly_return", `
+      const ok = await tryLoadOptional("monthly_return", `
         CREATE TABLE monthly_return AS SELECT * FROM read_parquet('${DATA_DIR}monthly_return.parquet${V}')
       `, `CREATE TABLE monthly_return (trade_date DATE, stock_code VARCHAR, fwd_return DOUBLE)`);
-      state.hasComposeData = ok1 && ok2;
+      state.hasComposeData = ok;
       console.log(`Compose data loaded: ${state.hasComposeData}`);
       return state.hasComposeData;
     })();
@@ -1860,7 +1854,7 @@ function rankSendTo(mode) {
 
 // ===================== 多因子合成 =====================
 
-// 按"当前所选因子集"缓存一张窄表 cps_base，避免每次调权重/阈值都重扫 65MB parquet。
+// 按"当前所选因子集"缓存一张窄表 cps_base，避免每次调权重/阈值都重扫历史数据。
 // cps_base 只含选中因子的 (trade_date, stock_code, factor_code, score)，几万~几十万行，
 // 物化进内存后，stocks/backtest/最优权重 全部改查它，纯内存聚合，调权重近乎瞬时。
 // 因子集变化（增删因子）才重建；权重、阈值、N 改变不触发重建。
@@ -1871,6 +1865,15 @@ let _latestComposeBtKey = null;
 let _latestComposeBt = null;
 const _composeBtCache = new Map();
 const _composeBtBuilds = new Map();
+
+function composeScorePath(code) {
+  return `${COMPOSE_SCORE_DIR}${code}.parquet${V}`;
+}
+
+function composeScoreReadExpr(codes) {
+  const paths = codes.map(code => `'${composeScorePath(code)}'`).join(",");
+  return `read_parquet([${paths}])`;
+}
 
 function composeConfigKey(factors = state.composeFactors, N = state.composeN) {
   const norm = cloneComposeFactors(factors).sort((a, b) => a.code.localeCompare(b.code));
@@ -1902,14 +1905,12 @@ async function ensureComposeBase() {
       await state.db.query(`DROP TABLE IF EXISTS cps_matrix`);
       _cpsMatrixCodes = [];
     } else {
-      const inList = codes.map(c => `'${c}'`).join(",");
-      // 一次性从 parquet view 取选中因子（DuckDB 借 factor_code 聚簇做 row-group 裁剪 + Range 读），
-      // 物化成小表。后续所有合成查询不再碰 parquet。
+      // 只读取选中因子的历史分片。后续所有合成查询不再碰远程 parquet。
       await state.db.query(`
         CREATE OR REPLACE TABLE cps_base AS
         SELECT trade_date, stock_code, factor_code, score
-        FROM factor_score_full
-        WHERE factor_code IN (${inList}) AND score IS NOT NULL
+        FROM ${composeScoreReadExpr(codes)}
+        WHERE score IS NOT NULL
       `);
       await state.db.query(`
         CREATE OR REPLACE TABLE cps_latest_base AS
@@ -2349,10 +2350,10 @@ async function renderCompose() {
     state.composeFactors.length ? `（已选 ${state.composeFactors.length} 个因子）` : "";
   renderComposeControls();
   renderSavedCombos();
-  // 首次进入合成需下载约 38MB 因子全历史数据，给明确提示（避免误以为卡死）
+  // 首次进入合成需按选中因子加载历史分片，给明确提示（避免误以为卡死）。
   if (!_composeLoadedOnce && state.composeFactors.length > 0) {
     document.getElementById("cps-stocks").innerHTML =
-      `<h3>合成 Top 股票</h3><div class="empty">首次加载合成数据（约 38MB），请稍候…</div>`;
+      `<h3>合成 Top 股票</h3><div class="empty">首次加载所选因子的历史数据，请稍候…</div>`;
   }
   try {
     await ensureDB();
@@ -2533,10 +2534,10 @@ async function ensureCmpBase(codes) {
     _cmpBaseKey = null;
     if (!sorted.length) { await state.db.query(`DROP TABLE IF EXISTS cps_cmp_base`); }
     else {
-      const inList = sorted.map(c => `'${c}'`).join(",");
       await state.db.query(`CREATE OR REPLACE TABLE cps_cmp_base AS
-        SELECT trade_date, stock_code, factor_code, score FROM factor_score_full
-        WHERE factor_code IN (${inList}) AND score IS NOT NULL`);
+        SELECT trade_date, stock_code, factor_code, score
+        FROM ${composeScoreReadExpr(sorted)}
+        WHERE score IS NOT NULL`);
     }
     _cmpBaseKey = key;
   })();
@@ -2673,7 +2674,7 @@ async function saveCurrentCombo() {
   if (saveBtn && !combo.bt) { saveBtn.disabled = true; saveBtn.textContent = "计算中…"; }
   try {
     if (!combo.bt) {
-      await ensureDB(); await ensureComposeData();   // 确保 factor_score_full 视图已就绪
+      await ensureDB(); await ensureComposeData();   // 确保月收益表已就绪，因子得分由分片按需加载
       try {
         await ensureComposeBase();
         const bt = await comboBacktest(factors, N, "cps_matrix");
@@ -2785,7 +2786,7 @@ async function renderComboCompare() {
     if (titleEl) titleEl.textContent = "暂存组合对比 · 计算中…";
     if (!cpsCompareChart) { navDiv.innerHTML = `<div class="loading">计算暂存组合回测…</div>`; tblDiv.innerHTML = ""; }
     try {
-      await ensureDB(); await ensureComposeData();   // 确保 factor_score_full 视图已就绪
+      await ensureDB(); await ensureComposeData();   // 确保月收益表已就绪，因子得分由分片按需加载
       const union = [...new Set(state.savedCombos.flatMap(c => c.factors.map(f => f.code)))];
       await ensureCmpBase(union);
       for (const c of missing) c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base");
