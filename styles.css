@@ -9,9 +9,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFa
           flex: 0 0 auto; }
 #topbar b { letter-spacing: 0.5px; }
 #top-actions { display: flex; align-items: center; gap: 12px; }
-#combo-manager-btn { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.45);
+#combo-manager-btn, #admin-manager-btn { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.45);
                      color: #fff; border-radius: 5px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
-#combo-manager-btn:hover { background: rgba(255,255,255,.2); border-color: #fff; }
+#combo-manager-btn:hover, #admin-manager-btn:hover { background: rgba(255,255,255,.2); border-color: #fff; }
 
 /* flex:1 占满 topbar 以下全部高度；min-height:0 允许内部子项滚动 */
 #main { display: grid; grid-template-columns: 240px 1fr; flex: 1 1 auto; min-height: 0; overflow: hidden; }
@@ -129,7 +129,21 @@ tr.stock-row:hover td:nth-child(2) { text-decoration: underline; }
 .published-detail-table td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; }
 .published-meta { color: #aaa; margin-top: 5px; }
 .my-delete { border-color: #c14545; color: #c14545; }
-#single-view, #compare-view, #compose-view, #combo-library-view, #filter-view, #ranking-view { display: flex; flex-direction: column; gap: 12px; }
+.admin-login-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.admin-login-row input { border: 1px solid #ccd6e0; border-radius: 4px; padding: 5px 8px; font-size: 12px; min-width: 180px; }
+.admin-help, .admin-status { color: #888; font-size: 11px; margin-top: 7px; }
+.admin-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+#admin-user { color: #1a4d80; font-size: 12px; font-weight: 600; margin-right: 6px; }
+.admin-request-card { background: #fff; border: 1px solid #dde5ee; border-radius: 5px; padding: 10px; margin-top: 8px; }
+.admin-request-card.reviewed { opacity: .72; }
+.admin-request-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.admin-request-title { color: #1a4d80; font-size: 13px; }
+.admin-request-meta { color: #999; font-size: 11px; margin-top: 4px; line-height: 1.5; }
+.admin-request-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.admin-approve { border-color: #3a7d44; color: #3a7d44; }
+.admin-reject { border-color: #c14545; color: #c14545; }
+.admin-request-json { margin-top: 8px; background: #f7f9fb; border: 1px solid #e1e6ec; border-radius: 4px; padding: 8px; font-size: 11px; color: #555; white-space: pre-wrap; max-height: 180px; overflow: auto; }
+#single-view, #compare-view, #compose-view, #combo-library-view, #admin-view, #filter-view, #ranking-view { display: flex; flex-direction: column; gap: 12px; }
 table.rank-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 table.rank-table th { background: #f0f3f7; padding: 6px 8px; text-align: right; cursor: pointer; white-space: nowrap; user-select: none; border-bottom: 2px solid #d8dee6; }
 table.rank-table th.lcol, table.rank-table td.lcol { text-align: left; }

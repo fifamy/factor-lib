@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>因子库 v1.0</title>
-  <link rel="stylesheet" href="styles.css?v=20260605111726">
+  <link rel="stylesheet" href="styles.css?v=20260605142636">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,6 +18,7 @@
     <span><b>因子库 v1.0</b>　·　A股 · 98因子</span>
     <div id="top-actions">
       <button id="combo-manager-btn" type="button">组合管理</button>
+      <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta">加载中…</span>
     </div>
   </div>
@@ -191,6 +192,30 @@
         </div>
       </div>
 
+      <!-- 管理员审核视图 -->
+      <div id="admin-view" style="display:none">
+        <div class="panel">
+          <h3>管理员审核</h3>
+          <div id="admin-login-box">
+            <div class="admin-login-row">
+              <input id="admin-email" type="email" placeholder="管理员邮箱" autocomplete="username" />
+              <input id="admin-password" type="password" placeholder="密码" autocomplete="current-password" />
+              <button id="admin-login-btn" class="cpsn-btn">登录</button>
+            </div>
+            <p class="admin-help">管理员账号需先在 Supabase Auth 创建，并加入 combo_admins 表。</p>
+          </div>
+          <div id="admin-session-box" style="display:none">
+            <div class="admin-toolbar">
+              <span id="admin-user"></span>
+              <button id="admin-refresh-btn" class="cpsn-btn">刷新申请</button>
+              <button id="admin-logout-btn" class="cpsn-btn">退出</button>
+            </div>
+          </div>
+          <div id="admin-status" class="admin-status"></div>
+          <div id="admin-request-list"><div class="empty">登录后显示待审核申请</div></div>
+        </div>
+      </div>
+
       <!-- 因子排行榜视图 -->
       <div id="ranking-view" style="display:none">
         <div class="panel">
@@ -273,6 +298,6 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script type="module" src="app.js?v=20260605111726"></script>
+  <script type="module" src="app.js?v=20260605142636"></script>
 </body>
 </html>

@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605111726" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605142636" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260605111726";
+const _DEPLOY = "20260605142636";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -22,6 +22,8 @@ const BACKTEST_DIR = DATA_DIR + "backtests/";
 const FACTOR_IC_DIR = DATA_DIR + "factor_ics/";
 const COMPOSE_SCORE_DIR = DATA_DIR + "compose_scores/";
 const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
+const SUPABASE_URL = "https://tsyplhfshxzoduynzixk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_6osvaEI8pookLkmkzBUbHQ_kyUU2SKn";
 let _myComboIdSeq = 0;
 
 const state = {
@@ -46,6 +48,8 @@ const state = {
   myCombos: [],
   myComboOpen: new Set(),
   comboLibraryTab: "published",
+  adminSession: null,
+  adminRequests: [],
   singleSnapshots: new Map(),
   stockFactorDetailBuckets: new Map(),
   stockMetaSnapshot: null,
@@ -181,6 +185,60 @@ function cloneComposeFactors(factors) {
   return (factors || []).map(normalizeComposeFactor);
 }
 
+function supabaseHeaders(accessToken = null, extra = {}) {
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
+    "Content-Type": "application/json",
+    ...extra,
+  };
+}
+
+async function supabaseFetch(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}${path}`, opts);
+  const text = await res.text();
+  let payload = null;
+  if (text) {
+    try { payload = JSON.parse(text); }
+    catch (_) { payload = text; }
+  }
+  if (!res.ok) {
+    const msg = payload?.message || payload?.error_description || payload?.error || text || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return payload;
+}
+
+async function supabaseSelect(table, query = "", accessToken = null) {
+  return supabaseFetch(`/rest/v1/${table}${query}`, {
+    headers: supabaseHeaders(accessToken),
+  });
+}
+
+async function supabaseInsert(table, rows, accessToken = null) {
+  return supabaseFetch(`/rest/v1/${table}`, {
+    method: "POST",
+    headers: supabaseHeaders(accessToken, { Prefer: "return=representation" }),
+    body: JSON.stringify(rows),
+  });
+}
+
+async function supabasePatch(table, query, payload, accessToken) {
+  return supabaseFetch(`/rest/v1/${table}${query}`, {
+    method: "PATCH",
+    headers: supabaseHeaders(accessToken, { Prefer: "return=representation" }),
+    body: JSON.stringify(payload),
+  });
+}
+
+async function supabaseSignIn(email, password) {
+  return supabaseFetch("/auth/v1/token?grant_type=password", {
+    method: "POST",
+    headers: supabaseHeaders(),
+    body: JSON.stringify({ email, password }),
+  });
+}
+
 function validatePublishedCombo(raw, idx, validCodes) {
   const reasons = [];
   const combo = {
@@ -224,22 +282,45 @@ async function loadPublishedCombos() {
   state.publishedComboErrors = [];
   state.publishedCombosLoaded = false;
   state.publishedComboOpen = new Set();
+  const validCodes = new Set(state.catalog.map(f => f.code));
+  const rawCombos = [];
   try {
     const res = await fetch(SAVED_COMBOS);
     if (!res.ok) {
-      state.publishedCombosLoaded = true;
       if (res.status !== 404) state.publishedComboErrors.push(`读取组合库失败：HTTP ${res.status}`);
-      return;
+    } else {
+      const raw = await res.json();
+      if (!Array.isArray(raw)) {
+        state.publishedComboErrors.push("saved_combos.json 必须是数组");
+      } else {
+        rawCombos.push(...raw);
+      }
     }
-    const raw = await res.json();
-    if (!Array.isArray(raw)) {
-      state.publishedComboErrors.push("saved_combos.json 必须是数组");
-      state.publishedCombosLoaded = true;
-      return;
+  } catch (err) {
+    state.publishedComboErrors.push(`内置组合库配置有误：${err.message || err}`);
+    console.error("load local published combos failed:", err);
+  }
+
+  try {
+    const remote = await supabaseSelect(
+      "published_combos",
+      "?select=combo_payload,created_at&order=created_at.desc&limit=200",
+    );
+    if (Array.isArray(remote)) {
+      rawCombos.push(...remote.map(row => ({
+        ...(row.combo_payload || {}),
+        source: "supabase",
+        created_at: row.combo_payload?.created_at || (row.created_at || "").slice(0, 10),
+      })));
     }
+  } catch (err) {
+    console.warn("load remote published combos failed:", err);
+  }
+
+  try {
     const validCodes = new Set(state.catalog.map(f => f.code));
     const ids = new Set();
-    state.publishedCombos = raw.map((combo, idx) => {
+    state.publishedCombos = rawCombos.map((combo, idx) => {
       const normalized = validatePublishedCombo(combo, idx, validCodes);
       if (ids.has(normalized.id)) {
         normalized.valid = false;
@@ -256,6 +337,7 @@ async function loadPublishedCombos() {
     state.publishedComboErrors.push(`组合库配置有误：${err.message || err}`);
     console.error("loadPublishedCombos failed:", err);
   }
+  state.publishedCombosLoaded = true;
 }
 
 function createMyComboId(existingIds = new Set()) {
@@ -1592,11 +1674,13 @@ function switchMode(mode) {
   document.getElementById("compare-view").style.display = mode === "compare" ? "flex" : "none";
   document.getElementById("compose-view").style.display = mode === "compose" ? "flex" : "none";
   document.getElementById("combo-library-view").style.display = mode === "library" ? "flex" : "none";
+  document.getElementById("admin-view").style.display = mode === "admin" ? "flex" : "none";
   document.getElementById("ranking-view").style.display = mode === "ranking" ? "flex" : "none";
   updateTreeHighlight();
   if (mode === "compare") renderCompare();
   if (mode === "compose") renderCompose();
   if (mode === "library") renderComboLibrary();
+  if (mode === "admin") renderAdminView();
   if (mode === "ranking") renderRanking();
 }
 
@@ -2142,6 +2226,8 @@ function bindModeButtons() {
   });
   const comboBtn = document.getElementById("combo-manager-btn");
   if (comboBtn) comboBtn.onclick = () => switchMode("library");
+  const adminBtn = document.getElementById("admin-manager-btn");
+  if (adminBtn) adminBtn.onclick = () => switchMode("admin");
 }
 
 function bindCmpDefaultButtons() {
@@ -3029,11 +3115,14 @@ function renderPublishedCombos() {
     box.innerHTML = `<div class="empty">组合库加载中…</div>`;
     return;
   }
-  if (state.publishedComboErrors.length) {
+  if (state.publishedComboErrors.length && !state.publishedCombos.length) {
     box.innerHTML = `<div class="empty" style="color:#c14545">${state.publishedComboErrors.join("；")}</div>`;
     return;
   }
   renderComboCards(box, state.publishedCombos, "published", "暂无已发布组合");
+  if (state.publishedComboErrors.length) {
+    box.insertAdjacentHTML("afterbegin", `<div class="empty" style="margin-bottom:8px;color:#c14545">${state.publishedComboErrors.join("；")}</div>`);
+  }
 }
 
 function renderMyCombos() {
@@ -3131,6 +3220,170 @@ function deleteMyCombo(id) {
   renderComboLibrary();
 }
 
+function setAdminStatus(msg, danger = false) {
+  const el = document.getElementById("admin-status");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.style.color = danger ? "#c14545" : "#888";
+}
+
+function renderAdminView() {
+  const loginBox = document.getElementById("admin-login-box");
+  const sessionBox = document.getElementById("admin-session-box");
+  const list = document.getElementById("admin-request-list");
+  if (!loginBox || !sessionBox || !list) return;
+  const loggedIn = !!state.adminSession?.access_token;
+  loginBox.style.display = loggedIn ? "none" : "";
+  sessionBox.style.display = loggedIn ? "" : "none";
+  document.getElementById("admin-user").textContent = loggedIn
+    ? `已登录：${state.adminSession.user?.email || "管理员"}`
+    : "";
+  if (!loggedIn) {
+    list.innerHTML = `<div class="empty">登录后显示待审核申请</div>`;
+  } else {
+    renderAdminRequests();
+  }
+  bindAdminControls();
+}
+
+function bindAdminControls() {
+  const login = document.getElementById("admin-login-btn");
+  if (login) login.onclick = () => adminLogin().catch(e => console.error("admin login failed:", e));
+  const refresh = document.getElementById("admin-refresh-btn");
+  if (refresh) refresh.onclick = () => loadAdminRequests().catch(e => console.error("load admin requests failed:", e));
+  const logout = document.getElementById("admin-logout-btn");
+  if (logout) logout.onclick = () => {
+    state.adminSession = null;
+    state.adminRequests = [];
+    setAdminStatus("");
+    renderAdminView();
+  };
+}
+
+async function adminLogin() {
+  const email = document.getElementById("admin-email").value.trim();
+  const password = document.getElementById("admin-password").value;
+  if (!email || !password) {
+    setAdminStatus("请输入管理员邮箱和密码", true);
+    return;
+  }
+  setAdminStatus("登录中…");
+  try {
+    state.adminSession = await supabaseSignIn(email, password);
+    document.getElementById("admin-password").value = "";
+    setAdminStatus("登录成功，正在加载待审核申请…");
+    renderAdminView();
+    await loadAdminRequests();
+  } catch (err) {
+    setAdminStatus(`登录失败：${err.message || err}`, true);
+  }
+}
+
+async function loadAdminRequests() {
+  if (!state.adminSession?.access_token) return;
+  setAdminStatus("加载申请中…");
+  try {
+    const q = "?select=*&order=created_at.desc&limit=100";
+    state.adminRequests = await supabaseSelect("combo_publish_requests", q, state.adminSession.access_token);
+    renderAdminRequests();
+    setAdminStatus(`已加载 ${state.adminRequests.length} 条申请`);
+  } catch (err) {
+    setAdminStatus(`加载失败：${err.message || err}`, true);
+  }
+}
+
+function renderAdminRequests() {
+  const list = document.getElementById("admin-request-list");
+  if (!list) return;
+  if (!state.adminSession?.access_token) {
+    list.innerHTML = `<div class="empty">登录后显示待审核申请</div>`;
+    return;
+  }
+  if (!state.adminRequests.length) {
+    list.innerHTML = `<div class="empty">暂无申请</div>`;
+    return;
+  }
+  list.innerHTML = state.adminRequests.map(req => {
+    const payload = req.combo_payload || {};
+    const pending = req.status === "pending";
+    const statusText = req.status === "approved" ? "已同意" : (req.status === "rejected" ? "已拒绝" : "待审核");
+    const created = req.created_at ? new Date(req.created_at).toLocaleString() : "";
+    const submitter = [req.submitter_name, req.submitter_contact].filter(Boolean).join(" / ") || "未留";
+    return `<div class="admin-request-card ${pending ? "" : "reviewed"}" data-id="${req.id}">
+      <div class="admin-request-head">
+        <div>
+          <b class="admin-request-title">${payload.name || req.combo_name || "未命名组合"}</b>
+          <span class="published-n">top${payload.N || "?"}</span>
+          <div class="admin-request-meta">状态：${statusText} · 申请人：${submitter} · ${created}</div>
+          ${req.note ? `<div class="published-desc">备注：${req.note}</div>` : ""}
+          <div class="published-summary">${payload.factors ? comboSummary(validatePublishedCombo(payload, 0, new Set(state.catalog.map(f => f.code)))) : "无组合配置"}</div>
+        </div>
+        <div class="admin-request-actions">
+          <button class="cpsn-btn admin-approve" data-id="${req.id}"${pending ? "" : " disabled"}>同意</button>
+          <button class="cpsn-btn admin-reject" data-id="${req.id}"${pending ? "" : " disabled"}>拒绝</button>
+        </div>
+      </div>
+      <pre class="admin-request-json">${JSON.stringify(payload, null, 2)}</pre>
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".admin-approve").forEach(btn => {
+    btn.onclick = () => approvePublishRequest(btn.dataset.id).catch(e => console.error("approve request failed:", e));
+  });
+  list.querySelectorAll(".admin-reject").forEach(btn => {
+    btn.onclick = () => rejectPublishRequest(btn.dataset.id).catch(e => console.error("reject request failed:", e));
+  });
+}
+
+function requestById(id) {
+  return state.adminRequests.find(r => String(r.id) === String(id));
+}
+
+async function approvePublishRequest(id) {
+  const req = requestById(id);
+  if (!req || !state.adminSession?.access_token) return;
+  const payload = req.combo_payload;
+  if (!payload || !Array.isArray(payload.factors) || !payload.factors.length) {
+    alert("这个申请没有有效组合配置");
+    return;
+  }
+  if (!confirm(`同意发布“${payload.name || req.combo_name}”？`)) return;
+  setAdminStatus("正在发布…");
+  try {
+    await supabaseInsert("published_combos", [{
+      combo_id: payload.id,
+      name: payload.name,
+      description: payload.description || "",
+      combo_payload: payload,
+      source_request_id: req.id,
+    }], state.adminSession.access_token);
+    await supabasePatch("combo_publish_requests", `?id=eq.${encodeURIComponent(req.id)}`, {
+      status: "approved",
+      reviewed_at: new Date().toISOString(),
+    }, state.adminSession.access_token);
+    await loadAdminRequests();
+    setAdminStatus("已同意并发布");
+  } catch (err) {
+    setAdminStatus(`发布失败：${err.message || err}`, true);
+  }
+}
+
+async function rejectPublishRequest(id) {
+  const req = requestById(id);
+  if (!req || !state.adminSession?.access_token) return;
+  if (!confirm(`拒绝“${req.combo_payload?.name || req.combo_name}”？`)) return;
+  setAdminStatus("正在拒绝…");
+  try {
+    await supabasePatch("combo_publish_requests", `?id=eq.${encodeURIComponent(req.id)}`, {
+      status: "rejected",
+      reviewed_at: new Date().toISOString(),
+    }, state.adminSession.access_token);
+    await loadAdminRequests();
+    setAdminStatus("已拒绝");
+  } catch (err) {
+    setAdminStatus(`拒绝失败：${err.message || err}`, true);
+  }
+}
+
 function currentComboPublishPayload() {
   const name = state.composeFactors.length
     ? "自定义组合"
@@ -3188,24 +3441,61 @@ async function copyTextWithFallback(text, promptTitle) {
   else prompt(promptTitle, text);
 }
 
+async function submitPublishRequest(payload, submitter = {}) {
+  const row = {
+    combo_id: payload.id,
+    combo_name: payload.name,
+    combo_payload: payload,
+    submitter_name: submitter.name || null,
+    submitter_contact: submitter.contact || null,
+    note: submitter.note || null,
+    status: "pending",
+  };
+  return supabaseInsert("combo_publish_requests", [row]);
+}
+
+async function promptAndSubmitPublishRequest(payload, btn) {
+  const submitterName = prompt("申请人昵称（可留空）", "");
+  if (submitterName === null) return;
+  const contact = prompt("联系方式（可留空，方便管理员联系）", "");
+  if (contact === null) return;
+  const note = prompt("申请备注（可留空）", "");
+  if (note === null) return;
+  const old = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "提交中…";
+  }
+  try {
+    await submitPublishRequest(payload, {
+      name: submitterName.trim(),
+      contact: contact.trim(),
+      note: note.trim(),
+    });
+    window.__lastPublishRequestPayload = payload;
+    if (btn) btn.textContent = "已提交申请";
+    alert("申请已提交，等待管理员审核。审核通过后会出现在已发布组合。");
+  } catch (err) {
+    console.error("submit publish request failed:", err);
+    alert(`提交失败：${err.message || err}\n\n如果还没初始化 Supabase，请先在 Supabase SQL Editor 执行项目里的 supabase/schema.sql。`);
+    if (btn) btn.textContent = old;
+  } finally {
+    if (btn) {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = old || "申请发布";
+      }, 1400);
+    }
+  }
+}
+
 async function copyPublishRequest() {
   if (!state.composeFactors.length) {
     alert("先选至少一个因子并设好权重，再申请发布组合");
     return;
   }
   const btn = document.getElementById("cps-copy-json");
-  const text = currentComboPublishRequestText();
-  window.__lastCopiedPublishRequest = text;
-  try {
-    await copyTextWithFallback(text, "复制以下内容，发给管理员审核发布");
-    if (btn) {
-      const old = btn.textContent;
-      btn.textContent = "投稿已复制";
-      setTimeout(() => { btn.textContent = old; }, 1200);
-    }
-  } catch (_) {
-    prompt("复制以下内容，发给管理员审核发布", text);
-  }
+  await promptAndSubmitPublishRequest(currentComboPublishPayload(), btn);
 }
 
 async function copyMyComboPublishRequest(id, btn) {
@@ -3214,18 +3504,7 @@ async function copyMyComboPublishRequest(id, btn) {
     alert("这个组合配置无效，不能申请发布");
     return;
   }
-  const text = comboPublishRequestText(comboPublishPayload(combo));
-  window.__lastCopiedPublishRequest = text;
-  try {
-    await copyTextWithFallback(text, "复制以下内容，发给管理员审核发布");
-    if (btn) {
-      const old = btn.textContent;
-      btn.textContent = "已复制申请";
-      setTimeout(() => { btn.textContent = old; }, 1200);
-    }
-  } catch (_) {
-    prompt("复制以下内容，发给管理员审核发布", text);
-  }
+  await promptAndSubmitPublishRequest(comboPublishPayload(combo), btn);
 }
 
 function renderComposeSoon(delay = 80) {
