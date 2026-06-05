@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605110323" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605111726" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260605110323";
+const _DEPLOY = "20260605111726";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -2977,6 +2977,9 @@ function renderComboCards(box, combos, source, emptyText) {
     const renameBtn = source === "mine"
       ? `<button class="cpsn-btn my-rename" data-source="${source}" data-id="${combo.id}"${disabled}>改名</button>`
       : "";
+    const publishBtn = source === "mine"
+      ? `<button class="cpsn-btn my-publish" data-source="${source}" data-id="${combo.id}"${disabled}>申请发布</button>`
+      : "";
     return `<div class="published-combo-card ${cardClass}${combo.valid ? "" : " invalid"}" data-id="${combo.id}">
       <div class="published-combo-head">
         <div>
@@ -2989,6 +2992,7 @@ function renderComboCards(box, combos, source, emptyText) {
           <button class="cpsn-btn library-compare" data-source="${source}" data-id="${combo.id}"${disabled}>加入对比</button>
           <button class="cpsn-btn library-detail-toggle" data-source="${source}" data-id="${combo.id}">${openSet.has(combo.id) ? "收起" : "详情"}</button>
           ${renameBtn}
+          ${publishBtn}
           ${deleteBtn}
         </div>
       </div>
@@ -3012,6 +3016,9 @@ function renderComboCards(box, combos, source, emptyText) {
   });
   box.querySelectorAll(".my-rename").forEach(btn => {
     btn.onclick = () => renameMyCombo(btn.dataset.id);
+  });
+  box.querySelectorAll(".my-publish").forEach(btn => {
+    btn.onclick = () => copyMyComboPublishRequest(btn.dataset.id, btn).catch(e => console.error("copy my combo publish request failed", e));
   });
 }
 
@@ -3139,8 +3146,19 @@ function currentComboPublishPayload() {
   };
 }
 
-function currentComboPublishRequestText() {
-  const payload = currentComboPublishPayload();
+function comboPublishPayload(combo) {
+  return {
+    id: combo.id,
+    name: combo.name,
+    description: combo.description || "",
+    N: combo.N,
+    factors: cloneComposeFactors(combo.factors),
+    tags: combo.tags || [],
+    created_at: combo.created_at || new Date().toISOString().slice(0, 10),
+  };
+}
+
+function comboPublishRequestText(payload) {
   const factorLines = cloneComposeFactors(payload.factors).map(f => {
     const meta = state.catalog.find(x => x.code === f.code);
     const thr = f.thr === null ? "不过滤" : `过滤：得分 ${f.op} ${f.thr}`;
@@ -3161,6 +3179,15 @@ function currentComboPublishRequestText() {
   ].join("\n");
 }
 
+function currentComboPublishRequestText() {
+  return comboPublishRequestText(currentComboPublishPayload());
+}
+
+async function copyTextWithFallback(text, promptTitle) {
+  if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+  else prompt(promptTitle, text);
+}
+
 async function copyPublishRequest() {
   if (!state.composeFactors.length) {
     alert("先选至少一个因子并设好权重，再申请发布组合");
@@ -3170,11 +3197,30 @@ async function copyPublishRequest() {
   const text = currentComboPublishRequestText();
   window.__lastCopiedPublishRequest = text;
   try {
-    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
-    else prompt("复制以下内容，发给管理员审核发布", text);
+    await copyTextWithFallback(text, "复制以下内容，发给管理员审核发布");
     if (btn) {
       const old = btn.textContent;
       btn.textContent = "投稿已复制";
+      setTimeout(() => { btn.textContent = old; }, 1200);
+    }
+  } catch (_) {
+    prompt("复制以下内容，发给管理员审核发布", text);
+  }
+}
+
+async function copyMyComboPublishRequest(id, btn) {
+  const combo = state.myCombos.find(c => c.id === id && c.valid);
+  if (!combo) {
+    alert("这个组合配置无效，不能申请发布");
+    return;
+  }
+  const text = comboPublishRequestText(comboPublishPayload(combo));
+  window.__lastCopiedPublishRequest = text;
+  try {
+    await copyTextWithFallback(text, "复制以下内容，发给管理员审核发布");
+    if (btn) {
+      const old = btn.textContent;
+      btn.textContent = "已复制申请";
       setTimeout(() => { btn.textContent = old; }, 1200);
     }
   } catch (_) {
