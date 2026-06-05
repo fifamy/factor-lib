@@ -3,17 +3,17 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "DEPLOY_VERSION" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605083253" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "DEPLOY_VERSION";
+const _DEPLOY = "20260605083253";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
-const F_SCORE = DATA_DIR + "factor_score.parquet" + V;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
-const F_BT    = DATA_DIR + "preset_backtest.parquet" + V;
-const F_IC    = DATA_DIR + "factor_ic.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
+const SCORE_LATEST_DIR = DATA_DIR + "factor_scores_latest/";
+const BACKTEST_DIR = DATA_DIR + "backtests/";
+const FACTOR_IC_DIR = DATA_DIR + "factor_ics/";
 const COMPOSE_SCORE_DIR = DATA_DIR + "compose_scores/";
 const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
 let _myComboIdSeq = 0;
@@ -338,14 +338,25 @@ async function _initDB() {
     state.db = await db.connect();
     console.log("DuckDB-Wasm ready, loading tables…");
 
-    // 串行加载核心表（并发会让单线程/多线程 server 偶发 ERR_EMPTY_RESPONSE）。
-    // factor_score 只 load 最新截面（前端只用这个，避免 25MB 长表全 load）。
+    // 串行加载小表。因子得分 / 预置回测 / IC 改为按因子分片懒加载，
+    // 避免单因子首次点击就下载全量大文件。
     const t0 = performance.now();
-    // factor_score.parquet 已是最新单截面（06_export 已瘦身），直接读，不再 WHERE=MAX 二次扫文件
-    await state.db.query(`CREATE TABLE factor_score AS SELECT * FROM read_parquet('${F_SCORE}')`);
     await state.db.query(`CREATE TABLE stock_meta AS SELECT * FROM read_parquet('${F_META}')`);
-    await state.db.query(`CREATE TABLE preset_backtest AS SELECT * FROM read_parquet('${F_BT}')`);
-    await state.db.query(`CREATE TABLE factor_ic AS SELECT * FROM read_parquet('${F_IC}')`);
+    await state.db.query(`
+      CREATE TABLE factor_score (
+        trade_date DATE, stock_code VARCHAR, factor_code VARCHAR, raw_value DOUBLE, score DOUBLE
+      )
+    `);
+    await state.db.query(`
+      CREATE TABLE preset_backtest (
+        trade_date DATE, port_ret DOUBLE, nav DOUBLE, factor_code VARCHAR, top_n INTEGER
+      )
+    `);
+    await state.db.query(`
+      CREATE TABLE factor_ic (
+        month DATE, factor_code VARCHAR, ic DOUBLE, rank_ic DOUBLE, ic_ir_12m DOUBLE
+      )
+    `);
     console.log(`核心表加载 ${(performance.now() - t0).toFixed(0)}ms`);
 
     // 可选数据（串行）：没准备好就建空表，前端 LEFT JOIN 自动出 NULL
@@ -381,6 +392,71 @@ async function _initDB() {
     _dbPromise = null;   // 允许重试
     throw err;
   }
+}
+
+const _loadedScores = new Set();
+const _loadedBacktests = new Set();
+const _loadedIcs = new Set();
+let _factorDataLoad = Promise.resolve();
+
+function factorFilePath(dir, code) {
+  return `${dir}${code}.parquet${V}`;
+}
+
+function factorReadExpr(dir, codes) {
+  const paths = codes.map(code => `'${factorFilePath(dir, code)}'`).join(",");
+  return `read_parquet([${paths}])`;
+}
+
+function uniqueValidCodes(codes) {
+  const valid = new Set(state.catalog.map(f => f.code));
+  return [...new Set((codes || []).filter(code => valid.has(code)))].sort();
+}
+
+async function ensureFactorData(codes, opts = {}) {
+  const need = {
+    score: opts.score !== false,
+    backtest: opts.backtest !== false,
+    ic: opts.ic !== false,
+  };
+  const wanted = uniqueValidCodes(codes);
+  if (!wanted.length) return;
+  _factorDataLoad = _factorDataLoad.then(async () => {
+    const missingScores = need.score ? wanted.filter(code => !_loadedScores.has(code)) : [];
+    const missingBacktests = need.backtest ? wanted.filter(code => !_loadedBacktests.has(code)) : [];
+    const missingIcs = need.ic ? wanted.filter(code => !_loadedIcs.has(code)) : [];
+
+    if (missingScores.length) {
+      await state.db.query(`
+        INSERT INTO factor_score
+        SELECT trade_date, stock_code, factor_code, raw_value, score
+        FROM ${factorReadExpr(SCORE_LATEST_DIR, missingScores)}
+      `);
+      missingScores.forEach(code => _loadedScores.add(code));
+    }
+    if (missingBacktests.length) {
+      await state.db.query(`
+        INSERT INTO preset_backtest
+        SELECT trade_date, port_ret, nav, factor_code, top_n
+        FROM ${factorReadExpr(BACKTEST_DIR, missingBacktests)}
+      `);
+      missingBacktests.forEach(code => _loadedBacktests.add(code));
+    }
+    if (missingIcs.length) {
+      await state.db.query(`
+        INSERT INTO factor_ic
+        SELECT month, factor_code, ic, rank_ic, ic_ir_12m
+        FROM ${factorReadExpr(FACTOR_IC_DIR, missingIcs)}
+      `);
+      missingIcs.forEach(code => _loadedIcs.add(code));
+    }
+    console.log(`Factor shards ready: score=${_loadedScores.size}, backtest=${_loadedBacktests.size}, ic=${_loadedIcs.size}`);
+  });
+  return _factorDataLoad;
+}
+
+function ensureAllFactorData(opts = {}) {
+  return ensureFactorData(state.catalog.map(f => f.code), opts);
 }
 
 // 合成专用月收益表懒加载。历史因子得分按因子分片加载，避免首次合成请求 77MB 全量文件。
@@ -426,6 +502,7 @@ async function selectFactor(code) {
   try {
     const tAll = performance.now();
     await ensureDB();
+    await ensureFactorData([code]);
     await initSingleRangeControls();
     renderFactorDetail(meta);
     const tQ = performance.now();
@@ -832,8 +909,6 @@ async function benchAnnuals() {
     const r = await state.db.query(`
       SELECT index_code, nav FROM benchmarks
       WHERE index_code IN ('HS300','CSI800')
-        AND trade_date BETWEEN (SELECT MIN(trade_date) FROM preset_backtest)
-                           AND (SELECT MAX(trade_date) FROM preset_backtest)
         ${rangeWhere(state.singleStart, state.singleEnd)}
       ORDER BY index_code, trade_date
     `);
@@ -902,8 +977,6 @@ async function renderKpiTable(code) {
     const bRes = await state.db.query(`
       SELECT index_code, nav FROM benchmarks
       WHERE index_code IN ('HS300','CSI800','CSI500')
-        AND trade_date BETWEEN (SELECT MIN(trade_date) FROM preset_backtest)
-                           AND (SELECT MAX(trade_date) FROM preset_backtest)
         ${rangeWhere(state.singleStart, state.singleEnd)}
       ORDER BY index_code, trade_date
     `);
@@ -1090,6 +1163,7 @@ async function renderCompare() {
       document.getElementById("cmp-table").innerHTML = `<div class="empty">从左侧选 1 个以上因子开始对比</div>`;
       return;
     }
+    await ensureFactorData(sel.map(f => f.code), { score: false });
     await Promise.all([renderCmpTable(), renderCmpNav(), renderCmpIc(), renderCmpCorr()]);
   } catch (err) {
     console.error("renderCompare failed:", err);
@@ -1167,8 +1241,6 @@ async function renderCmpTable() {
     const bRes = await state.db.query(`
       SELECT index_code, nav FROM benchmarks
       WHERE index_code IN ('HS300','CSI800','CSI500')
-        AND trade_date BETWEEN (SELECT MIN(trade_date) FROM preset_backtest)
-                           AND (SELECT MAX(trade_date) FROM preset_backtest)
       ORDER BY index_code, trade_date
     `);
     const bg = {};
@@ -1468,6 +1540,7 @@ async function renderRanking() {
   const box = document.getElementById("rank-table");
   try {
     await ensureDB();   // 先确保 DuckDB 就绪，区间下拉/排名查询都依赖它
+    await ensureAllFactorData();
     if (!_rankBarBound) {
       document.getElementById("rank-to-compare").onclick = () => rankSendTo("compare");
       document.getElementById("rank-to-compose").onclick = () => rankSendTo("compose");
@@ -2501,8 +2574,6 @@ async function renderComposeBacktest(renderSeq) {
     const bRes = await state.db.query(`
       SELECT index_code, nav FROM benchmarks
       WHERE index_code IN ('HS300','CSI800','CSI500')
-        AND trade_date BETWEEN (SELECT MIN(trade_date) FROM preset_backtest)
-                           AND (SELECT MAX(trade_date) FROM preset_backtest)
       ORDER BY index_code, trade_date`);
     if (isComposeRenderStale(renderSeq)) return;
     const bg = {};
@@ -3111,6 +3182,7 @@ async function showStockDetail(code, name) {
   body.innerHTML = `<div class="loading">查询中…</div>`;
   let scoreRows, metaRow;
   try {
+    await ensureAllFactorData({ backtest: false, ic: false });
     const esc = code.replace(/'/g, "''");
     // 每因子取该股最近一期（事件因子在 factor_score 里有近6月多行，需去重）
     scoreRows = (await state.db.query(
