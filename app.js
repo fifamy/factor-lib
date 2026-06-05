@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605152553" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605160511" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260605152553";
+const _DEPLOY = "20260605160511";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -50,6 +50,7 @@ const state = {
   comboLibraryTab: "published",
   adminSession: null,
   adminRequests: [],
+  adminPublishedCombos: [],
   singleSnapshots: new Map(),
   stockFactorDetailBuckets: new Map(),
   stockMetaSnapshot: null,
@@ -239,6 +240,13 @@ async function supabasePatch(table, query, payload, accessToken) {
   });
 }
 
+async function supabaseDelete(table, query, accessToken) {
+  return supabaseFetch(`/rest/v1/${table}${query}`, {
+    method: "DELETE",
+    headers: supabaseHeaders(accessToken, { Prefer: "return=minimal" }),
+  });
+}
+
 async function supabaseSignIn(email, password) {
   return supabaseFetch("/auth/v1/token?grant_type=password", {
     method: "POST",
@@ -257,6 +265,9 @@ function validatePublishedCombo(raw, idx, validCodes) {
     factors: [],
     tags: Array.isArray(raw?.tags) ? raw.tags.filter(t => typeof t === "string" && t.trim()).map(t => t.trim()) : [],
     created_at: typeof raw?.created_at === "string" ? raw.created_at.trim() : "",
+    source: typeof raw?.source === "string" ? raw.source : "",
+    published_id: typeof raw?.published_id === "string" ? raw.published_id : "",
+    remote_combo_id: typeof raw?.remote_combo_id === "string" ? raw.remote_combo_id : "",
     valid: true,
     invalidReason: "",
   };
@@ -312,12 +323,14 @@ async function loadPublishedCombos() {
   try {
     const remote = await supabaseSelect(
       "published_combos",
-      "?select=combo_payload,created_at&order=created_at.desc&limit=200",
+      "?select=id,combo_id,combo_payload,created_at&order=created_at.desc&limit=200",
     );
     if (Array.isArray(remote)) {
       rawCombos.push(...remote.map(row => ({
         ...(row.combo_payload || {}),
         source: "supabase",
+        published_id: row.id,
+        remote_combo_id: row.combo_id,
         created_at: row.combo_payload?.created_at || (row.created_at || "").slice(0, 10),
       })));
     }
@@ -1688,7 +1701,12 @@ function switchMode(mode) {
   if (mode === "compare") renderCompare();
   if (mode === "compose") renderCompose();
   if (mode === "library") renderComboLibrary();
-  if (mode === "admin") renderAdminView();
+  if (mode === "admin") {
+    renderAdminView();
+    if (state.adminSession?.access_token) {
+      loadAdminData().catch(e => console.error("refresh admin data failed:", e));
+    }
+  }
   if (mode === "ranking") renderRanking();
 }
 
@@ -3074,6 +3092,9 @@ function renderComboCards(box, combos, source, emptyText) {
     const publishBtn = source === "mine"
       ? `<button class="cpsn-btn my-publish" data-source="${source}" data-id="${combo.id}"${disabled}>申请发布</button>`
       : "";
+    const deleteRequestBtn = source === "published" && combo.source === "supabase"
+      ? `<button class="cpsn-btn published-delete-request" data-id="${combo.id}"${disabled}>申请删除</button>`
+      : "";
     return `<div class="published-combo-card ${cardClass}${combo.valid ? "" : " invalid"}" data-id="${combo.id}">
       <div class="published-combo-head">
         <div>
@@ -3087,6 +3108,7 @@ function renderComboCards(box, combos, source, emptyText) {
           <button class="cpsn-btn library-detail-toggle" data-source="${source}" data-id="${combo.id}">${openSet.has(combo.id) ? "收起" : "详情"}</button>
           ${renameBtn}
           ${publishBtn}
+          ${deleteRequestBtn}
           ${deleteBtn}
         </div>
       </div>
@@ -3113,6 +3135,9 @@ function renderComboCards(box, combos, source, emptyText) {
   });
   box.querySelectorAll(".my-publish").forEach(btn => {
     btn.onclick = () => copyMyComboPublishRequest(btn.dataset.id, btn).catch(e => console.error("copy my combo publish request failed", e));
+  });
+  box.querySelectorAll(".published-delete-request").forEach(btn => {
+    btn.onclick = () => submitDeleteRequestForPublished(btn.dataset.id, btn).catch(e => console.error("submit delete request failed", e));
   });
 }
 
@@ -3239,17 +3264,22 @@ function renderAdminView() {
   const loginBox = document.getElementById("admin-login-box");
   const sessionBox = document.getElementById("admin-session-box");
   const list = document.getElementById("admin-request-list");
+  const publishedPanel = document.getElementById("admin-published-panel");
   if (!loginBox || !sessionBox || !list) return;
   const loggedIn = !!state.adminSession?.access_token;
   loginBox.style.display = loggedIn ? "none" : "";
   sessionBox.style.display = loggedIn ? "" : "none";
+  if (publishedPanel) publishedPanel.style.display = loggedIn ? "" : "none";
   document.getElementById("admin-user").textContent = loggedIn
     ? `已登录：${state.adminSession.user?.email || "管理员"}`
     : "";
   if (!loggedIn) {
     list.innerHTML = `<div class="empty">登录后显示待审核申请</div>`;
+    const publishedList = document.getElementById("admin-published-list");
+    if (publishedList) publishedList.innerHTML = `<div class="empty">登录后显示已发布组合</div>`;
   } else {
     renderAdminRequests();
+    renderAdminPublishedCombos();
   }
   bindAdminControls();
 }
@@ -3258,11 +3288,12 @@ function bindAdminControls() {
   const login = document.getElementById("admin-login-btn");
   if (login) login.onclick = () => adminLogin().catch(e => console.error("admin login failed:", e));
   const refresh = document.getElementById("admin-refresh-btn");
-  if (refresh) refresh.onclick = () => loadAdminRequests().catch(e => console.error("load admin requests failed:", e));
+  if (refresh) refresh.onclick = () => loadAdminData().catch(e => console.error("load admin data failed:", e));
   const logout = document.getElementById("admin-logout-btn");
   if (logout) logout.onclick = () => {
     state.adminSession = null;
     state.adminRequests = [];
+    state.adminPublishedCombos = [];
     setAdminStatus("");
     renderAdminView();
   };
@@ -3281,10 +3312,15 @@ async function adminLogin() {
     document.getElementById("admin-password").value = "";
     setAdminStatus("登录成功，正在加载待审核申请…");
     renderAdminView();
-    await loadAdminRequests();
+    await loadAdminData();
   } catch (err) {
     setAdminStatus(`登录失败：${err.message || err}`, true);
   }
+}
+
+async function loadAdminData() {
+  await loadAdminRequests();
+  await loadAdminPublishedCombos();
 }
 
 async function loadAdminRequests() {
@@ -3300,6 +3336,48 @@ async function loadAdminRequests() {
   }
 }
 
+async function loadAdminPublishedCombos() {
+  if (!state.adminSession?.access_token) return;
+  try {
+    const q = "?select=id,combo_id,name,combo_payload,created_at&order=created_at.desc&limit=200";
+    state.adminPublishedCombos = await supabaseSelect("published_combos", q, state.adminSession.access_token);
+    renderAdminPublishedCombos();
+  } catch (err) {
+    const list = document.getElementById("admin-published-list");
+    if (list) list.innerHTML = `<div class="empty" style="color:#c14545">已发布组合加载失败：${err.message || err}</div>`;
+  }
+}
+
+function renderAdminPublishedCombos() {
+  const list = document.getElementById("admin-published-list");
+  if (!list) return;
+  if (!state.adminSession?.access_token) {
+    list.innerHTML = `<div class="empty">登录后显示已发布组合</div>`;
+    return;
+  }
+  if (!state.adminPublishedCombos.length) {
+    list.innerHTML = `<div class="empty">暂无 Supabase 已发布组合</div>`;
+    return;
+  }
+  list.innerHTML = state.adminPublishedCombos.map(row => {
+    const payload = row.combo_payload || {};
+    const created = row.created_at ? new Date(row.created_at).toLocaleString() : "";
+    return `<div class="admin-published-card" data-id="${row.id}">
+      <div>
+        <b>${payload.name || row.name || row.combo_id}</b>
+        <span class="published-n">top${payload.N || "?"}</span>
+        <div class="admin-request-meta">${created}</div>
+        <div class="published-summary">${payload.factors ? comboSummary(validatePublishedCombo(payload, 0, new Set(state.catalog.map(f => f.code)))) : "无组合配置"}</div>
+      </div>
+      <button class="cpsn-btn admin-published-delete" data-id="${row.id}" data-name="${payload.name || row.name || row.combo_id}">删除</button>
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".admin-published-delete").forEach(btn => {
+    btn.onclick = () => deletePublishedComboByAdmin(btn.dataset.id, btn.dataset.name)
+      .catch(e => console.error("delete published combo failed:", e));
+  });
+}
+
 function renderAdminRequests() {
   const list = document.getElementById("admin-request-list");
   if (!list) return;
@@ -3313,16 +3391,18 @@ function renderAdminRequests() {
   }
   list.innerHTML = state.adminRequests.map(req => {
     const payload = req.combo_payload || {};
+    const isDelete = req.request_type === "delete";
     const pending = req.status === "pending";
     const statusText = req.status === "approved" ? "已同意" : (req.status === "rejected" ? "已拒绝" : "待审核");
     const created = req.created_at ? new Date(req.created_at).toLocaleString() : "";
     return `<div class="admin-request-card ${pending ? "" : "reviewed"}" data-id="${req.id}">
       <div class="admin-request-head">
         <div>
+          <div class="admin-request-kind">${isDelete ? "申请删除" : "申请发布"}</div>
           <b class="admin-request-title">${payload.name || req.combo_name || "未命名组合"}</b>
           <span class="published-n">top${payload.N || "?"}</span>
           <div class="admin-request-meta">状态：${statusText} · ${created}</div>
-          <div class="published-summary">${payload.factors ? comboSummary(validatePublishedCombo(payload, 0, new Set(state.catalog.map(f => f.code)))) : "无组合配置"}</div>
+          <div class="published-summary">${payload.factors ? comboSummary(validatePublishedCombo(payload, 0, new Set(state.catalog.map(f => f.code)))) : `目标组合：${req.combo_name || req.combo_id}`}</div>
         </div>
         <div class="admin-request-actions">
           <button class="cpsn-btn admin-approve" data-id="${req.id}"${pending ? "" : " disabled"}>同意</button>
@@ -3347,6 +3427,10 @@ function requestById(id) {
 async function approvePublishRequest(id) {
   const req = requestById(id);
   if (!req || !state.adminSession?.access_token) return;
+  if (req.request_type === "delete") {
+    await approveDeleteRequest(req);
+    return;
+  }
   const payload = req.combo_payload;
   if (!payload || !Array.isArray(payload.factors) || !payload.factors.length) {
     alert("这个申请没有有效组合配置");
@@ -3367,9 +3451,53 @@ async function approvePublishRequest(id) {
       reviewed_at: new Date().toISOString(),
     }, state.adminSession.access_token);
     await loadAdminRequests();
+    await loadAdminPublishedCombos();
+    await loadPublishedCombos();
+    renderComboLibrary();
     setAdminStatus("已同意并发布");
   } catch (err) {
     setAdminStatus(`发布失败：${err.message || err}`, true);
+  }
+}
+
+async function approveDeleteRequest(req) {
+  const name = req.combo_payload?.name || req.combo_name || req.combo_id;
+  if (!confirm(`同意删除“${name}”？`)) return;
+  setAdminStatus("正在删除…");
+  try {
+    const targetId = req.target_published_id;
+    const q = targetId
+      ? `?id=eq.${encodeURIComponent(targetId)}`
+      : `?combo_id=eq.${encodeURIComponent(req.combo_id)}`;
+    await supabaseDelete("published_combos", q, state.adminSession.access_token);
+    await supabasePatch("combo_publish_requests", `?id=eq.${encodeURIComponent(req.id)}`, {
+      status: "approved",
+      reviewed_at: new Date().toISOString(),
+    }, state.adminSession.access_token);
+    window.__lastApprovedDeleteRequestId = req.id;
+    await loadAdminRequests();
+    await loadAdminPublishedCombos();
+    await loadPublishedCombos();
+    renderComboLibrary();
+    setAdminStatus("已同意并删除");
+  } catch (err) {
+    setAdminStatus(`删除失败：${err.message || err}`, true);
+  }
+}
+
+async function deletePublishedComboByAdmin(id, name) {
+  if (!state.adminSession?.access_token || !id) return;
+  if (!confirm(`删除已发布组合“${name || id}”？`)) return;
+  setAdminStatus("正在删除已发布组合…");
+  try {
+    await supabaseDelete("published_combos", `?id=eq.${encodeURIComponent(id)}`, state.adminSession.access_token);
+    window.__adminPublishedDeleteCount = (window.__adminPublishedDeleteCount || 0) + 1;
+    await loadAdminPublishedCombos();
+    await loadPublishedCombos();
+    renderComboLibrary();
+    setAdminStatus("已删除已发布组合");
+  } catch (err) {
+    setAdminStatus(`删除失败：${err.message || err}`, true);
   }
 }
 
@@ -3449,9 +3577,22 @@ async function copyTextWithFallback(text, promptTitle) {
 
 async function submitPublishRequest(payload, submitter = {}) {
   const row = {
+    request_type: "publish",
     combo_id: payload.id,
     combo_name: payload.name,
     combo_payload: payload,
+    status: "pending",
+  };
+  return supabaseInsertMinimal("combo_publish_requests", [row]);
+}
+
+async function submitDeleteRequest(combo) {
+  const row = {
+    request_type: "delete",
+    combo_id: combo.remote_combo_id || combo.id,
+    combo_name: combo.name,
+    combo_payload: comboPublishPayload(combo),
+    target_published_id: combo.published_id || null,
     status: "pending",
   };
   return supabaseInsertMinimal("combo_publish_requests", [row]);
@@ -3477,6 +3618,37 @@ async function submitPublishRequestFromButton(payload, btn) {
       setTimeout(() => {
         btn.disabled = false;
         btn.textContent = old || "申请发布";
+      }, 1400);
+    }
+  }
+}
+
+async function submitDeleteRequestForPublished(id, btn) {
+  const combo = state.publishedCombos.find(c => c.id === id && c.valid && c.source === "supabase");
+  if (!combo) {
+    alert("这个组合不是线上发布组合，不能申请删除");
+    return;
+  }
+  if (!confirm(`申请删除“${combo.name}”？管理员同意后会从全站组合库移除。`)) return;
+  const old = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "提交中…";
+  }
+  try {
+    await submitDeleteRequest(combo);
+    window.__lastDeleteRequestPayload = comboPublishPayload(combo);
+    if (btn) btn.textContent = "已申请删除";
+    alert("删除申请已提交，等待管理员审核。");
+  } catch (err) {
+    console.error("submit delete request failed:", err);
+    alert(`提交失败：${err.message || err}`);
+    if (btn) btn.textContent = old;
+  } finally {
+    if (btn) {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = old || "申请删除";
       }, 1400);
     }
   }

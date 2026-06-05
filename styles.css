@@ -143,6 +143,10 @@ tr.stock-row:hover td:nth-child(2) { text-decoration: underline; }
 .admin-approve { border-color: #3a7d44; color: #3a7d44; }
 .admin-reject { border-color: #c14545; color: #c14545; }
 .admin-request-json { margin-top: 8px; background: #f7f9fb; border: 1px solid #e1e6ec; border-radius: 4px; padding: 8px; font-size: 11px; color: #555; white-space: pre-wrap; max-height: 180px; overflow: auto; }
+.admin-request-kind { color: #1a4d80; font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+.admin-published-panel { margin-top: 14px; border-top: 1px solid #eee; padding-top: 10px; }
+.admin-published-card { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; border: 1px solid #dde5ee; border-radius: 5px; padding: 10px; margin-top: 8px; background: #fff; }
+.admin-published-card > div:first-child { min-width: 0; }
 #single-view, #compare-view, #compose-view, #combo-library-view, #admin-view, #filter-view, #ranking-view { display: flex; flex-direction: column; gap: 12px; }
 table.rank-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 table.rank-table th { background: #f0f3f7; padding: 6px 8px; text-align: right; cursor: pointer; white-space: nowrap; user-select: none; border-bottom: 2px solid #d8dee6; }
