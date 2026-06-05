@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605142636" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605152553" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260605142636";
+const _DEPLOY = "20260605152553";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -219,6 +219,14 @@ async function supabaseInsert(table, rows, accessToken = null) {
   return supabaseFetch(`/rest/v1/${table}`, {
     method: "POST",
     headers: supabaseHeaders(accessToken, { Prefer: "return=representation" }),
+    body: JSON.stringify(rows),
+  });
+}
+
+async function supabaseInsertMinimal(table, rows, accessToken = null) {
+  return supabaseFetch(`/rest/v1/${table}`, {
+    method: "POST",
+    headers: supabaseHeaders(accessToken, { Prefer: "return=minimal" }),
     body: JSON.stringify(rows),
   });
 }
@@ -3283,10 +3291,10 @@ async function loadAdminRequests() {
   if (!state.adminSession?.access_token) return;
   setAdminStatus("加载申请中…");
   try {
-    const q = "?select=*&order=created_at.desc&limit=100";
+    const q = "?select=*&status=eq.pending&order=created_at.desc&limit=100";
     state.adminRequests = await supabaseSelect("combo_publish_requests", q, state.adminSession.access_token);
     renderAdminRequests();
-    setAdminStatus(`已加载 ${state.adminRequests.length} 条申请`);
+    setAdminStatus(`已加载 ${state.adminRequests.length} 条待审核申请`);
   } catch (err) {
     setAdminStatus(`加载失败：${err.message || err}`, true);
   }
@@ -3308,14 +3316,12 @@ function renderAdminRequests() {
     const pending = req.status === "pending";
     const statusText = req.status === "approved" ? "已同意" : (req.status === "rejected" ? "已拒绝" : "待审核");
     const created = req.created_at ? new Date(req.created_at).toLocaleString() : "";
-    const submitter = [req.submitter_name, req.submitter_contact].filter(Boolean).join(" / ") || "未留";
     return `<div class="admin-request-card ${pending ? "" : "reviewed"}" data-id="${req.id}">
       <div class="admin-request-head">
         <div>
           <b class="admin-request-title">${payload.name || req.combo_name || "未命名组合"}</b>
           <span class="published-n">top${payload.N || "?"}</span>
-          <div class="admin-request-meta">状态：${statusText} · 申请人：${submitter} · ${created}</div>
-          ${req.note ? `<div class="published-desc">备注：${req.note}</div>` : ""}
+          <div class="admin-request-meta">状态：${statusText} · ${created}</div>
           <div class="published-summary">${payload.factors ? comboSummary(validatePublishedCombo(payload, 0, new Set(state.catalog.map(f => f.code)))) : "无组合配置"}</div>
         </div>
         <div class="admin-request-actions">
@@ -3446,38 +3452,25 @@ async function submitPublishRequest(payload, submitter = {}) {
     combo_id: payload.id,
     combo_name: payload.name,
     combo_payload: payload,
-    submitter_name: submitter.name || null,
-    submitter_contact: submitter.contact || null,
-    note: submitter.note || null,
     status: "pending",
   };
-  return supabaseInsert("combo_publish_requests", [row]);
+  return supabaseInsertMinimal("combo_publish_requests", [row]);
 }
 
-async function promptAndSubmitPublishRequest(payload, btn) {
-  const submitterName = prompt("申请人昵称（可留空）", "");
-  if (submitterName === null) return;
-  const contact = prompt("联系方式（可留空，方便管理员联系）", "");
-  if (contact === null) return;
-  const note = prompt("申请备注（可留空）", "");
-  if (note === null) return;
+async function submitPublishRequestFromButton(payload, btn) {
   const old = btn ? btn.textContent : "";
   if (btn) {
     btn.disabled = true;
     btn.textContent = "提交中…";
   }
   try {
-    await submitPublishRequest(payload, {
-      name: submitterName.trim(),
-      contact: contact.trim(),
-      note: note.trim(),
-    });
+    await submitPublishRequest(payload);
     window.__lastPublishRequestPayload = payload;
     if (btn) btn.textContent = "已提交申请";
     alert("申请已提交，等待管理员审核。审核通过后会出现在已发布组合。");
   } catch (err) {
     console.error("submit publish request failed:", err);
-    alert(`提交失败：${err.message || err}\n\n如果还没初始化 Supabase，请先在 Supabase SQL Editor 执行项目里的 supabase/schema.sql。`);
+    alert(`提交失败：${err.message || err}`);
     if (btn) btn.textContent = old;
   } finally {
     if (btn) {
@@ -3495,7 +3488,7 @@ async function copyPublishRequest() {
     return;
   }
   const btn = document.getElementById("cps-copy-json");
-  await promptAndSubmitPublishRequest(currentComboPublishPayload(), btn);
+  await submitPublishRequestFromButton(currentComboPublishPayload(), btn);
 }
 
 async function copyMyComboPublishRequest(id, btn) {
@@ -3504,7 +3497,7 @@ async function copyMyComboPublishRequest(id, btn) {
     alert("这个组合配置无效，不能申请发布");
     return;
   }
-  await promptAndSubmitPublishRequest(comboPublishPayload(combo), btn);
+  await submitPublishRequestFromButton(comboPublishPayload(combo), btn);
 }
 
 function renderComposeSoon(delay = 80) {
