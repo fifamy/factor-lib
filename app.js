@@ -3,14 +3,19 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605083253" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605101444" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260605083253";
+const _DEPLOY = "20260605101444";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
+const SINGLE_SNAPSHOT_DIR = DATA_DIR + "single_snapshots/";
+const STOCK_META_SNAPSHOT = DATA_DIR + "stock_meta_snapshot.json" + V;
+const BENCHMARK_SNAPSHOT = DATA_DIR + "benchmark_snapshot.json" + V;
+const RANKING_SNAPSHOT = DATA_DIR + "factor_ranking_snapshot.json" + V;
+const CORR_SNAPSHOT = DATA_DIR + "factor_corr_snapshot.json" + V;
 const SCORE_LATEST_DIR = DATA_DIR + "factor_scores_latest/";
 const BACKTEST_DIR = DATA_DIR + "backtests/";
 const FACTOR_IC_DIR = DATA_DIR + "factor_ics/";
@@ -40,6 +45,16 @@ const state = {
   myCombos: [],
   myComboOpen: new Set(),
   comboLibraryTab: "published",
+  singleSnapshots: new Map(),
+  stockMetaSnapshot: null,
+  benchmarkSnapshot: null,
+  rankingSnapshot: null,
+  corrSnapshot: null,
+  hasStockMeta: false,
+  hasDescriptors: false,
+  hasBenchmarks: false,
+  hasCorr: false,
+  duckdb: null,
   db: null,
 };
 
@@ -59,11 +74,60 @@ async function init() {
   bindFactorSearch();
   document.getElementById("meta").textContent =
     `${state.catalog.length} 因子可用`;
+  scheduleDuckDbWarmup(450);
 }
 
 async function loadCatalog() {
   const res = await fetch("data/factor_catalog.json" + V);
   state.catalog = await res.json();
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+  return res.json();
+}
+
+function singleSnapshotUrl(code) {
+  return `${SINGLE_SNAPSHOT_DIR}${code}.json${V}`;
+}
+
+async function loadSingleSnapshot(code) {
+  if (!state.singleSnapshots.has(code)) {
+    state.singleSnapshots.set(code, await fetchJson(singleSnapshotUrl(code)));
+  }
+  return state.singleSnapshots.get(code);
+}
+
+async function ensureBenchmarkSnapshot() {
+  if (!state.benchmarkSnapshot) state.benchmarkSnapshot = await fetchJson(BENCHMARK_SNAPSHOT);
+  return state.benchmarkSnapshot;
+}
+
+async function ensureStockMetaSnapshot() {
+  if (!state.stockMetaSnapshot) {
+    const payload = await fetchJson(STOCK_META_SNAPSHOT);
+    const byCode = new Map();
+    for (const row of payload.rows || []) {
+      byCode.set(row[0], {
+        name: row[1] || "",
+        is_st: !!row[2],
+        is_active_latest: row[3] !== false,
+      });
+    }
+    state.stockMetaSnapshot = byCode;
+  }
+  return state.stockMetaSnapshot;
+}
+
+async function ensureRankingSnapshot() {
+  if (!state.rankingSnapshot) state.rankingSnapshot = await fetchJson(RANKING_SNAPSHOT);
+  return state.rankingSnapshot;
+}
+
+async function ensureCorrSnapshot() {
+  if (!state.corrSnapshot) state.corrSnapshot = await fetchJson(CORR_SNAPSHOT);
+  return state.corrSnapshot;
 }
 
 function normalizeComposeFactor(f) {
@@ -320,10 +384,90 @@ function bindFactorSearch() {
 }
 
 let _dbPromise = null;
-function ensureDB() {
+let _optionalDataLoad = Promise.resolve();
+const _optionalReady = { stockMeta: false, descriptors: false, benchmarks: false, corr: false };
+let _warmupScheduled = false;
+
+function scheduleDuckDbWarmup(delay = 0) {
+  if (_dbPromise || _warmupScheduled) return;
+  _warmupScheduled = true;
+  const run = () => {
+    _warmupScheduled = false;
+    if (_dbPromise) return;
+    ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false })
+      .catch(err => console.warn("DuckDB warmup failed:", err.message || err));
+  };
+  const launch = () => {
+    if ("requestIdleCallback" in window) window.requestIdleCallback(run, { timeout: 600 });
+    else setTimeout(run, 0);
+  };
+  if (delay > 0) setTimeout(launch, delay);
+  else launch();
+}
+
+function ensureDB(opts = {}) {
   // promise 锁：并发调用（快速连点）共享同一次初始化，避免重复 instantiate / 重复建表
   if (!_dbPromise) _dbPromise = _initDB();
-  return _dbPromise;
+  return _dbPromise.then(async (db) => {
+    await ensureOptionalTables(opts);
+    return db;
+  });
+}
+
+async function ensureOptionalTables(opts = {}) {
+  if (!state.db) return;
+  const needStockMeta = opts.stockMeta !== false;
+  const needDescriptors = opts.descriptors !== false;
+  const needBenchmarks = opts.benchmarks !== false;
+  const needCorr = opts.corr !== false;
+  _optionalDataLoad = _optionalDataLoad.then(async () => {
+    if (needStockMeta && !_optionalReady.stockMeta) {
+      state.hasStockMeta = await tryLoadOptional("stock_meta", `
+          CREATE OR REPLACE TABLE stock_meta AS
+          SELECT * FROM read_parquet('${F_META}')
+        `, `
+          CREATE OR REPLACE TABLE stock_meta (
+            stock_code VARCHAR, name VARCHAR, is_st BOOLEAN,
+            is_main_board BOOLEAN, is_active_latest BOOLEAN
+          )
+        `);
+      _optionalReady.stockMeta = true;
+    }
+    if (needDescriptors && !_optionalReady.descriptors) {
+      state.hasDescriptors = await tryLoadOptional("stock_descriptors", `
+          CREATE OR REPLACE TABLE stock_descriptors AS
+          SELECT * FROM read_parquet('${DATA_DIR}stock_descriptors.parquet${V}')
+        `, `
+          CREATE OR REPLACE TABLE stock_descriptors (
+            stock_code VARCHAR, industry_sw1 VARCHAR, industry_sw2 VARCHAR,
+            market_cap DOUBLE, pe DOUBLE, pb DOUBLE, avg_amount DOUBLE
+          )
+        `);
+      _optionalReady.descriptors = true;
+    }
+    if (needBenchmarks && !_optionalReady.benchmarks) {
+      state.hasBenchmarks = await tryLoadOptional("benchmarks", `
+          CREATE OR REPLACE TABLE benchmarks AS
+          SELECT * FROM read_parquet('${DATA_DIR}benchmarks.parquet${V}')
+        `, `
+          CREATE OR REPLACE TABLE benchmarks (
+            trade_date DATE, index_code VARCHAR, nav DOUBLE
+          )
+        `);
+      _optionalReady.benchmarks = true;
+    }
+    if (needCorr && !_optionalReady.corr) {
+      state.hasCorr = await tryLoadOptional("factor_corr", `
+          CREATE OR REPLACE TABLE factor_corr AS
+          SELECT * FROM read_parquet('${DATA_DIR}factor_corr.parquet${V}')
+        `, `
+          CREATE OR REPLACE TABLE factor_corr (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
+        `);
+      _optionalReady.corr = true;
+    }
+    console.log(`Optional: stockMeta=${state.hasStockMeta}, descriptors=${state.hasDescriptors}, benchmarks=${state.hasBenchmarks}, corr=${state.hasCorr}`);
+  });
+  return _optionalDataLoad;
 }
 
 async function _initDB() {
@@ -335,13 +479,19 @@ async function _initDB() {
     const logger = new duckdb.ConsoleLogger();
     const db = new duckdb.AsyncDuckDB(logger, worker);
     await db.instantiate(mainModule);
+    state.duckdb = db;
     state.db = await db.connect();
     console.log("DuckDB-Wasm ready, loading tables…");
 
     // 串行加载小表。因子得分 / 预置回测 / IC 改为按因子分片懒加载，
     // 避免单因子首次点击就下载全量大文件。
     const t0 = performance.now();
-    await state.db.query(`CREATE TABLE stock_meta AS SELECT * FROM read_parquet('${F_META}')`);
+    await state.db.query(`
+      CREATE TABLE stock_meta (
+        stock_code VARCHAR, name VARCHAR, is_st BOOLEAN,
+        is_main_board BOOLEAN, is_active_latest BOOLEAN
+      )
+    `);
     await state.db.query(`
       CREATE TABLE factor_score (
         trade_date DATE, stock_code VARCHAR, factor_code VARCHAR, raw_value DOUBLE, score DOUBLE
@@ -357,33 +507,21 @@ async function _initDB() {
         month DATE, factor_code VARCHAR, ic DOUBLE, rank_ic DOUBLE, ic_ir_12m DOUBLE
       )
     `);
-    console.log(`核心表加载 ${(performance.now() - t0).toFixed(0)}ms`);
-
-    // 可选数据（串行）：没准备好就建空表，前端 LEFT JOIN 自动出 NULL
-    state.hasDescriptors = await tryLoadOptional("stock_descriptors", `
-      CREATE TABLE stock_descriptors AS
-      SELECT * FROM read_parquet('${DATA_DIR}stock_descriptors.parquet${V}')
-    `, `
+    await state.db.query(`
       CREATE TABLE stock_descriptors (
         stock_code VARCHAR, industry_sw1 VARCHAR, industry_sw2 VARCHAR,
         market_cap DOUBLE, pe DOUBLE, pb DOUBLE, avg_amount DOUBLE
       )
     `);
-    state.hasBenchmarks = await tryLoadOptional("benchmarks", `
-      CREATE TABLE benchmarks AS
-      SELECT * FROM read_parquet('${DATA_DIR}benchmarks.parquet${V}')
-    `, `
+    await state.db.query(`
       CREATE TABLE benchmarks (
         trade_date DATE, index_code VARCHAR, nav DOUBLE
       )
     `);
-    state.hasCorr = await tryLoadOptional("factor_corr", `
-      CREATE TABLE factor_corr AS
-      SELECT * FROM read_parquet('${DATA_DIR}factor_corr.parquet${V}')
-    `, `
+    await state.db.query(`
       CREATE TABLE factor_corr (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
     `);
-    console.log(`Optional: descriptors=${state.hasDescriptors}, benchmarks=${state.hasBenchmarks}, corr=${state.hasCorr}`);
+    console.log(`核心表加载 ${(performance.now() - t0).toFixed(0)}ms`);
 
     return state.db;
   } catch (err) {
@@ -459,17 +597,14 @@ function ensureAllFactorData(opts = {}) {
   return ensureFactorData(state.catalog.map(f => f.code), opts);
 }
 
-// 合成专用月收益表懒加载。历史因子得分按因子分片加载，避免首次合成请求 77MB 全量文件。
+// 合成专用数据懒加载。历史因子得分按因子分片加载，且分片已带 fwd_return，
+// 避免首次合成额外下载 monthly_return.parquet 并在浏览器里做大 join。
 let _composePromise = null;
 function ensureComposeData() {
   // promise 锁：并发调用共享同一次加载，避免重复 CREATE TABLE 竞态
   if (!_composePromise) {
     _composePromise = (async () => {
-      // monthly_return 较小（~6MB）且回测每月都要 join 全集，物化成表更快。
-      const ok = await tryLoadOptional("monthly_return", `
-        CREATE TABLE monthly_return AS SELECT * FROM read_parquet('${DATA_DIR}monthly_return.parquet${V}')
-      `, `CREATE TABLE monthly_return (trade_date DATE, stock_code VARCHAR, fwd_return DOUBLE)`);
-      state.hasComposeData = ok;
+      state.hasComposeData = true;
       console.log(`Compose data loaded: ${state.hasComposeData}`);
       return state.hasComposeData;
     })();
@@ -501,21 +636,41 @@ async function selectFactor(code) {
   const meta = state.catalog.find(f => f.code === code);
   try {
     const tAll = performance.now();
-    await ensureDB();
-    await ensureFactorData([code]);
-    await initSingleRangeControls();
+    const [snap] = await Promise.all([
+      loadSingleSnapshot(code),
+      ensureBenchmarkSnapshot(),
+    ]);
+    await initSingleRangeControlsFast(snap);
     renderFactorDetail(meta);
     const tQ = performance.now();
     await Promise.all([
-      (async () => { const t = performance.now(); await renderTopStocks(code); console.log(`  top table: ${(performance.now()-t).toFixed(0)}ms`); })(),
-      (async () => { const t = performance.now(); await renderNavChart(code); console.log(`  nav chart: ${(performance.now()-t).toFixed(0)}ms`); })(),
-      (async () => { const t = performance.now(); await renderNScan(code); console.log(`  N-scan:    ${(performance.now()-t).toFixed(0)}ms`); })(),
-      (async () => { const t = performance.now(); await renderKpiTable(code); console.log(`  kpi: ${(performance.now()-t).toFixed(0)}ms`); })(),
+      (async () => { const t = performance.now(); await renderTopStocksFast(code, snap); console.log(`  top table: ${(performance.now()-t).toFixed(0)}ms`); })(),
+      (async () => { const t = performance.now(); await renderNavChartFast(code, snap); console.log(`  nav chart: ${(performance.now()-t).toFixed(0)}ms`); })(),
+      (async () => { const t = performance.now(); await renderNScanFast(code, snap); console.log(`  N-scan:    ${(performance.now()-t).toFixed(0)}ms`); })(),
+      (async () => { const t = performance.now(); await renderKpiTableFast(code, snap); console.log(`  kpi: ${(performance.now()-t).toFixed(0)}ms`); })(),
     ]);
-    console.log(`selectFactor(${code}, N=[${state.selectedNs}]) total ${(performance.now()-tAll).toFixed(0)}ms (queries ${(performance.now()-tQ).toFixed(0)}ms)`);
+    console.log(`selectFactor(${code}, N=[${state.selectedNs}]) fast total ${(performance.now()-tAll).toFixed(0)}ms (render ${(performance.now()-tQ).toFixed(0)}ms)`);
+    scheduleDuckDbWarmup(80);
   } catch (err) {
-    console.error("selectFactor failed:", err);
-    showError(`选择因子 ${code} 失败: ${err.message || err}\n\n${err.stack || ""}`);
+    console.warn("fast selectFactor failed, falling back to DuckDB:", err);
+    try {
+      const tAll = performance.now();
+      await ensureDB();
+      await ensureFactorData([code]);
+      await initSingleRangeControls();
+      renderFactorDetail(meta);
+      const tQ = performance.now();
+      await Promise.all([
+        (async () => { const t = performance.now(); await renderTopStocks(code); console.log(`  top table: ${(performance.now()-t).toFixed(0)}ms`); })(),
+        (async () => { const t = performance.now(); await renderNavChart(code); console.log(`  nav chart: ${(performance.now()-t).toFixed(0)}ms`); })(),
+        (async () => { const t = performance.now(); await renderNScan(code); console.log(`  N-scan:    ${(performance.now()-t).toFixed(0)}ms`); })(),
+        (async () => { const t = performance.now(); await renderKpiTable(code); console.log(`  kpi: ${(performance.now()-t).toFixed(0)}ms`); })(),
+      ]);
+      console.log(`selectFactor(${code}, N=[${state.selectedNs}]) fallback total ${(performance.now()-tAll).toFixed(0)}ms (queries ${(performance.now()-tQ).toFixed(0)}ms)`);
+    } catch (fallbackErr) {
+      console.error("selectFactor failed:", fallbackErr);
+      showError(`选择因子 ${code} 失败: ${fallbackErr.message || fallbackErr}\n\n${fallbackErr.stack || ""}`);
+    }
   }
 }
 
@@ -723,6 +878,75 @@ async function renderTopStocks(code) {
   renderTopMarketCapChart(rows);
 }
 
+async function renderTopStocksFast(code, snap) {
+  const N = maxN();
+  const target = document.getElementById("top-stocks");
+  const meta = state.catalog.find(f => f.code === code) || {};
+  const isEvent = !!meta.is_event;
+  const rows = (snap.top_stocks || []).slice(0, N);
+  if (!rows.length) {
+    target.innerHTML = `<h3>${code} · Top ${N} 股票</h3><div class="empty">无数据（该因子该截面无有效得分）</div>`;
+    return;
+  }
+  const descNote = " <span style='color:#aaa;font-size:11px'>(快照)</span>";
+  let head;
+  if (isEvent) {
+    const dts = rows.map(r => r.dt).filter(Boolean).sort();
+    const lo = dts[0] || "—", hi = dts[dts.length - 1] || "—";
+    head = `<h3>${code} · Top ${N} 股票（近6月快报池，按 z-score 降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+      <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
+        事件因子：每股取其<b>最近一期业绩快报</b>（池含 ${lo} ~ ${hi} 的快报月，去重后取最高一期）；
+        年末三季报快报稀少，故按近 6 个快报月汇总。申万行业 / 市值 / PE / PB 为最新快照。
+      </p>`;
+  } else {
+    const dt = rows[0].dt || "—";
+    head = `<h3>${code} · Top ${N} 股票（截面日 ${dt}，按 z-score 降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+      <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
+        指标口径：得分/原始值基于因子截面 ${dt}；申万行业 / 市值 / PE / PB 为 ${dt} 当日快照；
+        近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。
+      </p>`;
+  }
+  let html = head + `
+    <table class="stock-table">
+      <thead><tr>
+        <th>#</th><th>代码</th><th>名称</th>
+        <th>申万一级</th><th>申万二级</th>
+        <th>市值(亿)</th><th>PE</th><th>PB</th><th>近一年日均成交额(亿)</th>
+        <th>得分</th><th>原始值</th>
+      </tr></thead>
+      <tbody>`;
+  const fmt = (v, dp = 2) => (v === null || v === undefined ? "—" : Number(v).toFixed(dp));
+  const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));
+  const fmtAmt = (v) => (v === null || v === undefined ? "—" : Number(v).toFixed(2));
+  rows.forEach((r, i) => {
+    html += `<tr class="stock-row" data-stock="${r.stock_code}" data-name="${r.name || ""}" title="点击看该股各因子打分（为什么入选）">
+      <td>${i + 1}</td>
+      <td>${r.stock_code}</td>
+      <td>${r.name || ""}</td>
+      <td>${r.industry_sw1 || "—"}</td>
+      <td>${r.industry_sw2 || "—"}</td>
+      <td>${fmtMV(r.market_cap)}</td>
+      <td>${fmt(r.pe, 1)}</td>
+      <td>${fmt(r.pb, 2)}</td>
+      <td>${fmtAmt(r.avg_amount)}</td>
+      <td>${fmt(r.score, 3)}</td>
+      <td>${r.raw_value !== null && r.raw_value !== undefined ? Number(r.raw_value).toFixed(4) : "—"}</td>
+    </tr>`;
+  });
+  html += "</tbody></table>";
+  html += `<div style="margin-top:14px">
+      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">选出股票的行业分布（申万一级，按只数降序）</h4>
+      <div id="top-industry-chart" style="width:100%"></div>
+    </div>`;
+  html += `<div style="margin-top:14px">
+      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">选出股票的市值分布（按总市值分档）</h4>
+      <div id="top-mktcap-chart" style="width:100%;height:170px"></div>
+    </div>`;
+  target.innerHTML = html;
+  renderTopIndustryChart(rows, N);
+  renderTopMarketCapChart(rows);
+}
+
 // 市值分档（亿元）：小盘 <50 / 中盘 50-200 / 大盘 200-1000 / 超大盘 >1000
 const MKTCAP_BINS = [
   { label: "小盘 <50亿", lo: 0, hi: 50 },
@@ -885,6 +1109,60 @@ async function renderNavChart(code) {
   });
 }
 
+async function renderNavChartFast(code, snap) {
+  const ns = state.selectedNs;
+  const rng = (state.singleStart || state.singleEnd)
+    ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
+  document.getElementById("nav-title").textContent =
+    `${code} · 组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，月末等权，0.2%双边成本）`;
+
+  const chartDiv = document.getElementById("nav-chart");
+  if (navChart) { navChart.dispose(); navChart = null; }
+  chartDiv.innerHTML = "";
+
+  const months = monthsFromSnapshot(snap);
+  const idxs = rangeFilterIndexes(months, state.singleStart, state.singleEnd);
+  const x = idxs.map(i => months[i]);
+  const series = [];
+  ns.forEach((n, i) => {
+    const bt = snap.backtests?.[String(n)];
+    if (!bt) return;
+    const rets = sliceByIndexes(bt.ret, idxs);
+    series.push({
+      name: `top${n}`,
+      type: "line",
+      data: navFromReturnsForChart(rets),
+      symbol: "none",
+      color: STRAT_COLORS[i % STRAT_COLORS.length],
+      lineStyle: { width: 2 },
+    });
+  });
+
+  const bm = await ensureBenchmarkSnapshot();
+  const colors = { "HS300": "#c14545", "CSI800": "#6e9a4f", "CSI500": "#c89c2b" };
+  const cnNames = { "HS300": "沪深300", "CSI800": "中证800", "CSI500": "中证500" };
+  for (const idxCode of ["HS300", "CSI800", "CSI500"]) {
+    const rebased = rebaseNav(benchmarkSeries(bm, x, idxCode));
+    if (!rebased.some(v => v !== null)) continue;
+    series.push({
+      name: `${cnNames[idxCode] || idxCode}(基准)`,
+      type: "line", data: rebased, symbol: "none", connectNulls: true,
+      color: colors[idxCode] || "#888",
+      lineStyle: { width: 1.2, type: "dashed" },
+    });
+  }
+
+  navChart = echarts.init(chartDiv);
+  navChart.setOption({
+    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    tooltip: { trigger: "axis" },
+    legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 32 },
+    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    yAxis: { type: "value", scale: true },
+    series,
+  });
+}
+
 // 从月度收益/净值序列算各项指标
 function computeMetrics(rets, navs) {
   if (navs.length < 2) return null;
@@ -902,8 +1180,89 @@ function computeMetrics(rets, navs) {
   return { annual, sharpe, mdd, winRate, navEnd, vol };
 }
 
+function metricsFromReturns(rets) {
+  const clean = (rets || []).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+  if (!clean.length) return null;
+  const navs = [1];
+  for (const r of clean) navs.push(navs[navs.length - 1] * (1 + r));
+  return computeMetrics(clean, navs);
+}
+
+function monthsFromSnapshot(snap) {
+  return (snap && Array.isArray(snap.months)) ? snap.months : [];
+}
+
+function rangeFilterIndexes(months, startMonth, endMonth) {
+  const out = [];
+  for (let i = 0; i < months.length; i++) {
+    const m = months[i];
+    if (startMonth && m < startMonth) continue;
+    if (endMonth && m > endMonth) continue;
+    out.push(i);
+  }
+  return out;
+}
+
+function sliceByIndexes(arr, idxs) {
+  return idxs.map(i => arr?.[i]).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+}
+
+function navFromReturnsForChart(rets) {
+  const out = [];
+  let nav = 1;
+  for (const r of rets) {
+    out.push(+nav.toFixed(6));
+    nav *= 1 + r;
+  }
+  return out;
+}
+
+function pctText(v) {
+  return v == null || !Number.isFinite(Number(v)) ? "—" : (Number(v) * 100).toFixed(1) + "%";
+}
+
+function signedPctText(v) {
+  return v == null || !Number.isFinite(Number(v)) ? "—" : (Number(v) >= 0 ? "+" : "") + (Number(v) * 100).toFixed(1) + "%";
+}
+
+function numText(v, d = 2) {
+  return v == null || !Number.isFinite(Number(v)) ? "—" : Number(v).toFixed(d);
+}
+
+function benchmarkSeries(snapshot, months, indexCode) {
+  const bmMonths = snapshot?.months || [];
+  const arr = snapshot?.nav?.[indexCode] || [];
+  const mp = new Map(bmMonths.map((m, i) => [m, arr[i]]));
+  return months.map(m => {
+    const v = mp.get(m);
+    return v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
+  });
+}
+
+function rebaseNav(arr) {
+  const base = arr.find(v => v !== null && v !== undefined && Number.isFinite(Number(v)));
+  return base ? arr.map(v => v === null || v === undefined ? null : +(Number(v) / base).toFixed(6)) : arr;
+}
+
+function benchmarkMetrics(snapshot, startMonth = null, endMonth = null) {
+  const out = {};
+  const months = snapshot?.months || [];
+  const idxs = rangeFilterIndexes(months, startMonth, endMonth);
+  for (const [code, arr] of Object.entries(snapshot?.nav || {})) {
+    const navs = idxs.map(i => arr[i]).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+    if (navs.length < 2) continue;
+    const rets = navs.slice(1).map((v, i) => v / navs[i] - 1);
+    out[code] = computeMetrics(rets, navs);
+  }
+  return out;
+}
+
 // 基准年化（用于超额计算），按当前选定区间对齐（区间变 → 重算，不缓存跨区间）
 async function benchAnnuals() {
+  if (state.benchmarkSnapshot) {
+    const ms = benchmarkMetrics(state.benchmarkSnapshot, state.singleStart, state.singleEnd);
+    return Object.fromEntries(Object.entries(ms).map(([k, v]) => [k, v.annual]));
+  }
   const out = {};
   if (state.hasBenchmarks) {
     const r = await state.db.query(`
@@ -1010,6 +1369,63 @@ async function renderKpiTable(code) {
   `;
 }
 
+async function renderKpiTableFast(code, snap) {
+  const target = document.getElementById("kpi");
+  const months = monthsFromSnapshot(snap);
+  const idxs = rangeFilterIndexes(months, state.singleStart, state.singleEnd);
+  const bm = await ensureBenchmarkSnapshot();
+  const bmMetrics = benchmarkMetrics(bm, state.singleStart, state.singleEnd);
+  const icMonths = snap.ic?.months || [];
+  const icIdxs = rangeFilterIndexes(icMonths, state.singleStart, state.singleEnd);
+  const rankIcs = sliceByIndexes(snap.ic?.rank_ic, icIdxs);
+  const mean = rankIcs.length ? rankIcs.reduce((s, v) => s + v, 0) / rankIcs.length : null;
+  const std = rankIcs.length > 1
+    ? Math.sqrt(rankIcs.reduce((s, v) => s + (v - mean) ** 2, 0) / (rankIcs.length - 1))
+    : null;
+  const icir = std && std > 0 ? (mean / std * Math.sqrt(12)).toFixed(2) : "—";
+
+  let rows = "";
+  for (const n of state.selectedNs) {
+    const bt = snap.backtests?.[String(n)];
+    const m = bt ? metricsFromReturns(sliceByIndexes(bt.ret, idxs)) : null;
+    if (!m) { rows += `<tr><td>top${n}</td><td colspan="6">无数据</td></tr>`; continue; }
+    rows += `<tr>
+      <td>top${n}</td>
+      <td>${pctText(m.annual)}</td>
+      <td>${m.sharpe.toFixed(2)}</td>
+      <td>${pctText(m.mdd)}</td>
+      <td>${(m.winRate * 100).toFixed(0)}%</td>
+      <td>${bmMetrics.HS300 ? signedPctText(m.annual - bmMetrics.HS300.annual) : "—"}</td>
+      <td>${bmMetrics.CSI800 ? signedPctText(m.annual - bmMetrics.CSI800.annual) : "—"}</td>
+    </tr>`;
+  }
+
+  const cnNames = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
+  for (const idx of ["HS300", "CSI800", "CSI500"]) {
+    const m = bmMetrics[idx];
+    if (!m) continue;
+    rows += `<tr style="color:#888;border-top:2px solid #ddd">
+      <td style="color:#888">${cnNames[idx]}</td>
+      <td>${pctText(m.annual)}</td>
+      <td>${m.sharpe.toFixed(2)}</td>
+      <td>${pctText(m.mdd)}</td>
+      <td>${(m.winRate * 100).toFixed(0)}%</td>
+      <td>—</td><td>—</td>
+    </tr>`;
+  }
+
+  target.innerHTML = `
+    <table class="kpi-table">
+      <thead><tr>
+        <th>组合 / 基准</th><th>年化收益</th><th>夏普</th><th>最大回撤</th>
+        <th>月度胜率</th><th>超额 vs 300</th><th>超额 vs 800</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="color:#888;font-size:11px;margin-top:6px">区间内 RankIC IC_IR：${icir}（与持仓数无关）</p>
+  `;
+}
+
 // 指标-N 曲线：横轴持仓数 1-100，纵轴当前选定指标
 async function renderNScan(code) {
   const metricLabels = { annual: "年化收益", sharpe: "夏普比率", mdd: "最大回撤", vol: "波动率" };
@@ -1044,6 +1460,46 @@ async function renderNScan(code) {
     return +(m.vol * 100).toFixed(2);   // 波动率（年化，%）
   });
   // 标出当前所选的 N
+  const marks = state.selectedNs.map(n => {
+    const idx = xs.indexOf(n);
+    return idx >= 0 ? { xAxis: n, yAxis: ys[idx] } : null;
+  }).filter(Boolean);
+
+  scanChart = echarts.init(chartDiv);
+  scanChart.setOption({
+    grid: { left: 55, right: 20, top: 20, bottom: 36 },
+    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${metricLabels[state.scanMetric]}: ${p[0].data}` },
+    xAxis: { type: "category", data: xs, name: "持仓数 N", nameLocation: "middle", nameGap: 24, axisLabel: { fontSize: 10 } },
+    yAxis: { type: "value", scale: true },
+    series: [{
+      type: "line", data: ys, symbol: "none", smooth: true,
+      lineStyle: { color: "#1a4d80", width: 1.8 },
+      markPoint: { data: marks.map(m => ({ coord: [String(m.xAxis), m.yAxis] })), symbol: "pin", symbolSize: 36,
+                   itemStyle: { color: "#e07b39" }, label: { fontSize: 9, formatter: p => "N=" + p.data.coord[0] } },
+    }],
+  });
+}
+
+async function renderNScanFast(code, snap) {
+  const metricLabels = { annual: "年化收益", sharpe: "夏普比率", mdd: "最大回撤", vol: "波动率" };
+  document.getElementById("scan-title").textContent =
+    `${code} · ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
+  const chartDiv = document.getElementById("scan-chart");
+  if (scanChart) { scanChart.dispose(); scanChart = null; }
+  chartDiv.innerHTML = "";
+
+  const months = monthsFromSnapshot(snap);
+  const idxs = rangeFilterIndexes(months, state.singleStart, state.singleEnd);
+  const xs = Object.keys(snap.backtests || {}).map(Number).sort((a, b) => a - b);
+  const ys = xs.map(n => {
+    const bt = snap.backtests?.[String(n)];
+    const m = bt ? metricsFromReturns(sliceByIndexes(bt.ret, idxs)) : null;
+    if (!m) return null;
+    if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
+    if (state.scanMetric === "sharpe") return +m.sharpe.toFixed(3);
+    if (state.scanMetric === "mdd") return +(m.mdd * 100).toFixed(2);
+    return +(m.vol * 100).toFixed(2);
+  });
   const marks = state.selectedNs.map(n => {
     const idx = xs.indexOf(n);
     return idx >= 0 ? { xAxis: n, yAxis: ys[idx] } : null;
@@ -1158,17 +1614,27 @@ async function renderCompare() {
   document.getElementById("cmp-selected").textContent = sel.length ? `（已选 ${sel.length} 个）` : "";
   renderCmpControls();
   try {
-    await ensureDB();   // compare 路径也保证 DuckDB 已初始化
     if (sel.length === 0) {
       document.getElementById("cmp-table").innerHTML = `<div class="empty">从左侧选 1 个以上因子开始对比</div>`;
       return;
     }
-    await ensureFactorData(sel.map(f => f.code), { score: false });
-    await Promise.all([renderCmpTable(), renderCmpNav(), renderCmpIc(), renderCmpCorr()]);
+    await Promise.all([
+      Promise.all([...new Set(sel.map(f => f.code))].map(code => loadSingleSnapshot(code))),
+      ensureBenchmarkSnapshot(),
+      ensureCorrSnapshot(),
+    ]);
+    await Promise.all([renderCmpTableFast(), renderCmpNavFast(), renderCmpIcFast(), renderCmpCorrFast()]);
   } catch (err) {
-    console.error("renderCompare failed:", err);
-    document.getElementById("cmp-table").innerHTML =
-      `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">对比渲染失败：${err.message || err}\n\n${err.stack || ""}</pre>`;
+    console.warn("fast renderCompare failed, falling back to DuckDB:", err);
+    try {
+      await ensureDB();
+      await ensureFactorData(sel.map(f => f.code), { score: false });
+      await Promise.all([renderCmpTable(), renderCmpNav(), renderCmpIc(), renderCmpCorr()]);
+    } catch (fallbackErr) {
+      console.error("renderCompare failed:", fallbackErr);
+      document.getElementById("cmp-table").innerHTML =
+        `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">对比渲染失败：${fallbackErr.message || fallbackErr}\n\n${fallbackErr.stack || ""}</pre>`;
+    }
   }
 }
 
@@ -1252,6 +1718,47 @@ async function renderCmpTable() {
       benches.push({ label: cn[idx], annual: m.annual, sharpe: m.sharpe, mdd: m.mdd,
                      winRate: m.winRate, ex300: null, ic_mean: null, icir: null });
     }
+  }
+  _cmpRows = { factors, benches };
+  drawCmpTable();
+}
+
+async function renderCmpTableFast() {
+  const target = document.getElementById("cmp-table");
+  document.getElementById("cmp-table-title").textContent = `因子指标对比表（各因子可设不同持仓数）`;
+  if (state.compareFactors.length === 0) {
+    target.innerHTML = `<div class="empty">从左侧选 1 个以上因子开始对比</div>`;
+    return;
+  }
+  const bm = await ensureBenchmarkSnapshot();
+  const ba = benchmarkMetrics(bm);
+  const factors = [];
+  for (const f of state.compareFactors) {
+    const snap = await loadSingleSnapshot(f.code);
+    const bt = snap.backtests?.[String(f.n)];
+    const m = bt ? metricsFromReturns((bt.ret || []).filter(v => v !== null && v !== undefined)) : null;
+    const rankIc = (snap.ic?.rank_ic || []).filter(v => v !== null && Number.isFinite(Number(v))).map(Number);
+    const icVals = (snap.ic?.ic || []).filter(v => v !== null && Number.isFinite(Number(v))).map(Number);
+    const label = `${f.code} <span style="color:#888;font-weight:400">top${f.n}</span>`;
+    if (!m) { factors.push({ label, noData: true }); continue; }
+    const ricMean = rankIc.length ? rankIc.reduce((s, v) => s + v, 0) / rankIc.length : null;
+    const icMean = icVals.length ? icVals.reduce((s, v) => s + v, 0) / icVals.length : null;
+    const latestIcir = [...(snap.ic?.ic_ir_12m || [])].reverse()
+      .find(v => v !== null && v !== undefined && Number.isFinite(Number(v)));
+    factors.push({
+      label, annual: m.annual, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
+      ex300: ba.HS300 ? (m.annual - ba.HS300.annual) : null,
+      ic_mean: icMean ?? ricMean, icir: latestIcir ?? null,
+    });
+  }
+
+  const benches = [];
+  const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
+  for (const idx of ["HS300", "CSI800", "CSI500"]) {
+    const m = ba[idx];
+    if (!m) continue;
+    benches.push({ label: cn[idx], annual: m.annual, sharpe: m.sharpe, mdd: m.mdd,
+                   winRate: m.winRate, ex300: null, ic_mean: null, icir: null });
   }
   _cmpRows = { factors, benches };
   drawCmpTable();
@@ -1359,6 +1866,44 @@ async function renderCmpNav() {
   });
 }
 
+async function renderCmpNavFast() {
+  document.getElementById("cmp-nav-title").textContent = `组合净值叠加（各因子按各自持仓数，起点=1.0）`;
+  const div = document.getElementById("cmp-nav-chart");
+  if (cmpNavChart) { cmpNavChart.dispose(); cmpNavChart = null; }
+  div.innerHTML = "";
+  if (state.compareFactors.length === 0) { div.innerHTML = `<div class="empty">选因子后显示</div>`; return; }
+
+  const snaps = await Promise.all(state.compareFactors.map(f => loadSingleSnapshot(f.code)));
+  const x = monthsFromSnapshot(snaps[0] || {});
+  const series = state.compareFactors.map((f, i) => {
+    const snap = snaps[i];
+    const bt = snap.backtests?.[String(f.n)];
+    if (!bt) return null;
+    const rets = (bt.ret || []).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+    return { name: `${f.code} top${f.n}`, type: "line", symbol: "none",
+             data: navFromReturnsForChart(rets),
+             color: STRAT_COLORS[i % STRAT_COLORS.length],
+             lineStyle: { width: 2 } };
+  }).filter(Boolean);
+
+  const bm = await ensureBenchmarkSnapshot();
+  const colors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
+  const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
+  for (const idx of ["HS300", "CSI800", "CSI500"]) {
+    const rebased = rebaseNav(benchmarkSeries(bm, x, idx));
+    if (!rebased.some(v => v !== null)) continue;
+    series.push({ name: `${cn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
+      data: rebased, color: colors[idx], lineStyle: { width: 1.2, type: "dashed" } });
+  }
+  cmpNavChart = echarts.init(div);
+  cmpNavChart.setOption({
+    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 32 },
+    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    yAxis: { type: "value", scale: true }, series,
+  });
+}
+
 async function renderCmpIc() {
   const div = document.getElementById("cmp-ic-chart");
   if (cmpIcChart) { cmpIcChart.dispose(); cmpIcChart = null; }
@@ -1394,6 +1939,37 @@ async function renderCmpIc() {
     series,
     visualMap: undefined,
     markLine: undefined,
+  });
+}
+
+async function renderCmpIcFast() {
+  const div = document.getElementById("cmp-ic-chart");
+  if (cmpIcChart) { cmpIcChart.dispose(); cmpIcChart = null; }
+  div.innerHTML = "";
+  if (state.compareFactors.length === 0) { div.innerHTML = `<div class="empty">选因子后显示</div>`; return; }
+
+  const uniqCodes = [...new Set(state.compareFactors.map(f => f.code))];
+  const snaps = await Promise.all(uniqCodes.map(code => loadSingleSnapshot(code)));
+  const x = snaps[0]?.ic?.months || [];
+  const series = snaps.map((snap, i) => {
+    const vals = snap.ic?.ic || [];
+    const rolling = vals.map((_, idx) => {
+      const win = vals.slice(Math.max(0, idx - 11), idx + 1)
+        .filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+      return win.length ? +(win.reduce((s, v) => s + v, 0) / win.length).toFixed(6) : null;
+    });
+    return { name: uniqCodes[i], type: "line", symbol: "none", data: rolling,
+             color: STRAT_COLORS[i % STRAT_COLORS.length],
+             lineStyle: { width: 1.6 } };
+  });
+
+  cmpIcChart = echarts.init(div);
+  cmpIcChart.setOption({
+    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 } },
+    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    yAxis: { type: "value", name: "12月滚动IC" },
+    series,
   });
 }
 
@@ -1443,6 +2019,66 @@ async function renderCmpCorr() {
   div.style.minWidth = "0";
   div.parentElement.style.overflowX = (n > 16 ? "auto" : "visible");
   // 格子里的数字：因子多了必糊，>16 个时关掉，靠颜色 + 悬停 tooltip；少量因子才标数值
+  const showLabel = n <= 16;
+  const labelFont = n <= 10 ? 11 : 9;
+  const axisFont = n > 30 ? 9 : (n > 16 ? 10 : 11);
+
+  cmpCorrChart = echarts.init(div);
+  cmpCorrChart.setOption({
+    grid: { left: 90, right: 20, top: 16, bottom: 70 },
+    tooltip: { position: "top", formatter: p => `${codes[p.data[1]]} × ${codes[p.data[0]]}<br/>corr: ${p.data[2]}` },
+    xAxis: { type: "category", data: codes, axisLabel: { fontSize: axisFont, rotate: 90, interval: 0 } },
+    yAxis: { type: "category", data: codes, axisLabel: { fontSize: axisFont, interval: 0 } },
+    visualMap: { min: -1, max: 1, calculable: true, orient: "horizontal", left: "center", bottom: 0,
+                 inRange: { color: ["#c14545", "#ffffff", "#1a4d80"] }, textStyle: { fontSize: 10 } },
+    series: [{ type: "heatmap", data,
+               label: { show: showLabel, fontSize: labelFont, formatter: p => p.data[2] },
+               itemStyle: { borderColor: "#fff", borderWidth: n > 20 ? 0.5 : 1 },
+               emphasis: { itemStyle: { shadowBlur: 6, borderColor: "#333", borderWidth: 1 } } }],
+  });
+}
+
+async function renderCmpCorrFast() {
+  const div = document.getElementById("cmp-corr-chart");
+  if (cmpCorrChart) { cmpCorrChart.dispose(); cmpCorrChart = null; }
+  div.innerHTML = "";
+  const corrSnap = await ensureCorrSnapshot();
+  if (!corrSnap.rows || !corrSnap.rows.length) {
+    div.innerHTML = `<div class="empty">相关性数据未生成（需跑 scripts/08_factor_corr.py）</div>`;
+    return;
+  }
+  const uniq = [...new Set(state.compareFactors.map(f => f.code))];
+  const isAll = uniq.length < 2;
+  let codes;
+  if (isAll) {
+    codes = [...state.catalog]
+      .sort((a, b) => (a.l1 + a.l2).localeCompare(b.l1 + b.l2) || a.code.localeCompare(b.code))
+      .map(f => f.code);
+  } else {
+    codes = uniq;
+  }
+  const want = new Set(codes);
+  const cmap = {};
+  for (const [a, b, c] of corrSnap.rows) {
+    if (want.has(a) && want.has(b)) cmap[`${a}|${b}`] = c;
+  }
+  const data = [];
+  codes.forEach((a, i) => codes.forEach((b, j) => {
+    const c = cmap[`${a}|${b}`];
+    data.push([j, i, c === null || c === undefined ? "-" : +Number(c).toFixed(2)]);
+  }));
+
+  const n = codes.length;
+  div.style.width = "";
+  const panelW = (div.parentElement && div.parentElement.clientWidth) || 560;
+  const target = Math.min(560, Math.max(300, panelW - 8));
+  const cell = n > 20 ? 17 : Math.min(110, Math.max(30, Math.floor((target - 110) / n)));
+  const plotH = n * cell + 110;
+  const plotW = n * cell + 110;
+  div.style.height = plotH + "px";
+  div.style.width = plotW + "px";
+  div.style.minWidth = "0";
+  div.parentElement.style.overflowX = (n > 16 ? "auto" : "visible");
   const showLabel = n <= 16;
   const labelFont = n <= 10 ? 11 : 9;
   const axisFont = n > 30 ? 9 : (n > 16 ? 10 : 11);
@@ -1539,24 +2175,41 @@ let _rankBarBound = false;
 async function renderRanking() {
   const box = document.getElementById("rank-table");
   try {
-    await ensureDB();   // 先确保 DuckDB 就绪，区间下拉/排名查询都依赖它
-    await ensureAllFactorData();
     if (!_rankBarBound) {
       document.getElementById("rank-to-compare").onclick = () => rankSendTo("compare");
       document.getElementById("rank-to-compose").onclick = () => rankSendTo("compose");
       document.getElementById("rank-clear-sel").onclick = () => { _rankState.checked.clear(); drawRankTable(); };
       buildTagFilters();
-      await initRankRangeControls();
+      await initRankRangeControlsFast();
       _rankBarBound = true;
     }
     if (!_rankState.rows) {
       box.innerHTML = `<div class="empty">计算中…</div>`;
-      _rankState.rows = await computeRanking(_rankState.start, _rankState.end);
+      _rankState.rows = await computeRankingFast(_rankState.start, _rankState.end);
     }
     drawRankTable();
   } catch (err) {
-    console.error("renderRanking failed:", err);
-    box.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">排行榜失败：${err.message || err}</pre>`;
+    console.warn("fast renderRanking failed, falling back to DuckDB:", err);
+    try {
+      await ensureDB();
+      await ensureAllFactorData();
+      if (!_rankBarBound) {
+        document.getElementById("rank-to-compare").onclick = () => rankSendTo("compare");
+        document.getElementById("rank-to-compose").onclick = () => rankSendTo("compose");
+        document.getElementById("rank-clear-sel").onclick = () => { _rankState.checked.clear(); drawRankTable(); };
+        buildTagFilters();
+        await initRankRangeControls();
+        _rankBarBound = true;
+      }
+      if (!_rankState.rows) {
+        box.innerHTML = `<div class="empty">计算中…</div>`;
+        _rankState.rows = await computeRanking(_rankState.start, _rankState.end);
+      }
+      drawRankTable();
+    } catch (fallbackErr) {
+      console.error("renderRanking failed:", fallbackErr);
+      box.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">排行榜失败：${fallbackErr.message || fallbackErr}</pre>`;
+    }
   }
 }
 
@@ -1564,6 +2217,10 @@ async function renderRanking() {
 let _rankMonths = null;
 async function rankMonths() {
   if (_rankMonths) return _rankMonths;
+  if (state.rankingSnapshot?.months) {
+    _rankMonths = state.rankingSnapshot.months;
+    return _rankMonths;
+  }
   const res = await state.db.query(
     `SELECT DISTINCT strftime(trade_date,'%Y-%m') m FROM preset_backtest ORDER BY m`);
   _rankMonths = res.toArray().map(r => r.m);
@@ -1591,9 +2248,22 @@ function rangeWhere(startMonth, endMonth, col = "trade_date") {
 
 // 单因子回测区间选择器（与排行榜同款逻辑，作用于 state.singleStart/End）
 let _sgBound = false;
+let _sgMonths = null;
+let _singleRangeFast = false;
 async function initSingleRangeControls() {
   if (_sgBound) return;
   const months = await rankMonths();
+  setupSingleRangeControls(months, false);
+}
+
+async function initSingleRangeControlsFast(snap) {
+  const months = monthsFromSnapshot(snap);
+  if (!months.length) return initSingleRangeControls();
+  if (_sgBound && _singleRangeFast && JSON.stringify(_sgMonths) === JSON.stringify(months)) return;
+  setupSingleRangeControls(months, true);
+}
+
+function setupSingleRangeControls(months, fastMode) {
   const startSel = document.getElementById("sg-start");
   const endSel = document.getElementById("sg-end");
   startSel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join("");
@@ -1624,6 +2294,8 @@ async function initSingleRangeControls() {
   };
   startSel.onchange = onCustom;
   endSel.onchange = onCustom;
+  _sgMonths = months.slice();
+  _singleRangeFast = fastMode;
   _sgBound = true;
 }
 
@@ -1668,10 +2340,50 @@ async function initRankRangeControls() {
   endSel.onchange = onCustom;
 }
 
-async function recomputeRank() {
+async function initRankRangeControlsFast() {
+  const snap = await ensureRankingSnapshot();
+  _rankMonths = snap.months || [];
+  return setupRankRangeControls(_rankMonths, true);
+}
+
+function setupRankRangeControls(months, fastMode) {
+  const startSel = document.getElementById("rk-start");
+  const endSel = document.getElementById("rk-end");
+  startSel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join("");
+  endSel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join("");
+  startSel.value = months[0];
+  endSel.value = months[months.length - 1];
+  _rankState.start = months[0];
+  _rankState.end = months[months.length - 1];
+  document.querySelectorAll(".rkrange-btn").forEach(b => {
+    b.onclick = async () => {
+      document.querySelectorAll(".rkrange-btn").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      _rankState.range = b.dataset.range;
+      const [s, e] = rangeToBounds(b.dataset.range, months);
+      _rankState.start = s; _rankState.end = e;
+      startSel.value = s; endSel.value = e;
+      await recomputeRank(fastMode);
+    };
+  });
+  const onCustom = async () => {
+    document.querySelectorAll(".rkrange-btn").forEach(x => x.classList.remove("active"));
+    _rankState.range = "custom";
+    let s = startSel.value, e = endSel.value;
+    if (s > e) { e = s; endSel.value = s; }
+    _rankState.start = s; _rankState.end = e;
+    await recomputeRank(fastMode);
+  };
+  startSel.onchange = onCustom;
+  endSel.onchange = onCustom;
+}
+
+async function recomputeRank(fastMode = !!state.rankingSnapshot) {
   const box = document.getElementById("rank-table");
   box.innerHTML = `<div class="empty">按区间重新计算中…</div>`;
-  _rankState.rows = await computeRanking(_rankState.start, _rankState.end);
+  _rankState.rows = fastMode
+    ? await computeRankingFast(_rankState.start, _rankState.end)
+    : await computeRanking(_rankState.start, _rankState.end);
   drawRankTable();
 }
 
@@ -1747,6 +2459,49 @@ async function factorMarketCap() {
 }
 
 // startMonth/endMonth: 'YYYY-MM'（含端点）；null 表示不限。
+async function computeRankingFast(startMonth, endMonth) {
+  const snap = await ensureRankingSnapshot();
+  const months = snap.months || [];
+  const idxs = rangeFilterIndexes(months, startMonth, endMonth);
+  const rows = [];
+  for (const f of snap.factors || []) {
+    const rets = sliceByIndexes(f.top30_ret, idxs);
+    const m = metricsFromReturns(rets);
+    if (!m) continue;
+    const rankIcs = sliceByIndexes(f.rank_ic, idxs);
+    const rankIC = rankIcs.length ? rankIcs.reduce((s, v) => s + v, 0) / rankIcs.length : 0;
+    let icir = 0;
+    if (rankIcs.length > 1) {
+      const mean = rankIC;
+      const std = Math.sqrt(rankIcs.reduce((s, v) => s + (v - mean) ** 2, 0) / (rankIcs.length - 1));
+      icir = std > 0 ? mean / std * Math.sqrt(12) : 0;
+    }
+    rows.push({
+      code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
+      annual: m.annual, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
+      rankIC, icir,
+      nMonths: rets.length,
+      top3ind: f.top3ind || "—",
+      medCap: f.medCap ?? null,
+      capStyle: f.capStyle || "—",
+      env_tag: f.env_tag || "—",
+      time_tag: f.time_tag || "—",
+    });
+  }
+  const zget = makeZScorer(rows);
+  const W = { rankIC: .25, icir: .25, annual: .15, sharpe: .15, mdd: .10, winRate: .10 };
+  for (const r of rows) {
+    r.score =
+      W.rankIC * zget("rankIC", r.rankIC) +
+      W.icir   * zget("icir", r.icir) +
+      W.annual * zget("annual", r.annual) +
+      W.sharpe * zget("sharpe", r.sharpe) +
+      W.mdd    * (-zget("mdd", r.mdd)) +
+      W.winRate * zget("winRate", r.winRate);
+  }
+  return rows;
+}
+
 async function computeRanking(startMonth, endMonth) {
   // 区间过滤条件（作用于 trade_date / month）
   const btWhere = ["top_n = 30"];
@@ -1927,13 +2682,14 @@ function rankSendTo(mode) {
 
 // ===================== 多因子合成 =====================
 
-// 按"当前所选因子集"缓存一张窄表 cps_base，避免每次调权重/阈值都重扫历史数据。
-// cps_base 只含选中因子的 (trade_date, stock_code, factor_code, score)，几万~几十万行，
-// 物化进内存后，stocks/backtest/最优权重 全部改查它，纯内存聚合，调权重近乎瞬时。
-// 因子集变化（增删因子）才重建；权重、阈值、N 改变不触发重建。
+// 按"当前所选因子集"缓存一张宽表 cps_matrix，避免每次调权重/阈值都重扫历史分片。
+// cps_matrix 只含选中因子的 (trade_date, stock_code, f0..fn, fwd_return)，因子集变化
+// 才重建；权重、阈值、N 改变只查内存宽表。
 let _cpsBaseKey = null;
 let _cpsBaseBuild = null;     // 进行中的重建 promise（串行锁）
 let _cpsMatrixCodes = [];
+const _composeFilePaths = new Map();
+const _composeFileLoads = new Map();
 let _latestComposeBtKey = null;
 let _latestComposeBt = null;
 const _composeBtCache = new Map();
@@ -1943,8 +2699,26 @@ function composeScorePath(code) {
   return `${COMPOSE_SCORE_DIR}${code}.parquet${V}`;
 }
 
+async function ensureComposeFiles(codes) {
+  const wanted = uniqueValidCodes(codes);
+  await Promise.all(wanted.map(async (code) => {
+    if (_composeFilePaths.has(code)) return;
+    if (!_composeFileLoads.has(code)) {
+      _composeFileLoads.set(code, (async () => {
+        const res = await fetch(composeScorePath(code));
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${composeScorePath(code)}`);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        const path = `/compose_scores/${code}.parquet`;
+        await state.duckdb.registerFileBuffer(path, bytes);
+        _composeFilePaths.set(code, path);
+      })());
+    }
+    await _composeFileLoads.get(code);
+  }));
+}
+
 function composeScoreReadExpr(codes) {
-  const paths = codes.map(code => `'${composeScorePath(code)}'`).join(",");
+  const paths = codes.map(code => `'${_composeFilePaths.get(code) || composeScorePath(code)}'`).join(",");
   return `read_parquet([${paths}])`;
 }
 
@@ -1962,6 +2736,30 @@ function rememberComposeBacktest(key, bt) {
   while (_composeBtCache.size > 12) _composeBtCache.delete(_composeBtCache.keys().next().value);
 }
 
+function matrixCondSql(factors = state.composeFactors) {
+  const idxMap = new Map(_cpsMatrixCodes.map((code, i) => [code, i]));
+  const parts = [];
+  for (const f of factors) {
+    if (f.thr === null || !Number.isFinite(Number(f.thr))) continue;
+    const idx = idxMap.get(f.code);
+    if (idx === undefined) return null;
+    parts.push(`f${idx} ${f.op} ${Number(f.thr)}`);
+  }
+  return parts.length ? "AND " + parts.join(" AND ") : "";
+}
+
+function matrixScoreSql(factors = state.composeFactors) {
+  const idxMap = new Map(_cpsMatrixCodes.map((code, i) => [code, i]));
+  const terms = [];
+  for (const f of factors) {
+    const idx = idxMap.get(f.code);
+    if (idx === undefined) return null;
+    const weight = Number.isFinite(Number(f.weight)) ? Number(f.weight) : 0;
+    terms.push(`f${idx} * ${weight}`);
+  }
+  return terms.length ? terms.join(" + ") : "0";
+}
+
 async function ensureComposeBase() {
   const codes = state.composeFactors.map(f => f.code).sort();
   const key = codes.join(",");
@@ -1973,41 +2771,38 @@ async function ensureComposeBase() {
     // DROP→CREATE 用 CREATE OR REPLACE 保证幂等；先置 key 失效，建好再写回。
     _cpsBaseKey = null;
     if (codes.length === 0) {
-      await state.db.query(`DROP TABLE IF EXISTS cps_base`);
-      await state.db.query(`DROP TABLE IF EXISTS cps_latest_base`);
       await state.db.query(`DROP TABLE IF EXISTS cps_matrix`);
+      await state.db.query(`DROP TABLE IF EXISTS cps_latest_matrix`);
       _cpsMatrixCodes = [];
     } else {
+      await ensureComposeFiles(codes);
       // 只读取选中因子的历史分片。后续所有合成查询不再碰远程 parquet。
-      await state.db.query(`
-        CREATE OR REPLACE TABLE cps_base AS
-        SELECT trade_date, stock_code, factor_code, score
-        FROM ${composeScoreReadExpr(codes)}
-        WHERE score IS NOT NULL
-      `);
-      await state.db.query(`
-        CREATE OR REPLACE TABLE cps_latest_base AS
-        SELECT * FROM cps_base WHERE trade_date = (SELECT MAX(trade_date) FROM cps_base)
-      `);
-
       const scoreCols = codes.map((c, i) =>
         `MAX(CASE WHEN factor_code = '${c}' THEN score END) AS f${i}`
       ).join(",\n               ");
       const matrixCols = codes.map((_, i) => `w.f${i}`).join(", ");
       await state.db.query(`
         CREATE OR REPLACE TABLE cps_matrix AS
-        WITH wide AS (
+        WITH src AS (
+          SELECT trade_date, stock_code, factor_code, score, fwd_return
+          FROM ${composeScoreReadExpr(codes)}
+          WHERE score IS NOT NULL
+        ),
+        wide AS (
           SELECT trade_date, stock_code,
                  ${scoreCols},
+                 MAX(fwd_return) AS fwd_return,
                  COUNT(DISTINCT factor_code) AS factor_count
-          FROM cps_base
+          FROM src
           GROUP BY trade_date, stock_code
         )
-        SELECT w.trade_date, w.stock_code, ${matrixCols}, r.fwd_return
+        SELECT w.trade_date, w.stock_code, ${matrixCols}, w.fwd_return
         FROM wide w
-        JOIN stock_meta m ON m.stock_code = w.stock_code
-        JOIN monthly_return r ON r.trade_date = w.trade_date AND r.stock_code = w.stock_code
-        WHERE w.factor_count = ${codes.length} AND COALESCE(m.is_st, FALSE) = FALSE
+        WHERE w.factor_count = ${codes.length}
+      `);
+      await state.db.query(`
+        CREATE OR REPLACE TABLE cps_latest_matrix AS
+        SELECT * FROM cps_matrix WHERE trade_date = (SELECT MAX(trade_date) FROM cps_matrix)
       `);
       _cpsMatrixCodes = codes;
     }
@@ -2025,7 +2820,7 @@ function toggleComposeFactor(code) {
   if (i >= 0) state.composeFactors.splice(i, 1);
   else state.composeFactors.push({ code, weight: 1, op: ">=", thr: null });
   updateTreeHighlight();
-  renderComposeSoon();
+  renderComposeSoon(20);
 }
 
 // 参数化版过滤条件 SQL 片段。基于设了阈值(thr非null)的因子。
@@ -2349,7 +3144,7 @@ async function copyPublishRequest() {
   }
 }
 
-function renderComposeSoon(delay = 180) {
+function renderComposeSoon(delay = 80) {
   _composeRenderSeq++;
   clearTimeout(renderComposeSoon._timer);
   renderComposeSoon._timer = setTimeout(() => {
@@ -2429,7 +3224,7 @@ async function renderCompose() {
       `<h3>合成 Top 股票</h3><div class="empty">首次加载所选因子的历史数据，请稍候…</div>`;
   }
   try {
-    await ensureDB();
+    await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
     if (isComposeRenderStale(renderSeq)) return;
     await ensureComposeData();   // 懒加载合成专用大表
     if (isComposeRenderStale(renderSeq)) return;
@@ -2463,31 +3258,34 @@ async function renderCompose() {
 async function renderComposeStocks(renderSeq) {
   if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
   const target = document.getElementById("cps-stocks");
-  const nF = state.composeFactors.length;
-  const cond = composeCondFor(state.composeFactors, "cps_latest_base");
+  const metaMap = await ensureStockMetaSnapshot();
+  if (isComposeRenderStale(renderSeq)) return;
+  const scoreExpr = matrixScoreSql(state.composeFactors);
+  const condSql = matrixCondSql(state.composeFactors);
+  if (scoreExpr === null || condSql === null) return;
+  const candidateLimit = Math.min(Math.max(state.composeN + 180, state.composeN * 4), 700);
   const res = await state.db.query(`
-    WITH w(code, weight) AS (VALUES ${composeValues()}),
-    ${cond.cte}
-    comp AS (
-      SELECT s.trade_date, s.stock_code, ROUND(SUM(s.score * w.weight), 6) AS cs, COUNT(*) AS cnt
-      FROM cps_latest_base s JOIN w ON s.factor_code = w.code
-      WHERE s.score IS NOT NULL
-      GROUP BY s.trade_date, s.stock_code
-    )
-    SELECT c.stock_code, m.name, c.cs AS comp_score, CAST(c.trade_date AS VARCHAR) AS dt,
-           d.industry_sw1, d.industry_sw2, d.market_cap, d.pe, d.pb, d.avg_amount
-    FROM comp c
-    ${cond.join}
-    LEFT JOIN stock_meta m ON m.stock_code = c.stock_code
-    LEFT JOIN stock_descriptors d ON d.stock_code = c.stock_code
-    WHERE c.cnt = ${nF}
-      AND COALESCE(m.is_st, FALSE) = FALSE
-      AND COALESCE(m.is_active_latest, FALSE) = TRUE
-    ORDER BY c.cs DESC, c.stock_code
-    LIMIT ${state.composeN}
+    SELECT stock_code,
+           ROUND(${scoreExpr}, 6) AS comp_score,
+           CAST(trade_date AS VARCHAR) AS dt
+    FROM cps_latest_matrix
+    WHERE TRUE ${condSql}
+    ORDER BY comp_score DESC, stock_code
+    LIMIT ${candidateLimit}
   `);
   if (isComposeRenderStale(renderSeq)) return;
-  const rows = res.toArray();
+  const rows = res.toArray()
+    .map(r => ({ ...r, meta: metaMap.get(r.stock_code) }))
+    .filter(r => r.meta && !r.meta.is_st && r.meta.is_active_latest)
+    .slice(0, state.composeN)
+    .map(r => ({
+      ...r,
+      name: r.meta.name,
+      industry_sw1: null,
+      market_cap: null,
+      pe: null,
+      pb: null,
+    }));
   const condDesc = state.composeFactors.filter(f => f.thr !== null && Number.isFinite(f.thr))
     .map(f => `${f.code}得分${f.op}${f.thr}`).join(" 且 ");
   if (rows.length === 0) {
@@ -2529,19 +3327,13 @@ async function renderComposeBacktest(renderSeq) {
   div.innerHTML = "";
   const series = [{ name: "合成组合", type: "line", symbol: "none", data: navArr,
                     color: "#1a4d80", lineStyle: { width: 2 } }];
-  if (state.hasBenchmarks && x.length) {
-    const bmRes = await state.db.query(`
-      SELECT index_code, strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
-      WHERE strftime(trade_date,'%Y-%m') >= '${x[0]}' AND strftime(trade_date,'%Y-%m') <= '${x[x.length-1]}'
-      ORDER BY index_code, trade_date`);
+  if (x.length) {
+    const bm = await ensureBenchmarkSnapshot();
     if (isComposeRenderStale(renderSeq)) return;
-    const byIdx = {};
-    for (const r of bmRes.toArray()) (byIdx[r.index_code] ||= {})[r.dt] = r.nav;
     const colors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
     const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
     for (const idx of ["HS300", "CSI800", "CSI500"]) {
-      const mm = byIdx[idx]; if (!mm) continue;
-      const aligned = x.map(m => (m in mm ? mm[m] : null));
+      const aligned = benchmarkSeries(bm, x, idx);
       const b = aligned.find(v => v !== null);
       series.push({ name: `${cn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
         data: b ? aligned.map(v => v === null ? null : v / b) : aligned,
@@ -2569,19 +3361,13 @@ async function renderComposeBacktest(renderSeq) {
   let krows = `<tr><td><b>合成组合</b></td><td>${pct(m.annual)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
       <td>${(m.winRate*100).toFixed(0)}%</td><td>${ex300}</td><td>${ex800}</td></tr>`;
   // 三基准行（绝对指标）
-  if (state.hasBenchmarks) {
+  {
     const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
-    const bRes = await state.db.query(`
-      SELECT index_code, nav FROM benchmarks
-      WHERE index_code IN ('HS300','CSI800','CSI500')
-      ORDER BY index_code, trade_date`);
+    const bmSnap = await ensureBenchmarkSnapshot();
     if (isComposeRenderStale(renderSeq)) return;
-    const bg = {};
-    for (const r of bRes.toArray()) (bg[r.index_code] ||= []).push(r.nav);
+    const bg = benchmarkMetrics(bmSnap);
     for (const idx of ["HS300", "CSI800", "CSI500"]) {
-      const navs = bg[idx]; if (!navs || navs.length < 2) continue;
-      const rets = navs.slice(1).map((v, i) => v / navs[i] - 1);
-      const bm = computeMetrics(rets, navs);
+      const bm = bg[idx]; if (!bm) continue;
       krows += `<tr style="color:#888;border-top:2px solid #ddd">
         <td style="color:#888">${cn[idx]}</td><td>${pct(bm.annual)}</td><td>${bm.sharpe.toFixed(2)}</td>
         <td>${pct(bm.mdd)}</td><td>${(bm.winRate*100).toFixed(0)}%</td><td>—</td><td>—</td></tr>`;
@@ -2606,7 +3392,7 @@ async function ensureCmpBase(codes) {
     if (!sorted.length) { await state.db.query(`DROP TABLE IF EXISTS cps_cmp_base`); }
     else {
       await state.db.query(`CREATE OR REPLACE TABLE cps_cmp_base AS
-        SELECT trade_date, stock_code, factor_code, score
+        SELECT trade_date, stock_code, factor_code, score, fwd_return
         FROM ${composeScoreReadExpr(sorted)}
         WHERE score IS NOT NULL`);
     }
@@ -2703,13 +3489,11 @@ async function comboBacktest(factors, N, baseTable) {
       WHERE s.score IS NOT NULL GROUP BY s.trade_date, s.stock_code
     ),
     ranked AS (
-      SELECT c.trade_date, c.stock_code, r.fwd_return,
+      SELECT c.trade_date, c.stock_code, c.fwd_return,
              ROW_NUMBER() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC, c.stock_code) AS rk
       FROM comp c
       ${cond.join}
-      JOIN stock_meta m ON m.stock_code = c.stock_code
-      JOIN monthly_return r ON r.trade_date = c.trade_date AND r.stock_code = c.stock_code
-      WHERE c.cnt = ${nF} AND COALESCE(m.is_st, FALSE) = FALSE
+      WHERE c.cnt = ${nF} AND c.fwd_return IS NOT NULL
     )
     SELECT strftime(trade_date, '%Y-%m') AS dt, stock_code, fwd_return
     FROM ranked WHERE rk <= ${N} ORDER BY trade_date`);
@@ -2745,7 +3529,8 @@ async function saveCurrentCombo() {
   if (saveBtn && !combo.bt) { saveBtn.disabled = true; saveBtn.textContent = "计算中…"; }
   try {
     if (!combo.bt) {
-      await ensureDB(); await ensureComposeData();   // 确保月收益表已就绪，因子得分由分片按需加载
+      await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
+      await ensureComposeData();
       try {
         await ensureComposeBase();
         const bt = await comboBacktest(factors, N, "cps_matrix");
@@ -2857,7 +3642,8 @@ async function renderComboCompare() {
     if (titleEl) titleEl.textContent = "暂存组合对比 · 计算中…";
     if (!cpsCompareChart) { navDiv.innerHTML = `<div class="loading">计算暂存组合回测…</div>`; tblDiv.innerHTML = ""; }
     try {
-      await ensureDB(); await ensureComposeData();   // 确保月收益表已就绪，因子得分由分片按需加载
+      await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
+      await ensureComposeData();
       const union = [...new Set(state.savedCombos.flatMap(c => c.factors.map(f => f.code)))];
       await ensureCmpBase(union);
       for (const c of missing) c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base");
@@ -2884,18 +3670,10 @@ async function renderComboCompare() {
         data: allMonths.map(m => m in mp ? +mp[m].toFixed(3) : null),
         color: c.color, lineStyle: { width: 2 } };
     });
-    if (state.hasBenchmarks && allMonths.length) {
-      const bmRes = await state.db.query(`
-        SELECT index_code, strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
-        WHERE index_code IN ('HS300','CSI800','CSI500')
-          AND strftime(trade_date,'%Y-%m') >= '${allMonths[0]}'
-          AND strftime(trade_date,'%Y-%m') <= '${allMonths[allMonths.length - 1]}'
-        ORDER BY index_code, trade_date`);
-      const byIdx = {};
-      for (const r of bmRes.toArray()) (byIdx[r.index_code] ||= {})[r.dt] = r.nav;
+    if (allMonths.length) {
+      const bmSnap = await ensureBenchmarkSnapshot();
       for (const idx of ["HS300", "CSI800", "CSI500"]) {
-        const mp = byIdx[idx]; if (!mp) continue;
-        const aligned = allMonths.map(m => m in mp ? mp[m] : null);
+        const aligned = benchmarkSeries(bmSnap, allMonths, idx);
         const b = aligned.find(v => v !== null);
         series.push({ name: `${bcn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
           data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
@@ -3007,38 +3785,41 @@ async function optimizeWeights() {
   await ensureComposeData();
   await ensureComposeBase();
 
-  // 一次拉取：所选因子得分 + 下月收益（已剔 ST、要求当月可交易）
-  const inList = codes.map(c => `'${c}'`).join(",");
+  const scoreCols = codes.map((_, i) => `f${i}`).join(", ");
   // 候选股裁剪：只保留"在任一所选因子排进前 500"的股。合成 top-N(N≤100) 的成分
   // 必在此并集内（全因子都排 500 外 → 加权和必偏低 → 进不了 top），裁剪不改结果但大幅提速。
   const res = await state.db.query(`
-    WITH base AS (
-      SELECT s.trade_date, s.stock_code, s.factor_code, s.score, r.fwd_return
-      FROM cps_base s
-      JOIN stock_meta m USING(stock_code)
-      JOIN monthly_return r ON r.trade_date = s.trade_date AND r.stock_code = s.stock_code
-      WHERE s.factor_code IN (${inList}) AND s.score IS NOT NULL AND COALESCE(m.is_st, FALSE) = FALSE
-    ),
-    cand AS (
-      SELECT DISTINCT trade_date, stock_code FROM (
-        SELECT trade_date, stock_code,
-               ROW_NUMBER() OVER (PARTITION BY trade_date, factor_code ORDER BY score DESC) AS rk
-        FROM base
-      ) WHERE rk <= 500
+    WITH cand AS (
+      ${codes.map((_, i) => `
+        SELECT trade_date, stock_code FROM (
+          SELECT trade_date, stock_code,
+                 ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY f${i} DESC) AS rk
+          FROM cps_matrix
+          WHERE fwd_return IS NOT NULL
+        ) WHERE rk <= 500
+      `).join("\nUNION\n")}
     )
-    SELECT strftime(b.trade_date,'%Y-%m') AS ym, b.stock_code, b.factor_code, b.score, b.fwd_return
-    FROM base b JOIN cand c ON c.trade_date = b.trade_date AND c.stock_code = b.stock_code
-    ORDER BY b.trade_date
+    SELECT strftime(m.trade_date,'%Y-%m') AS ym,
+           m.stock_code,
+           ${scoreCols},
+           m.fwd_return
+    FROM cps_matrix m
+    JOIN cand c ON c.trade_date = m.trade_date AND c.stock_code = m.stock_code
+    WHERE m.fwd_return IS NOT NULL
+    ORDER BY m.trade_date
   `);
   // 组织成 months[ym] = { stocks: [{code, scores:[按codes顺序], ret}] }，仅保留所有因子都有得分的股
-  const idxOf = Object.fromEntries(codes.map((c, i) => [c, i]));
   const tmp = new Map();   // ym -> Map(code -> {scores:[], ret, cnt})
   for (const r of res.toArray()) {
     if (!tmp.has(r.ym)) tmp.set(r.ym, new Map());
     const mm = tmp.get(r.ym);
-    if (!mm.has(r.stock_code)) mm.set(r.stock_code, { scores: new Array(nF).fill(null), ret: r.fwd_return, cnt: 0 });
-    const o = mm.get(r.stock_code);
-    o.scores[idxOf[r.factor_code]] = r.score; o.cnt++;
+    if (!mm.has(r.stock_code)) {
+      mm.set(r.stock_code, {
+        scores: codes.map((_, i) => r[`f${i}`]),
+        ret: r.fwd_return,
+        cnt: nF,
+      });
+    }
   }
   const monthsArr = [];
   for (const [ym, mm] of tmp) {
