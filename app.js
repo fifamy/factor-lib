@@ -3,15 +3,16 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605103813" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605110323" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260605103813";
+const _DEPLOY = "20260605110323";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
 const SINGLE_SNAPSHOT_DIR = DATA_DIR + "single_snapshots/";
+const STOCK_FACTOR_DETAIL_DIR = DATA_DIR + "stock_factor_details/";
 const STOCK_META_SNAPSHOT = DATA_DIR + "stock_meta_snapshot.json" + V;
 const BENCHMARK_SNAPSHOT = DATA_DIR + "benchmark_snapshot.json" + V;
 const RANKING_SNAPSHOT = DATA_DIR + "factor_ranking_snapshot.json" + V;
@@ -46,6 +47,7 @@ const state = {
   myComboOpen: new Set(),
   comboLibraryTab: "published",
   singleSnapshots: new Map(),
+  stockFactorDetailBuckets: new Map(),
   stockMetaSnapshot: null,
   benchmarkSnapshot: null,
   rankingSnapshot: null,
@@ -101,6 +103,32 @@ async function loadSingleSnapshot(code) {
 
 function snapshotNumber(v) {
   return v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
+}
+
+function stockBucket(code) {
+  const digits = String(code || "").replace(/\D/g, "");
+  return digits.length >= 2 ? digits.slice(-2) : "xx";
+}
+
+async function loadStockFactorDetails(code) {
+  const bucket = stockBucket(code);
+  if (!state.stockFactorDetailBuckets.has(bucket)) {
+    state.stockFactorDetailBuckets.set(
+      bucket,
+      fetchJson(`${STOCK_FACTOR_DETAIL_DIR}${bucket}.json${V}`),
+    );
+  }
+  const payload = await state.stockFactorDetailBuckets.get(bucket);
+  const rows = payload?.stocks?.[code] || [];
+  return rows
+    .filter(row => row && row[0] && row[1] !== null && row[1] !== undefined)
+    .map(row => ({
+      factor_code: row[0],
+      score: Number(row[1]),
+      raw_value: snapshotNumber(row[2]),
+      dt: row[3] || "",
+    }))
+    .filter(row => Number.isFinite(row.score));
 }
 
 async function ensureBenchmarkSnapshot() {
@@ -3966,35 +3994,19 @@ function closeStockModal() {
   if (o) o.style.display = "none";
 }
 
-async function showStockDetail(code, name) {
-  const overlay = document.getElementById("stock-modal");
-  const titleEl = document.getElementById("stock-modal-title");
-  const body = document.getElementById("stock-modal-body");
-  overlay.style.display = "flex";
-  titleEl.textContent = `${code}${name ? " · " + name : ""}`;
-  body.innerHTML = `<div class="loading">查询中…</div>`;
-  let scoreRows, metaRow;
-  try {
-    await ensureAllFactorData({ backtest: false, ic: false });
-    const esc = code.replace(/'/g, "''");
-    // 每因子取该股最近一期（事件因子在 factor_score 里有近6月多行，需去重）
-    scoreRows = (await state.db.query(
-      `SELECT factor_code, score, raw_value FROM (
-         SELECT factor_code, score, raw_value,
-                ROW_NUMBER() OVER (PARTITION BY factor_code ORDER BY trade_date DESC) rn
-         FROM factor_score WHERE stock_code = '${esc}' AND score IS NOT NULL
-       ) WHERE rn = 1`)).toArray();
-    metaRow = (await state.db.query(
-      `SELECT industry_sw1, industry_sw2, market_cap, pe, pb
-       FROM stock_descriptors WHERE stock_code = '${esc}' LIMIT 1`)).toArray()[0];
-  } catch (e) {
-    body.innerHTML = `<div class="empty">查询失败：${e.message || e}</div>`;
-    return;
-  }
-  if (!scoreRows.length) {
-    body.innerHTML = `<div class="empty">该股在当前截面没有任何因子打分（可能已停牌/退市，或不在因子覆盖域）</div>`;
-    return;
-  }
+function metaRowFromSnapshot(code) {
+  const mp = state.stockMetaSnapshot;
+  const row = mp ? mp.get(code) : null;
+  return row ? {
+    industry_sw1: row.industry_sw1,
+    industry_sw2: row.industry_sw2,
+    market_cap: row.market_cap,
+    pe: row.pe,
+    pb: row.pb,
+  } : null;
+}
+
+function renderStockDetailBody(scoreRows, metaRow) {
   const cat = new Map((state.catalog || []).map(f => [f.code, f]));
   const groups = new Map();
   for (const r of scoreRows) {
@@ -4014,7 +4026,6 @@ async function showStockDetail(code, name) {
   head += `</div><p class="sd-note">每行一个因子：<b>原始值</b>＝因子原始数值（分位类显示为 %）；`
         + `<b>得分z</b>＝横截面标准化（已统一方向，越大越好）；<b>百分位</b>＝该股强于全市场的比例。`
         + `${active && cat.has(active) ? ` 当前因子 <b>${cat.get(active).name_cn}</b> 已高亮。` : ""}</p>`;
-  // l1 分组，组内按得分降序；每组带表头说明各列
   let bodyHtml = "";
   for (const [l1, arr] of groups) {
     arr.sort((a, b) => b.score - a.score);
@@ -4022,11 +4033,9 @@ async function showStockDetail(code, name) {
       + `<thead><tr><th class="sd-name">因子</th><th class="sd-raw">原始值</th>`
       + `<th class="sd-bar">强弱</th><th class="sd-z">得分z</th><th class="sd-pct">百分位</th></tr></thead><tbody>`;
     for (const r of arr) {
-      // 钳到 1~99%：z→Φ(z) 在 ±2.6σ 外会舍入到 0/100%，读起来像"击败包括自己在内的所有人"，不合理
       const pct = Math.min(99, Math.max(1, Math.round(_ncdf(r.score) * 100)));
       const pos = r.score >= 0;
       const hl = (r.factor_code === active) ? " sd-active" : "";
-      // 分位类因子（raw 为 0~1 占比）显示成百分数，更直观（如 PB历史分位 0.0076 → 0.76%）
       const isPct = (r.name_cn || "").includes("分位");
       const raw = (r.raw_value != null)
         ? (isPct ? (Number(r.raw_value) * 100).toFixed(2) + "%" : Number(r.raw_value).toPrecision(4))
@@ -4041,7 +4050,49 @@ async function showStockDetail(code, name) {
     }
     bodyHtml += `</tbody></table></div>`;
   }
-  body.innerHTML = head + bodyHtml;
+  return head + bodyHtml;
+}
+
+async function showStockDetail(code, name) {
+  const overlay = document.getElementById("stock-modal");
+  const titleEl = document.getElementById("stock-modal-title");
+  const body = document.getElementById("stock-modal-body");
+  overlay.style.display = "flex";
+  titleEl.textContent = `${code}${name ? " · " + name : ""}`;
+  body.innerHTML = `<div class="loading">查询中…</div>`;
+  try {
+    await ensureStockMetaSnapshot();
+    let scoreRows = await loadStockFactorDetails(code);
+    let metaRow = metaRowFromSnapshot(code);
+    if (!scoreRows.length) {
+      body.innerHTML = `<div class="empty">该股在当前截面没有任何因子打分（可能已停牌/退市，或不在因子覆盖域）</div>`;
+      return;
+    }
+    body.innerHTML = renderStockDetailBody(scoreRows, metaRow);
+  } catch (e) {
+    console.warn("stock detail fast path failed, falling back to DuckDB:", e);
+    try {
+      await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+      await ensureAllFactorData({ backtest: false, ic: false });
+      const esc = code.replace(/'/g, "''");
+      const scoreRows = (await state.db.query(
+        `SELECT factor_code, score, raw_value FROM (
+           SELECT factor_code, score, raw_value,
+                  ROW_NUMBER() OVER (PARTITION BY factor_code ORDER BY trade_date DESC) rn
+           FROM factor_score WHERE stock_code = '${esc}' AND score IS NOT NULL
+         ) WHERE rn = 1`)).toArray();
+      const metaRow = (await state.db.query(
+        `SELECT industry_sw1, industry_sw2, market_cap, pe, pb
+         FROM stock_descriptors WHERE stock_code = '${esc}' LIMIT 1`)).toArray()[0];
+      if (!scoreRows.length) {
+        body.innerHTML = `<div class="empty">该股在当前截面没有任何因子打分（可能已停牌/退市，或不在因子覆盖域）</div>`;
+        return;
+      }
+      body.innerHTML = renderStockDetailBody(scoreRows, metaRow);
+    } catch (fallbackErr) {
+      body.innerHTML = `<div class="empty">查询失败：${fallbackErr.message || fallbackErr}</div>`;
+    }
+  }
 }
 
 // 事件委托：点任意 .stock-row 开弹窗；点遮罩/× 关闭；Esc 关闭
