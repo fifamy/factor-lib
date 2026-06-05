@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605101444" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605103813" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260605101444";
+const _DEPLOY = "20260605103813";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -99,6 +99,10 @@ async function loadSingleSnapshot(code) {
   return state.singleSnapshots.get(code);
 }
 
+function snapshotNumber(v) {
+  return v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
+}
+
 async function ensureBenchmarkSnapshot() {
   if (!state.benchmarkSnapshot) state.benchmarkSnapshot = await fetchJson(BENCHMARK_SNAPSHOT);
   return state.benchmarkSnapshot;
@@ -113,6 +117,12 @@ async function ensureStockMetaSnapshot() {
         name: row[1] || "",
         is_st: !!row[2],
         is_active_latest: row[3] !== false,
+        industry_sw1: row[4] || null,
+        industry_sw2: row[5] || null,
+        market_cap: snapshotNumber(row[6]),
+        pe: snapshotNumber(row[7]),
+        pb: snapshotNumber(row[8]),
+        avg_amount: snapshotNumber(row[9]),
       });
     }
     state.stockMetaSnapshot = byCode;
@@ -3281,10 +3291,12 @@ async function renderComposeStocks(renderSeq) {
     .map(r => ({
       ...r,
       name: r.meta.name,
-      industry_sw1: null,
-      market_cap: null,
-      pe: null,
-      pb: null,
+      industry_sw1: r.meta.industry_sw1,
+      industry_sw2: r.meta.industry_sw2,
+      market_cap: r.meta.market_cap,
+      pe: r.meta.pe,
+      pb: r.meta.pb,
+      avg_amount: r.meta.avg_amount,
     }));
   const condDesc = state.composeFactors.filter(f => f.thr !== null && Number.isFinite(f.thr))
     .map(f => `${f.code}得分${f.op}${f.thr}`).join(" 且 ");
