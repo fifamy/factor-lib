@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260608102513" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260608180442" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260608102513";
+const _DEPLOY = "20260608180442";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -128,7 +128,12 @@ function stockBucket(code) {
   return digits.length >= 2 ? digits.slice(-2) : "xx";
 }
 
+function isListedStockCode(code) {
+  return /^\d{6}\.(SZ|SH|BJ)$/i.test(String(code || ""));
+}
+
 async function loadStockFactorDetails(code) {
+  if (!isListedStockCode(code)) return [];
   const bucket = stockBucket(code);
   if (!state.stockFactorDetailBuckets.has(bucket)) {
     state.stockFactorDetailBuckets.set(
@@ -4810,6 +4815,10 @@ async function showStockDetail(code, name) {
   const body = document.getElementById("stock-modal-body");
   overlay.style.display = "flex";
   titleEl.textContent = `${code}${name ? " · " + name : ""}`;
+  if (!isListedStockCode(code)) {
+    body.innerHTML = `<div class="empty">这不是正常上市股票代码，通常是 Wind 的 IPO 终止/未上市占位码，已从组合持仓中剔除。</div>`;
+    return;
+  }
   body.innerHTML = `<div class="loading">查询中…</div>`;
   try {
     await ensureStockMetaSnapshot();
