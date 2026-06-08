@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260608093228" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260608095522" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260608093228";
+const _DEPLOY = "20260608095522";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -36,6 +36,8 @@ const state = {
   mode: "single",          // single | compare | compose | library | ranking
   compareFactors: [],      // 对比模式：[{code, n}]，每个因子可设不同持仓数
   compareDefaultN: 30,     // 新加入因子的默认持仓数
+  compareStart: null,      // 多因子对比回测区间；null=不限
+  compareEnd: null,
   // 合成模式：[{code, weight, op:'>='|'<=', thr:number|null}]，thr=null 表示该因子不参与过滤
   composeFactors: [],
   composeN: 30,
@@ -1773,7 +1775,10 @@ function switchMode(mode) {
   document.getElementById("admin-view").style.display = mode === "admin" ? "flex" : "none";
   document.getElementById("ranking-view").style.display = mode === "ranking" ? "flex" : "none";
   updateTreeHighlight();
-  if (mode === "compare") renderCompare();
+  if (mode === "compare") {
+    initCompareRangeControls().catch(e => console.warn("compare range init failed:", e));
+    renderCompare();
+  }
   if (mode === "compose") renderCompose();
   if (mode === "library") renderComboLibrary();
   if (mode === "admin") {
@@ -1837,6 +1842,7 @@ async function renderCompare() {
   document.getElementById("cmp-selected").textContent = sel.length ? `（已选 ${sel.length} 个）` : "";
   renderCmpControls();
   try {
+    await initCompareRangeControls();
     if (sel.length === 0) {
       document.getElementById("cmp-table").innerHTML = `<div class="empty">从左侧选 1 个以上因子开始对比</div>`;
       return;
@@ -1878,6 +1884,7 @@ async function renderCmpTable() {
   const res = await state.db.query(`
     SELECT factor_code, top_n, port_ret, nav FROM preset_backtest
     WHERE ${cmpPairCond()}
+      ${rangeWhere(state.compareStart, state.compareEnd)}
     ORDER BY factor_code, top_n, trade_date
   `);
   const byKey = {};
@@ -1892,6 +1899,7 @@ async function renderCmpTable() {
     SELECT factor_code,
            AVG(ic) AS ic_mean, AVG(rank_ic) AS rankic_mean
     FROM factor_ic WHERE factor_code IN (${inList}) AND NOT ISNAN(ic)
+      ${rangeWhere(state.compareStart, state.compareEnd, "month")}
     GROUP BY factor_code
   `);
   const icMap = {};
@@ -1899,6 +1907,7 @@ async function renderCmpTable() {
   const icirRes = await state.db.query(`
     SELECT factor_code, ic_ir_12m FROM factor_ic
     WHERE factor_code IN (${inList}) AND ic_ir_12m IS NOT NULL AND NOT ISNAN(ic_ir_12m)
+      ${rangeWhere(state.compareStart, state.compareEnd, "month")}
     QUALIFY ROW_NUMBER() OVER (PARTITION BY factor_code ORDER BY month DESC) = 1
   `);
   const icirMap = {};
@@ -1930,6 +1939,7 @@ async function renderCmpTable() {
     const bRes = await state.db.query(`
       SELECT index_code, nav FROM benchmarks
       WHERE index_code IN ('HS300','CSI800','CSI500')
+        ${rangeWhere(state.compareStart, state.compareEnd)}
       ORDER BY index_code, trade_date
     `);
     const bg = {};
@@ -1954,19 +1964,24 @@ async function renderCmpTableFast() {
     return;
   }
   const bm = await ensureBenchmarkSnapshot();
-  const ba = benchmarkMetrics(bm);
+  const ba = benchmarkMetrics(bm, state.compareStart, state.compareEnd);
   const factors = [];
   for (const f of state.compareFactors) {
     const snap = await loadSingleSnapshot(f.code);
     const bt = snap.backtests?.[String(f.n)];
-    const m = bt ? metricsFromReturns((bt.ret || []).filter(v => v !== null && v !== undefined)) : null;
-    const rankIc = (snap.ic?.rank_ic || []).filter(v => v !== null && Number.isFinite(Number(v))).map(Number);
-    const icVals = (snap.ic?.ic || []).filter(v => v !== null && Number.isFinite(Number(v))).map(Number);
+    const months = monthsFromSnapshot(snap);
+    const idxs = rangeFilterIndexes(months, state.compareStart, state.compareEnd);
+    const m = bt ? metricsFromReturns(sliceByIndexes(bt.ret, idxs)) : null;
+    const icMonths = snap.ic?.months || [];
+    const icIdxs = rangeFilterIndexes(icMonths, state.compareStart, state.compareEnd);
+    const rankIc = sliceByIndexes(snap.ic?.rank_ic, icIdxs);
+    const icVals = sliceByIndexes(snap.ic?.ic, icIdxs);
     const label = `${f.code} <span style="color:#888;font-weight:400">top${f.n}</span>`;
     if (!m) { factors.push({ label, noData: true }); continue; }
     const ricMean = rankIc.length ? rankIc.reduce((s, v) => s + v, 0) / rankIc.length : null;
     const icMean = icVals.length ? icVals.reduce((s, v) => s + v, 0) / icVals.length : null;
-    const latestIcir = [...(snap.ic?.ic_ir_12m || [])].reverse()
+    const icirs = icIdxs.map(i => snap.ic?.ic_ir_12m?.[i]);
+    const latestIcir = [...icirs].reverse()
       .find(v => v !== null && v !== undefined && Number.isFinite(Number(v)));
     factors.push({
       label, annual: m.annual, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
@@ -2036,7 +2051,9 @@ function drawCmpTable() {
 }
 
 async function renderCmpNav() {
-  document.getElementById("cmp-nav-title").textContent = `组合净值叠加（各因子按各自持仓数，起点=1.0）`;
+  const rng = (state.compareStart || state.compareEnd)
+    ? `${state.compareStart || "起"}~${state.compareEnd || "今"}` : "全样本";
+  document.getElementById("cmp-nav-title").textContent = `组合净值叠加（各因子按各自持仓数，起点=1.0；${rng}）`;
   const div = document.getElementById("cmp-nav-chart");
   if (cmpNavChart) { cmpNavChart.dispose(); cmpNavChart = null; }
   div.innerHTML = "";
@@ -2045,6 +2062,7 @@ async function renderCmpNav() {
   const res = await state.db.query(`
     SELECT factor_code, top_n, strftime(trade_date,'%Y-%m') AS dt, nav
     FROM preset_backtest WHERE ${cmpPairCond()}
+      ${rangeWhere(state.compareStart, state.compareEnd)}
     ORDER BY factor_code, top_n, trade_date
   `);
   const byKey = {};
@@ -2090,19 +2108,23 @@ async function renderCmpNav() {
 }
 
 async function renderCmpNavFast() {
-  document.getElementById("cmp-nav-title").textContent = `组合净值叠加（各因子按各自持仓数，起点=1.0）`;
+  const rng = (state.compareStart || state.compareEnd)
+    ? `${state.compareStart || "起"}~${state.compareEnd || "今"}` : "全样本";
+  document.getElementById("cmp-nav-title").textContent = `组合净值叠加（各因子按各自持仓数，起点=1.0；${rng}）`;
   const div = document.getElementById("cmp-nav-chart");
   if (cmpNavChart) { cmpNavChart.dispose(); cmpNavChart = null; }
   div.innerHTML = "";
   if (state.compareFactors.length === 0) { div.innerHTML = `<div class="empty">选因子后显示</div>`; return; }
 
   const snaps = await Promise.all(state.compareFactors.map(f => loadSingleSnapshot(f.code)));
-  const x = monthsFromSnapshot(snaps[0] || {});
+  const months = monthsFromSnapshot(snaps[0] || {});
+  const idxs = rangeFilterIndexes(months, state.compareStart, state.compareEnd);
+  const x = idxs.map(i => months[i]);
   const series = state.compareFactors.map((f, i) => {
     const snap = snaps[i];
     const bt = snap.backtests?.[String(f.n)];
     if (!bt) return null;
-    const rets = (bt.ret || []).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+    const rets = sliceByIndexes(bt.ret, idxs);
     return { name: `${f.code} top${f.n}`, type: "line", symbol: "none",
              data: navFromReturnsForChart(rets),
              color: STRAT_COLORS[i % STRAT_COLORS.length],
@@ -2141,6 +2163,7 @@ async function renderCmpIc() {
     SELECT factor_code, strftime(month,'%Y-%m') AS dt,
            AVG(ic) OVER (PARTITION BY factor_code ORDER BY month ROWS BETWEEN 11 PRECEDING AND CURRENT ROW) AS ic12
     FROM factor_ic WHERE factor_code IN (${inList}) AND NOT ISNAN(ic)
+      ${rangeWhere(state.compareStart, state.compareEnd, "month")}
     ORDER BY factor_code, month
   `);
   const byF = {};
@@ -2173,7 +2196,9 @@ async function renderCmpIcFast() {
 
   const uniqCodes = [...new Set(state.compareFactors.map(f => f.code))];
   const snaps = await Promise.all(uniqCodes.map(code => loadSingleSnapshot(code)));
-  const x = snaps[0]?.ic?.months || [];
+  const icMonths = snaps[0]?.ic?.months || [];
+  const idxs = rangeFilterIndexes(icMonths, state.compareStart, state.compareEnd);
+  const x = idxs.map(i => icMonths[i]);
   const series = snaps.map((snap, i) => {
     const vals = snap.ic?.ic || [];
     const rolling = vals.map((_, idx) => {
@@ -2181,7 +2206,7 @@ async function renderCmpIcFast() {
         .filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
       return win.length ? +(win.reduce((s, v) => s + v, 0) / win.length).toFixed(6) : null;
     });
-    return { name: uniqCodes[i], type: "line", symbol: "none", data: rolling,
+    return { name: uniqCodes[i], type: "line", symbol: "none", data: idxs.map(idx => rolling[idx]),
              color: STRAT_COLORS[i % STRAT_COLORS.length],
              lineStyle: { width: 1.6 } };
   });
@@ -2342,6 +2367,66 @@ function bindCmpDefaultButtons() {
   });
 }
 
+let _cmpRangeBound = false;
+let _cmpMonths = null;
+async function initCompareRangeControls() {
+  let months = [];
+  if (state.compareFactors[0]) {
+    months = monthsFromSnapshot(await loadSingleSnapshot(state.compareFactors[0].code));
+  }
+  if (!months.length) {
+    months = state.rankingSnapshot?.months || state.benchmarkSnapshot?.months || [];
+  }
+  if (!months.length) {
+    const bm = await ensureBenchmarkSnapshot();
+    months = bm?.months || [];
+  }
+  if (_cmpRangeBound && JSON.stringify(_cmpMonths) === JSON.stringify(months)) return;
+  setupCompareRangeControls(months);
+}
+
+function setupCompareRangeControls(months) {
+  const startSel = document.getElementById("cmp-start");
+  const endSel = document.getElementById("cmp-end");
+  if (!startSel || !endSel || !months.length) return;
+  startSel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join("");
+  endSel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join("");
+  startSel.value = months[0];
+  endSel.value = months[months.length - 1];
+  state.compareStart = null;
+  state.compareEnd = null;
+  updateCompareRangeInfo(months[0], months[months.length - 1]);
+  document.querySelectorAll(".cmprange-btn").forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll(".cmprange-btn").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      const [s, e] = rangeToBounds(b.dataset.range, months);
+      startSel.value = s; endSel.value = e;
+      state.compareStart = (b.dataset.range === "all") ? null : s;
+      state.compareEnd = (b.dataset.range === "all") ? null : e;
+      updateCompareRangeInfo(s, e);
+      if (state.compareFactors.length) renderCompare();
+    };
+  });
+  const onCustom = () => {
+    document.querySelectorAll(".cmprange-btn").forEach(x => x.classList.remove("active"));
+    let s = startSel.value, e = endSel.value;
+    if (s > e) { e = s; endSel.value = s; }
+    state.compareStart = s; state.compareEnd = e;
+    updateCompareRangeInfo(s, e);
+    if (state.compareFactors.length) renderCompare();
+  };
+  startSel.onchange = onCustom;
+  endSel.onchange = onCustom;
+  _cmpMonths = months.slice();
+  _cmpRangeBound = true;
+}
+
+function updateCompareRangeInfo(s, e) {
+  const el = document.getElementById("cmp-range-info");
+  if (el) el.textContent = `${s} ~ ${e}`;
+}
+
 // ===================== 因子排行榜 =====================
 
 // 排行榜列定义：key 用于排序，label 表头，fmt 格式化，good=+1 表示越大越好（综合分方向用）
@@ -2459,7 +2544,10 @@ function rangeToBounds(range, months) {
   if (range === "1y") return [months[Math.max(0, months.length - 12)], last];
   if (range === "3y") return [months[Math.max(0, months.length - 36)], last];
   if (range === "5y") return [months[Math.max(0, months.length - 60)], last];
-  if (/^\d{4}$/.test(range)) return [`${range}-01`, `${range}-12`];
+  if (/^\d{4}$/.test(range)) {
+    const ys = months.filter(m => m.startsWith(`${range}-`));
+    return ys.length ? [ys[0], ys[ys.length - 1]] : [months[0], last];
+  }
   return [months[0], last];
 }
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>因子库 v1.0</title>
-  <link rel="stylesheet" href="styles.css?v=20260608093228">
+  <link rel="stylesheet" href="styles.css?v=20260608095522">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -103,6 +103,29 @@
             <button class="cmpdef-btn" data-n="10">10</button>
             <button class="cmpdef-btn active" data-n="30">30</button>
             <button class="cmpdef-btn" data-n="50">50</button>
+          </div>
+          <div id="cmp-range-bar" style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="color:#666;font-size:11px">回测区间：</span>
+            <button class="cmprange-btn active" data-range="all">全部</button>
+            <button class="cmprange-btn" data-range="5y">近5年</button>
+            <button class="cmprange-btn" data-range="3y">近3年</button>
+            <button class="cmprange-btn" data-range="1y">近1年</button>
+            <button class="cmprange-btn" data-range="2025">2025</button>
+            <button class="cmprange-btn" data-range="2024">2024</button>
+            <button class="cmprange-btn" data-range="2023">2023</button>
+            <button class="cmprange-btn" data-range="2022">2022</button>
+            <button class="cmprange-btn" data-range="2021">2021</button>
+            <button class="cmprange-btn" data-range="2020">2020</button>
+            <button class="cmprange-btn" data-range="2019">2019</button>
+            <button class="cmprange-btn" data-range="2018">2018</button>
+            <button class="cmprange-btn" data-range="2017">2017</button>
+            <button class="cmprange-btn" data-range="2016">2016</button>
+            <button class="cmprange-btn" data-range="2015">2015</button>
+            <span style="color:#888;font-size:11px;margin-left:8px">自定义</span>
+            <select id="cmp-start" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <span style="color:#999">~</span>
+            <select id="cmp-end" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <span id="cmp-range-info" style="color:#888;font-size:11px"></span>
           </div>
           <div id="cmp-controls" style="margin-top:8px"><div class="empty">未选因子</div></div>
         </div>
@@ -302,6 +325,6 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script type="module" src="app.js?v=20260608093228"></script>
+  <script type="module" src="app.js?v=20260608095522"></script>
 </body>
 </html>
