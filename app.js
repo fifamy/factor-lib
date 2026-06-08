@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260608095522" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260608102513" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260608095522";
+const _DEPLOY = "20260608102513";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -41,6 +41,8 @@ const state = {
   // 合成模式：[{code, weight, op:'>='|'<=', thr:number|null}]，thr=null 表示该因子不参与过滤
   composeFactors: [],
   composeN: 30,
+  composeStart: null,       // 多因子合成回测区间；null=不限
+  composeEnd: null,
   // 暂存的合成组合快照：[{name, factors:[...], N, color}]，供多组合对比
   savedCombos: [],
   publishedCombos: [],
@@ -1425,6 +1427,19 @@ function sliceByIndexes(arr, idxs) {
   return idxs.map(i => arr?.[i]).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
 }
 
+function sliceBacktestByRange(bt, startMonth, endMonth) {
+  if (!bt || !Array.isArray(bt.x) || !Array.isArray(bt.retArr)) return { x: [], navArr: [], retArr: [] };
+  const idxs = rangeFilterIndexes(bt.x, startMonth, endMonth);
+  const x = [], retArr = [];
+  for (const i of idxs) {
+    const r = bt.retArr[i];
+    if (r === null || r === undefined || !Number.isFinite(Number(r))) continue;
+    x.push(bt.x[i]);
+    retArr.push(Number(r));
+  }
+  return { x, retArr, navArr: navFromReturnsForChart(retArr) };
+}
+
 function navFromReturnsForChart(rets) {
   const out = [];
   let nav = 1;
@@ -1779,7 +1794,10 @@ function switchMode(mode) {
     initCompareRangeControls().catch(e => console.warn("compare range init failed:", e));
     renderCompare();
   }
-  if (mode === "compose") renderCompose();
+  if (mode === "compose") {
+    initComposeRangeControls().catch(e => console.warn("compose range init failed:", e));
+    renderCompose();
+  }
   if (mode === "library") renderComboLibrary();
   if (mode === "admin") {
     renderAdminView();
@@ -2425,6 +2443,75 @@ function setupCompareRangeControls(months) {
 function updateCompareRangeInfo(s, e) {
   const el = document.getElementById("cmp-range-info");
   if (el) el.textContent = `${s} ~ ${e}`;
+}
+
+let _cpsRangeBound = false;
+let _cpsMonths = null;
+async function initComposeRangeControls() {
+  let months = state.rankingSnapshot?.months || state.benchmarkSnapshot?.months || [];
+  if (!months.length) {
+    const bm = await ensureBenchmarkSnapshot();
+    months = bm?.months || [];
+  }
+  if (_cpsRangeBound && JSON.stringify(_cpsMonths) === JSON.stringify(months)) return;
+  setupComposeRangeControls(months);
+}
+
+function setupComposeRangeControls(months) {
+  const startSel = document.getElementById("cps-start");
+  const endSel = document.getElementById("cps-end");
+  if (!startSel || !endSel || !months.length) return;
+  startSel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join("");
+  endSel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join("");
+  startSel.value = months[0];
+  endSel.value = months[months.length - 1];
+  state.composeStart = null;
+  state.composeEnd = null;
+  updateComposeRangeInfo(months[0], months[months.length - 1]);
+  document.querySelectorAll(".cpsrange-btn").forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll(".cpsrange-btn").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      const [s, e] = rangeToBounds(b.dataset.range, months);
+      startSel.value = s; endSel.value = e;
+      state.composeStart = (b.dataset.range === "all") ? null : s;
+      state.composeEnd = (b.dataset.range === "all") ? null : e;
+      updateComposeRangeInfo(s, e);
+      clearComposeOptimization();
+      if (state.composeFactors.length) renderComposeSoon(0);
+      if (state.savedCombos.length) renderComboCompare();
+    };
+  });
+  const onCustom = () => {
+    document.querySelectorAll(".cpsrange-btn").forEach(x => x.classList.remove("active"));
+    let s = startSel.value, e = endSel.value;
+    if (s > e) { e = s; endSel.value = s; }
+    state.composeStart = s; state.composeEnd = e;
+    updateComposeRangeInfo(s, e);
+    clearComposeOptimization();
+    if (state.composeFactors.length) renderComposeSoon(0);
+    if (state.savedCombos.length) renderComboCompare();
+  };
+  startSel.onchange = onCustom;
+  endSel.onchange = onCustom;
+  _cpsMonths = months.slice();
+  _cpsRangeBound = true;
+}
+
+function updateComposeRangeInfo(s, e) {
+  const el = document.getElementById("cps-range-info");
+  if (el) el.textContent = `${s} ~ ${e}`;
+}
+
+function composeRangeLabel() {
+  return (state.composeStart || state.composeEnd)
+    ? `${state.composeStart || "起"}~${state.composeEnd || "今"}`
+    : "全样本";
+}
+
+function clearComposeOptimization() {
+  const box = document.getElementById("cps-opt");
+  if (box) box.innerHTML = "";
 }
 
 // ===================== 因子排行榜 =====================
@@ -3907,6 +3994,8 @@ async function renderCompose() {
   const renderSeq = ++_composeRenderSeq;
   document.getElementById("cps-selected").textContent =
     state.composeFactors.length ? `（已选 ${state.composeFactors.length} 个因子）` : "";
+  await initComposeRangeControls();
+  if (isComposeRenderStale(renderSeq)) return;
   renderComposeControls();
   renderSavedCombos();
   // 首次进入合成需按选中因子加载历史分片，给明确提示（避免误以为卡死）。
@@ -4005,13 +4094,14 @@ async function renderComposeStocks(renderSeq) {
 async function renderComposeBacktest(renderSeq) {
   if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
   document.getElementById("cps-nav-title").textContent =
-    `合成组合净值（top-${state.composeN}，月末等权调仓，0.2% 双边成本，起点=1.0）`;
+    `合成组合净值（top-${state.composeN}，月末等权调仓，0.2% 双边成本，起点=1.0；${composeRangeLabel()}）`;
   const key = composeConfigKey();
-  const bt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix");
+  const fullBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix");
   if (isComposeRenderStale(renderSeq)) return;
   _latestComposeBtKey = key;
-  _latestComposeBt = cloneBacktest(bt);
-  rememberComposeBacktest(key, bt);
+  _latestComposeBt = cloneBacktest(fullBt);
+  rememberComposeBacktest(key, fullBt);
+  const bt = sliceBacktestByRange(fullBt, state.composeStart, state.composeEnd);
   const { x, navArr, retArr } = bt;
 
   // 画净值 + 基准
@@ -4043,22 +4133,21 @@ async function renderComposeBacktest(renderSeq) {
 
   // KPI（合成组合行 + 三基准行）
   const m = computeMetrics(retArr, navArr);
-  const ba = await benchAnnuals();
   if (isComposeRenderStale(renderSeq)) return;
   const kdiv = document.getElementById("cps-kpi");
   if (!m) { kdiv.innerHTML = `<div class="empty">数据不足</div>`; return; }
   const pct = v => (v * 100).toFixed(1) + "%";
   const signed = v => (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
-  const ex300 = ("HS300" in ba) ? signed(m.annual - ba.HS300) : "—";
-  const ex800 = ("CSI800" in ba) ? signed(m.annual - ba.CSI800) : "—";
+  const bmSnapForKpi = await ensureBenchmarkSnapshot();
+  if (isComposeRenderStale(renderSeq)) return;
+  const bg = benchmarkMetrics(bmSnapForKpi, state.composeStart, state.composeEnd);
+  const ex300 = bg.HS300 ? signed(m.annual - bg.HS300.annual) : "—";
+  const ex800 = bg.CSI800 ? signed(m.annual - bg.CSI800.annual) : "—";
   let krows = `<tr><td><b>合成组合</b></td><td>${pct(m.annual)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
       <td>${(m.winRate*100).toFixed(0)}%</td><td>${ex300}</td><td>${ex800}</td></tr>`;
   // 三基准行（绝对指标）
   {
     const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
-    const bmSnap = await ensureBenchmarkSnapshot();
-    if (isComposeRenderStale(renderSeq)) return;
-    const bg = benchmarkMetrics(bmSnap);
     for (const idx of ["HS300", "CSI800", "CSI500"]) {
       const bm = bg[idx]; if (!bm) continue;
       krows += `<tr style="color:#888;border-top:2px solid #ddd">
@@ -4346,7 +4435,11 @@ async function renderComboCompare() {
     }
   }
   if (titleEl) titleEl.textContent = "暂存组合对比";
-  const withData = state.savedCombos.filter(c => c.bt && c.bt.x && c.bt.x.length);
+  const rangedCombos = state.savedCombos.map(c => ({
+    ...c,
+    viewBt: sliceBacktestByRange(c.bt, state.composeStart, state.composeEnd),
+  }));
+  const withData = rangedCombos.filter(c => c.viewBt && c.viewBt.x && c.viewBt.x.length);
   const benchmarkRows = [];
   const bcolors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
   const bcn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
@@ -4356,9 +4449,9 @@ async function renderComboCompare() {
   if (!withData.length) {
     navDiv.innerHTML = `<div class="empty">暂存组合暂无可画数据（可能过滤过严 / 因子覆盖不足）</div>`;
   } else {
-    const allMonths = [...new Set(withData.flatMap(c => c.bt.x))].sort();
+    const allMonths = [...new Set(withData.flatMap(c => c.viewBt.x))].sort();
     const series = withData.map(c => {
-      const mp = {}; c.bt.x.forEach((m, k) => mp[m] = c.bt.navArr[k]);
+      const mp = {}; c.viewBt.x.forEach((m, k) => mp[m] = c.viewBt.navArr[k]);
       return { name: c.name, type: "line", symbol: "none", connectNulls: true,
         data: allMonths.map(m => m in mp ? +mp[m].toFixed(3) : null),
         color: c.color, lineStyle: { width: 2 } };
@@ -4396,12 +4489,11 @@ async function renderComboCompare() {
 
   // —— 指标对比表：列出所有暂存组合和基准；点击表头可按指标排序 ——
   const hs300Annual = benchmarkRows.find(r => r.label === "沪深300")?.annual;
-  const fallbackBa = await benchAnnuals();
-  const exBase = Number.isFinite(hs300Annual) ? hs300Annual : fallbackBa.HS300;
+  const exBase = hs300Annual;
   const rows = [];
-  for (const c of state.savedCombos) {
+  for (const c of rangedCombos) {
     const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c.color};margin-right:5px"></span>`;
-    const m = (c.bt && c.bt.retArr && c.bt.retArr.length) ? computeMetrics(c.bt.retArr, c.bt.navArr) : null;
+    const m = (c.viewBt && c.viewBt.retArr && c.viewBt.retArr.length) ? computeMetrics(c.viewBt.retArr, c.viewBt.navArr) : null;
     if (!m) {
       rows.push({ label: c.name, labelHtml: `${dot}${c.name}`, noData: true });
       continue;
@@ -4516,6 +4608,8 @@ async function optimizeWeights() {
   }
   const monthsArr = [];
   for (const [ym, mm] of tmp) {
+    if (state.composeStart && ym < state.composeStart) continue;
+    if (state.composeEnd && ym > state.composeEnd) continue;
     const stocks = [];
     for (const [code, o] of mm) if (o.cnt === nF) stocks.push({ code, scores: o.scores, ret: o.ret });
     if (stocks.length >= state.composeN) monthsArr.push({ ym, stocks });
@@ -4568,8 +4662,8 @@ async function optimizeWeights() {
       <thead><tr><th>优化目标</th><th>最优权重</th><th>年化</th><th>夏普</th><th>波动</th><th>回撤</th><th>操作</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="color:#888;font-size:11px;margin-top:4px">网格步长 ${step}（${grid.length} 组组合），目标基于 top-${state.composeN} 历史回测。点"应用"把权重填回。</p>
-    <p style="color:#c08040;font-size:11px;margin-top:2px">⚠ 这是<b>样本内</b>最优（2020-2025 回测期内最好的权重），不保证未来同样最优——实务中需警惕过拟合，建议结合因子逻辑而非只追历史最优。</p>`;
+    <p style="color:#888;font-size:11px;margin-top:4px">网格步长 ${step}（${grid.length} 组组合），目标基于 top-${state.composeN}、${composeRangeLabel()} 历史回测。点"应用"把权重填回。</p>
+    <p style="color:#c08040;font-size:11px;margin-top:2px">⚠ 这是<b>样本内</b>最优（当前回测区间内最好的权重），不保证未来同样最优——实务中需警惕过拟合，建议结合因子逻辑而非只追历史最优。</p>`;
   // 应用按钮：把最优权重填回 composeFactors
   box.querySelectorAll(".cps-apply").forEach(btn => {
     btn.onclick = () => {

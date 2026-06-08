@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>因子库 v1.0</title>
-  <link rel="stylesheet" href="styles.css?v=20260608095522">
+  <link rel="stylesheet" href="styles.css?v=20260608102513">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -163,6 +163,29 @@
             <input id="cpsn-input" type="number" min="1" max="100" placeholder="1-100"
                    style="width:64px;padding:3px 6px;border:1px solid #ccc;border-radius:3px;font-size:12px" />
             <button id="cpsn-add" class="cpsn-btn">+ 用此数</button>
+          </div>
+          <div id="cps-range-bar" style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="color:#666;font-size:11px">回测区间：</span>
+            <button class="cpsrange-btn active" data-range="all">全部</button>
+            <button class="cpsrange-btn" data-range="5y">近5年</button>
+            <button class="cpsrange-btn" data-range="3y">近3年</button>
+            <button class="cpsrange-btn" data-range="1y">近1年</button>
+            <button class="cpsrange-btn" data-range="2025">2025</button>
+            <button class="cpsrange-btn" data-range="2024">2024</button>
+            <button class="cpsrange-btn" data-range="2023">2023</button>
+            <button class="cpsrange-btn" data-range="2022">2022</button>
+            <button class="cpsrange-btn" data-range="2021">2021</button>
+            <button class="cpsrange-btn" data-range="2020">2020</button>
+            <button class="cpsrange-btn" data-range="2019">2019</button>
+            <button class="cpsrange-btn" data-range="2018">2018</button>
+            <button class="cpsrange-btn" data-range="2017">2017</button>
+            <button class="cpsrange-btn" data-range="2016">2016</button>
+            <button class="cpsrange-btn" data-range="2015">2015</button>
+            <span style="color:#888;font-size:11px;margin-left:8px">自定义</span>
+            <select id="cps-start" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <span style="color:#999">~</span>
+            <select id="cps-end" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <span id="cps-range-info" style="color:#888;font-size:11px"></span>
           </div>
           <div id="cps-controls" style="margin-top:8px"><div class="empty">未选因子</div></div>
           <div style="margin-top:10px">
@@ -325,6 +348,6 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script type="module" src="app.js?v=20260608095522"></script>
+  <script type="module" src="app.js?v=20260608102513"></script>
 </body>
 </html>

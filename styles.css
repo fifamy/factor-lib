@@ -104,10 +104,10 @@ tr.stock-row:hover td:nth-child(2) { text-decoration: underline; }
 .mode-btn:last-child { border-radius: 0 5px 5px 0; }
 .mode-btn.active { background: #1a4d80; color: #fff; }
 
-.cmpn-btn, .cmpdef-btn, .cmprange-btn, .cpsn-btn, .rkrange-btn, .sgrange-btn { background: #fff; border: 1px solid #ccc; border-radius: 12px; padding: 2px 10px;
+.cmpn-btn, .cmpdef-btn, .cmprange-btn, .cpsn-btn, .cpsrange-btn, .rkrange-btn, .sgrange-btn { background: #fff; border: 1px solid #ccc; border-radius: 12px; padding: 2px 10px;
             font-size: 11px; cursor: pointer; color: #555; }
-.cmpn-btn:hover, .cmpdef-btn:hover, .cmprange-btn:hover, .cpsn-btn:hover, .rkrange-btn:hover, .sgrange-btn:hover { border-color: #1a4d80; }
-.cmpn-btn.active, .cmpdef-btn.active, .cmprange-btn.active, .cpsn-btn.active, .rkrange-btn.active, .sgrange-btn.active { background: #1a4d80; color: #fff; border-color: #1a4d80; }
+.cmpn-btn:hover, .cmpdef-btn:hover, .cmprange-btn:hover, .cpsn-btn:hover, .cpsrange-btn:hover, .rkrange-btn:hover, .sgrange-btn:hover { border-color: #1a4d80; }
+.cmpn-btn.active, .cmpdef-btn.active, .cmprange-btn.active, .cpsn-btn.active, .cpsrange-btn.active, .rkrange-btn.active, .sgrange-btn.active { background: #1a4d80; color: #fff; border-color: #1a4d80; }
 .cpsn-btn:disabled { color: #aaa; border-color: #ddd; cursor: not-allowed; background: #f8f8f8; }
 .combo-tabs { display: flex; gap: 6px; margin-bottom: 10px; border-bottom: 1px solid #dde5ee; }
 .combo-tab { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 5px 10px; color: #666; cursor: pointer; font-size: 12px; }
