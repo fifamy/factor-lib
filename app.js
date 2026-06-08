@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260605160511" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260608093228" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260605160511";
+const _DEPLOY = "20260608093228";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -81,7 +81,7 @@ async function init() {
   bindFactorSearch();
   document.getElementById("meta").textContent =
     `${state.catalog.length} 因子可用`;
-  scheduleDuckDbWarmup(450);
+  runWhenIdle(() => scheduleDuckDbWarmup(0), 5000, 3000);
 }
 
 async function loadCatalog() {
@@ -101,7 +101,16 @@ function singleSnapshotUrl(code) {
 
 async function loadSingleSnapshot(code) {
   if (!state.singleSnapshots.has(code)) {
-    state.singleSnapshots.set(code, await fetchJson(singleSnapshotUrl(code)));
+    const promise = fetchJson(singleSnapshotUrl(code))
+      .then(payload => {
+        state.singleSnapshots.set(code, payload);
+        return payload;
+      })
+      .catch(err => {
+        state.singleSnapshots.delete(code);
+        throw err;
+      });
+    state.singleSnapshots.set(code, promise);
   }
   return state.singleSnapshots.get(code);
 }
@@ -528,6 +537,8 @@ let _dbPromise = null;
 let _optionalDataLoad = Promise.resolve();
 const _optionalReady = { stockMeta: false, descriptors: false, benchmarks: false, corr: false };
 let _warmupScheduled = false;
+let _singleRenderSeq = 0;
+let _singlePrefetchSeq = 0;
 
 function scheduleDuckDbWarmup(delay = 0) {
   if (_dbPromise || _warmupScheduled) return;
@@ -541,6 +552,15 @@ function scheduleDuckDbWarmup(delay = 0) {
   const launch = () => {
     if ("requestIdleCallback" in window) window.requestIdleCallback(run, { timeout: 600 });
     else setTimeout(run, 0);
+  };
+  if (delay > 0) setTimeout(launch, delay);
+  else launch();
+}
+
+function runWhenIdle(fn, delay = 0, timeout = 1200) {
+  const launch = () => {
+    if ("requestIdleCallback" in window) window.requestIdleCallback(() => fn(), { timeout });
+    else setTimeout(fn, 0);
   };
   if (delay > 0) setTimeout(launch, delay);
   else launch();
@@ -770,6 +790,7 @@ function showError(msg) {
 }
 
 async function selectFactor(code) {
+  const seq = ++_singleRenderSeq;
   state.activeFactor = code;
   document.querySelectorAll(".tree-l3").forEach(el => {
     el.classList.toggle("active", el.dataset.code === code);
@@ -781,23 +802,27 @@ async function selectFactor(code) {
       loadSingleSnapshot(code),
       ensureBenchmarkSnapshot(),
     ]);
+    if (seq !== _singleRenderSeq) return;
     await initSingleRangeControlsFast(snap);
     renderFactorDetail(meta);
     const tQ = performance.now();
     await Promise.all([
       (async () => { const t = performance.now(); await renderTopStocksFast(code, snap); console.log(`  top table: ${(performance.now()-t).toFixed(0)}ms`); })(),
-      (async () => { const t = performance.now(); await renderNavChartFast(code, snap); console.log(`  nav chart: ${(performance.now()-t).toFixed(0)}ms`); })(),
-      (async () => { const t = performance.now(); await renderNScanFast(code, snap); console.log(`  N-scan:    ${(performance.now()-t).toFixed(0)}ms`); })(),
       (async () => { const t = performance.now(); await renderKpiTableFast(code, snap); console.log(`  kpi: ${(performance.now()-t).toFixed(0)}ms`); })(),
     ]);
-    console.log(`selectFactor(${code}, N=[${state.selectedNs}]) fast total ${(performance.now()-tAll).toFixed(0)}ms (render ${(performance.now()-tQ).toFixed(0)}ms)`);
-    scheduleDuckDbWarmup(80);
+    if (seq !== _singleRenderSeq) return;
+    console.log(`selectFactor(${code}, N=[${state.selectedNs}]) fast critical ${(performance.now()-tAll).toFixed(0)}ms (render ${(performance.now()-tQ).toFixed(0)}ms)`);
+    renderSingleDeferredCharts(code, snap, seq);
+    prefetchNearbySingleSnapshots(code);
+    scheduleDuckDbWarmup(1800);
   } catch (err) {
+    if (seq !== _singleRenderSeq) return;
     console.warn("fast selectFactor failed, falling back to DuckDB:", err);
     try {
       const tAll = performance.now();
       await ensureDB();
       await ensureFactorData([code]);
+      if (seq !== _singleRenderSeq) return;
       await initSingleRangeControls();
       renderFactorDetail(meta);
       const tQ = performance.now();
@@ -809,10 +834,60 @@ async function selectFactor(code) {
       ]);
       console.log(`selectFactor(${code}, N=[${state.selectedNs}]) fallback total ${(performance.now()-tAll).toFixed(0)}ms (queries ${(performance.now()-tQ).toFixed(0)}ms)`);
     } catch (fallbackErr) {
+      if (seq !== _singleRenderSeq) return;
       console.error("selectFactor failed:", fallbackErr);
       showError(`选择因子 ${code} 失败: ${fallbackErr.message || fallbackErr}\n\n${fallbackErr.stack || ""}`);
     }
   }
+}
+
+function renderSingleDeferredCharts(code, snap, seq) {
+  runWhenIdle(async () => {
+    if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
+    const t = performance.now();
+    try {
+      await renderNavChartFast(code, snap);
+      console.log(`  nav chart: ${(performance.now() - t).toFixed(0)}ms`);
+    } catch (err) {
+      console.warn("deferred nav chart failed:", err);
+    }
+  }, 0, 800);
+  runWhenIdle(async () => {
+    if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
+    const t = performance.now();
+    try {
+      await renderNScanFast(code, snap);
+      console.log(`  N-scan:    ${(performance.now() - t).toFixed(0)}ms`);
+      if (seq === _singleRenderSeq) {
+        console.log(`selectFactor(${code}, N=[${state.selectedNs}]) fast complete`);
+      }
+    } catch (err) {
+      console.warn("deferred N-scan failed:", err);
+    }
+  }, 80, 900);
+}
+
+function nearbySingleCodes(code, limit = 4) {
+  const idx = state.catalog.findIndex(f => f.code === code);
+  if (idx < 0) return [];
+  const out = [];
+  for (let i = idx + 1; i < state.catalog.length && out.length < limit; i++) out.push(state.catalog[i].code);
+  return out.filter(c => c && !state.singleSnapshots.has(c));
+}
+
+function prefetchNearbySingleSnapshots(code) {
+  const seq = ++_singlePrefetchSeq;
+  const codes = nearbySingleCodes(code, 4);
+  if (!codes.length) return;
+  let i = 0;
+  const step = () => {
+    if (seq !== _singlePrefetchSeq || state.mode !== "single" || i >= codes.length) return;
+    const c = codes[i++];
+    loadSingleSnapshot(c)
+      .catch(err => console.warn(`single snapshot prefetch failed ${c}:`, err.message || err))
+      .finally(() => runWhenIdle(step, 180, 1400));
+  };
+  runWhenIdle(step, 900, 1600);
 }
 
 const PRESET_NS = Array.from({ length: 100 }, (_, i) => i + 1);  // 1..100 全档位
@@ -4465,7 +4540,11 @@ function bindScanButtons() {
       document.querySelectorAll(".scan-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       state.scanMetric = btn.dataset.metric;
-      if (state.activeFactor) renderNScan(state.activeFactor);
+      if (state.activeFactor) {
+        loadSingleSnapshot(state.activeFactor)
+          .then(snap => renderNScanFast(state.activeFactor, snap))
+          .catch(() => renderNScan(state.activeFactor));
+      }
     };
   });
 }
