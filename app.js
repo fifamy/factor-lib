@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260609093738" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260609102030" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260609093738";
+const _DEPLOY = "20260609102030";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -2578,6 +2578,7 @@ async function renderRanking() {
   const box = document.getElementById("rank-table");
   try {
     if (!_rankBarBound) {
+      document.getElementById("rank-to-single").onclick = () => rankSendTo("single");
       document.getElementById("rank-to-compare").onclick = () => rankSendTo("compare");
       document.getElementById("rank-to-compose").onclick = () => rankSendTo("compose");
       document.getElementById("rank-clear-sel").onclick = () => { _rankState.checked.clear(); drawRankTable(); };
@@ -2596,6 +2597,7 @@ async function renderRanking() {
       await ensureDB();
       await ensureAllFactorData();
       if (!_rankBarBound) {
+        document.getElementById("rank-to-single").onclick = () => rankSendTo("single");
         document.getElementById("rank-to-compare").onclick = () => rankSendTo("compare");
         document.getElementById("rank-to-compose").onclick = () => rankSendTo("compose");
         document.getElementById("rank-clear-sel").onclick = () => { _rankState.checked.clear(); drawRankTable(); };
@@ -3077,6 +3079,13 @@ function updateRankSelCount() {
 function rankSendTo(mode) {
   const codes = [..._rankState.checked];
   if (codes.length === 0) { alert("请先勾选至少一个因子"); return; }
+  if (mode === "single") {
+    const code = codes[0];
+    if (codes.length > 1) alert(`已选择多个因子，将打开第一个：${code}`);
+    switchMode("single");
+    selectFactor(code);
+    return;
+  }
   if (mode === "compare") {
     state.compareFactors = codes.map(code => ({ code, n: state.compareDefaultN }));
   } else {
