@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260609102030" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260609105320" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260609102030";
+const _DEPLOY = "20260609105320";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -1554,12 +1554,13 @@ async function renderKpiTable(code) {
   for (const n of state.selectedNs) {
     const d = byN[n];
     const m = d ? computeMetrics(d.rets, d.navs) : null;
-    if (!m) { rows += `<tr><td>top${n}</td><td colspan="6">无数据</td></tr>`; continue; }
+    if (!m) { rows += `<tr><td>top${n}</td><td colspan="7">无数据</td></tr>`; continue; }
     const ex300 = ("HS300" in ba) ? signed(m.annual - ba.HS300) : "—";
     const ex800 = ("CSI800" in ba) ? signed(m.annual - ba.CSI800) : "—";
     rows += `<tr>
       <td>top${n}</td>
       <td>${pct(m.annual)}</td>
+      <td>${pct(m.vol)}</td>
       <td>${m.sharpe.toFixed(2)}</td>
       <td>${pct(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
@@ -1587,6 +1588,7 @@ async function renderKpiTable(code) {
       rows += `<tr style="color:#888;border-top:2px solid #ddd">
         <td style="color:#888">${cnNames[idx]}</td>
         <td>${pct(m.annual)}</td>
+        <td>${pct(m.vol)}</td>
         <td>${m.sharpe.toFixed(2)}</td>
         <td>${pct(m.mdd)}</td>
         <td>${(m.winRate * 100).toFixed(0)}%</td>
@@ -1598,7 +1600,7 @@ async function renderKpiTable(code) {
   target.innerHTML = `
     <table class="kpi-table">
       <thead><tr>
-        <th>组合 / 基准</th><th>年化收益</th><th>夏普</th><th>最大回撤</th>
+        <th>组合 / 基准</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th>
         <th>月度胜率</th><th>超额 vs 300</th><th>超额 vs 800</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -1626,10 +1628,11 @@ async function renderKpiTableFast(code, snap) {
   for (const n of state.selectedNs) {
     const bt = snap.backtests?.[String(n)];
     const m = bt ? metricsFromReturns(sliceByIndexes(bt.ret, idxs)) : null;
-    if (!m) { rows += `<tr><td>top${n}</td><td colspan="6">无数据</td></tr>`; continue; }
+    if (!m) { rows += `<tr><td>top${n}</td><td colspan="7">无数据</td></tr>`; continue; }
     rows += `<tr>
       <td>top${n}</td>
       <td>${pctText(m.annual)}</td>
+      <td>${pctText(m.vol)}</td>
       <td>${m.sharpe.toFixed(2)}</td>
       <td>${pctText(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
@@ -1645,6 +1648,7 @@ async function renderKpiTableFast(code, snap) {
     rows += `<tr style="color:#888;border-top:2px solid #ddd">
       <td style="color:#888">${cnNames[idx]}</td>
       <td>${pctText(m.annual)}</td>
+      <td>${pctText(m.vol)}</td>
       <td>${m.sharpe.toFixed(2)}</td>
       <td>${pctText(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
@@ -1655,7 +1659,7 @@ async function renderKpiTableFast(code, snap) {
   target.innerHTML = `
     <table class="kpi-table">
       <thead><tr>
-        <th>组合 / 基准</th><th>年化收益</th><th>夏普</th><th>最大回撤</th>
+        <th>组合 / 基准</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th>
         <th>月度胜率</th><th>超额 vs 300</th><th>超额 vs 800</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -1666,7 +1670,7 @@ async function renderKpiTableFast(code, snap) {
 
 // 指标-N 曲线：横轴持仓数 1-100，纵轴当前选定指标
 async function renderNScan(code) {
-  const metricLabels = { annual: "年化收益", sharpe: "夏普比率", mdd: "最大回撤", vol: "波动率" };
+  const metricLabels = { annual: "年化收益", vol: "年化波动率", sharpe: "夏普比率", mdd: "最大回撤" };
   document.getElementById("scan-title").textContent =
     `${code} · ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
   const chartDiv = document.getElementById("scan-chart");
@@ -1719,7 +1723,7 @@ async function renderNScan(code) {
 }
 
 async function renderNScanFast(code, snap) {
-  const metricLabels = { annual: "年化收益", sharpe: "夏普比率", mdd: "最大回撤", vol: "波动率" };
+  const metricLabels = { annual: "年化收益", vol: "年化波动率", sharpe: "夏普比率", mdd: "最大回撤" };
   document.getElementById("scan-title").textContent =
     `${code} · ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
   const chartDiv = document.getElementById("scan-chart");
@@ -1950,7 +1954,7 @@ async function renderCmpTable() {
     const label = `${code} <span style="color:#888;font-weight:400">top${f.n}</span>`;
     if (!m) { factors.push({ label, noData: true }); continue; }
     factors.push({
-      label, annual: m.annual, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
+      label, annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       ex300: ("HS300" in ba) ? (m.annual - ba.HS300) : null,
       ic_mean: (ic.ic_mean ?? null), icir: (icirMap[code] ?? null),
     });
@@ -1971,7 +1975,7 @@ async function renderCmpTable() {
       const navs = bg[idx]; if (!navs || navs.length < 2) continue;
       const rets = navs.slice(1).map((v, i) => v / navs[i] - 1);
       const m = computeMetrics(rets, navs);
-      benches.push({ label: cn[idx], annual: m.annual, sharpe: m.sharpe, mdd: m.mdd,
+      benches.push({ label: cn[idx], annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd,
                      winRate: m.winRate, ex300: null, ic_mean: null, icir: null });
     }
   }
@@ -2007,7 +2011,7 @@ async function renderCmpTableFast() {
     const latestIcir = [...icirs].reverse()
       .find(v => v !== null && v !== undefined && Number.isFinite(Number(v)));
     factors.push({
-      label, annual: m.annual, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
+      label, annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       ex300: ba.HS300 ? (m.annual - ba.HS300.annual) : null,
       ic_mean: icMean ?? ricMean, icir: latestIcir ?? null,
     });
@@ -2018,7 +2022,7 @@ async function renderCmpTableFast() {
   for (const idx of ["HS300", "CSI800", "CSI500"]) {
     const m = ba[idx];
     if (!m) continue;
-    benches.push({ label: cn[idx], annual: m.annual, sharpe: m.sharpe, mdd: m.mdd,
+    benches.push({ label: cn[idx], annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd,
                    winRate: m.winRate, ex300: null, ic_mean: null, icir: null });
   }
   _cmpRows = { factors, benches };
@@ -2036,6 +2040,7 @@ function drawCmpTable() {
   const COLS = [
     { key: "label",   label: "因子 / 基准", sortable: false, cell: r => r.label },
     { key: "annual",  label: "年化收益",   cell: r => pct(r.annual) },
+    { key: "vol",     label: "年化波动率", cell: r => pct(r.vol) },
     { key: "sharpe",  label: "夏普",       cell: r => num(r.sharpe, 2) },
     { key: "mdd",     label: "最大回撤",   cell: r => pct(r.mdd) },
     { key: "winRate", label: "月度胜率",   cell: r => r.winRate == null ? "—" : (r.winRate * 100).toFixed(0) + "%" },
@@ -2059,7 +2064,7 @@ function drawCmpTable() {
     ? `<th>${c.label}</th>`
     : `<th class="cmp-sort" data-key="${c.key}">${c.label}${arrow(c.key)}</th>`).join("");
   const rowHtml = (r, bench) => {
-    if (r.noData) return `<tr><td>${r.label}</td><td colspan="7">无数据</td></tr>`;
+    if (r.noData) return `<tr><td>${r.label}</td><td colspan="${COLS.length - 1}">无数据</td></tr>`;
     const tds = COLS.map(c => `<td>${c.cell(r)}</td>`).join("");
     return `<tr${bench ? ' style="color:#888;border-top:2px solid #ddd"' : ''}>${tds}</tr>`;
   };
@@ -2527,7 +2532,8 @@ const RANK_COLS = [
   { key: "code",      label: "因子",    lcol: true,  fmt: v => v },
   { key: "name_cn",   label: "名称",    lcol: true,  fmt: v => v },
   { key: "score",     label: "综合分",  fmt: v => v.toFixed(2), cls: "score-cell" },
-  { key: "annual",    label: "年化",    fmt: v => (v * 100).toFixed(1) + "%" },
+  { key: "annual",    label: "年化收益", fmt: v => (v * 100).toFixed(1) + "%" },
+  { key: "vol",       label: "年化波动率", fmt: v => (v * 100).toFixed(1) + "%" },
   { key: "sharpe",    label: "夏普",    fmt: v => v.toFixed(2) },
   { key: "mdd",       label: "最大回撤", fmt: v => (v * 100).toFixed(1) + "%" },
   { key: "winRate",   label: "月胜率",  fmt: v => (v * 100).toFixed(0) + "%" },
@@ -2885,7 +2891,7 @@ async function computeRankingFast(startMonth, endMonth) {
     }
     rows.push({
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
-      annual: m.annual, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
+      annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       rankIC, icir,
       nMonths: rets.length,
       top3ind: f.top3ind || "—",
@@ -2959,7 +2965,7 @@ async function computeRanking(startMonth, endMonth) {
     const mc = mcap.get(f.code);
     rows.push({
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
-      annual: m.annual, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
+      annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       rankIC: ic.rankIC, icir: ic.icir,
       nMonths: s.rets.length,
       top3ind: ind3.get(f.code) || "—",
@@ -4157,7 +4163,7 @@ async function renderComposeBacktest(renderSeq) {
   const bg = benchmarkMetrics(bmSnapForKpi, state.composeStart, state.composeEnd);
   const ex300 = bg.HS300 ? signed(m.annual - bg.HS300.annual) : "—";
   const ex800 = bg.CSI800 ? signed(m.annual - bg.CSI800.annual) : "—";
-  let krows = `<tr><td><b>合成组合</b></td><td>${pct(m.annual)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
+  let krows = `<tr><td><b>合成组合</b></td><td>${pct(m.annual)}</td><td>${pct(m.vol)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
       <td>${(m.winRate*100).toFixed(0)}%</td><td>${ex300}</td><td>${ex800}</td></tr>`;
   // 三基准行（绝对指标）
   {
@@ -4165,12 +4171,12 @@ async function renderComposeBacktest(renderSeq) {
     for (const idx of ["HS300", "CSI800", "CSI500"]) {
       const bm = bg[idx]; if (!bm) continue;
       krows += `<tr style="color:#888;border-top:2px solid #ddd">
-        <td style="color:#888">${cn[idx]}</td><td>${pct(bm.annual)}</td><td>${bm.sharpe.toFixed(2)}</td>
+        <td style="color:#888">${cn[idx]}</td><td>${pct(bm.annual)}</td><td>${pct(bm.vol)}</td><td>${bm.sharpe.toFixed(2)}</td>
         <td>${pct(bm.mdd)}</td><td>${(bm.winRate*100).toFixed(0)}%</td><td>—</td><td>—</td></tr>`;
     }
   }
   kdiv.innerHTML = `<table class="kpi-table">
-    <thead><tr><th>组合 / 基准</th><th>年化收益</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>超额vs300</th><th>超额vs800</th></tr></thead>
+    <thead><tr><th>组合 / 基准</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>超额vs300</th><th>超额vs800</th></tr></thead>
     <tbody>${krows}</tbody></table>`;
 }
 
@@ -4388,6 +4394,7 @@ function drawCpsCompareTable() {
   const COLS = [
     { key: "label",   label: "组合 / 基准", sortable: false, cell: r => r.labelHtml || r.label },
     { key: "annual",  label: "年化收益",   cell: r => pct(r.annual) },
+    { key: "vol",     label: "年化波动率", cell: r => pct(r.vol) },
     { key: "sharpe",  label: "夏普",       cell: r => num(r.sharpe, 2) },
     { key: "mdd",     label: "最大回撤",   cell: r => pct(r.mdd) },
     { key: "winRate", label: "月度胜率",   cell: r => r.winRate == null ? "—" : (r.winRate * 100).toFixed(0) + "%" },
@@ -4485,7 +4492,7 @@ async function renderComboCompare() {
           if (m) benchmarkRows.push({
             label: bcn[idx],
             labelHtml: `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${bcolors[idx]};margin-right:5px"></span>${bcn[idx]}`,
-            annual: m.annual, sharpe: m.sharpe, mdd: m.mdd,
+            annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd,
             winRate: m.winRate, ex300: null, navEnd: m.navEnd, isBench: true,
           });
         }
@@ -4515,7 +4522,7 @@ async function renderComboCompare() {
     rows.push({
       label: c.name,
       labelHtml: `${dot}${c.name}`,
-      annual: m.annual, sharpe: m.sharpe, mdd: m.mdd,
+      annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd,
       winRate: m.winRate,
       ex300: Number.isFinite(exBase) ? m.annual - exBase : null,
       navEnd: m.navEnd,
@@ -4658,7 +4665,7 @@ async function optimizeWeights() {
   const wstr = w => codes.map((c, i) => `${c} ${(w[i] * 100).toFixed(0)}%`).join(" / ");
   const targets = [
     ["年化收益最高", best.annual], ["夏普比率最高", best.sharpe],
-    ["波动率最低", best.vol], ["最大回撤最小", best.mdd],
+    ["年化波动率最低", best.vol], ["最大回撤最小", best.mdd],
   ];
   let rows = "";
   targets.forEach(([label, b], ti) => {
@@ -4666,14 +4673,14 @@ async function optimizeWeights() {
     rows += `<tr>
       <td>${label}</td>
       <td>${wstr(b.w)}</td>
-      <td>${pct(b.m.annual)}</td><td>${b.m.sharpe.toFixed(2)}</td>
-      <td>${pct(b.m.vol)}</td><td>${pct(b.m.mdd)}</td>
+      <td>${pct(b.m.annual)}</td><td>${pct(b.m.vol)}</td><td>${b.m.sharpe.toFixed(2)}</td>
+      <td>${pct(b.m.mdd)}</td>
       <td><button class="cpsn-btn cps-apply" data-ti="${ti}">应用</button></td>
     </tr>`;
   });
   box.innerHTML = `
     <table class="opt-table">
-      <thead><tr><th>优化目标</th><th>最优权重</th><th>年化</th><th>夏普</th><th>波动</th><th>回撤</th><th>操作</th></tr></thead>
+      <thead><tr><th>优化目标</th><th>最优权重</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>回撤</th><th>操作</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <p style="color:#888;font-size:11px;margin-top:4px">网格步长 ${step}（${grid.length} 组组合），目标基于 top-${state.composeN}、${composeRangeLabel()} 历史回测。点"应用"把权重填回。</p>
