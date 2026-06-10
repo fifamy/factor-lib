@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260610131500" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260610152000" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260610131500";
+const _DEPLOY = "20260610152000";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -669,12 +669,12 @@ async function _initDB() {
     `);
     await state.db.query(`
       CREATE TABLE preset_backtest (
-        trade_date DATE, port_ret DOUBLE, nav DOUBLE, factor_code VARCHAR, top_n INTEGER
+        trade_date DATE, return_date DATE, port_ret DOUBLE, nav DOUBLE, factor_code VARCHAR, top_n INTEGER
       )
     `);
     await state.db.query(`
       CREATE TABLE factor_ic (
-        month DATE, factor_code VARCHAR, ic DOUBLE, rank_ic DOUBLE, ic_ir_12m DOUBLE
+        month DATE, return_month DATE, factor_code VARCHAR, ic DOUBLE, rank_ic DOUBLE, ic_ir_12m DOUBLE
       )
     `);
     await state.db.query(`
@@ -745,7 +745,9 @@ async function ensureFactorData(codes, opts = {}) {
     if (missingBacktests.length) {
       await state.db.query(`
         INSERT INTO preset_backtest
-        SELECT trade_date, port_ret, nav, factor_code, top_n
+        SELECT trade_date,
+               COALESCE(return_date, trade_date) AS return_date,
+               port_ret, nav, factor_code, top_n
         FROM ${factorReadExpr(BACKTEST_DIR, missingBacktests)}
       `);
       missingBacktests.forEach(code => _loadedBacktests.add(code));
@@ -753,7 +755,7 @@ async function ensureFactorData(codes, opts = {}) {
     if (missingIcs.length) {
       await state.db.query(`
         INSERT INTO factor_ic
-        SELECT month, factor_code, ic, rank_ic, ic_ir_12m
+        SELECT month, return_month, factor_code, ic, rank_ic, ic_ir_12m
         FROM ${factorReadExpr(FACTOR_IC_DIR, missingIcs)}
       `);
       missingIcs.forEach(code => _loadedIcs.add(code));
@@ -1258,21 +1260,23 @@ async function renderNavChart(code) {
   // 查所选各 N 在区间内的月度收益，区间内从 1.0 重建净值（口径对齐所选区间）
   const inList = ns.join(",");
   const res = await state.db.query(`
-    SELECT top_n, strftime(trade_date, '%Y-%m') AS dt, port_ret
+    SELECT top_n, strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt, port_ret
     FROM preset_backtest
     WHERE factor_code = '${code}' AND top_n IN (${inList})
-      ${rangeWhere(state.singleStart, state.singleEnd)}
+      ${backtestRangeWhere(state.singleStart, state.singleEnd)}
     ORDER BY top_n, trade_date
   `);
   const byN = {};
   for (const r of res.toArray()) {
     if (!byN[r.top_n]) byN[r.top_n] = { dt: [], nav: [], _pr: null };
     const o = byN[r.top_n];
-    o.dt.push(r.dt);
-    // 起点=1.0；port_ret 是「未来收益」(T→T+1)，当月收益体现在下一个点，
-    // 与基准（月末价归一、首点=1.0）口径一致，避免净值首点≠1、且因 N 不同而异。
-    o.nav.push(o.nav.length ? o.nav[o.nav.length - 1] * (1 + (o._pr ?? 0)) : 1.0);
+    if (!o.dt.length) {
+      o.dt.push(monthOfLabel(r.dt));
+      o.nav.push(1.0);
+    }
     o._pr = r.port_ret;
+    o.dt.push(r.dt);
+    o.nav.push(o.nav[o.nav.length - 1] * (1 + (o._pr ?? 0)));
   }
   // x 轴用第一个 N 的月份（各 N 月份一致）
   const x = (byN[ns[0]] || { dt: [] }).dt;
@@ -1296,8 +1300,8 @@ async function renderNavChart(code) {
     const bmRes = await state.db.query(`
       SELECT index_code, strftime(trade_date, '%Y-%m') AS dt, nav
       FROM benchmarks
-      WHERE strftime(trade_date, '%Y-%m') >= '${x[0]}'
-        AND strftime(trade_date, '%Y-%m') <= '${x[x.length - 1]}'
+      WHERE strftime(trade_date, '%Y-%m') >= '${monthOfLabel(x[0])}'
+        AND strftime(trade_date, '%Y-%m') <= '${monthOfLabel(x[x.length - 1])}'
       ORDER BY index_code, trade_date
     `);
     const byIndex = {};
@@ -1311,7 +1315,7 @@ async function renderNavChart(code) {
     for (const idxCode of wantIdx) {
       const monthMap = byIndex[idxCode];
       if (!monthMap) continue;
-      const aligned = x.map(m => (m in monthMap ? monthMap[m] : null));
+      const aligned = x.map(m => (monthOfLabel(m) in monthMap ? monthMap[monthOfLabel(m)] : null));
       const b = aligned.find(v => v !== null);
       const rebased = b ? aligned.map(v => (v === null ? null : v / b)) : aligned;
       series.push({
@@ -1346,8 +1350,11 @@ async function renderNavChartFast(code, snap) {
   chartDiv.innerHTML = "";
 
   const months = monthsFromSnapshot(snap);
+  const returnDates = returnDatesFromSnapshot(snap);
   const idxs = rangeFilterIndexes(months, state.singleStart, state.singleEnd);
-  const x = idxs.map(i => months[i]);
+  const periodLabels = labelsByIndexes(returnDates, idxs);
+  const signalLabels = labelsByIndexes(signalMonthsFromSnapshot(snap), idxs);
+  const x = labelsFromReturnDates(periodLabels, signalLabels);
   const series = [];
   ns.forEach((n, i) => {
     const bt = snap.backtests?.[String(n)];
@@ -1356,7 +1363,7 @@ async function renderNavChartFast(code, snap) {
     series.push({
       name: `top${n}`,
       type: "line",
-      data: navFromReturnsForChart(rets),
+      data: alignReturnsToChart(rets, x),
       symbol: "none",
       color: STRAT_COLORS[i % STRAT_COLORS.length],
       lineStyle: { width: 2 },
@@ -1367,7 +1374,7 @@ async function renderNavChartFast(code, snap) {
   const colors = { "HS300": "#c14545", "CSI800": "#6e9a4f", "CSI500": "#c89c2b" };
   const cnNames = { "HS300": "沪深300", "CSI800": "中证800", "CSI500": "中证500" };
   for (const idxCode of ["HS300", "CSI800", "CSI500"]) {
-    const rebased = rebaseNav(benchmarkSeries(bm, x, idxCode));
+    const rebased = rebaseNav(benchmarkSeries(bm, x.map(monthOfLabel), idxCode));
     if (!rebased.some(v => v !== null)) continue;
     series.push({
       name: `${cnNames[idxCode] || idxCode}(基准)`,
@@ -1417,6 +1424,26 @@ function monthsFromSnapshot(snap) {
   return (snap && Array.isArray(snap.months)) ? snap.months : [];
 }
 
+function returnDatesFromSnapshot(snap) {
+  return (snap && Array.isArray(snap.return_dates) && snap.return_dates.length === monthsFromSnapshot(snap).length)
+    ? snap.return_dates
+    : monthsFromSnapshot(snap);
+}
+
+function signalMonthsFromSnapshot(snap) {
+  return (snap && Array.isArray(snap.signal_months) && snap.signal_months.length === monthsFromSnapshot(snap).length)
+    ? snap.signal_months
+    : monthsFromSnapshot(snap);
+}
+
+function labelsByIndexes(labels, idxs) {
+  return idxs.map(i => labels?.[i]).filter(v => v !== null && v !== undefined);
+}
+
+function monthOfLabel(label) {
+  return String(label || "").slice(0, 7);
+}
+
 function rangeFilterIndexes(months, startMonth, endMonth) {
   const out = [];
   for (let i = 0; i < months.length; i++) {
@@ -1434,25 +1461,41 @@ function sliceByIndexes(arr, idxs) {
 
 function sliceBacktestByRange(bt, startMonth, endMonth) {
   if (!bt || !Array.isArray(bt.x) || !Array.isArray(bt.retArr)) return { x: [], navArr: [], retArr: [] };
-  const idxs = rangeFilterIndexes(bt.x, startMonth, endMonth);
+  const hasStartAnchor = bt.x.length === bt.retArr.length + 1;
   const x = [], retArr = [];
-  for (const i of idxs) {
+  for (let i = 0; i < bt.retArr.length; i++) {
+    const retLabel = hasStartAnchor ? bt.x[i + 1] : bt.x[i];
+    const m = monthOfLabel(retLabel);
+    if (startMonth && m < startMonth) continue;
+    if (endMonth && m > endMonth) continue;
     const r = bt.retArr[i];
     if (r === null || r === undefined || !Number.isFinite(Number(r))) continue;
-    x.push(bt.x[i]);
+    if (!x.length) x.push(hasStartAnchor ? bt.x[i] : m);
+    x.push(retLabel);
     retArr.push(Number(r));
   }
   return { x, retArr, navArr: navFromReturnsForChart(retArr) };
 }
 
 function navFromReturnsForChart(rets) {
-  const out = [];
+  const out = [1];
   let nav = 1;
   for (const r of rets) {
-    out.push(+nav.toFixed(6));
     nav *= 1 + r;
+    out.push(+nav.toFixed(6));
   }
   return out;
+}
+
+function labelsFromReturnDates(returnDates, signalMonths) {
+  if (!returnDates || !returnDates.length) return [];
+  const first = signalMonths?.[0] || monthOfLabel(returnDates?.[0]);
+  return [first, ...returnDates];
+}
+
+function alignReturnsToChart(rets, labels) {
+  const navs = navFromReturnsForChart(rets);
+  return labels.map((_, i) => navs[i] ?? null);
 }
 
 function pctText(v) {
@@ -1524,7 +1567,7 @@ async function renderKpiTable(code) {
   const res = await state.db.query(`
     SELECT top_n, port_ret FROM preset_backtest
     WHERE factor_code = '${code}' AND top_n IN (${state.selectedNs.join(",")})
-      ${rangeWhere(state.singleStart, state.singleEnd)}
+      ${backtestRangeWhere(state.singleStart, state.singleEnd)}
     ORDER BY top_n, trade_date
   `);
   const byN = {};
@@ -1542,7 +1585,7 @@ async function renderKpiTable(code) {
   const icRes = await state.db.query(`
     SELECT AVG(rank_ic) m, STDDEV_SAMP(rank_ic) s, COUNT(rank_ic) n FROM factor_ic
     WHERE factor_code = '${code}' AND NOT ISNAN(rank_ic)
-      ${rangeWhere(state.singleStart, state.singleEnd, "month")}
+      ${icRangeWhere(state.singleStart, state.singleEnd)}
   `);
   const icRow = icRes.toArray()[0];
   const icir = (icRow && icRow.s > 0 && icRow.n >= 2)
@@ -1680,7 +1723,7 @@ async function renderNScan(code) {
   const res = await state.db.query(`
     SELECT top_n, port_ret FROM preset_backtest
     WHERE factor_code = '${code}'
-      ${rangeWhere(state.singleStart, state.singleEnd)}
+      ${backtestRangeWhere(state.singleStart, state.singleEnd)}
     ORDER BY top_n, trade_date
   `);
   const byN = {};
@@ -1911,22 +1954,21 @@ async function renderCmpTable() {
   const res = await state.db.query(`
     SELECT factor_code, top_n, port_ret, nav FROM preset_backtest
     WHERE ${cmpPairCond()}
-      ${rangeWhere(state.compareStart, state.compareEnd)}
+      ${backtestRangeWhere(state.compareStart, state.compareEnd)}
     ORDER BY factor_code, top_n, trade_date
   `);
   const byKey = {};
   for (const r of res.toArray()) {
     const k = `${r.factor_code}_${r.top_n}`;
-    if (!byKey[k]) byKey[k] = { rets: [], navs: [] };
+    if (!byKey[k]) byKey[k] = { rets: [] };
     if (r.port_ret !== null) byKey[k].rets.push(r.port_ret);
-    if (r.nav !== null) byKey[k].navs.push(r.nav);
   }
   // 各因子 IC 统计（与 N 无关）
   const icRes = await state.db.query(`
     SELECT factor_code,
            AVG(ic) AS ic_mean, AVG(rank_ic) AS rankic_mean
     FROM factor_ic WHERE factor_code IN (${inList}) AND NOT ISNAN(ic)
-      ${rangeWhere(state.compareStart, state.compareEnd, "month")}
+      ${icRangeWhere(state.compareStart, state.compareEnd)}
     GROUP BY factor_code
   `);
   const icMap = {};
@@ -1934,7 +1976,7 @@ async function renderCmpTable() {
   const icirRes = await state.db.query(`
     SELECT factor_code, ic_ir_12m FROM factor_ic
     WHERE factor_code IN (${inList}) AND ic_ir_12m IS NOT NULL AND NOT ISNAN(ic_ir_12m)
-      ${rangeWhere(state.compareStart, state.compareEnd, "month")}
+      ${icRangeWhere(state.compareStart, state.compareEnd)}
     QUALIFY ROW_NUMBER() OVER (PARTITION BY factor_code ORDER BY month DESC) = 1
   `);
   const icirMap = {};
@@ -1949,7 +1991,7 @@ async function renderCmpTable() {
   for (const f of state.compareFactors) {
     const code = f.code;
     const d = byKey[`${code}_${f.n}`];
-    const m = d ? computeMetrics(d.rets, d.navs) : null;
+    const m = d ? metricsFromReturns(d.rets) : null;
     const ic = icMap[code] || {};
     const label = `${code} <span style="color:#888;font-weight:400">top${f.n}</span>`;
     if (!m) { factors.push({ label, noData: true }); continue; }
@@ -2088,20 +2130,31 @@ async function renderCmpNav() {
   if (state.compareFactors.length === 0) { div.innerHTML = `<div class="empty">选因子后显示</div>`; return; }
 
   const res = await state.db.query(`
-    SELECT factor_code, top_n, strftime(trade_date,'%Y-%m') AS dt, nav
+    SELECT factor_code, top_n,
+           strftime(trade_date,'%Y-%m') AS signal_dt,
+           strftime(COALESCE(return_date, trade_date),'%Y-%m-%d') AS dt,
+           port_ret
     FROM preset_backtest WHERE ${cmpPairCond()}
-      ${rangeWhere(state.compareStart, state.compareEnd)}
+      ${backtestRangeWhere(state.compareStart, state.compareEnd)}
     ORDER BY factor_code, top_n, trade_date
   `);
   const byKey = {};
-  for (const r of res.toArray()) { const k = `${r.factor_code}_${r.top_n}`; (byKey[k] ||= { dt: [], nav: [] }); byKey[k].dt.push(r.dt); byKey[k].nav.push(r.nav); }
+  for (const r of res.toArray()) {
+    const k = `${r.factor_code}_${r.top_n}`;
+    const s = (byKey[k] ||= { dt: [], nav: [] });
+    if (!s.dt.length) {
+      s.dt.push(r.signal_dt);
+      s.nav.push(1.0);
+    }
+    s.dt.push(r.dt);
+    s.nav.push(s.nav[s.nav.length - 1] * (1 + (r.port_ret ?? 0)));
+  }
   const first = state.compareFactors[0];
   const x = (byKey[`${first.code}_${first.n}`] || { dt: [] }).dt;
   const series = state.compareFactors.map((f, i) => {
     const s = byKey[`${f.code}_${f.n}`]; if (!s) return null;
-    const base = s.nav[0] || 1;
     return { name: `${f.code} top${f.n}`, type: "line", symbol: "none",
-             data: s.nav.map(v => v / base),
+             data: s.nav,
              color: STRAT_COLORS[i % STRAT_COLORS.length],
              lineStyle: { width: 2 } };
   }).filter(Boolean);
@@ -2109,7 +2162,8 @@ async function renderCmpNav() {
   if (state.hasBenchmarks && x.length) {
     const bmRes = await state.db.query(`
       SELECT index_code, strftime(trade_date,'%Y-%m') AS dt, nav FROM benchmarks
-      WHERE strftime(trade_date,'%Y-%m') >= '${x[0]}' AND strftime(trade_date,'%Y-%m') <= '${x[x.length-1]}'
+      WHERE strftime(trade_date,'%Y-%m') >= '${monthOfLabel(x[0])}'
+        AND strftime(trade_date,'%Y-%m') <= '${monthOfLabel(x[x.length-1])}'
       ORDER BY index_code, trade_date
     `);
     const byIdx = {};
@@ -2118,7 +2172,7 @@ async function renderCmpNav() {
     const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
     for (const idx of ["HS300", "CSI800", "CSI500"]) {
       const mm = byIdx[idx]; if (!mm) continue;
-      const aligned = x.map(m => (m in mm ? mm[m] : null));
+      const aligned = x.map(m => (monthOfLabel(m) in mm ? mm[monthOfLabel(m)] : null));
       const b = aligned.find(v => v !== null);
       series.push({ name: `${cn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
         data: b ? aligned.map(v => v === null ? null : v / b) : aligned,
@@ -2146,15 +2200,19 @@ async function renderCmpNavFast() {
 
   const snaps = await Promise.all(state.compareFactors.map(f => loadSingleSnapshot(f.code)));
   const months = monthsFromSnapshot(snaps[0] || {});
+  const returnDates = returnDatesFromSnapshot(snaps[0] || {});
   const idxs = rangeFilterIndexes(months, state.compareStart, state.compareEnd);
-  const x = idxs.map(i => months[i]);
+  const x = labelsFromReturnDates(
+    labelsByIndexes(returnDates, idxs),
+    labelsByIndexes(signalMonthsFromSnapshot(snaps[0] || {}), idxs)
+  );
   const series = state.compareFactors.map((f, i) => {
     const snap = snaps[i];
     const bt = snap.backtests?.[String(f.n)];
     if (!bt) return null;
     const rets = sliceByIndexes(bt.ret, idxs);
     return { name: `${f.code} top${f.n}`, type: "line", symbol: "none",
-             data: navFromReturnsForChart(rets),
+             data: alignReturnsToChart(rets, x),
              color: STRAT_COLORS[i % STRAT_COLORS.length],
              lineStyle: { width: 2 } };
   }).filter(Boolean);
@@ -2163,7 +2221,7 @@ async function renderCmpNavFast() {
   const colors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
   const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
   for (const idx of ["HS300", "CSI800", "CSI500"]) {
-    const rebased = rebaseNav(benchmarkSeries(bm, x, idx));
+    const rebased = rebaseNav(benchmarkSeries(bm, x.map(monthOfLabel), idx));
     if (!rebased.some(v => v !== null)) continue;
     series.push({ name: `${cn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
       data: rebased, color: colors[idx], lineStyle: { width: 1.2, type: "dashed" } });
@@ -2191,7 +2249,7 @@ async function renderCmpIc() {
     SELECT factor_code, strftime(month,'%Y-%m') AS dt,
            AVG(ic) OVER (PARTITION BY factor_code ORDER BY month ROWS BETWEEN 11 PRECEDING AND CURRENT ROW) AS ic12
     FROM factor_ic WHERE factor_code IN (${inList}) AND NOT ISNAN(ic)
-      ${rangeWhere(state.compareStart, state.compareEnd, "month")}
+      ${icRangeWhere(state.compareStart, state.compareEnd)}
     ORDER BY factor_code, month
   `);
   const byF = {};
@@ -2632,7 +2690,7 @@ async function rankMonths() {
     return _rankMonths;
   }
   const res = await state.db.query(
-    `SELECT DISTINCT strftime(trade_date,'%Y-%m') m FROM preset_backtest ORDER BY m`);
+    `SELECT DISTINCT strftime(COALESCE(return_date, trade_date),'%Y-%m') m FROM preset_backtest ORDER BY m`);
   _rankMonths = res.toArray().map(r => r.m);
   return _rankMonths;
 }
@@ -2657,6 +2715,14 @@ function rangeWhere(startMonth, endMonth, col = "trade_date") {
   if (startMonth) parts.push(`strftime(${col},'%Y-%m') >= '${startMonth}'`);
   if (endMonth) parts.push(`strftime(${col},'%Y-%m') <= '${endMonth}'`);
   return parts.length ? " AND " + parts.join(" AND ") : "";
+}
+
+function backtestRangeWhere(startMonth, endMonth) {
+  return rangeWhere(startMonth, endMonth, "COALESCE(return_date, trade_date)");
+}
+
+function icRangeWhere(startMonth, endMonth) {
+  return rangeWhere(startMonth, endMonth, "COALESCE(return_month, month)");
 }
 
 // 单因子回测区间选择器（与排行榜同款逻辑，作用于 state.singleStart/End）
@@ -2916,13 +2982,19 @@ async function computeRankingFast(startMonth, endMonth) {
 }
 
 async function computeRanking(startMonth, endMonth) {
-  // 区间过滤条件（作用于 trade_date / month）
+  // 区间过滤条件：回测和 IC 都按“收益结束月”筛选。
   const btWhere = ["top_n = 30"];
   // 剔除 NaN 的 RankIC 月（稀疏因子在某些月份截面 <3 只票，04 算 IC 得 NaN）。
   // 否则 AVG/STDDEV 遇 NaN 会传染成 NaN → 排行榜 RankIC/IC_IR 显示 0。与 602/856/993 行其它 IC 查询口径一致。
   const icWhere = ["NOT ISNAN(rank_ic)"];
-  if (startMonth) { btWhere.push(`strftime(trade_date,'%Y-%m') >= '${startMonth}'`); icWhere.push(`strftime(month,'%Y-%m') >= '${startMonth}'`); }
-  if (endMonth)   { btWhere.push(`strftime(trade_date,'%Y-%m') <= '${endMonth}'`);   icWhere.push(`strftime(month,'%Y-%m') <= '${endMonth}'`); }
+  if (startMonth) {
+    btWhere.push(`strftime(COALESCE(return_date, trade_date),'%Y-%m') >= '${startMonth}'`);
+    icWhere.push(`strftime(COALESCE(return_month, month),'%Y-%m') >= '${startMonth}'`);
+  }
+  if (endMonth) {
+    btWhere.push(`strftime(COALESCE(return_date, trade_date),'%Y-%m') <= '${endMonth}'`);
+    icWhere.push(`strftime(COALESCE(return_month, month),'%Y-%m') <= '${endMonth}'`);
+  }
   const icWhereSql = icWhere.length ? "WHERE " + icWhere.join(" AND ") : "";
 
   // 1) top-30 区间内的月度收益 → 在区间内重建 NAV（从 1.0 起），再算年化/夏普/回撤/胜率
@@ -2932,10 +3004,10 @@ async function computeRanking(startMonth, endMonth) {
   `);
   const series = new Map();   // code → {rets, navs}
   for (const r of btRes.toArray()) {
-    if (!series.has(r.factor_code)) series.set(r.factor_code, { rets: [], navs: [] });
+    if (!series.has(r.factor_code)) series.set(r.factor_code, { rets: [], navs: [1] });
     const o = series.get(r.factor_code);
     o.rets.push(r.port_ret);
-    const prev = o.navs.length ? o.navs[o.navs.length - 1] : 1;
+    const prev = o.navs[o.navs.length - 1];
     o.navs.push(prev * (1 + r.port_ret));   // 区间内重建净值，保证回撤/年化口径对齐区间
   }
   // 2) IC 统计：区间内 RankIC 均值 + IC_IR（= RankIC均值 / RankIC标准差 × √12，年化）
@@ -3204,19 +3276,20 @@ async function ensureComposeBase() {
       await state.db.query(`
         CREATE OR REPLACE TABLE cps_matrix AS
         WITH src AS (
-          SELECT trade_date, stock_code, factor_code, score, fwd_return
+          SELECT trade_date, return_date, stock_code, factor_code, score, fwd_return
           FROM ${composeScoreReadExpr(codes)}
           WHERE score IS NOT NULL
         ),
         wide AS (
           SELECT trade_date, stock_code,
                  ${scoreCols},
+                 MAX(return_date) AS return_date,
                  MAX(fwd_return) AS fwd_return,
                  COUNT(DISTINCT factor_code) AS factor_count
           FROM src
           GROUP BY trade_date, stock_code
         )
-        SELECT w.trade_date, w.stock_code, ${matrixCols}, w.fwd_return
+        SELECT w.trade_date, w.return_date, w.stock_code, ${matrixCols}, w.fwd_return
         FROM wide w
         WHERE w.factor_count = ${codes.length}
       `);
@@ -4136,7 +4209,7 @@ async function renderComposeBacktest(renderSeq) {
     const colors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
     const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
     for (const idx of ["HS300", "CSI800", "CSI500"]) {
-      const aligned = benchmarkSeries(bm, x, idx);
+      const aligned = benchmarkSeries(bm, x.map(monthOfLabel), idx);
       const b = aligned.find(v => v !== null);
       series.push({ name: `${cn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
         data: b ? aligned.map(v => v === null ? null : v / b) : aligned,
@@ -4194,7 +4267,7 @@ async function ensureCmpBase(codes) {
     if (!sorted.length) { await state.db.query(`DROP TABLE IF EXISTS cps_cmp_base`); }
     else {
       await state.db.query(`CREATE OR REPLACE TABLE cps_cmp_base AS
-        SELECT trade_date, stock_code, factor_code, score, fwd_return
+        SELECT trade_date, return_date, stock_code, factor_code, score, fwd_return
         FROM ${composeScoreReadExpr(sorted)}
         WHERE score IS NOT NULL`);
     }
@@ -4206,21 +4279,31 @@ async function ensureCmpBase(codes) {
 function buildBacktestFromRows(rows, N) {
   const byMonth = new Map();
   for (const r of rows) {
-    if (!byMonth.has(r.dt)) byMonth.set(r.dt, { rets: [], stocks: new Set() });
-    const o = byMonth.get(r.dt);
+    const key = r.dt;
+    if (!byMonth.has(key)) {
+      byMonth.set(key, {
+        signalDt: r.signal_dt || monthOfLabel(r.dt),
+        returnDt: r.dt,
+        rets: [],
+        stocks: new Set(),
+      });
+    }
+    const o = byMonth.get(key);
     o.stocks.add(r.stock_code);
     if (r.fwd_return != null) o.rets.push(r.fwd_return);
   }
-  const months = [...byMonth.keys()].sort();
-  const COST = 0.002; let prev = null, nav = 1; const x = [], navArr = [], retArr = [];
-  for (const mth of months) {
-    const o = byMonth.get(mth);
+  const periods = [...byMonth.values()].sort((a, b) => a.returnDt.localeCompare(b.returnDt));
+  const COST = 0.002; let prev = null, nav = 1; const x = [], navArr = [1], retArr = [];
+  if (periods.length) x.push(periods[0].signalDt);
+  for (const o of periods) {
     const gross = o.rets.length ? o.rets.reduce((s, v) => s + v, 0) / o.rets.length : 0;
     let turnover = 1;
     if (prev) { let diff = 0; for (const s of o.stocks) if (!prev.has(s)) diff++; for (const s of prev) if (!o.stocks.has(s)) diff++; turnover = diff / (2 * N); }
     const net = gross - 2 * COST * turnover;
-    x.push(mth); navArr.push(nav); retArr.push(net);
     nav *= (1 + net);
+    x.push(o.returnDt);
+    navArr.push(nav);
+    retArr.push(net);
     prev = o.stocks;
   }
   return { x, navArr, retArr };
@@ -4242,16 +4325,18 @@ function matrixBacktestSql(factors, N, baseTable) {
   const condSql = conds.length ? "AND " + conds.join(" AND ") : "";
   return `
     WITH scored AS (
-      SELECT trade_date, stock_code, fwd_return, ROUND(${scoreExpr}, 6) AS cs
+      SELECT trade_date, return_date, stock_code, fwd_return, ROUND(${scoreExpr}, 6) AS cs
       FROM ${baseTable}
       WHERE fwd_return IS NOT NULL ${condSql}
     ),
     ranked AS (
-      SELECT trade_date, stock_code, fwd_return,
+      SELECT trade_date, return_date, stock_code, fwd_return,
              ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY cs DESC, stock_code) AS rk
       FROM scored
     )
-    SELECT strftime(trade_date, '%Y-%m') AS dt, stock_code, fwd_return
+    SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
+           strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
+           stock_code, fwd_return
     FROM ranked WHERE rk <= ${N} ORDER BY trade_date`;
 }
 
@@ -4286,18 +4371,21 @@ async function comboBacktest(factors, N, baseTable) {
     WITH w(code, weight) AS (VALUES ${vals}),
     ${cond.cte}
     comp AS (
-      SELECT s.trade_date, s.stock_code, ROUND(SUM(s.score * w.weight), 6) AS cs, COUNT(*) AS cnt
+      SELECT s.trade_date, s.stock_code, MAX(s.return_date) AS return_date,
+             ROUND(SUM(s.score * w.weight), 6) AS cs, COUNT(*) AS cnt
       FROM ${baseTable} s JOIN w ON s.factor_code = w.code
       WHERE s.score IS NOT NULL GROUP BY s.trade_date, s.stock_code
     ),
     ranked AS (
-      SELECT c.trade_date, c.stock_code, c.fwd_return,
+      SELECT c.trade_date, c.return_date, c.stock_code, c.fwd_return,
              ROW_NUMBER() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC, c.stock_code) AS rk
       FROM comp c
       ${cond.join}
       WHERE c.cnt = ${nF} AND c.fwd_return IS NOT NULL
     )
-    SELECT strftime(trade_date, '%Y-%m') AS dt, stock_code, fwd_return
+    SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
+           strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
+           stock_code, fwd_return
     FROM ranked WHERE rk <= ${N} ORDER BY trade_date`);
   return buildBacktestFromRows(res.toArray(), N);
 }
@@ -4480,7 +4568,7 @@ async function renderComboCompare() {
     if (allMonths.length) {
       const bmSnap = await ensureBenchmarkSnapshot();
       for (const idx of ["HS300", "CSI800", "CSI500"]) {
-        const aligned = benchmarkSeries(bmSnap, allMonths, idx);
+        const aligned = benchmarkSeries(bmSnap, allMonths.map(monthOfLabel), idx);
         const b = aligned.find(v => v !== null);
         series.push({ name: `${bcn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
           data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
@@ -4605,7 +4693,7 @@ async function optimizeWeights() {
         ) WHERE rk <= 500
       `).join("\nUNION\n")}
     )
-    SELECT strftime(m.trade_date,'%Y-%m') AS ym,
+    SELECT strftime(COALESCE(m.return_date, m.trade_date),'%Y-%m') AS ym,
            m.stock_code,
            ${scoreCols},
            m.fwd_return

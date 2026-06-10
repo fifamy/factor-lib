@@ -22,7 +22,7 @@
     "formula": "REV1M = ln(P_t / P_{t-21})\n即过去 21 个交易日的累计对数收益（P 为复权收盘价）。方向为负：过去涨多的下期倾向回调。",
     "wind_source": "AShareEODPrices.S_DQ_ADJCLOSE（复权收盘价）",
     "is_event": false,
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "近期失效"
   },
   {
@@ -35,7 +35,7 @@
     "formula": "DASTD = std(r_d, 过去 252 个交易日) × √252\n其中 r_d = ln(P_t / P_{t-1}) 为日对数收益（P 为复权收盘价），年化波动率。",
     "wind_source": "AShareEODPrices.S_DQ_ADJCLOSE（复权收盘价）",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -61,7 +61,7 @@
     "formula": "BETA = cov(r_i, r_mkt) / var(r_mkt)，过去 252 个交易日 OLS 回归斜率\nr_i 为个股日对数收益；r_mkt 为全市场 cap-weighted 组合日收益，权重 w_j(t-1) = 市值_j(t-1) / Σ市值。",
     "wind_source": "AShareEODPrices.S_DQ_ADJCLOSE（复权收盘价）、AShareEODDerivativeIndicator.S_DQ_MV（总市值，用于市值加权）",
     "is_event": false,
-    "env_tag": "熊市防御型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期转强"
   },
   {
@@ -113,7 +113,7 @@
     "formula": "股息率 = AShareValuationIndicator.S_VAL_DIVIDENDYIELD2（Wind 已算好，月末截面取值）",
     "wind_source": "AShareValuationIndicator.S_VAL_DIVIDENDYIELD2",
     "is_event": false,
-    "env_tag": "牛市进攻型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -204,7 +204,7 @@
     "formula": "毛利率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_GROSSPROFITMARGIN_TTM（Wind 已算好，月末截面取值）",
     "wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_GROSSPROFITMARGIN_TTM",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -217,7 +217,7 @@
     "formula": "净利率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_NETPROFITMARGIN_TTM（Wind 已算好，月末截面取值）",
     "wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_NETPROFITMARGIN_TTM",
     "is_event": false,
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {
@@ -243,7 +243,7 @@
     "formula": "现金流收入比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_OCFTOOR_TTM（Wind 已算好，月末截面取值）",
     "wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_OCFTOOR_TTM",
     "is_event": false,
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "近期失效"
   },
   {
@@ -269,7 +269,7 @@
     "formula": "营业利润同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_OP（Wind 已算好，月末截面取值）",
     "wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_OP",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -282,7 +282,7 @@
     "formula": "现金流同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_CFOTT（Wind 已算好，月末截面取值）",
     "wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_CFOTT",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
   {
@@ -295,7 +295,7 @@
     "formula": "资产负债率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_DEBTTOASSET（Wind 已算好，月末截面取值）",
     "wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_DEBTTOASSET",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -308,7 +308,7 @@
     "formula": "对数市值 = DailyValuationFactor.S_DFA_LNMV（Wind 已算好，月末截面取值）",
     "wind_source": "DailyValuationFactor.S_DFA_LNMV",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -373,7 +373,7 @@
     "formula": "毛利率同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_GM（Wind 已算好，月末截面取值）",
     "wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_GM",
     "is_event": false,
-    "env_tag": "牛市进攻型",
+    "env_tag": "熊市防御型",
     "time_tag": "持续低效"
   },
   {
@@ -386,7 +386,7 @@
     "formula": "扣非净利同比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYNETPROFIT_DEDUCTED（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYNETPROFIT_DEDUCTED",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
   {
@@ -412,7 +412,7 @@
     "formula": "ROE同比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYROE（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYROE",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
   {
@@ -425,7 +425,7 @@
     "formula": "营业收入同比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOY_OR（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOY_OR",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "近期转强"
   },
   {
@@ -438,7 +438,7 @@
     "formula": "流动比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CURRENT（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CURRENT",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {
@@ -451,7 +451,7 @@
     "formula": "速动比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_QUICK（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_QUICK",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {
@@ -490,7 +490,7 @@
     "formula": "产权比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_DEBTTOEQUITY（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_DEBTTOEQUITY",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -503,7 +503,7 @@
     "formula": "权益乘数 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ASSETSTOEQUITY（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ASSETSTOEQUITY",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -516,7 +516,7 @@
     "formula": "现金流负债比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_OCFTODEBT（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_OCFTODEBT",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "近期失效"
   },
   {
@@ -555,7 +555,7 @@
     "formula": "存货周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_INVTURN（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_INVTURN",
     "is_event": false,
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {
@@ -568,7 +568,7 @@
     "formula": "应收账款周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ARTURN（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ARTURN",
     "is_event": false,
-    "env_tag": "熊市防御型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -594,7 +594,7 @@
     "formula": "固定资产周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_FATURN（Wind 已算好，月末截面取值）",
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_FATURN",
     "is_event": false,
-    "env_tag": "熊市防御型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期失效"
   },
   {
@@ -698,7 +698,7 @@
     "formula": "",
     "wind_source": "",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -776,7 +776,7 @@
     "formula": "",
     "wind_source": "",
     "is_event": false,
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -789,7 +789,7 @@
     "formula": "",
     "wind_source": "",
     "is_event": false,
-    "env_tag": "牛市进攻型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -828,7 +828,7 @@
     "formula": "",
     "wind_source": "",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -854,7 +854,7 @@
     "formula": "净利预期上修(3M) = ConsensusExpectationFactor.S_WEST_NETPROFIT_FTM_3M（当月值）",
     "wind_source": "ConsensusExpectationFactor.S_WEST_NETPROFIT_FTM_3M",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -867,7 +867,7 @@
     "formula": "EPS预期上修(1M) = ConsensusExpectationFactor.S_WEST_EPS_FY1_1M（当月值）",
     "wind_source": "ConsensusExpectationFactor.S_WEST_EPS_FY1_1M",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期失效"
   },
   {
@@ -893,7 +893,7 @@
     "formula": "预期成长 = ConsensusExpectationFactor.S_WEST_EPS_FYGROWTH（当月值）",
     "wind_source": "ConsensusExpectationFactor.S_WEST_EPS_FYGROWTH",
     "is_event": false,
-    "env_tag": "熊市防御型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -971,7 +971,7 @@
     "formula": "户均持股(集中度) = AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER（当月值）",
     "wind_source": "AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -997,7 +997,7 @@
     "formula": "营业总收入(TTM) 近3年复合年增速 = (今值/36月前值)^(1/3) − 1；持续高成长。",
     "wind_source": "派生（已有数据计算）",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期转强"
   },
   {
@@ -1049,7 +1049,7 @@
     "formula": "个股PB − 同行业同截面中位PB；相对行业越便宜越好，方向负。",
     "wind_source": "派生（已有数据计算）",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期失效"
   },
   {
@@ -1114,7 +1114,7 @@
     "formula": "收益峰度(60D) = RevenueTechnicalFactor.S_RISK_KURTOSIS60（当月值）",
     "wind_source": "RevenueTechnicalFactor.S_RISK_KURTOSIS60",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "持续低效"
   },
   {
@@ -1127,7 +1127,7 @@
     "formula": "短长换手比(20/120) = TurnoverTechnicalFactor.S_TECH_TURN20DTURN120（当月值）",
     "wind_source": "TurnoverTechnicalFactor.S_TECH_TURN20DTURN120",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1192,7 +1192,7 @@
     "formula": "阿隆趋势 = MarketDerivativeFactor.S_TECH_AROON（当月值）",
     "wind_source": "MarketDerivativeFactor.S_TECH_AROON",
     "is_event": false,
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期失效"
   },
   {
@@ -1231,7 +1231,7 @@
     "formula": "快报扣非净利同比 = AShareProfitExpress（业绩快报，PIT as-of 对齐月末）.S_FA_YOYNETPROFIT_DEDUCTED（快报首次披露当月值（事件驱动））",
     "wind_source": "AShareProfitExpress（业绩快报，PIT as-of 对齐月末）.S_FA_YOYNETPROFIT_DEDUCTED",
     "is_event": true,
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "近期转强"
   },
   {
@@ -1244,7 +1244,7 @@
     "formula": "快报营收同比 = AShareProfitExpress（业绩快报，PIT as-of 对齐月末）.S_FA_YOYSALES（快报首次披露当月值（事件驱动））",
     "wind_source": "AShareProfitExpress（业绩快报，PIT as-of 对齐月末）.S_FA_YOYSALES",
     "is_event": true,
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期转强"
   },
   {
@@ -1270,7 +1270,7 @@
     "formula": "快报营业利润同比 = AShareProfitExpress（业绩快报，PIT as-of 对齐月末）.S_FA_YOYOP（快报首次披露当月值（事件驱动））",
     "wind_source": "AShareProfitExpress（业绩快报，PIT as-of 对齐月末）.S_FA_YOYOP",
     "is_event": true,
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期转强"
   }
 ]
