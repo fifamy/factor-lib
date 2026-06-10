@@ -23,7 +23,7 @@
     "wind_source": "AShareEODPrices.S_DQ_ADJCLOSE（复权收盘价）",
     "is_event": false,
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "DASTD",
@@ -49,7 +49,7 @@
     "wind_source": "AShareEODPrices.S_DQ_AMOUNT（成交额）、AShareEODDerivativeIndicator.S_DQ_MV（总市值）、FREE_SHARES_TODAY（自由流通股本）、TOT_SHR_TODAY（总股本）",
     "is_event": false,
     "env_tag": "牛市进攻型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "BETA",
@@ -88,7 +88,7 @@
     "wind_source": "AShareValuationIndicator.S_VAL_PB_LF",
     "is_event": false,
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "PS",
@@ -647,7 +647,7 @@
     "wind_source": "",
     "is_event": false,
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "MA20BIAS",
@@ -660,7 +660,7 @@
     "wind_source": "",
     "is_event": false,
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "HLPOS",
@@ -673,7 +673,7 @@
     "wind_source": "",
     "is_event": false,
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "DOWNVOL",
@@ -738,7 +738,7 @@
     "wind_source": "",
     "is_event": false,
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "AMOUNT20",
@@ -751,7 +751,7 @@
     "wind_source": "",
     "is_event": false,
     "env_tag": "牛市进攻型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "TURN20",
@@ -764,7 +764,7 @@
     "wind_source": "",
     "is_event": false,
     "env_tag": "牛市进攻型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "AMTVOL",
@@ -790,7 +790,7 @@
     "wind_source": "",
     "is_event": false,
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "PVCORR",
@@ -816,7 +816,7 @@
     "wind_source": "",
     "is_event": false,
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "ABTURN",
@@ -1011,7 +1011,7 @@
     "wind_source": "派生（已有数据计算）",
     "is_event": false,
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "RELRET60",
@@ -1037,7 +1037,7 @@
     "wind_source": "派生（已有数据计算）",
     "is_event": false,
     "env_tag": "震荡占优型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "RELPBIND",
@@ -1050,7 +1050,7 @@
     "wind_source": "派生（已有数据计算）",
     "is_event": false,
     "env_tag": "牛市进攻型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "RELRETIND",
@@ -1154,7 +1154,7 @@
     "wind_source": "TurnoverTechnicalFactor.S_TECH_VR",
     "is_event": false,
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "TURNVOL20",
@@ -1167,7 +1167,7 @@
     "wind_source": "TurnoverTechnicalFactor.S_TECH_TURNOVERRATEVOL20",
     "is_event": false,
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "MFLOW20",
@@ -1180,7 +1180,7 @@
     "wind_source": "MarketDerivativeFactor.S_TECH_MONEYFLOW20",
     "is_event": false,
     "env_tag": "牛市进攻型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "AROON",
@@ -1193,7 +1193,7 @@
     "wind_source": "MarketDerivativeFactor.S_TECH_AROON",
     "is_event": false,
     "env_tag": "震荡占优型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转弱"
   },
   {
     "code": "PSKEW",

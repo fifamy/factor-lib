@@ -163,6 +163,7 @@ table.rank-table td.score-cell { font-weight: 600; color: #1a4d80; }
 .ftag-震荡占优型 { background: #f5e9d6; color: #a9762a; }
 .ftag-长期稳定型 { background: #d4ede0; color: #1f7a52; }
 .ftag-近期转强 { background: #d6f0f2; color: #1a7f8c; }
+.ftag-近期转弱 { background: #fae8c8; color: #9a6516; }
 .ftag-近期失效 { background: #fbe0d4; color: #c1521f; }
 .ftag-持续低效 { background: #e6e6e6; color: #777; }
 /* 标签筛选 chip（可点） */

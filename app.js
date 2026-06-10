@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260610152000" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "DEPLOY_VERSION" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260610152000";
+const _DEPLOY = "DEPLOY_VERSION";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -2608,7 +2608,7 @@ let _rankState = { rows: null, sortKey: "score", desc: true, checked: new Set(),
                    range: "all", start: null, end: null, tagFilters: new Set() };
 
 const ENV_TAGS = ["牛市进攻型", "熊市防御型", "全天候型", "震荡占优型"];
-const TIME_TAGS = ["长期稳定型", "近期转强", "近期失效", "持续低效"];
+const TIME_TAGS = ["长期稳定型", "近期转强", "近期转弱", "近期失效", "持续低效"];
 
 // 构建标签筛选 chip（点击切换；多选为「与」关系）。绑定一次。
 let _tagFilterBound = false;
