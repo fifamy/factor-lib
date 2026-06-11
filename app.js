@@ -31,6 +31,7 @@ const state = {
   catalog: [],
   activeFactor: null,
   singleSide: 1,           // 单因子方向：1=默认方向，-1=反向
+  singleScoreMode: "raw",  // raw | neutral：单因子分数口径
   selectedNs: [30],        // 单因子模式：要对比的持仓数集合（至少 1 个）
   scanMetric: "annual",    // 指标-N 曲线的纵轴：annual / sharpe / mdd / vol
   singleStart: null,       // 单因子回测区间起/止月（YYYY-MM）；null=不限
@@ -237,6 +238,23 @@ function sideRawDirection(meta, side) {
   const defaultHighGood = Number(meta?.direction) === 1;
   const highGood = normalizeSide(side) === 1 ? defaultHighGood : !defaultHighGood;
   return highGood ? "原始值越高越好" : "原始值越低越好";
+}
+
+function normalizeScoreMode(mode) {
+  return mode === "neutral" ? "neutral" : "raw";
+}
+
+function scoreModeLabel(mode = state.singleScoreMode) {
+  return normalizeScoreMode(mode) === "neutral" ? "行业市值中性" : "原始口径";
+}
+
+function activeSingleSnapshot(snap) {
+  if (normalizeScoreMode(state.singleScoreMode) === "neutral" && snap?.neutral) return snap.neutral;
+  return snap;
+}
+
+function hasNeutralSnapshot(snap) {
+  return !!(snap?.neutral && Array.isArray(snap.neutral.months) && snap.neutral.months.length);
 }
 
 function normalizeComposeFactor(f) {
@@ -864,23 +882,24 @@ async function selectFactor(code) {
       ensureBenchmarkSnapshot(),
     ]);
     if (seq !== _singleRenderSeq) return;
-    await initSingleRangeControlsFast(snap);
+    const viewSnap = activeSingleSnapshot(snap);
+    await initSingleRangeControlsFast(viewSnap);
     renderFactorDetail(meta, snap);
     const tQ = performance.now();
     if (state.singleSide === 1) {
       await Promise.all([
-        (async () => { const t = performance.now(); await renderTopStocksFast(code, snap); console.log(`  top table: ${(performance.now()-t).toFixed(0)}ms`); })(),
-        (async () => { const t = performance.now(); await renderKpiTableFast(code, snap); console.log(`  kpi: ${(performance.now()-t).toFixed(0)}ms`); })(),
+        (async () => { const t = performance.now(); await renderTopStocksFast(code, viewSnap); console.log(`  top table: ${(performance.now()-t).toFixed(0)}ms`); })(),
+        (async () => { const t = performance.now(); await renderKpiTableFast(code, viewSnap); console.log(`  kpi: ${(performance.now()-t).toFixed(0)}ms`); })(),
       ]);
     } else {
       await Promise.all([
-        (async () => { const t = performance.now(); await renderTopStocksDynamic(code); console.log(`  top table(reverse): ${(performance.now()-t).toFixed(0)}ms`); })(),
-        (async () => { const t = performance.now(); await renderKpiTableSide(code, state.singleSide, snap); console.log(`  kpi(reverse): ${(performance.now()-t).toFixed(0)}ms`); })(),
+        (async () => { const t = performance.now(); await renderTopStocksFromSnapshotSide(code, viewSnap, state.singleSide); console.log(`  top table(reverse): ${(performance.now()-t).toFixed(0)}ms`); })(),
+        (async () => { const t = performance.now(); await renderKpiTableSide(code, state.singleSide, viewSnap); console.log(`  kpi(reverse): ${(performance.now()-t).toFixed(0)}ms`); })(),
       ]);
     }
     if (seq !== _singleRenderSeq) return;
     console.log(`selectFactor(${code}, N=[${state.selectedNs}]) fast critical ${(performance.now()-tAll).toFixed(0)}ms (render ${(performance.now()-tQ).toFixed(0)}ms)`);
-    renderSingleDeferredCharts(code, snap, seq);
+    renderSingleDeferredCharts(code, viewSnap, seq);
     prefetchNearbySingleSnapshots(code);
     scheduleDuckDbWarmup(1800);
   } catch (err) {
@@ -946,7 +965,7 @@ function renderSingleDeferredCharts(code, snap, seq) {
     const t = performance.now();
     try {
       if (state.singleSide === 1) await renderNScanFast(code, snap);
-      else await renderNScanSide(code, state.singleSide);
+      else await renderNScanSide(code, state.singleSide, snap);
       console.log(`  N-scan:    ${(performance.now() - t).toFixed(0)}ms`);
       if (seq === _singleRenderSeq) {
         console.log(`selectFactor(${code}, N=[${state.selectedNs}]) fast complete`);
@@ -1073,9 +1092,11 @@ function toggleN(n) {
 function renderFactorDetail(meta, snap = null) {
   const dirArrow = meta.direction === 1 ? "↑（越高越好）" : "↓（越低越好）";
   const side = normalizeSide(state.singleSide);
+  const scoreMode = normalizeScoreMode(state.singleScoreMode);
+  const viewSnap = activeSingleSnapshot(snap);
   const manifest = state.dataManifest || {};
-  const snapMonths = monthsFromSnapshot(snap);
-  const snapReturns = returnDatesFromSnapshot(snap);
+  const snapMonths = monthsFromSnapshot(viewSnap);
+  const snapReturns = returnDatesFromSnapshot(viewSnap);
   const coverageStart = snapMonths[0] || manifest.backtest_start_month || "—";
   const coverageEnd = snapReturns[snapReturns.length - 1] || manifest.return_end_date || manifest.backtest_end_month || "—";
   const minAge = manifest.min_listing_trading_days || 120;
@@ -1085,6 +1106,10 @@ function renderFactorDetail(meta, snap = null) {
   const sideBtns = `
     <button id="single-side-default" class="topn-btn single-side-btn${side === 1 ? " active" : ""}" data-side="1">默认方向</button>
     <button id="single-side-reverse" class="topn-btn single-side-btn${side === -1 ? " active" : ""}" data-side="-1">反向</button>`;
+  const neutralDisabled = hasNeutralSnapshot(snap) ? "" : " disabled";
+  const scoreModeBtns = `
+    <button id="single-score-raw" class="topn-btn single-score-btn${scoreMode === "raw" ? " active" : ""}" data-mode="raw">原始口径</button>
+    <button id="single-score-neutral" class="topn-btn single-score-btn${scoreMode === "neutral" ? " active" : ""}" data-mode="neutral"${neutralDisabled}>行业市值中性</button>`;
   const presetTags = QUICK_NS.map(n =>
     `<button class="topn-btn${state.selectedNs.includes(n) ? ' active' : ''}" data-n="${n}">${n}</button>`
   ).join("");
@@ -1121,6 +1146,11 @@ function renderFactorDetail(meta, snap = null) {
       <div>${sideBtns}</div>
     </div>
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="color:#666;font-size:11px">分数口径：</span>
+      <div>${scoreModeBtns}</div>
+      <span style="color:#888;font-size:11px">行业市值中性 = 申万一级行业 + log(市值) 回归残差</span>
+    </div>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">选股数（可多选对比）：</span>
       <div>${presetTags}</div>
       <span style="color:#666;font-size:11px">或加入</span>
@@ -1134,7 +1164,7 @@ function renderFactorDetail(meta, snap = null) {
     <p style="color:#666;font-size:11px;margin-top:8px">
       下方股票表显示 <b>top${maxN()}</b>（小 N 是其子集）；净值图 / 指标表叠加对比所选各 N。
       覆盖期：${coverageText}。
-      口径：每月末按 <b>${meta.code}</b> z-score 排序选非 ST、月末未停牌、上市满 ${minAge} 个交易日股票等权持有，扣 0.2% 双边成本；历史回测不按最新 active 过滤，最新股票表仅展示当前 active 非 ST 股票。
+      口径：每月末按 <b>${meta.code}</b> ${scoreModeLabel()} z-score 排序选非 ST、月末未停牌、上市满 ${minAge} 个交易日股票等权持有，扣 0.2% 双边成本；历史回测不按最新 active 过滤，最新股票表仅展示当前 active 非 ST 股票。
     </p>
   `;
   document.querySelectorAll(".single-side-btn").forEach(btn => {
@@ -1142,6 +1172,15 @@ function renderFactorDetail(meta, snap = null) {
       const next = normalizeSide(btn.dataset.side);
       if (state.singleSide === next) return;
       state.singleSide = next;
+      selectFactor(state.activeFactor);
+    };
+  });
+  document.querySelectorAll(".single-score-btn").forEach(btn => {
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      const next = normalizeScoreMode(btn.dataset.mode);
+      if (state.singleScoreMode === next) return;
+      state.singleScoreMode = next;
       selectFactor(state.activeFactor);
     };
   });
@@ -1351,6 +1390,19 @@ async function renderTopStocksFast(code, snap) {
   renderTopStocksRows(code, rows, { isEvent, side: 1, snapshot: true });
 }
 
+async function renderTopStocksFromSnapshotSide(code, snap, side) {
+  const N = maxN();
+  const meta = state.catalog.find(f => f.code === code) || {};
+  const isEvent = !!meta.is_event;
+  const sideN = normalizeSide(side);
+  const rows = (snap.top_stocks || [])
+    .map(r => ({ ...r, score: r.score == null ? r.score : Number(r.score) * sideN }))
+    .filter(r => r.score !== null && r.score !== undefined && Number.isFinite(Number(r.score)))
+    .sort((a, b) => Number(b.score) - Number(a.score) || String(a.stock_code).localeCompare(String(b.stock_code)))
+    .slice(0, N);
+  renderTopStocksRows(code, rows, { isEvent, side, snapshot: true });
+}
+
 function renderTopStocksRows(code, rows, opts = {}) {
   const N = maxN();
   const target = document.getElementById("top-stocks");
@@ -1363,7 +1415,7 @@ function renderTopStocksRows(code, rows, opts = {}) {
     return;
   }
   const descNote = opts.snapshot
-    ? " <span style='color:#aaa;font-size:11px'>(快照)</span>"
+    ? ` <span style='color:#aaa;font-size:11px'>(${scoreModeLabel()}快照)</span>`
     : " <span style='color:#aaa;font-size:11px'>(按当前方向即时排序)</span>";
   let head;
   if (isEvent) {
@@ -1500,7 +1552,7 @@ async function renderNavChart(code) {
   const rng = (state.singleStart || state.singleEnd)
     ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
   document.getElementById("nav-title").textContent =
-    `${code} · 组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，月末等权，0.2%双边成本）`;
+    `${code} · ${scoreModeLabel()}组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，月末等权，0.2%双边成本）`;
 
   const chartDiv = document.getElementById("nav-chart");
   if (navChart) { navChart.dispose(); navChart = null; }
@@ -1592,7 +1644,7 @@ async function renderNavChartFast(code, snap) {
   const rng = (state.singleStart || state.singleEnd)
     ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
   document.getElementById("nav-title").textContent =
-    `${code} · 组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，月末等权，0.2%双边成本）`;
+    `${code} · ${scoreModeLabel()}组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，月末等权，0.2%双边成本）`;
 
   const chartDiv = document.getElementById("nav-chart");
   if (navChart) { navChart.dispose(); navChart = null; }
@@ -1726,6 +1778,20 @@ function sliceBacktestByRange(bt, startMonth, endMonth) {
   return { x, retArr, navArr: navFromReturnsForChart(retArr) };
 }
 
+function sideBacktestFromSnapshot(snap, side, n) {
+  const bt = snap?.backtests?.[String(n)];
+  if (!bt) return { x: [], retArr: [], navArr: [] };
+  const months = monthsFromSnapshot(snap);
+  const returnDates = returnDatesFromSnapshot(snap);
+  const idxs = rangeFilterIndexes(months, state.singleStart, state.singleEnd);
+  const returnLabels = labelsByIndexes(returnDates, idxs);
+  const signalLabels = labelsByIndexes(signalMonthsFromSnapshot(snap), idxs);
+  const x = labelsFromReturnDates(returnLabels, signalLabels);
+  const sideN = normalizeSide(side);
+  const retArr = sliceByIndexes(bt.ret, idxs).map(v => v * sideN);
+  return { x, retArr, navArr: alignReturnsToChart(retArr, x) };
+}
+
 function navFromReturnsForChart(rets) {
   const out = [1];
   let nav = 1;
@@ -1784,7 +1850,7 @@ async function renderQuantileChartFast(code, snap) {
   const rng = (state.singleStart || state.singleEnd)
     ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
   document.getElementById("quantile-title").textContent =
-    `${code} · 5 分位净值 + 多空（起点=1.0；${rng}；${sideLabel(state.singleSide)}方向）`;
+    `${code} · ${scoreModeLabel()} 5 分位净值 + 多空（起点=1.0；${rng}；${sideLabel(state.singleSide)}方向）`;
 
   const chartDiv = document.getElementById("quantile-chart");
   if (quantileChart) { quantileChart.dispose(); quantileChart = null; }
@@ -1909,7 +1975,7 @@ async function renderNavChartSide(code, side, snap = null) {
   const rng = (state.singleStart || state.singleEnd)
     ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
   document.getElementById("nav-title").textContent =
-    `${factorSideName(code, side)} · 组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，月末等权，0.2%双边成本）`;
+    `${factorSideName(code, side)} · ${scoreModeLabel()}组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，月末等权，0.2%双边成本）`;
 
   const chartDiv = document.getElementById("nav-chart");
   if (navChart) { navChart.dispose(); navChart = null; }
@@ -1918,8 +1984,9 @@ async function renderNavChartSide(code, side, snap = null) {
   const series = [];
   let x = [];
   for (const [i, n] of ns.entries()) {
-    const fullBt = await factorSideBacktest(code, side, n);
-    const bt = sliceBacktestByRange(fullBt, state.singleStart, state.singleEnd);
+    const bt = snap
+      ? sideBacktestFromSnapshot(snap, side, n)
+      : sliceBacktestByRange(await factorSideBacktest(code, side, n), state.singleStart, state.singleEnd);
     if (!x.length && bt.x.length) x = bt.x;
     series.push({
       name: `top${n}${sideSuffix(side)}`,
@@ -2147,8 +2214,9 @@ async function renderKpiTableSide(code, side, snap = null) {
 
   let rows = "";
   for (const n of state.selectedNs) {
-    const fullBt = await factorSideBacktest(code, side, n);
-    const bt = sliceBacktestByRange(fullBt, state.singleStart, state.singleEnd);
+    const bt = snap
+      ? sideBacktestFromSnapshot(snap, side, n)
+      : sliceBacktestByRange(await factorSideBacktest(code, side, n), state.singleStart, state.singleEnd);
     const m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     if (!m) { rows += `<tr><td>top${n}${sideSuffix(side)}</td><td colspan="7">无数据</td></tr>`; continue; }
     rows += `<tr>
@@ -2194,7 +2262,7 @@ async function renderKpiTableSide(code, side, snap = null) {
 async function renderNScan(code) {
   const metricLabels = { annual: "年化收益", vol: "年化波动率", sharpe: "夏普比率", mdd: "最大回撤" };
   document.getElementById("scan-title").textContent =
-    `${code} · ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
+    `${code} · ${scoreModeLabel()} ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
   const chartDiv = document.getElementById("scan-chart");
   if (scanChart) { scanChart.dispose(); scanChart = null; }
   chartDiv.innerHTML = "";
@@ -2284,19 +2352,20 @@ async function renderNScanFast(code, snap) {
   });
 }
 
-async function renderNScanSide(code, side) {
+async function renderNScanSide(code, side, snap = null) {
   const metricLabels = { annual: "年化收益", vol: "年化波动率", sharpe: "夏普比率", mdd: "最大回撤" };
   document.getElementById("scan-title").textContent =
-    `${factorSideName(code, side)} · ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
+    `${factorSideName(code, side)} · ${scoreModeLabel()} ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
   const chartDiv = document.getElementById("scan-chart");
   if (scanChart) { scanChart.dispose(); scanChart = null; }
   chartDiv.innerHTML = "";
 
-  const rows = await factorSideRankedRows(code, side, 100);
   const xs = PRESET_NS.slice();
+  const rows = snap ? null : await factorSideRankedRows(code, side, 100);
   const ys = xs.map(n => {
-    const bt = buildBacktestFromRows(rows.filter(r => r.rk <= n), n);
-    const sliced = sliceBacktestByRange(bt, state.singleStart, state.singleEnd);
+    const sliced = snap
+      ? sideBacktestFromSnapshot(snap, side, n)
+      : sliceBacktestByRange(buildBacktestFromRows(rows.filter(r => r.rk <= n), n), state.singleStart, state.singleEnd);
     const m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
     if (!m) return null;
     if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
@@ -5438,7 +5507,11 @@ function bindScanButtons() {
       state.scanMetric = btn.dataset.metric;
       if (state.activeFactor) {
         loadSingleSnapshot(state.activeFactor)
-          .then(snap => renderNScanFast(state.activeFactor, snap))
+          .then(snap => {
+            const viewSnap = activeSingleSnapshot(snap);
+            if (state.singleSide === 1) return renderNScanFast(state.activeFactor, viewSnap);
+            return renderNScanSide(state.activeFactor, state.singleSide, viewSnap);
+          })
           .catch(() => renderNScan(state.activeFactor));
       }
     };
