@@ -1,0 +1,1 @@
+{"generated_at":"2026-06-11 10:12:54","factor_count":98,"backtest_start_month":"2015-02","backtest_end_month":"2026-05","return_end_date":"2026-05-29","min_listing_trading_days":120,"backtest_universe":"历史回测剔除 ST、月末停牌、上市未满 120 个交易日；不按 is_active_latest 过滤。","latest_holdings_universe":"最新持仓展示仅显示当前 active 非 ST 股票。","has_quantile_backtest":true}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>因子库 v1.0</title>
-  <link rel="stylesheet" href="styles.css?v=20260611092138">
+  <link rel="stylesheet" href="styles.css?v=20260611101548">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -71,6 +71,11 @@
         <div class="panel">
           <h3 id="nav-title">组合净值（月末等权调仓，0.2% 双边成本）</h3>
           <div id="nav-chart"></div>
+        </div>
+        <div class="panel">
+          <h3 id="quantile-title">5 分位净值 + 多空</h3>
+          <div id="quantile-chart"></div>
+          <div id="quantile-kpi"><div class="empty">从左侧选择一个因子</div></div>
         </div>
         <div class="panel" id="kpi-panel">
           <h3>组合指标</h3>
@@ -350,6 +355,6 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script type="module" src="app.js?v=20260611092138"></script>
+  <script type="module" src="app.js?v=20260611101548"></script>
 </body>
 </html>

@@ -182,6 +182,7 @@ table.stock-table th { background: #f0f3f7; padding: 6px 8px; text-align: left;
 table.stock-table td { padding: 4px 8px; border-bottom: 1px solid #eee; }
 
 #nav-chart { width: 100%; height: 320px; }
+#quantile-chart { width: 100%; height: 320px; }
 #scan-chart { width: 100%; height: 260px; }
 
 .scan-btn { background: #fff; border: 1px solid #ccc; border-radius: 12px;

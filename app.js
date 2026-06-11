@@ -17,6 +17,7 @@ const STOCK_META_SNAPSHOT = DATA_DIR + "stock_meta_snapshot.json" + V;
 const BENCHMARK_SNAPSHOT = DATA_DIR + "benchmark_snapshot.json" + V;
 const RANKING_SNAPSHOT = DATA_DIR + "factor_ranking_snapshot.json" + V;
 const CORR_SNAPSHOT = DATA_DIR + "factor_corr_snapshot.json" + V;
+const DATA_MANIFEST = DATA_DIR + "data_manifest.json" + V;
 const SCORE_LATEST_DIR = DATA_DIR + "factor_scores_latest/";
 const BACKTEST_DIR = DATA_DIR + "backtests/";
 const FACTOR_IC_DIR = DATA_DIR + "factor_ics/";
@@ -62,6 +63,7 @@ const state = {
   benchmarkSnapshot: null,
   rankingSnapshot: null,
   corrSnapshot: null,
+  dataManifest: null,
   hasStockMeta: false,
   hasDescriptors: false,
   hasBenchmarks: false,
@@ -71,6 +73,7 @@ const state = {
 };
 
 let navChart = null;
+let quantileChart = null;
 let scanChart = null;
 let cmpNavChart = null, cmpIcChart = null, cmpCorrChart = null;
 let cpsNavChart = null;
@@ -80,18 +83,36 @@ const STRAT_COLORS = ["#1a4d80", "#e07b39", "#3a9d6e", "#9b59b6", "#c0392b", "#1
 
 async function init() {
   await loadCatalog();
+  await loadDataManifest();
   await loadPublishedCombos();
   loadMyCombos();
   renderTree();
   bindFactorSearch();
-  document.getElementById("meta").textContent =
-    `${state.catalog.length} 因子可用`;
+  renderTopMeta();
   runWhenIdle(() => scheduleDuckDbWarmup(0), 5000, 3000);
 }
 
 async function loadCatalog() {
   const res = await fetch("data/factor_catalog.json" + V);
   state.catalog = await res.json();
+}
+
+async function loadDataManifest() {
+  try {
+    state.dataManifest = await fetchJson(DATA_MANIFEST);
+  } catch (err) {
+    console.warn("data_manifest not available:", err.message || err);
+    state.dataManifest = null;
+  }
+}
+
+function renderTopMeta() {
+  const m = state.dataManifest || {};
+  const asOf = m.return_end_date || m.backtest_end_month;
+  const age = m.min_listing_trading_days || 120;
+  document.getElementById("meta").textContent = asOf
+    ? `${state.catalog.length} 因子 · 数据截至 ${asOf} · 上市满${age}交易日`
+    : `${state.catalog.length} 因子可用`;
 }
 
 async function fetchJson(url) {
@@ -844,7 +865,7 @@ async function selectFactor(code) {
     ]);
     if (seq !== _singleRenderSeq) return;
     await initSingleRangeControlsFast(snap);
-    renderFactorDetail(meta);
+    renderFactorDetail(meta, snap);
     const tQ = performance.now();
     if (state.singleSide === 1) {
       await Promise.all([
@@ -872,6 +893,7 @@ async function selectFactor(code) {
       if (seq !== _singleRenderSeq) return;
       await initSingleRangeControls();
       renderFactorDetail(meta);
+      renderQuantileUnavailable("分位多空需要快照数据，请重新导出 frontend/data 后刷新。");
       const tQ = performance.now();
       if (state.singleSide === 1) {
         await Promise.all([
@@ -909,6 +931,16 @@ function renderSingleDeferredCharts(code, snap, seq) {
       console.warn("deferred nav chart failed:", err);
     }
   }, 0, 800);
+  runWhenIdle(async () => {
+    if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
+    const t = performance.now();
+    try {
+      await renderQuantileChartFast(code, snap);
+      console.log(`  quantile:     ${(performance.now() - t).toFixed(0)}ms`);
+    } catch (err) {
+      console.warn("deferred quantile chart failed:", err);
+    }
+  }, 40, 850);
   runWhenIdle(async () => {
     if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
     const t = performance.now();
@@ -1038,9 +1070,18 @@ function toggleN(n) {
   selectFactor(state.activeFactor);
 }
 
-function renderFactorDetail(meta) {
+function renderFactorDetail(meta, snap = null) {
   const dirArrow = meta.direction === 1 ? "↑（越高越好）" : "↓（越低越好）";
   const side = normalizeSide(state.singleSide);
+  const manifest = state.dataManifest || {};
+  const snapMonths = monthsFromSnapshot(snap);
+  const snapReturns = returnDatesFromSnapshot(snap);
+  const coverageStart = snapMonths[0] || manifest.backtest_start_month || "—";
+  const coverageEnd = snapReturns[snapReturns.length - 1] || manifest.return_end_date || manifest.backtest_end_month || "—";
+  const minAge = manifest.min_listing_trading_days || 120;
+  const coverageText = snapMonths.length
+    ? `${coverageStart} ~ ${coverageEnd}（${snapMonths.length} 期）`
+    : `${coverageStart} ~ ${coverageEnd}`;
   const sideBtns = `
     <button id="single-side-default" class="topn-btn single-side-btn${side === 1 ? " active" : ""}" data-side="1">默认方向</button>
     <button id="single-side-reverse" class="topn-btn single-side-btn${side === -1 ? " active" : ""}" data-side="-1">反向</button>`;
@@ -1092,7 +1133,8 @@ function renderFactorDetail(meta) {
     </div>
     <p style="color:#666;font-size:11px;margin-top:8px">
       下方股票表显示 <b>top${maxN()}</b>（小 N 是其子集）；净值图 / 指标表叠加对比所选各 N。
-      口径：每月末按 <b>${meta.code}</b> z-score 排序选非 ST 股等权持有，扣 0.2% 双边成本，2015-01 ~ 2025-12。
+      覆盖期：${coverageText}。
+      口径：每月末按 <b>${meta.code}</b> z-score 排序选非 ST、月末未停牌、上市满 ${minAge} 个交易日股票等权持有，扣 0.2% 双边成本；历史回测不按最新 active 过滤，最新股票表仅展示当前 active 非 ST 股票。
     </p>
   `;
   document.querySelectorAll(".single-side-btn").forEach(btn => {
@@ -1703,6 +1745,123 @@ function labelsFromReturnDates(returnDates, signalMonths) {
 function alignReturnsToChart(rets, labels) {
   const navs = navFromReturnsForChart(rets);
   return labels.map((_, i) => navs[i] ?? null);
+}
+
+function quantilePayloadForSide(snap, side) {
+  const q = snap?.quantile;
+  if (!q || !q.ret) return null;
+  const sideN = normalizeSide(side);
+  const ret = {};
+  for (let i = 1; i <= 5; i++) {
+    const src = sideN === 1 ? `Q${i}` : `Q${6 - i}`;
+    ret[`Q${i}`] = q.ret[src] || [];
+  }
+  ret.LS = sideN === 1
+    ? (q.ret.LS || [])
+    : (q.ret.LS || []).map(v => v === null || v === undefined ? v : -Number(v));
+  return {
+    months: q.months || [],
+    signal_months: q.signal_months || q.months || [],
+    return_dates: q.return_dates || q.months || [],
+    ret,
+  };
+}
+
+function renderQuantileUnavailable(message) {
+  const chartDiv = document.getElementById("quantile-chart");
+  const kpiDiv = document.getElementById("quantile-kpi");
+  if (quantileChart) { quantileChart.dispose(); quantileChart = null; }
+  if (chartDiv) chartDiv.innerHTML = `<div class="empty">${message}</div>`;
+  if (kpiDiv) kpiDiv.innerHTML = "";
+}
+
+async function renderQuantileChartFast(code, snap) {
+  const payload = quantilePayloadForSide(snap, state.singleSide);
+  if (!payload || !payload.months.length) {
+    renderQuantileUnavailable("暂无分位组合数据");
+    return;
+  }
+  const rng = (state.singleStart || state.singleEnd)
+    ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
+  document.getElementById("quantile-title").textContent =
+    `${code} · 5 分位净值 + 多空（起点=1.0；${rng}；${sideLabel(state.singleSide)}方向）`;
+
+  const chartDiv = document.getElementById("quantile-chart");
+  if (quantileChart) { quantileChart.dispose(); quantileChart = null; }
+  chartDiv.innerHTML = "";
+
+  const idxs = rangeFilterIndexes(payload.months, state.singleStart, state.singleEnd);
+  const returnLabels = labelsByIndexes(payload.return_dates, idxs);
+  const signalLabels = labelsByIndexes(payload.signal_months, idxs);
+  const x = labelsFromReturnDates(returnLabels, signalLabels);
+  if (!x.length) {
+    renderQuantileUnavailable("所选区间没有分位组合数据");
+    return;
+  }
+
+  const colors = {
+    Q1: "#b8b8b8",
+    Q2: "#8aa6c1",
+    Q3: "#6e9a4f",
+    Q4: "#e0a23a",
+    Q5: "#1a4d80",
+    LS: "#c0392b",
+  };
+  const cn = { Q1: "Q1 低分", Q2: "Q2", Q3: "Q3", Q4: "Q4", Q5: "Q5 高分", LS: "多空 Q5-Q1" };
+  const series = [];
+  for (const p of ["Q1", "Q2", "Q3", "Q4", "Q5", "LS"]) {
+    const arr = payload.ret[p];
+    if (!arr) continue;
+    const rets = sliceByIndexes(arr, idxs);
+    if (!rets.length) continue;
+    series.push({
+      name: cn[p],
+      type: "line",
+      data: alignReturnsToChart(rets, x),
+      symbol: "none",
+      color: colors[p],
+      lineStyle: { width: p === "LS" ? 2.6 : 1.4, type: p === "LS" ? "solid" : "dashed" },
+      z: p === "LS" ? 5 : 2,
+    });
+  }
+
+  quantileChart = echarts.init(chartDiv);
+  quantileChart.setOption({
+    grid: { left: 50, right: 20, top: 34, bottom: 30 },
+    tooltip: { trigger: "axis" },
+    legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 28 },
+    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    yAxis: { type: "value", scale: true },
+    series,
+  });
+  renderQuantileKpi(payload, idxs);
+}
+
+function renderQuantileKpi(payload, idxs) {
+  const target = document.getElementById("quantile-kpi");
+  const rows = ["Q1", "Q2", "Q3", "Q4", "Q5", "LS"].map(p => {
+    const m = metricsFromReturns(sliceByIndexes(payload.ret[p], idxs));
+    const label = p === "LS" ? "多空 Q5-Q1" : p;
+    if (!m) return `<tr><td>${label}</td><td colspan="6">无数据</td></tr>`;
+    return `<tr${p === "LS" ? ' style="font-weight:700;border-top:2px solid #ddd"' : ""}>
+      <td>${label}</td>
+      <td>${pctText(m.annual)}</td>
+      <td>${pctText(m.vol)}</td>
+      <td>${m.sharpe.toFixed(2)}</td>
+      <td>${pctText(m.mdd)}</td>
+      <td>${(m.winRate * 100).toFixed(0)}%</td>
+      <td>${m.navEnd.toFixed(2)}</td>
+    </tr>`;
+  }).join("");
+  target.innerHTML = `
+    <table class="kpi-table">
+      <thead><tr>
+        <th>分位</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>期末净值</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="color:#888;font-size:11px;margin-top:6px">Q5 为当前分析方向下的高分组；反向时 Q1-Q5 会按有效分数重排，多空同步翻向。</p>
+  `;
 }
 
 function pctText(v) {
@@ -5412,6 +5571,14 @@ document.addEventListener("click", (e) => {
   if (e.target.id === "stock-modal" || (e.target.classList && e.target.classList.contains("sd-close"))) closeStockModal();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeStockModal(); });
+window.addEventListener("resize", () => {
+  [
+    navChart, quantileChart, scanChart,
+    cmpNavChart, cmpIcChart, cmpCorrChart,
+    cpsNavChart, cpsCompareChart,
+    topMktcapChart, topIndustryChart,
+  ].forEach(ch => { if (ch && ch.resize) ch.resize(); });
+});
 
 bindScanButtons();
 bindModeButtons();
