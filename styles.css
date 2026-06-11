@@ -175,6 +175,10 @@ table.rank-table td.score-cell { font-weight: 600; color: #1a4d80; }
 
 #factor-detail .formula { background: #fff; border: 1px solid #e8e8e8;
                           padding: 12px; margin-top: 8px; }
+.method-note { margin-top: 8px; background: #fff; border: 1px solid #e4e8ed; border-radius: 5px;
+               padding: 8px 10px; color: #555; font-size: 11px; line-height: 1.65; }
+.method-note b { color: #1a4d80; }
+.method-note-muted { color: #888; }
 
 table.stock-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 table.stock-table th { background: #f0f3f7; padding: 6px 8px; text-align: left;

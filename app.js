@@ -1150,6 +1150,11 @@ function renderFactorDetail(meta, snap = null) {
       <div>${scoreModeBtns}</div>
       <span style="color:#888;font-size:11px">行业市值中性 = 申万一级行业 + log(市值) 回归残差</span>
     </div>
+    <div class="method-note">
+      <div><b>分数口径</b>决定怎么排名：原始口径直接按因子分数排；行业市值中性先剔除申万一级行业和市值暴露，再按残差分数排。</div>
+      <div><b>组合约束</b>决定怎么买：当前为无约束等权，Top 股票等权持有；行业中性组合会按行业目标权重分配，每只股票权重可能不同。</div>
+      <div class="method-note-muted">当前页面已支持切换分数口径；组合约束暂为“无”，后续加入行业中性后会单独显示权重口径。</div>
+    </div>
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">选股数（可多选对比）：</span>
       <div>${presetTags}</div>
