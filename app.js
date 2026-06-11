@@ -17,11 +17,13 @@ const STOCK_META_SNAPSHOT = DATA_DIR + "stock_meta_snapshot.json" + V;
 const BENCHMARK_SNAPSHOT = DATA_DIR + "benchmark_snapshot.json" + V;
 const RANKING_SNAPSHOT = DATA_DIR + "factor_ranking_snapshot.json" + V;
 const CORR_SNAPSHOT = DATA_DIR + "factor_corr_snapshot.json" + V;
+const CORR_NEUTRAL_SNAPSHOT = DATA_DIR + "factor_corr_neutral_snapshot.json" + V;
 const DATA_MANIFEST = DATA_DIR + "data_manifest.json" + V;
 const SCORE_LATEST_DIR = DATA_DIR + "factor_scores_latest/";
 const BACKTEST_DIR = DATA_DIR + "backtests/";
 const FACTOR_IC_DIR = DATA_DIR + "factor_ics/";
 const COMPOSE_SCORE_DIR = DATA_DIR + "compose_scores/";
+const COMPOSE_SCORE_NEUTRAL_DIR = DATA_DIR + "compose_scores_neutral/";
 const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
 const SUPABASE_URL = "https://tsyplhfshxzoduynzixk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_6osvaEI8pookLkmkzBUbHQ_kyUU2SKn";
@@ -45,6 +47,7 @@ const state = {
   // 合成模式：[{code, weight, side, op:'>='|'<=', thr:number|null}]，thr=null 表示该因子不参与过滤
   composeFactors: [],
   composeN: 30,
+  composeConstraintMode: "none", // none | industry：合成组合最终持仓约束
   composeStart: null,       // 多因子合成回测区间；null=不限
   composeEnd: null,
   // 暂存的合成组合快照：[{name, factors:[...], N, color}]，供多组合对比
@@ -65,6 +68,7 @@ const state = {
   benchmarkSnapshot: null,
   rankingSnapshot: null,
   corrSnapshot: null,
+  corrNeutralSnapshot: null,
   dataManifest: null,
   hasStockMeta: false,
   hasDescriptors: false,
@@ -215,6 +219,19 @@ async function ensureCorrSnapshot() {
   return state.corrSnapshot;
 }
 
+async function ensureCorrSnapshotFor(scoreMode = "raw") {
+  if (normalizeScoreMode(scoreMode) !== "neutral") return ensureCorrSnapshot();
+  if (!state.corrNeutralSnapshot) {
+    try {
+      state.corrNeutralSnapshot = await fetchJson(CORR_NEUTRAL_SNAPSHOT);
+    } catch (err) {
+      console.warn("neutral factor corr snapshot not available, using raw corr:", err.message || err);
+      state.corrNeutralSnapshot = await ensureCorrSnapshot();
+    }
+  }
+  return state.corrNeutralSnapshot;
+}
+
 function normalizeSide(side) {
   return Number(side) === -1 || side === "reverse" || side === "反向" ? -1 : 1;
 }
@@ -229,6 +246,12 @@ function sideSuffix(side) {
 
 function factorSideName(code, side) {
   return `${code}${sideSuffix(side)}`;
+}
+
+function factorParamName(code, side = 1, scoreMode = "raw", constraintMode = null) {
+  const parts = [factorSideName(code, side), scoreModeLabel(scoreMode)];
+  if (constraintMode !== null && constraintMode !== undefined) parts.push(constraintModeLabel(constraintMode));
+  return parts.join(" · ");
 }
 
 function effectiveScoreSql(col, side) {
@@ -289,11 +312,33 @@ function hasIndustryNeutralSnapshot(snap) {
   return !!(scoreSnap?.industry_neutral && Array.isArray(scoreSnap.industry_neutral.months) && scoreSnap.industry_neutral.months.length);
 }
 
+function activeScoreSnapshotFor(snap, scoreMode = "raw") {
+  return normalizeScoreMode(scoreMode) === "neutral" && snap?.neutral ? snap.neutral : snap;
+}
+
+function activePortfolioSnapshotFor(snap, scoreMode = "raw", constraintMode = "none") {
+  const scoreSnap = activeScoreSnapshotFor(snap, scoreMode);
+  return normalizeConstraintMode(constraintMode) === "industry" && scoreSnap?.industry_neutral
+    ? scoreSnap.industry_neutral
+    : scoreSnap;
+}
+
+function normalizeCompareFactor(f) {
+  return {
+    code: f.code,
+    n: Number.isInteger(Number(f.n)) ? Math.min(100, Math.max(1, Number(f.n))) : state.compareDefaultN,
+    side: normalizeSide(f.side),
+    scoreMode: normalizeScoreMode(f.scoreMode),
+    constraintMode: normalizeConstraintMode(f.constraintMode),
+  };
+}
+
 function normalizeComposeFactor(f) {
   return {
     code: f.code,
     weight: Number.isFinite(Number(f.weight)) ? Number(f.weight) : 0,
     side: normalizeSide(f.side),
+    scoreMode: normalizeScoreMode(f.scoreMode),
     op: f.op === "<=" ? "<=" : ">=",
     thr: f.thr !== null && Number.isFinite(Number(f.thr)) ? Number(f.thr) : null,
   };
@@ -379,6 +424,7 @@ function validatePublishedCombo(raw, idx, validCodes) {
     name: typeof raw?.name === "string" && raw.name.trim() ? raw.name.trim() : `未命名组合 ${idx + 1}`,
     description: typeof raw?.description === "string" ? raw.description.trim() : "",
     N: Number(raw?.N),
+    constraintMode: normalizeConstraintMode(raw?.constraintMode),
     factors: [],
     tags: Array.isArray(raw?.tags) ? raw.tags.filter(t => typeof t === "string" && t.trim()).map(t => t.trim()) : [],
     created_at: typeof raw?.created_at === "string" ? raw.created_at.trim() : "",
@@ -494,6 +540,7 @@ function rawComboFromCurrent(name = "我的组合", existingIds = new Set()) {
     name,
     description: "",
     N: state.composeN,
+    constraintMode: normalizeConstraintMode(state.composeConstraintMode),
     factors: cloneComposeFactors(state.composeFactors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
@@ -506,6 +553,7 @@ function rawComboFromSavedCombo(combo, existingIds = new Set()) {
     name: combo.name || "我的组合",
     description: "",
     N: combo.N,
+    constraintMode: normalizeConstraintMode(combo.constraintMode),
     factors: cloneComposeFactors(combo.factors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
@@ -558,6 +606,7 @@ function persistMyCombos() {
     name: c.name,
     description: c.description || "",
     N: c.N,
+    constraintMode: normalizeConstraintMode(c.constraintMode),
     factors: cloneComposeFactors(c.factors),
     tags: c.tags || [],
     created_at: c.created_at || new Date().toISOString().slice(0, 10),
@@ -1030,7 +1079,7 @@ async function factorSideRankedRows(code, side, maxRank = 100) {
   if (_singleSideRankCache.has(key)) return _singleSideRankCache.get(key);
   if (_singleSideRankBuilds.has(key)) return _singleSideRankBuilds.get(key);
   const build = (async () => {
-    await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
+    await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
     await ensureComposeData();
     await ensureComposeFiles([code]);
     const path = _composeFilePaths.get(code);
@@ -2513,7 +2562,13 @@ function switchMode(mode) {
 }
 
 function addCompareFactor(code) {
-  state.compareFactors.push({ code, n: state.compareDefaultN, side: 1 });
+  state.compareFactors.push({
+    code,
+    n: state.compareDefaultN,
+    side: 1,
+    scoreMode: "raw",
+    constraintMode: "none",
+  });
   updateTreeHighlight();
   renderCompare();
 }
@@ -2532,13 +2587,24 @@ function renderCmpControls() {
     return;
   }
   // 用 index 标识每一行（同因子可重复，不能用 code）
-  box.innerHTML = state.compareFactors.map((f, i) => `
-    <span class="cmp-frow" style="display:inline-flex;align-items:center;gap:4px;margin:0 10px 6px 0">
+  box.innerHTML = state.compareFactors.map((raw, i) => {
+    const f = normalizeCompareFactor(raw);
+    state.compareFactors[i] = f;
+    return `
+    <span class="cmp-frow" style="display:inline-flex;align-items:center;gap:4px;margin:0 10px 6px 0;flex-wrap:wrap">
       <span style="width:10px;height:10px;border-radius:50%;background:${STRAT_COLORS[i % STRAT_COLORS.length]};display:inline-block"></span>
       <b style="font-size:12px">${f.code}</b>
       <select class="cmp-side" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
         <option value="1"${normalizeSide(f.side) === 1 ? " selected" : ""}>默认</option>
         <option value="-1"${normalizeSide(f.side) === -1 ? " selected" : ""}>反向</option>
+      </select>
+      <select class="cmp-score-mode" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+        <option value="raw"${normalizeScoreMode(f.scoreMode) === "raw" ? " selected" : ""}>原始口径</option>
+        <option value="neutral"${normalizeScoreMode(f.scoreMode) === "neutral" ? " selected" : ""}>行业市值中性</option>
+      </select>
+      <select class="cmp-constraint-mode" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+        <option value="none"${normalizeConstraintMode(f.constraintMode) === "none" ? " selected" : ""}>无约束等权</option>
+        <option value="industry"${normalizeConstraintMode(f.constraintMode) === "industry" ? " selected" : ""}>行业中性</option>
       </select>
       <span style="color:#888;font-size:11px">top</span>
       <input class="cmp-n-input" data-idx="${i}" type="number" min="1" max="100" value="${f.n}"
@@ -2546,7 +2612,7 @@ function renderCmpControls() {
       <span class="cmp-remove" data-idx="${i}"
             style="cursor:pointer;color:#c14545;font-size:13px;padding:0 2px">×</span>
     </span>
-  `).join("");
+  `; }).join("");
   box.querySelectorAll(".cmp-n-input").forEach(inp => {
     inp.addEventListener("change", () => {
       const idx = parseInt(inp.dataset.idx, 10);
@@ -2563,6 +2629,22 @@ function renderCmpControls() {
       const f = state.compareFactors[parseInt(sel.dataset.idx, 10)];
       if (!f) return;
       f.side = normalizeSide(sel.value);
+      renderCompare();
+    };
+  });
+  box.querySelectorAll(".cmp-score-mode").forEach(sel => {
+    sel.onchange = () => {
+      const f = state.compareFactors[parseInt(sel.dataset.idx, 10)];
+      if (!f) return;
+      f.scoreMode = normalizeScoreMode(sel.value);
+      renderCompare();
+    };
+  });
+  box.querySelectorAll(".cmp-constraint-mode").forEach(sel => {
+    sel.onchange = () => {
+      const f = state.compareFactors[parseInt(sel.dataset.idx, 10)];
+      if (!f) return;
+      f.constraintMode = normalizeConstraintMode(sel.value);
       renderCompare();
     };
   });
@@ -2700,7 +2782,7 @@ async function renderCmpTable() {
 
 async function renderCmpTableFast() {
   const target = document.getElementById("cmp-table");
-  document.getElementById("cmp-table-title").textContent = `因子指标对比表（各因子可设不同持仓数）`;
+  document.getElementById("cmp-table-title").textContent = `因子指标对比表（方向 / 分数口径 / 组合约束均可单独设置）`;
   if (state.compareFactors.length === 0) {
     target.innerHTML = `<div class="empty">从左侧选 1 个以上因子开始对比</div>`;
     return;
@@ -2709,28 +2791,29 @@ async function renderCmpTableFast() {
   const ba = benchmarkMetrics(bm, state.compareStart, state.compareEnd);
   const factors = [];
   for (const f of state.compareFactors) {
-    f.side = normalizeSide(f.side);
+    Object.assign(f, normalizeCompareFactor(f));
     const snap = await loadSingleSnapshot(f.code);
-    const months = monthsFromSnapshot(snap);
+    const scoreSnap = activeScoreSnapshotFor(snap, f.scoreMode);
+    const portSnap = activePortfolioSnapshotFor(snap, f.scoreMode, f.constraintMode);
+    const months = monthsFromSnapshot(portSnap);
     const idxs = rangeFilterIndexes(months, state.compareStart, state.compareEnd);
     let m = null;
     if (f.side === 1) {
-      const bt = snap.backtests?.[String(f.n)];
+      const bt = portSnap.backtests?.[String(f.n)];
       m = bt ? metricsFromReturns(sliceByIndexes(bt.ret, idxs)) : null;
     } else {
-      const fullBt = await factorSideBacktest(f.code, f.side, f.n);
-      const sliced = sliceBacktestByRange(fullBt, state.compareStart, state.compareEnd);
+      const sliced = sideBacktestFromSnapshot(portSnap, f.side, f.n);
       m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
     }
-    const icMonths = snap.ic?.months || [];
+    const icMonths = scoreSnap.ic?.months || [];
     const icIdxs = rangeFilterIndexes(icMonths, state.compareStart, state.compareEnd);
-    const rankIc = sliceByIndexes(snap.ic?.rank_ic, icIdxs).map(v => v * f.side);
-    const icVals = sliceByIndexes(snap.ic?.ic, icIdxs).map(v => v * f.side);
-    const label = `${factorSideName(f.code, f.side)} <span style="color:#888;font-weight:400">top${f.n}</span>`;
+    const rankIc = sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs).map(v => v * f.side);
+    const icVals = sliceByIndexes(scoreSnap.ic?.ic, icIdxs).map(v => v * f.side);
+    const label = `${factorParamName(f.code, f.side, f.scoreMode, f.constraintMode)} <span style="color:#888;font-weight:400">top${f.n}</span>`;
     if (!m) { factors.push({ label, noData: true }); continue; }
     const ricMean = rankIc.length ? rankIc.reduce((s, v) => s + v, 0) / rankIc.length : null;
     const icMean = icVals.length ? icVals.reduce((s, v) => s + v, 0) / icVals.length : null;
-    const icirs = icIdxs.map(i => snap.ic?.ic_ir_12m?.[i]);
+    const icirs = icIdxs.map(i => scoreSnap.ic?.ic_ir_12m?.[i]);
     const latestIcir = [...icirs].reverse()
       .find(v => v !== null && v !== undefined && Number.isFinite(Number(v)));
     factors.push({
@@ -2873,7 +2956,12 @@ async function renderCmpNav() {
 async function renderCmpNavFast() {
   const rng = (state.compareStart || state.compareEnd)
     ? `${state.compareStart || "起"}~${state.compareEnd || "今"}` : "全样本";
-  document.getElementById("cmp-nav-title").textContent = `组合净值叠加（各因子按各自持仓数，起点=1.0；${rng}）`;
+  const paramSummary = [...new Set(state.compareFactors.map(raw => {
+    const f = normalizeCompareFactor(raw);
+    return `${scoreModeLabel(f.scoreMode)}/${constraintModeLabel(f.constraintMode)}`;
+  }))].join("、");
+  document.getElementById("cmp-nav-title").textContent =
+    `组合净值叠加（${paramSummary || "各因子按各自方向/口径/约束"}，起点=1.0；${rng}）`;
   const div = document.getElementById("cmp-nav-chart");
   if (cmpNavChart) { cmpNavChart.dispose(); cmpNavChart = null; }
   div.innerHTML = "";
@@ -2883,28 +2971,28 @@ async function renderCmpNavFast() {
   let x = [];
   const series = [];
   for (const [i, f] of state.compareFactors.entries()) {
-    f.side = normalizeSide(f.side);
+    Object.assign(f, normalizeCompareFactor(f));
     const snap = snaps[i];
+    const portSnap = activePortfolioSnapshotFor(snap, f.scoreMode, f.constraintMode);
     let data = null;
     if (f.side === 1) {
-      const months = monthsFromSnapshot(snap || {});
-      const returnDates = returnDatesFromSnapshot(snap || {});
+      const months = monthsFromSnapshot(portSnap || {});
+      const returnDates = returnDatesFromSnapshot(portSnap || {});
       const idxs = rangeFilterIndexes(months, state.compareStart, state.compareEnd);
       const labels = labelsFromReturnDates(
         labelsByIndexes(returnDates, idxs),
-        labelsByIndexes(signalMonthsFromSnapshot(snap || {}), idxs)
+        labelsByIndexes(signalMonthsFromSnapshot(portSnap || {}), idxs)
       );
       if (!x.length && labels.length) x = labels;
-      const bt = snap.backtests?.[String(f.n)];
+      const bt = portSnap.backtests?.[String(f.n)];
       if (!bt) continue;
       data = alignReturnsToChart(sliceByIndexes(bt.ret, idxs), x);
     } else {
-      const fullBt = await factorSideBacktest(f.code, f.side, f.n);
-      const bt = sliceBacktestByRange(fullBt, state.compareStart, state.compareEnd);
+      const bt = sideBacktestFromSnapshot(portSnap, f.side, f.n);
       if (!x.length && bt.x.length) x = bt.x;
       data = bt.navArr;
     }
-    series.push({ name: `${factorSideName(f.code, f.side)} top${f.n}`, type: "line", symbol: "none",
+    series.push({ name: `${factorParamName(f.code, f.side, f.scoreMode, f.constraintMode)} top${f.n}`, type: "line", symbol: "none",
              data,
              color: STRAT_COLORS[i % STRAT_COLORS.length],
              lineStyle: { width: 2 } });
@@ -2938,8 +3026,8 @@ async function renderCmpIc() {
   const uniqItems = [];
   const seen = new Set();
   for (const f of state.compareFactors) {
-    const item = { code: f.code, side: normalizeSide(f.side) };
-    const key = `${item.code}|${item.side}`;
+    const item = { code: f.code, side: normalizeSide(f.side), scoreMode: normalizeScoreMode(f.scoreMode) };
+    const key = `${item.code}|${item.side}|${item.scoreMode}`;
     if (seen.has(key)) continue;
     seen.add(key);
     uniqItems.push(item);
@@ -2992,18 +3080,20 @@ async function renderCmpIcFast() {
     uniqItems.push(item);
   }
   const snaps = await Promise.all(uniqItems.map(item => loadSingleSnapshot(item.code)));
-  const icMonths = snaps[0]?.ic?.months || [];
+  const firstScoreSnap = activeScoreSnapshotFor(snaps[0], uniqItems[0]?.scoreMode);
+  const icMonths = firstScoreSnap?.ic?.months || [];
   const idxs = rangeFilterIndexes(icMonths, state.compareStart, state.compareEnd);
   const x = idxs.map(i => icMonths[i]);
   const series = snaps.map((snap, i) => {
     const item = uniqItems[i];
-    const vals = snap.ic?.ic || [];
+    const scoreSnap = activeScoreSnapshotFor(snap, item.scoreMode);
+    const vals = scoreSnap.ic?.ic || [];
     const rolling = vals.map((_, idx) => {
       const win = vals.slice(Math.max(0, idx - 11), idx + 1)
         .filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
       return win.length ? +(win.reduce((s, v) => s + v, 0) / win.length * item.side).toFixed(6) : null;
     });
-    return { name: factorSideName(item.code, item.side), type: "line", symbol: "none", data: idxs.map(idx => rolling[idx]),
+    return { name: factorParamName(item.code, item.side, item.scoreMode), type: "line", symbol: "none", data: idxs.map(idx => rolling[idx]),
              color: STRAT_COLORS[i % STRAT_COLORS.length],
              lineStyle: { width: 1.6 } };
   });
@@ -3087,16 +3177,17 @@ async function renderCmpCorrFast() {
   const div = document.getElementById("cmp-corr-chart");
   if (cmpCorrChart) { cmpCorrChart.dispose(); cmpCorrChart = null; }
   div.innerHTML = "";
-  const corrSnap = await ensureCorrSnapshot();
-  if (!corrSnap.rows || !corrSnap.rows.length) {
+  const rawCorrSnap = await ensureCorrSnapshotFor("raw");
+  const neutralCorrSnap = await ensureCorrSnapshotFor("neutral");
+  if (!rawCorrSnap.rows || !rawCorrSnap.rows.length) {
     div.innerHTML = `<div class="empty">相关性数据未生成（需跑 scripts/08_factor_corr.py）</div>`;
     return;
   }
   const selectedItems = [];
   const seen = new Set();
   for (const f of state.compareFactors) {
-    const item = { code: f.code, side: normalizeSide(f.side) };
-    const key = `${item.code}|${item.side}`;
+    const item = { code: f.code, side: normalizeSide(f.side), scoreMode: normalizeScoreMode(f.scoreMode) };
+    const key = `${item.code}|${item.side}|${item.scoreMode}`;
     if (seen.has(key)) continue;
     seen.add(key);
     selectedItems.push(item);
@@ -3106,20 +3197,26 @@ async function renderCmpCorrFast() {
   if (isAll) {
     items = [...state.catalog]
       .sort((a, b) => (a.l1 + a.l2).localeCompare(b.l1 + b.l2) || a.code.localeCompare(b.code))
-      .map(f => ({ code: f.code, side: 1 }));
+      .map(f => ({ code: f.code, side: 1, scoreMode: "raw" }));
   } else {
     items = selectedItems;
   }
   const codes = items.map(item => item.code);
-  const labels = items.map(item => factorSideName(item.code, item.side));
+  const labels = items.map(item => factorParamName(item.code, item.side, item.scoreMode));
   const want = new Set(codes);
-  const cmap = {};
-  for (const [a, b, c] of corrSnap.rows) {
-    if (want.has(a) && want.has(b)) cmap[`${a}|${b}`] = c;
+  const cmapByMode = { raw: {}, neutral: {} };
+  for (const [a, b, c] of rawCorrSnap.rows || []) {
+    if (want.has(a) && want.has(b)) cmapByMode.raw[`${a}|${b}`] = c;
+  }
+  for (const [a, b, c] of neutralCorrSnap.rows || []) {
+    if (want.has(a) && want.has(b)) cmapByMode.neutral[`${a}|${b}`] = c;
   }
   const data = [];
   items.forEach((a, i) => items.forEach((b, j) => {
-    const c = cmap[`${a.code}|${b.code}`];
+    const mode = normalizeScoreMode(a.scoreMode) === "neutral" && normalizeScoreMode(b.scoreMode) === "neutral"
+      ? "neutral"
+      : "raw";
+    const c = cmapByMode[mode][`${a.code}|${b.code}`];
     data.push([j, i, c === null || c === undefined ? "-" : +(Number(c) * a.side * b.side).toFixed(2)]);
   }));
 
@@ -3886,9 +3983,10 @@ function rankSendTo(mode) {
     return;
   }
   if (mode === "compare") {
-    state.compareFactors = codes.map(code => ({ code, n: state.compareDefaultN, side: 1 }));
+    state.compareFactors = codes.map(code => ({ code, n: state.compareDefaultN, side: 1, scoreMode: "raw", constraintMode: "none" }));
   } else {
-    state.composeFactors = codes.map(code => ({ code, weight: 1, side: 1, op: ">=", thr: null }));
+    state.composeFactors = codes.map(code => ({ code, weight: 1, side: 1, scoreMode: "raw", op: ">=", thr: null }));
+    state.composeConstraintMode = "none";
   }
   switchMode(mode);
 }
@@ -3908,36 +4006,57 @@ let _latestComposeBt = null;
 const _composeBtCache = new Map();
 const _composeBtBuilds = new Map();
 
-function composeScorePath(code) {
-  return `${COMPOSE_SCORE_DIR}${code}.parquet${V}`;
+function composeScorePath(code, scoreMode = "raw") {
+  const dir = normalizeScoreMode(scoreMode) === "neutral" ? COMPOSE_SCORE_NEUTRAL_DIR : COMPOSE_SCORE_DIR;
+  return `${dir}${code}.parquet${V}`;
 }
 
-async function ensureComposeFiles(codes) {
-  const wanted = uniqueValidCodes(codes);
-  await Promise.all(wanted.map(async (code) => {
-    if (_composeFilePaths.has(code)) return;
-    if (!_composeFileLoads.has(code)) {
-      _composeFileLoads.set(code, (async () => {
-        const res = await fetch(composeScorePath(code));
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${composeScorePath(code)}`);
+function composeShardKey(code, scoreMode = "raw") {
+  return `${normalizeScoreMode(scoreMode)}|${code}`;
+}
+
+function composeFactorShards(factors = state.composeFactors) {
+  const items = [];
+  const seen = new Set();
+  for (const f of cloneComposeFactors(factors)) {
+    const key = composeShardKey(f.code, f.scoreMode);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push({ code: f.code, scoreMode: normalizeScoreMode(f.scoreMode), key });
+  }
+  return items.sort((a, b) => a.key.localeCompare(b.key));
+}
+
+async function ensureComposeFiles(items) {
+  await Promise.all(items.map(async (item) => {
+    const key = item.key || composeShardKey(item.code, item.scoreMode);
+    if (_composeFilePaths.has(key)) return;
+    if (!_composeFileLoads.has(key)) {
+      _composeFileLoads.set(key, (async () => {
+        const url = composeScorePath(item.code, item.scoreMode);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
         const bytes = new Uint8Array(await res.arrayBuffer());
-        const path = `/compose_scores/${code}.parquet`;
+        const path = `/${normalizeScoreMode(item.scoreMode) === "neutral" ? "compose_scores_neutral" : "compose_scores"}/${item.code}.parquet`;
         await state.duckdb.registerFileBuffer(path, bytes);
-        _composeFilePaths.set(code, path);
+        _composeFilePaths.set(key, path);
       })());
     }
-    await _composeFileLoads.get(code);
+    await _composeFileLoads.get(key);
   }));
 }
 
-function composeScoreReadExpr(codes) {
-  const paths = codes.map(code => `'${_composeFilePaths.get(code) || composeScorePath(code)}'`).join(",");
+function composeScoreReadExpr(items) {
+  const paths = items.map(item => {
+    const key = item.key || composeShardKey(item.code, item.scoreMode);
+    return `'${_composeFilePaths.get(key) || composeScorePath(item.code, item.scoreMode)}'`;
+  }).join(",");
   return `read_parquet([${paths}])`;
 }
 
-function composeConfigKey(factors = state.composeFactors, N = state.composeN) {
+function composeConfigKey(factors = state.composeFactors, N = state.composeN, constraintMode = state.composeConstraintMode) {
   const norm = cloneComposeFactors(factors).sort((a, b) => a.code.localeCompare(b.code));
-  return JSON.stringify({ N, factors: norm });
+  return JSON.stringify({ N, constraintMode: normalizeConstraintMode(constraintMode), factors: norm });
 }
 
 function cloneBacktest(bt) {
@@ -3950,11 +4069,11 @@ function rememberComposeBacktest(key, bt) {
 }
 
 function matrixCondSql(factors = state.composeFactors) {
-  const idxMap = new Map(_cpsMatrixCodes.map((code, i) => [code, i]));
+  const idxMap = new Map(_cpsMatrixCodes.map((key, i) => [key, i]));
   const parts = [];
   for (const f of factors) {
     if (f.thr === null || !Number.isFinite(Number(f.thr))) continue;
-    const idx = idxMap.get(f.code);
+    const idx = idxMap.get(composeShardKey(f.code, f.scoreMode));
     if (idx === undefined) return null;
     parts.push(`${effectiveScoreSql(`f${idx}`, f.side)} ${f.op} ${Number(f.thr)}`);
   }
@@ -3962,10 +4081,10 @@ function matrixCondSql(factors = state.composeFactors) {
 }
 
 function matrixScoreSql(factors = state.composeFactors) {
-  const idxMap = new Map(_cpsMatrixCodes.map((code, i) => [code, i]));
+  const idxMap = new Map(_cpsMatrixCodes.map((key, i) => [key, i]));
   const terms = [];
   for (const f of factors) {
-    const idx = idxMap.get(f.code);
+    const idx = idxMap.get(composeShardKey(f.code, f.scoreMode));
     if (idx === undefined) return null;
     const weight = Number.isFinite(Number(f.weight)) ? Number(f.weight) : 0;
     terms.push(`${effectiveScoreSql(`f${idx}`, f.side)} * ${weight}`);
@@ -3974,8 +4093,8 @@ function matrixScoreSql(factors = state.composeFactors) {
 }
 
 async function ensureComposeBase() {
-  const codes = state.composeFactors.map(f => f.code).sort();
-  const key = codes.join(",");
+  const shards = composeFactorShards(state.composeFactors);
+  const key = shards.map(item => item.key).join(",");
   // 若已有重建在跑，先等它结束（快速连点多个因子时，多次 renderCompose 并发调用本函数；
   // 不串行化会让 DROP/CREATE 交错 → "Table cps_base already exists"）。等完后用最新 key 复判。
   if (_cpsBaseBuild) { try { await _cpsBaseBuild; } catch (_) {} }
@@ -3983,22 +4102,26 @@ async function ensureComposeBase() {
   _cpsBaseBuild = (async () => {
     // DROP→CREATE 用 CREATE OR REPLACE 保证幂等；先置 key 失效，建好再写回。
     _cpsBaseKey = null;
-    if (codes.length === 0) {
+    if (shards.length === 0) {
       await state.db.query(`DROP TABLE IF EXISTS cps_matrix`);
       await state.db.query(`DROP TABLE IF EXISTS cps_latest_matrix`);
       _cpsMatrixCodes = [];
     } else {
-      await ensureComposeFiles(codes);
+      await ensureComposeFiles(shards);
       // 只读取选中因子的历史分片。后续所有合成查询不再碰远程 parquet。
-      const scoreCols = codes.map((c, i) =>
-        `MAX(CASE WHEN factor_code = '${c}' THEN score END) AS f${i}`
+      const scoreCols = shards.map((item, i) =>
+        `MAX(CASE WHEN factor_code = '${item.code}' AND score_mode = '${item.scoreMode}' THEN score END) AS f${i}`
       ).join(",\n               ");
-      const matrixCols = codes.map((_, i) => `w.f${i}`).join(", ");
+      const matrixCols = shards.map((_, i) => `w.f${i}`).join(", ");
       await state.db.query(`
         CREATE OR REPLACE TABLE cps_matrix AS
         WITH src AS (
-          SELECT trade_date, return_date, stock_code, factor_code, score, fwd_return
-          FROM ${composeScoreReadExpr(codes)}
+          SELECT trade_date, return_date, stock_code, factor_code, score, fwd_return,
+                 CASE WHEN filename LIKE '%compose_scores_neutral/%' THEN 'neutral' ELSE 'raw' END AS score_mode
+          FROM read_parquet([${shards.map(item => {
+            const key = item.key || composeShardKey(item.code, item.scoreMode);
+            return `'${_composeFilePaths.get(key) || composeScorePath(item.code, item.scoreMode)}'`;
+          }).join(",")}], filename=true)
           WHERE score IS NOT NULL
         ),
         wide AS (
@@ -4006,19 +4129,19 @@ async function ensureComposeBase() {
                  ${scoreCols},
                  MAX(return_date) AS return_date,
                  MAX(fwd_return) AS fwd_return,
-                 COUNT(DISTINCT factor_code) AS factor_count
+                 COUNT(DISTINCT factor_code || '|' || score_mode) AS factor_count
           FROM src
           GROUP BY trade_date, stock_code
         )
         SELECT w.trade_date, w.return_date, w.stock_code, ${matrixCols}, w.fwd_return
         FROM wide w
-        WHERE w.factor_count = ${codes.length}
+        WHERE w.factor_count = ${shards.length}
       `);
       await state.db.query(`
         CREATE OR REPLACE TABLE cps_latest_matrix AS
         SELECT * FROM cps_matrix WHERE trade_date = (SELECT MAX(trade_date) FROM cps_matrix)
       `);
-      _cpsMatrixCodes = codes;
+      _cpsMatrixCodes = shards.map(item => item.key);
     }
     _latestComposeBtKey = null;
     _latestComposeBt = null;
@@ -4032,7 +4155,7 @@ async function ensureComposeBase() {
 function toggleComposeFactor(code) {
   const i = state.composeFactors.findIndex(f => f.code === code);
   if (i >= 0) state.composeFactors.splice(i, 1);
-  else state.composeFactors.push({ code, weight: 1, side: 1, op: ">=", thr: null });
+  else state.composeFactors.push({ code, weight: 1, side: 1, scoreMode: "raw", op: ">=", thr: null });
   updateTreeHighlight();
   renderComposeSoon(20);
 }
@@ -4041,7 +4164,11 @@ function toggleComposeFactor(code) {
 function composeCondFor(factors, baseTable) {
   const conds = cloneComposeFactors(factors).filter(f => f.thr !== null && Number.isFinite(f.thr));
   if (conds.length === 0) return { cte: "", join: "", nConds: 0 };
-  const orC = conds.map(f => `(factor_code='${f.code}' AND score * ${normalizeSide(f.side)} ${f.op} ${f.thr})`).join(" OR ");
+  const hasScoreMode = baseTable === "cps_cmp_base";
+  const orC = conds.map(f => {
+    const modeCond = hasScoreMode ? ` AND score_mode='${normalizeScoreMode(f.scoreMode)}'` : "";
+    return `(factor_code='${f.code}'${modeCond} AND score * ${normalizeSide(f.side)} ${f.op} ${f.thr})`;
+  }).join(" OR ");
   return {
     cte: `cond AS (SELECT trade_date, stock_code, COUNT(*) AS p FROM ${baseTable}
             WHERE score IS NOT NULL AND (${orC}) GROUP BY trade_date, stock_code),`,
@@ -4067,20 +4194,22 @@ function composeValues() {
 }
 
 function comboSummary(combo) {
+  const constraintMode = normalizeConstraintMode(combo.constraintMode);
   return cloneComposeFactors(combo.factors)
-    .map(f => `${factorSideName(f.code, f.side)}×${f.weight}${f.thr !== null ? `(${f.op}${f.thr})` : ""}`)
-    .join(" + ") + `，top${combo.N}`;
+    .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}${f.thr !== null ? `(${f.op}${f.thr})` : ""}`)
+    .join(" + ") + `，top${combo.N}，${constraintModeLabel(constraintMode)}`;
 }
 
 function comboDetailHtml(combo) {
   const rows = cloneComposeFactors(combo.factors).map(f => {
     const meta = state.catalog.find(x => x.code === f.code);
     const thr = f.thr === null ? "不过滤" : `得分 ${f.op} ${f.thr}`;
-    return `<tr><td>${f.code}</td><td>${meta?.name_cn || ""}</td><td>${sideLabel(f.side)}</td><td>${f.weight}</td><td>${thr}</td></tr>`;
+    return `<tr><td>${f.code}</td><td>${meta?.name_cn || ""}</td><td>${sideLabel(f.side)}</td><td>${scoreModeLabel(f.scoreMode)}</td><td>${f.weight}</td><td>${thr}</td></tr>`;
   }).join("");
   return `<div class="published-detail">
     ${combo.description ? `<p>${combo.description}</p>` : ""}
-    <table class="published-detail-table"><thead><tr><th>因子</th><th>名称</th><th>方向</th><th>权重</th><th>过滤</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="published-meta">组合约束：${constraintModeLabel(normalizeConstraintMode(combo.constraintMode))}</p>
+    <table class="published-detail-table"><thead><tr><th>因子</th><th>名称</th><th>方向</th><th>口径</th><th>权重</th><th>过滤</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="published-meta">${combo.created_at ? "创建：" + combo.created_at + " · " : ""}ID：${combo.id}</p>
   </div>`;
 }
@@ -4090,6 +4219,7 @@ function comboToTempCompare(combo) {
     name: combo.name,
     factors: cloneComposeFactors(combo.factors),
     N: combo.N,
+    constraintMode: normalizeConstraintMode(combo.constraintMode),
     color: STRAT_COLORS[state.savedCombos.length % STRAT_COLORS.length],
     bt: null,
   };
@@ -4113,6 +4243,7 @@ function loadLibraryCombo(source, id) {
   if (!combo) return;
   state.composeFactors = cloneComposeFactors(combo.factors);
   state.composeN = combo.N;
+  state.composeConstraintMode = normalizeConstraintMode(combo.constraintMode);
   syncComposeNButtons();
   switchMode("compose");
 }
@@ -4591,6 +4722,7 @@ function currentComboPublishPayload() {
     name,
     description: "",
     N: state.composeN,
+    constraintMode: normalizeConstraintMode(state.composeConstraintMode),
     factors: cloneComposeFactors(state.composeFactors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
@@ -4603,6 +4735,7 @@ function comboPublishPayload(combo) {
     name: combo.name,
     description: combo.description || "",
     N: combo.N,
+    constraintMode: normalizeConstraintMode(combo.constraintMode),
     factors: cloneComposeFactors(combo.factors),
     tags: combo.tags || [],
     created_at: combo.created_at || new Date().toISOString().slice(0, 10),
@@ -4613,7 +4746,7 @@ function comboPublishRequestText(payload) {
   const factorLines = cloneComposeFactors(payload.factors).map(f => {
     const meta = state.catalog.find(x => x.code === f.code);
     const thr = f.thr === null ? "不过滤" : `过滤：得分 ${f.op} ${f.thr}`;
-    return `- ${f.code}${meta?.name_cn ? `（${meta.name_cn}）` : ""}：方向 ${sideLabel(f.side)}，权重 ${f.weight}，${thr}`;
+    return `- ${f.code}${meta?.name_cn ? `（${meta.name_cn}）` : ""}：方向 ${sideLabel(f.side)}，口径 ${scoreModeLabel(f.scoreMode)}，权重 ${f.weight}，${thr}`;
   }).join("\n");
   return [
     "申请发布组合",
@@ -4622,6 +4755,7 @@ function comboPublishRequestText(payload) {
     "",
     `组合名称：${payload.name}`,
     `选股数：top${payload.N}`,
+    `组合约束：${constraintModeLabel(payload.constraintMode)}`,
     "因子：",
     factorLines,
     "",
@@ -4749,7 +4883,17 @@ function renderComposeControls() {
   const box = document.getElementById("cps-controls");
   if (state.composeFactors.length === 0) { box.innerHTML = `<div class="empty">未选因子</div>`; return; }
   const wsum = state.composeFactors.reduce((s, f) => s + Math.abs(f.weight), 0) || 1;
-  box.innerHTML = state.composeFactors.map((f, i) => {
+  const constraint = normalizeConstraintMode(state.composeConstraintMode);
+  const constraintBtns = `
+    <div style="margin:0 0 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="color:#666;font-size:11px">组合约束：</span>
+      <button id="cps-constraint-none" class="cpsn-btn cps-constraint-btn${constraint === "none" ? " active" : ""}" data-mode="none">无约束等权</button>
+      <button id="cps-constraint-industry" class="cpsn-btn cps-constraint-btn${constraint === "industry" ? " active" : ""}" data-mode="industry">行业中性</button>
+      <span style="color:#888;font-size:11px">先按合成分数选股，再按申万一级行业目标权重配权</span>
+    </div>`;
+  box.innerHTML = constraintBtns + state.composeFactors.map((raw, i) => {
+    const f = normalizeComposeFactor(raw);
+    state.composeFactors[i] = f;
     const pctw = (f.weight / wsum * 100).toFixed(0);
     return `<div class="cps-frow" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
       <span style="width:10px;height:10px;border-radius:50%;background:${STRAT_COLORS[i % STRAT_COLORS.length]};display:inline-block"></span>
@@ -4757,6 +4901,10 @@ function renderComposeControls() {
       <select class="cps-side" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
         <option value="1"${normalizeSide(f.side) === 1 ? " selected" : ""}>默认</option>
         <option value="-1"${normalizeSide(f.side) === -1 ? " selected" : ""}>反向</option>
+      </select>
+      <select class="cps-score-mode" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+        <option value="raw"${normalizeScoreMode(f.scoreMode) === "raw" ? " selected" : ""}>原始口径</option>
+        <option value="neutral"${normalizeScoreMode(f.scoreMode) === "neutral" ? " selected" : ""}>行业市值中性</option>
       </select>
       <span style="color:#888;font-size:11px">权重</span>
       <input class="cps-w-input" data-idx="${i}" type="number" step="0.1" value="${f.weight}"
@@ -4788,6 +4936,24 @@ function renderComposeControls() {
       const f = state.composeFactors[parseInt(sel.dataset.idx, 10)];
       if (!f) return;
       f.side = normalizeSide(sel.value);
+      clearComposeOptimization();
+      renderComposeSoon();
+    };
+  });
+  box.querySelectorAll(".cps-score-mode").forEach(sel => {
+    sel.onchange = () => {
+      const f = state.composeFactors[parseInt(sel.dataset.idx, 10)];
+      if (!f) return;
+      f.scoreMode = normalizeScoreMode(sel.value);
+      clearComposeOptimization();
+      renderComposeSoon();
+    };
+  });
+  box.querySelectorAll(".cps-constraint-btn").forEach(btn => {
+    btn.onclick = () => {
+      const next = normalizeConstraintMode(btn.dataset.mode);
+      if (state.composeConstraintMode === next) return;
+      state.composeConstraintMode = next;
       clearComposeOptimization();
       renderComposeSoon();
     };
@@ -4870,7 +5036,10 @@ async function renderComposeStocks(renderSeq) {
   const scoreExpr = matrixScoreSql(state.composeFactors);
   const condSql = matrixCondSql(state.composeFactors);
   if (scoreExpr === null || condSql === null) return;
-  const candidateLimit = Math.min(Math.max(state.composeN + 180, state.composeN * 4), 700);
+  const constraint = normalizeConstraintMode(state.composeConstraintMode);
+  const candidateLimit = constraint === "industry"
+    ? Math.max(900, state.composeN * 30)
+    : Math.min(Math.max(state.composeN + 180, state.composeN * 4), 700);
   const res = await state.db.query(`
     SELECT stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
@@ -4881,12 +5050,12 @@ async function renderComposeStocks(renderSeq) {
     LIMIT ${candidateLimit}
   `);
   if (isComposeRenderStale(renderSeq)) return;
-  const rows = res.toArray()
+  const candidateRows = res.toArray()
     .map(r => ({ ...r, meta: metaMap.get(r.stock_code) }))
     .filter(r => r.meta && !r.meta.is_st && r.meta.is_active_latest)
-    .slice(0, state.composeN)
     .map(r => ({
       ...r,
+      cs: Number(r.comp_score),
       name: r.meta.name,
       industry_sw1: r.meta.industry_sw1,
       industry_sw2: r.meta.industry_sw2,
@@ -4895,35 +5064,39 @@ async function renderComposeStocks(renderSeq) {
       pb: r.meta.pb,
       avg_amount: r.meta.avg_amount,
     }));
+  const rows = (constraint === "industry"
+    ? industryNeutralPickRows(candidateRows, state.composeN)
+    : candidateRows.slice(0, state.composeN));
   const condDesc = state.composeFactors.filter(f => f.thr !== null && Number.isFinite(f.thr))
-    .map(f => `${factorSideName(f.code, f.side)}得分${f.op}${f.thr}`).join(" 且 ");
+    .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}得分${f.op}${f.thr}`).join(" 且 ");
   if (rows.length === 0) {
     target.innerHTML = `<h3>合成 Top 股票</h3><div class="empty">无股票满足条件${condDesc ? "：" + condDesc : ""}（过滤可能过严，放宽阈值）</div>`;
     return;
   }
   const dt = rows[0].dt;
-  const wdesc = state.composeFactors.map(f => `${factorSideName(f.code, f.side)}×${f.weight}`).join(" + ");
+  const wdesc = state.composeFactors.map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}`).join(" + ");
   const fmt = (v, dp = 2) => (v === null || v === undefined ? "—" : Number(v).toFixed(dp));
   const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));
   let html = `<h3>合成 Top ${state.composeN} 股票（截面日 ${dt}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
-    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${wdesc}（z-score 加权和）${condDesc ? "；过滤：" + condDesc : ""}（已剔 ST/停牌）</p>
+    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${wdesc}（z-score 加权和）${condDesc ? "；过滤：" + condDesc : ""}；组合约束：${constraintModeLabel(constraint)}（已剔 ST/停牌）</p>
     <table class="stock-table"><thead><tr>
-      <th>#</th><th>代码</th><th>名称</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th><th>合成得分</th>
+      <th>#</th><th>代码</th><th>名称</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${constraint === "industry" ? "<th>权重</th>" : ""}<th>合成得分</th>
     </tr></thead><tbody>`;
   rows.forEach((r, i) => {
     html += `<tr class="stock-row" data-stock="${r.stock_code}" data-name="${r.name || ""}" title="点击看该股各因子打分（为什么入选）"><td>${i + 1}</td><td>${r.stock_code}</td><td>${r.name || ""}</td>
       <td>${r.industry_sw1 || "—"}</td><td>${fmtMV(r.market_cap)}</td>
-      <td>${fmt(r.pe, 1)}</td><td>${fmt(r.pb, 2)}</td><td>${fmt(r.comp_score, 3)}</td></tr>`;
+      <td>${fmt(r.pe, 1)}</td><td>${fmt(r.pb, 2)}</td>${constraint === "industry" ? `<td>${pctText(Number(r.weight))}</td>` : ""}<td>${fmt(r.comp_score, 3)}</td></tr>`;
   });
   target.innerHTML = html + "</tbody></table>";
 }
 
 async function renderComposeBacktest(renderSeq) {
   if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
+  const constraint = normalizeConstraintMode(state.composeConstraintMode);
   document.getElementById("cps-nav-title").textContent =
-    `合成组合净值（top-${state.composeN}，月末等权调仓，0.2% 双边成本，起点=1.0；${composeRangeLabel()}）`;
-  const key = composeConfigKey();
-  const fullBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix");
+    `合成组合净值（top-${state.composeN}，${constraintModeLabel(constraint)}，${constraintHoldText(constraint)}，0.2% 双边成本，起点=1.0；${composeRangeLabel()}）`;
+  const key = composeConfigKey(state.composeFactors, state.composeN, constraint);
+  const fullBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix", constraint);
   if (isComposeRenderStale(renderSeq)) return;
   _latestComposeBtKey = key;
   _latestComposeBt = cloneBacktest(fullBt);
@@ -4991,18 +5164,23 @@ async function renderComposeBacktest(renderSeq) {
 
 // 对比惰性补算用的并集基表（只在有未算组合时建一次；不再每次渲染重建）
 let _cmpBaseKey = null, _cmpBaseBuild = null;
-async function ensureCmpBase(codes) {
-  const sorted = [...new Set(codes)].sort();
-  const key = sorted.join(",");
+async function ensureCmpBase(factors) {
+  const shards = composeFactorShards(factors);
+  const key = shards.map(item => item.key).join(",");
   if (_cmpBaseBuild) { try { await _cmpBaseBuild; } catch (_) {} }
   if (key === _cmpBaseKey) return;
   _cmpBaseBuild = (async () => {
     _cmpBaseKey = null;
-    if (!sorted.length) { await state.db.query(`DROP TABLE IF EXISTS cps_cmp_base`); }
+    if (!shards.length) { await state.db.query(`DROP TABLE IF EXISTS cps_cmp_base`); }
     else {
+      await ensureComposeFiles(shards);
       await state.db.query(`CREATE OR REPLACE TABLE cps_cmp_base AS
-        SELECT trade_date, return_date, stock_code, factor_code, score, fwd_return
-        FROM ${composeScoreReadExpr(sorted)}
+        SELECT trade_date, return_date, stock_code, factor_code, score, fwd_return,
+               CASE WHEN filename LIKE '%compose_scores_neutral/%' THEN 'neutral' ELSE 'raw' END AS score_mode
+        FROM read_parquet([${shards.map(item => {
+          const itemKey = item.key || composeShardKey(item.code, item.scoreMode);
+          return `'${_composeFilePaths.get(itemKey) || composeScorePath(item.code, item.scoreMode)}'`;
+        }).join(",")}], filename=true)
         WHERE score IS NOT NULL`);
     }
     _cmpBaseKey = key;
@@ -5043,12 +5221,110 @@ function buildBacktestFromRows(rows, N) {
   return { x, navArr, retArr };
 }
 
-function matrixBacktestSql(factors, N, baseTable) {
-  const idxMap = new Map(_cpsMatrixCodes.map((code, i) => [code, i]));
+function industryNeutralPickRows(candidates, N) {
+  const valid = (candidates || [])
+    .filter(r => r && r.industry_sw1 && Number.isFinite(Number(r.cs ?? r.comp_score)));
+  if (!valid.length) return [];
+  const industryCounts = new Map();
+  for (const r of valid) industryCounts.set(r.industry_sw1, (industryCounts.get(r.industry_sw1) || 0) + 1);
+  const total = valid.length || 1;
+  const industries = [...industryCounts.entries()].map(([industry, count]) => ({
+    industry,
+    targetWeight: count / total,
+  }));
+  const quotas = industries.map(item => {
+    const raw = item.targetWeight * N;
+    return { ...item, raw, quota: Math.floor(raw), frac: raw - Math.floor(raw) };
+  });
+  let allocated = quotas.reduce((s, q) => s + q.quota, 0);
+  quotas.sort((a, b) => b.frac - a.frac || a.industry.localeCompare(b.industry));
+  for (let i = 0; allocated < N && i < quotas.length; i++, allocated++) quotas[i].quota += 1;
+  const quotaByIndustry = new Map(quotas.filter(q => q.quota > 0).map(q => [q.industry, q]));
+  const rows = [];
+  for (const q of quotaByIndustry.values()) {
+    const picked = valid
+      .filter(r => r.industry_sw1 === q.industry)
+      .sort((a, b) => Number(b.cs ?? b.comp_score) - Number(a.cs ?? a.comp_score) || String(a.stock_code).localeCompare(String(b.stock_code)))
+      .slice(0, q.quota);
+    const weight = picked.length ? q.targetWeight / picked.length : 0;
+    picked.forEach(r => rows.push({ ...r, weight }));
+  }
+  const sumW = rows.reduce((s, r) => s + (Number(r.weight) || 0), 0) || 1;
+  return rows
+    .map(r => ({ ...r, weight: (Number(r.weight) || 0) / sumW }))
+    .sort((a, b) => Number(b.cs ?? b.comp_score) - Number(a.cs ?? a.comp_score) || String(a.stock_code).localeCompare(String(b.stock_code)))
+    .slice(0, N);
+}
+
+function buildWeightedBacktestFromRows(rows) {
+  const byMonth = new Map();
+  for (const r of rows) {
+    const key = r.dt;
+    if (!byMonth.has(key)) {
+      byMonth.set(key, {
+        signalDt: r.signal_dt || monthOfLabel(r.dt),
+        returnDt: r.dt,
+        holdings: new Map(),
+      });
+    }
+    const w = Number(r.weight);
+    if (!Number.isFinite(w) || w <= 0) continue;
+    byMonth.get(key).holdings.set(r.stock_code, {
+      weight: w,
+      ret: Number.isFinite(Number(r.fwd_return)) ? Number(r.fwd_return) : null,
+    });
+  }
+  const periods = [...byMonth.values()].sort((a, b) => a.returnDt.localeCompare(b.returnDt));
+  const COST = 0.002;
+  let prev = null, nav = 1;
+  const x = [], navArr = [1], retArr = [];
+  if (periods.length) x.push(periods[0].signalDt);
+  for (const o of periods) {
+    let gross = 0, retWeight = 0;
+    for (const h of o.holdings.values()) {
+      if (h.ret === null) continue;
+      gross += h.weight * h.ret;
+      retWeight += h.weight;
+    }
+    if (retWeight > 0) gross /= retWeight;
+    let turnover = 1;
+    if (prev) {
+      const codes = new Set([...prev.keys(), ...o.holdings.keys()]);
+      let diff = 0;
+      for (const code of codes) diff += Math.abs((o.holdings.get(code)?.weight || 0) - (prev.get(code) || 0));
+      turnover = diff * 0.5;
+    }
+    const net = gross - 2 * COST * turnover;
+    nav *= (1 + net);
+    x.push(o.returnDt);
+    navArr.push(nav);
+    retArr.push(net);
+    prev = new Map([...o.holdings.entries()].map(([code, h]) => [code, h.weight]));
+  }
+  return { x, navArr, retArr };
+}
+
+function groupIndustryNeutralRowsByMonth(rows, N) {
+  const byMonth = new Map();
+  for (const r of rows || []) {
+    const key = r.dt;
+    if (!byMonth.has(key)) byMonth.set(key, []);
+    byMonth.get(key).push(r);
+  }
+  const out = [];
+  for (const [dt, arr] of byMonth.entries()) {
+    const picked = industryNeutralPickRows(arr, N);
+    for (const r of picked) out.push({ ...r, dt });
+  }
+  return out.sort((a, b) => String(a.dt).localeCompare(String(b.dt)) || String(a.stock_code).localeCompare(String(b.stock_code)));
+}
+
+function matrixBacktestSql(factors, N, baseTable, constraintMode = state.composeConstraintMode) {
+  const idxMap = new Map(_cpsMatrixCodes.map((key, i) => [key, i]));
   const terms = [];
   const conds = [];
   for (const f of factors) {
-    const idx = idxMap.get(f.code);
+    const idx = idxMap.get(composeShardKey(f.code, f.scoreMode));
     if (idx === undefined) return null;
     const col = `f${idx}`;
     const weight = Number.isFinite(Number(f.weight)) ? Number(f.weight) : 0;
@@ -5060,33 +5336,39 @@ function matrixBacktestSql(factors, N, baseTable) {
   const condSql = conds.length ? "AND " + conds.join(" AND ") : "";
   return `
     WITH scored AS (
-      SELECT trade_date, return_date, stock_code, fwd_return, ROUND(${scoreExpr}, 6) AS cs
-      FROM ${baseTable}
+      SELECT m.trade_date, m.return_date, m.stock_code, m.fwd_return, ROUND(${scoreExpr}, 6) AS cs,
+             d.industry_sw1
+      FROM ${baseTable} m
+      LEFT JOIN stock_descriptors d ON d.stock_code = m.stock_code
       WHERE fwd_return IS NOT NULL ${condSql}
     ),
     ranked AS (
-      SELECT trade_date, return_date, stock_code, fwd_return,
+      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1,
              ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY cs DESC, stock_code) AS rk
       FROM scored
     )
     SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
-           stock_code, fwd_return
-    FROM ranked WHERE rk <= ${N} ORDER BY trade_date`;
+           stock_code, fwd_return, cs, industry_sw1
+    FROM ranked WHERE rk <= ${normalizeConstraintMode(constraintMode) === "industry" ? Math.max(900, N * 30) : N} ORDER BY trade_date, rk`;
 }
 
 // 给定组合配置 + 基表 → 逐月净值/收益（口径同 renderComposeBacktest）。
 // cps_matrix 是当前因子集宽表快路径；其它表保留长表 SQL 作为对比惰性补算兜底。
-async function comboBacktest(factors, N, baseTable) {
-  const cacheKey = baseTable === "cps_matrix" ? composeConfigKey(factors, N) : null;
+async function comboBacktest(factors, N, baseTable, constraintMode = state.composeConstraintMode) {
+  const normalizedConstraint = normalizeConstraintMode(constraintMode);
+  const cacheKey = baseTable === "cps_matrix" ? composeConfigKey(factors, N, normalizedConstraint) : null;
   if (cacheKey && _composeBtCache.has(cacheKey)) return cloneBacktest(_composeBtCache.get(cacheKey));
   if (cacheKey && _composeBtBuilds.has(cacheKey)) return cloneBacktest(await _composeBtBuilds.get(cacheKey));
 
-  const fastSql = baseTable === "cps_matrix" ? matrixBacktestSql(factors, N, baseTable) : null;
+  const fastSql = baseTable === "cps_matrix" ? matrixBacktestSql(factors, N, baseTable, normalizedConstraint) : null;
   if (fastSql) {
     const build = (async () => {
       const res = await state.db.query(fastSql);
-      const bt = buildBacktestFromRows(res.toArray(), N);
+      const rows = res.toArray();
+      const bt = normalizedConstraint === "industry"
+        ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(rows, N))
+        : buildBacktestFromRows(rows, N);
       if (cacheKey) rememberComposeBacktest(cacheKey, bt);
       return bt;
     })();
@@ -5100,20 +5382,25 @@ async function comboBacktest(factors, N, baseTable) {
   if (baseTable === "cps_matrix") throw new Error("cps_matrix does not cover requested factors");
 
   const nF = factors.length;
-  const vals = cloneComposeFactors(factors).map(f => `('${f.code}',${f.weight},${normalizeSide(f.side)})`).join(",");
+  const vals = cloneComposeFactors(factors)
+    .map(f => `('${f.code}','${normalizeScoreMode(f.scoreMode)}',${f.weight},${normalizeSide(f.side)})`)
+    .join(",");
   const cond = composeCondFor(factors, baseTable);
   const res = await state.db.query(`
-    WITH w(code, weight, side) AS (VALUES ${vals}),
+    WITH w(code, score_mode, weight, side) AS (VALUES ${vals}),
     ${cond.cte}
     comp AS (
       SELECT s.trade_date, s.stock_code, MAX(s.return_date) AS return_date,
              MAX(s.fwd_return) AS fwd_return,
-             ROUND(SUM(s.score * w.side * w.weight), 6) AS cs, COUNT(*) AS cnt
-      FROM ${baseTable} s JOIN w ON s.factor_code = w.code
+             ROUND(SUM(s.score * w.side * w.weight), 6) AS cs, COUNT(*) AS cnt,
+             ANY_VALUE(d.industry_sw1) AS industry_sw1
+      FROM ${baseTable} s
+      JOIN w ON s.factor_code = w.code AND s.score_mode = w.score_mode
+      LEFT JOIN stock_descriptors d ON d.stock_code = s.stock_code
       WHERE s.score IS NOT NULL GROUP BY s.trade_date, s.stock_code
     ),
     ranked AS (
-      SELECT c.trade_date, c.return_date, c.stock_code, c.fwd_return,
+      SELECT c.trade_date, c.return_date, c.stock_code, c.fwd_return, c.cs, c.industry_sw1,
              ROW_NUMBER() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC, c.stock_code) AS rk
       FROM comp c
       ${cond.join}
@@ -5121,21 +5408,26 @@ async function comboBacktest(factors, N, baseTable) {
     )
     SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
-           stock_code, fwd_return
-    FROM ranked WHERE rk <= ${N} ORDER BY trade_date`);
-  return buildBacktestFromRows(res.toArray(), N);
+           stock_code, fwd_return, cs, industry_sw1
+    FROM ranked WHERE rk <= ${normalizedConstraint === "industry" ? Math.max(900, N * 30) : N} ORDER BY trade_date, rk`);
+  const rows = res.toArray();
+  return normalizedConstraint === "industry"
+    ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(rows, N))
+    : buildBacktestFromRows(rows, N);
 }
 
 async function saveCurrentCombo() {
   if (!state.composeFactors.length) return;
   const factors = cloneComposeFactors(state.composeFactors);
   const N = state.composeN;
+  const constraintMode = normalizeConstraintMode(state.composeConstraintMode);
   const i = state.savedCombos.length;
-  const comboKey = composeConfigKey(factors, N);
+  const comboKey = composeConfigKey(factors, N, constraintMode);
   const combo = {
     name: `组合${i + 1}`,
     factors,
     N,
+    constraintMode,
     color: STRAT_COLORS[i % STRAT_COLORS.length],
     bt: _composeBtCache.has(comboKey)
       ? cloneBacktest(_composeBtCache.get(comboKey))
@@ -5155,11 +5447,11 @@ async function saveCurrentCombo() {
   if (saveBtn && !combo.bt) { saveBtn.disabled = true; saveBtn.textContent = "计算中…"; }
   try {
     if (!combo.bt) {
-      await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
+      await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
       await ensureComposeData();
       try {
         await ensureComposeBase();
-        const bt = await comboBacktest(factors, N, "cps_matrix");
+        const bt = await comboBacktest(factors, N, "cps_matrix", constraintMode);
         if (bt && bt.x && bt.x.length) combo.bt = bt;
       } catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
     }
@@ -5194,7 +5486,7 @@ function renderSavedCombos() {
     return;
   }
   box.innerHTML = state.savedCombos.map((c, i) => {
-    const summ = cloneComposeFactors(c.factors).map(f => `${factorSideName(f.code, f.side)}×${f.weight}${f.thr != null ? `(${f.op}${f.thr})` : ""}`).join(" + ") + `，top${c.N}`;
+    const summ = comboSummary(c);
     return `<div style="display:inline-flex;align-items:center;gap:6px;background:#f2f5f9;border:1px solid #e0e6ee;border-radius:14px;padding:3px 10px;margin:0 6px 6px 0;font-size:11px">
       <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex:none"></span>
       <b class="cps-saved-rename" data-idx="${i}" style="cursor:pointer" title="点击改名">${c.name}</b>
@@ -5269,11 +5561,11 @@ async function renderComboCompare() {
     if (titleEl) titleEl.textContent = "暂存组合对比 · 计算中…";
     if (!cpsCompareChart) { navDiv.innerHTML = `<div class="loading">计算暂存组合回测…</div>`; tblDiv.innerHTML = ""; }
     try {
-      await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
+      await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
       await ensureComposeData();
-      const union = [...new Set(state.savedCombos.flatMap(c => c.factors.map(f => f.code)))];
-      await ensureCmpBase(union);
-      for (const c of missing) c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base");
+      const unionFactors = state.savedCombos.flatMap(c => cloneComposeFactors(c.factors));
+      await ensureCmpBase(unionFactors);
+      for (const c of missing) c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base", c.constraintMode);
     } catch (e) {
       if (titleEl) titleEl.textContent = "暂存组合对比";
       navDiv.innerHTML = `<div class="empty">对比计算失败：${e.message || e}</div>`; return;
@@ -5411,12 +5703,22 @@ async function optimizeWeights() {
   const nF = codes.length;
   if (nF < 2) { box.innerHTML = `<div class="empty" style="color:#c14545">请先选 2 个以上因子</div>`; return; }
   if (nF > 4) { box.innerHTML = `<div class="empty" style="color:#c14545">最优权重仅支持 ≤4 个因子（组合爆炸）</div>`; return; }
+  if (normalizeConstraintMode(state.composeConstraintMode) === "industry") {
+    box.innerHTML = `<div class="empty" style="color:#c14545">最优权重暂仅支持「无约束等权」。请先切回无约束，再搜索权重。</div>`;
+    return;
+  }
   box.innerHTML = `<div class="loading">搜索中…</div>`;
   await ensureComposeData();
   await ensureComposeBase();
 
+  const idxMap = new Map(_cpsMatrixCodes.map((key, i) => [key, i]));
+  const matrixIndexes = state.composeFactors.map(f => idxMap.get(composeShardKey(f.code, f.scoreMode)));
+  if (matrixIndexes.some(idx => idx === undefined)) {
+    box.innerHTML = `<div class="empty" style="color:#c14545">当前因子数据未加载完整，请稍后重试</div>`;
+    return;
+  }
   const scoreCols = state.composeFactors
-    .map((f, i) => `${effectiveScoreSql(`m.f${i}`, f.side)} AS f${i}`)
+    .map((f, i) => `${effectiveScoreSql(`m.f${matrixIndexes[i]}`, f.side)} AS f${i}`)
     .join(", ");
   // 候选股裁剪：只保留"在任一所选因子排进前 500"的股。合成 top-N(N≤100) 的成分
   // 必在此并集内（全因子都排 500 外 → 加权和必偏低 → 进不了 top），裁剪不改结果但大幅提速。
@@ -5425,7 +5727,7 @@ async function optimizeWeights() {
       ${state.composeFactors.map((f, i) => `
         SELECT trade_date, stock_code FROM (
           SELECT trade_date, stock_code,
-                 ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY ${effectiveScoreSql(`f${i}`, f.side)} DESC) AS rk
+                 ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY ${effectiveScoreSql(`f${matrixIndexes[i]}`, f.side)} DESC) AS rk
           FROM cps_matrix
           WHERE fwd_return IS NOT NULL
         ) WHERE rk <= 500
