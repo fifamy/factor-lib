@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>因子库 v1.0</title>
-  <link rel="stylesheet" href="styles.css?v=20260611161940">
+  <link rel="stylesheet" href="styles.css?v=20260612082111">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -280,6 +280,22 @@
           <p style="color:#999;font-size:11px;margin-top:2px">业绩口径：top-30 等权、月末调仓、0.2% 双边成本。
             有效性：RankIC 均值 + IC_IR（信号稳定性）。点击列头可改排序（如点“最大回撤”看最抗跌、点“年化”看最赚钱），勾选因子后可一键带入对比 / 合成。</p>
           <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="color:#666;font-size:12px">排行口径：</span>
+            <select id="rank-param-side" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+              <option value="1">默认方向</option>
+              <option value="-1">反向</option>
+            </select>
+            <select id="rank-param-score" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+              <option value="raw">原始口径</option>
+              <option value="neutral">行业市值中性</option>
+            </select>
+            <select id="rank-param-constraint" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+              <option value="none">无约束等权</option>
+              <option value="industry">行业中性</option>
+            </select>
+            <span id="rank-param-info" style="color:#888;font-size:11px"></span>
+          </div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span style="color:#666;font-size:12px">时间区间：</span>
             <button class="rkrange-btn active" data-range="all">全部</button>
             <button class="rkrange-btn" data-range="5y">近5年</button>
@@ -355,6 +371,6 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script type="module" src="app.js?v=20260611161940"></script>
+  <script type="module" src="app.js?v=20260612082111"></script>
 </body>
 </html>

@@ -948,9 +948,9 @@ function showError(msg) {
   detail.innerHTML = `<h3 style="color:#c00">错误</h3><pre style="color:#c00;white-space:pre-wrap;font-size:11px">${msg}</pre>`;
 }
 
-async function selectFactor(code) {
+async function selectFactor(code, opts = {}) {
   const seq = ++_singleRenderSeq;
-  if (code !== state.activeFactor) state.singleSide = 1;
+  if (code !== state.activeFactor && !opts.preserveParams) state.singleSide = 1;
   state.activeFactor = code;
   document.querySelectorAll(".tree-l3").forEach(el => {
     el.classList.toggle("active", el.dataset.code === code);
@@ -1067,11 +1067,11 @@ const _singleSideRankCache = new Map();
 const _singleSideRankBuilds = new Map();
 
 function singleSideBtKey(code, side, n) {
-  return `${code}|${normalizeSide(side)}|${n}`;
+  return `${composeShardKey(code, state.singleScoreMode)}|${normalizeSide(side)}|${n}`;
 }
 
 function singleSideRankKey(code, side, maxRank = 100) {
-  return `${code}|${normalizeSide(side)}|${maxRank}`;
+  return `${composeShardKey(code, state.singleScoreMode)}|${normalizeSide(side)}|${maxRank}`;
 }
 
 async function factorSideRankedRows(code, side, maxRank = 100) {
@@ -1081,8 +1081,9 @@ async function factorSideRankedRows(code, side, maxRank = 100) {
   const build = (async () => {
     await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
     await ensureComposeData();
-    await ensureComposeFiles([code]);
-    const path = _composeFilePaths.get(code);
+    const item = { code, scoreMode: normalizeScoreMode(state.singleScoreMode), key: composeShardKey(code, state.singleScoreMode) };
+    await ensureComposeFiles([item]);
+    const path = _composeFilePaths.get(item.key);
     if (!path) throw new Error(`缺少合成分片：${code}`);
     const sideN = normalizeSide(side);
     const res = await state.db.query(`
@@ -2514,7 +2515,7 @@ function onTreeClick(code) {
   else if (state.mode === "compose") toggleComposeFactor(code);  // 合成：toggle
   else {
     switchMode("single");
-    selectFactor(code);
+    selectFactor(code, { preserveParams: true });
   }
 }
 
@@ -3423,7 +3424,9 @@ const RANK_COLS = [
 ];
 
 let _rankState = { rows: null, sortKey: "score", desc: true, checked: new Set(),
-                   range: "all", start: null, end: null, tagFilters: new Set() };
+                   range: "all", start: null, end: null, tagFilters: new Set(),
+                   side: 1, scoreMode: "raw", constraintMode: "none" };
+let _rankRenderSeq = 0;
 
 const ENV_TAGS = ["牛市进攻型", "熊市防御型", "全天候型", "震荡占优型"];
 const TIME_TAGS = ["长期稳定型", "近期转强", "近期转弱", "近期失效", "持续低效"];
@@ -3455,6 +3458,41 @@ function buildTagFilters() {
   _tagFilterBound = true;
 }
 
+let _rankParamBound = false;
+let _rankParamTimer = null;
+function updateRankParamInfo() {
+  const el = document.getElementById("rank-param-info");
+  if (!el) return;
+  el.textContent = `${sideLabel(_rankState.side)} / ${scoreModeLabel(_rankState.scoreMode)} / ${constraintModeLabel(_rankState.constraintMode)} / top30`;
+}
+
+function bindRankParamControls() {
+  if (_rankParamBound) return;
+  const sideSel = document.getElementById("rank-param-side");
+  const scoreSel = document.getElementById("rank-param-score");
+  const constraintSel = document.getElementById("rank-param-constraint");
+  if (!sideSel || !scoreSel || !constraintSel) return;
+  sideSel.value = String(normalizeSide(_rankState.side));
+  scoreSel.value = normalizeScoreMode(_rankState.scoreMode);
+  constraintSel.value = normalizeConstraintMode(_rankState.constraintMode);
+  const onParamChange = async () => {
+    _rankState.side = normalizeSide(sideSel.value);
+    _rankState.scoreMode = normalizeScoreMode(scoreSel.value);
+    _rankState.constraintMode = normalizeConstraintMode(constraintSel.value);
+    updateRankParamInfo();
+    if (_rankParamTimer) clearTimeout(_rankParamTimer);
+    _rankParamTimer = setTimeout(() => {
+      _rankParamTimer = null;
+      recomputeRank(true).catch(err => console.error("ranking param recompute failed:", err));
+    }, 80);
+  };
+  sideSel.onchange = onParamChange;
+  scoreSel.onchange = onParamChange;
+  constraintSel.onchange = onParamChange;
+  updateRankParamInfo();
+  _rankParamBound = true;
+}
+
 let _rankBarBound = false;
 async function renderRanking() {
   const box = document.getElementById("rank-table");
@@ -3465,6 +3503,7 @@ async function renderRanking() {
       document.getElementById("rank-to-compose").onclick = () => rankSendTo("compose");
       document.getElementById("rank-clear-sel").onclick = () => { _rankState.checked.clear(); drawRankTable(); };
       buildTagFilters();
+      bindRankParamControls();
       await initRankRangeControlsFast();
       _rankBarBound = true;
     }
@@ -3484,6 +3523,7 @@ async function renderRanking() {
         document.getElementById("rank-to-compose").onclick = () => rankSendTo("compose");
         document.getElementById("rank-clear-sel").onclick = () => { _rankState.checked.clear(); drawRankTable(); };
         buildTagFilters();
+        bindRankParamControls();
         await initRankRangeControls();
         _rankBarBound = true;
       }
@@ -3676,11 +3716,15 @@ function setupRankRangeControls(months, fastMode) {
 }
 
 async function recomputeRank(fastMode = !!state.rankingSnapshot) {
+  const seq = ++_rankRenderSeq;
   const box = document.getElementById("rank-table");
-  box.innerHTML = `<div class="empty">按区间重新计算中…</div>`;
-  _rankState.rows = fastMode
+  updateRankParamInfo();
+  if (!_rankState.rows) box.innerHTML = `<div class="empty">按区间重新计算中…</div>`;
+  const rows = fastMode
     ? await computeRankingFast(_rankState.start, _rankState.end)
     : await computeRanking(_rankState.start, _rankState.end);
+  if (seq !== _rankRenderSeq) return;
+  _rankState.rows = rows;
   drawRankTable();
 }
 
@@ -3759,13 +3803,18 @@ async function factorMarketCap() {
 async function computeRankingFast(startMonth, endMonth) {
   const snap = await ensureRankingSnapshot();
   const months = snap.months || [];
+  const side = normalizeSide(_rankState.side);
+  const retKey = normalizeScoreMode(_rankState.scoreMode) === "neutral"
+    ? (normalizeConstraintMode(_rankState.constraintMode) === "industry" ? "neutral_industry_neutral_top30_ret" : "neutral_top30_ret")
+    : (normalizeConstraintMode(_rankState.constraintMode) === "industry" ? "industry_neutral_top30_ret" : "top30_ret");
+  const icKey = normalizeScoreMode(_rankState.scoreMode) === "neutral" ? "neutral_rank_ic" : "rank_ic";
   const idxs = rangeFilterIndexes(months, startMonth, endMonth);
   const rows = [];
   for (const f of snap.factors || []) {
-    const rets = sliceByIndexes(f.top30_ret, idxs);
+    const rets = sliceByIndexes(f[retKey] || f.top30_ret, idxs).map(v => Number(v) * side);
+    const rankIcs = sliceByIndexes(f[icKey] || f.rank_ic, idxs).map(v => Number(v) * side);
     const m = metricsFromReturns(rets);
     if (!m) continue;
-    const rankIcs = sliceByIndexes(f.rank_ic, idxs);
     const rankIC = rankIcs.length ? rankIcs.reduce((s, v) => s + v, 0) / rankIcs.length : 0;
     let icir = 0;
     if (rankIcs.length > 1) {
@@ -3899,6 +3948,7 @@ function makeZScorer(rows) {
 function drawRankTable() {
   const box = document.getElementById("rank-table");
   const { sortKey, desc } = _rankState;
+  updateRankParamInfo();
   // 区间提示 + 样本月数
   const info = document.getElementById("rk-range-info");
   if (info) {
@@ -3975,18 +4025,24 @@ function updateRankSelCount() {
 function rankSendTo(mode) {
   const codes = [..._rankState.checked];
   if (codes.length === 0) { alert("请先勾选至少一个因子"); return; }
+  const side = normalizeSide(_rankState.side);
+  const scoreMode = normalizeScoreMode(_rankState.scoreMode);
+  const constraintMode = normalizeConstraintMode(_rankState.constraintMode);
   if (mode === "single") {
     const code = codes[0];
     if (codes.length > 1) alert(`已选择多个因子，将打开第一个：${code}`);
+    state.singleSide = side;
+    state.singleScoreMode = scoreMode;
+    state.singleConstraintMode = constraintMode;
     switchMode("single");
-    selectFactor(code);
+    selectFactor(code, { preserveParams: true });
     return;
   }
   if (mode === "compare") {
-    state.compareFactors = codes.map(code => ({ code, n: state.compareDefaultN, side: 1, scoreMode: "raw", constraintMode: "none" }));
+    state.compareFactors = codes.map(code => ({ code, n: state.compareDefaultN, side, scoreMode, constraintMode }));
   } else {
-    state.composeFactors = codes.map(code => ({ code, weight: 1, side: 1, scoreMode: "raw", op: ">=", thr: null }));
-    state.composeConstraintMode = "none";
+    state.composeFactors = codes.map(code => ({ code, weight: 1, side, scoreMode, op: ">=", thr: null }));
+    state.composeConstraintMode = constraintMode;
   }
   switchMode(mode);
 }
