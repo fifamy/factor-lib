@@ -82,6 +82,7 @@ const state = {
 
 let navChart = null;
 let quantileChart = null;
+let icDecayChart = null;
 let scanChart = null;
 let cmpNavChart = null, cmpIcChart = null, cmpCorrChart = null;
 let cpsNavChart = null;
@@ -1041,6 +1042,7 @@ async function selectFactor(code, opts = {}) {
       await initSingleRangeControls();
       renderFactorDetail(meta);
       renderQuantileUnavailable("分位多空需要快照数据，请重新导出 frontend/data 后刷新。");
+      renderIcDecayUnavailable("IC 衰减需要快照数据，请重新导出 frontend/data 后刷新。");
       const tQ = performance.now();
       if (state.singleSide === 1) {
         await Promise.all([
@@ -1077,6 +1079,16 @@ function renderSingleDeferredCharts(code, portfolioSnap, scoreSnap, seq) {
       console.warn("deferred quantile chart failed:", err);
     }
   }, 40);
+  setTimeout(async () => {
+    if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
+    const t = performance.now();
+    try {
+      await renderIcDecayChartFast(code, scoreSnap);
+      console.log(`  IC decay:     ${(performance.now() - t).toFixed(0)}ms`);
+    } catch (err) {
+      console.warn("deferred IC decay chart failed:", err);
+    }
+  }, 70);
   runWhenIdle(async () => {
     if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
     const t = performance.now();
@@ -1987,6 +1999,14 @@ function renderQuantileUnavailable(message) {
   if (kpiDiv) kpiDiv.innerHTML = "";
 }
 
+function renderIcDecayUnavailable(message) {
+  const chartDiv = document.getElementById("ic-decay-chart");
+  const tableDiv = document.getElementById("ic-decay-table");
+  if (icDecayChart) { icDecayChart.dispose(); icDecayChart = null; }
+  if (chartDiv) chartDiv.innerHTML = `<div class="empty">${message}</div>`;
+  if (tableDiv) tableDiv.innerHTML = "";
+}
+
 async function renderQuantileChartFast(code, snap) {
   const payload = quantilePayloadForSide(snap, state.singleSide);
   if (!payload || !payload.months.length) {
@@ -2073,6 +2093,94 @@ function renderQuantileKpi(payload, idxs) {
       <tbody>${rows}</tbody>
     </table>
     <p style="color:#888;font-size:11px;margin-top:6px">Q5 为当前分析方向下的高分组；反向时 Q1-Q5 会按有效分数重排，多空同步翻向。</p>
+  `;
+}
+
+function filteredIcDecayStats(decay, side = state.singleSide, startMonth = state.singleStart, endMonth = state.singleEnd) {
+  const horizons = (decay?.horizons || [1, 3, 6, 12]).map(Number);
+  const sideN = normalizeSide(side);
+  return horizons.map((h, idx) => {
+    const series = decay?.series?.[String(h)];
+    const months = Array.isArray(series?.months) ? series.months : [];
+    const vals = Array.isArray(series?.rank_ic) ? series.rank_ic : [];
+    let clean = [];
+    const hasSeries = months.length && vals.length;
+    if (hasSeries) {
+      const idxs = rangeFilterIndexes(months, startMonth, endMonth);
+      clean = idxs.map(i => vals[i]).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(v => Number(v) * sideN);
+    } else {
+      const mean = decay?.rank_ic_mean?.[idx];
+      if (mean !== null && mean !== undefined && Number.isFinite(Number(mean))) clean = [Number(mean) * sideN];
+    }
+    const mean = clean.length ? clean.reduce((s, v) => s + v, 0) / clean.length : null;
+    const std = clean.length > 1
+      ? Math.sqrt(clean.reduce((s, v) => s + (v - mean) ** 2, 0) / (clean.length - 1))
+      : null;
+    const ir = std && std > 0 ? mean / std * Math.sqrt(12 / h) : null;
+    return { h, mean, ir, n: hasSeries ? clean.length : (clean.length || decay?.n?.[idx] || 0) };
+  });
+}
+
+async function renderIcDecayChartFast(code, snap) {
+  const target = document.getElementById("ic-decay-table");
+  const chartDiv = document.getElementById("ic-decay-chart");
+  if (!target || !chartDiv) return;
+  if (icDecayChart) { icDecayChart.dispose(); icDecayChart = null; }
+  const decay = snap?.ic_decay;
+  const stats = filteredIcDecayStats(decay, state.singleSide);
+  const hasData = stats.some(s => s.mean !== null && Number.isFinite(Number(s.mean)));
+  const rng = (state.singleStart || state.singleEnd)
+    ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
+  document.getElementById("ic-decay-title").textContent =
+    `${code} · ${scoreModeLabel()} IC 衰减 / 多前瞻期（${rng}；${sideLabel(state.singleSide)}方向）`;
+  if (!hasData) {
+    chartDiv.innerHTML = `<div class="empty">暂无多前瞻期 IC 数据</div>`;
+    target.innerHTML = "";
+    return;
+  }
+  chartDiv.innerHTML = "";
+  const labels = stats.map(s => `${s.h}M`);
+  icDecayChart = echarts.init(chartDiv);
+  icDecayChart.setOption({
+    grid: { left: 54, right: 54, top: 34, bottom: 32 },
+    tooltip: { trigger: "axis" },
+    legend: { top: 0, textStyle: { fontSize: 11 } },
+    xAxis: { type: "category", data: labels, axisLabel: { fontSize: 11 } },
+    yAxis: [
+      { type: "value", name: "RankIC", scale: true },
+      { type: "value", name: "IC_IR", scale: true },
+    ],
+    series: [
+      {
+        name: "RankIC均值",
+        type: "bar",
+        data: stats.map(s => s.mean == null ? null : +s.mean.toFixed(4)),
+        itemStyle: { color: "#1a4d80" },
+      },
+      {
+        name: "IC_IR",
+        type: "line",
+        yAxisIndex: 1,
+        data: stats.map(s => s.ir == null ? null : +s.ir.toFixed(3)),
+        symbol: "circle",
+        lineStyle: { width: 2, color: "#e07b39" },
+        itemStyle: { color: "#e07b39" },
+      },
+    ],
+  });
+  const rows = stats.map(s => `
+    <tr>
+      <td>${s.h}个月</td>
+      <td>${numText(s.mean, 4)}</td>
+      <td>${numText(s.ir, 2)}</td>
+      <td>${s.n}</td>
+    </tr>`).join("");
+  target.innerHTML = `
+    <table class="kpi-table">
+      <thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>样本月数</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="color:#888;font-size:11px;margin-top:6px">前瞻期表示用当前月末因子分数预测未来 1/3/6/12 个月持有收益；IC_IR 按前瞻期年化。</p>
   `;
 }
 
@@ -3447,6 +3555,9 @@ const RANK_COLS = [
   { key: "mdd",       label: "最大回撤", fmt: v => (v * 100).toFixed(1) + "%" },
   { key: "winRate",   label: "月胜率",  fmt: v => (v * 100).toFixed(0) + "%" },
   { key: "rankIC",    label: "RankIC均值", fmt: v => v.toFixed(3) },
+  { key: "rankIC3M",  label: "IC3M", fmt: v => numText(v, 3) },
+  { key: "rankIC6M",  label: "IC6M", fmt: v => numText(v, 3) },
+  { key: "rankIC12M", label: "IC12M", fmt: v => numText(v, 3) },
   { key: "icir",      label: "IC_IR",   fmt: v => v.toFixed(2) },
   { key: "medCap",    label: "中位市值(亿)", fmt: v => v === null ? "—" : Math.round(v).toLocaleString() },
   { key: "capStyle",  label: "市值风格", lcol: true, fmt: v => v },
@@ -3840,11 +3951,18 @@ async function computeRankingFast(startMonth, endMonth) {
     ? (normalizeConstraintMode(_rankState.constraintMode) === "industry" ? "neutral_industry_neutral_top30_ret" : "neutral_top30_ret")
     : (normalizeConstraintMode(_rankState.constraintMode) === "industry" ? "industry_neutral_top30_ret" : "top30_ret");
   const icKey = normalizeScoreMode(_rankState.scoreMode) === "neutral" ? "neutral_rank_ic" : "rank_ic";
+  const decayKey = normalizeScoreMode(_rankState.scoreMode) === "neutral" ? "neutral_ic_decay" : "ic_decay";
   const idxs = rangeFilterIndexes(months, startMonth, endMonth);
   const rows = [];
   for (const f of snap.factors || []) {
     const rets = sliceByIndexes(f[retKey] || f.top30_ret, idxs).map(v => Number(v) * side);
     const rankIcs = sliceByIndexes(f[icKey] || f.rank_ic, idxs).map(v => Number(v) * side);
+    const decayStats = filteredIcDecayStats(f[decayKey], side, startMonth, endMonth);
+    const decayMean = (h) => {
+      const item = decayStats.find(s => s.h === h);
+      const val = item?.mean;
+      return val === null || val === undefined || !Number.isFinite(Number(val)) ? 0 : Number(val);
+    };
     const m = metricsFromReturns(rets);
     if (!m) continue;
     const rankIC = rankIcs.length ? rankIcs.reduce((s, v) => s + v, 0) / rankIcs.length : 0;
@@ -3857,7 +3975,7 @@ async function computeRankingFast(startMonth, endMonth) {
     rows.push({
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
-      rankIC, icir,
+      rankIC, rankIC3M: decayMean(3), rankIC6M: decayMean(6), rankIC12M: decayMean(12), icir,
       nMonths: rets.length,
       top3ind: f.top3ind || "—",
       medCap: f.medCap ?? null,
@@ -3937,7 +4055,7 @@ async function computeRanking(startMonth, endMonth) {
     rows.push({
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
-      rankIC: ic.rankIC, icir: ic.icir,
+      rankIC: ic.rankIC, rankIC3M: 0, rankIC6M: 0, rankIC12M: 0, icir: ic.icir,
       nMonths: s.rets.length,
       top3ind: ind3.get(f.code) || "—",
       medCap: mc ? mc.medCap : null,
@@ -6101,6 +6219,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeStock
 window.addEventListener("resize", () => {
   [
     navChart, quantileChart, scanChart,
+    icDecayChart,
     cmpNavChart, cmpIcChart, cmpCorrChart,
     cpsNavChart, cpsCompareChart,
     topMktcapChart, topIndustryChart,
