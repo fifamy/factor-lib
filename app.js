@@ -86,6 +86,7 @@ let icDecayChart = null;
 let scanChart = null;
 let cmpNavChart = null, cmpIcChart = null, cmpCorrChart = null;
 let cpsNavChart = null;
+let cpsIcDecayChart = null;
 
 // 多条策略线的配色（按 selectedNs 顺序取）
 const STRAT_COLORS = ["#1a4d80", "#e07b39", "#3a9d6e", "#9b59b6", "#c0392b", "#16a085"];
@@ -4211,6 +4212,8 @@ let _latestComposeBtKey = null;
 let _latestComposeBt = null;
 const _composeBtCache = new Map();
 const _composeBtBuilds = new Map();
+const _composeIcDecayCache = new Map();
+const _composeIcDecayBuilds = new Map();
 
 function composeScorePath(code, scoreMode = "raw") {
   const dir = normalizeScoreMode(scoreMode) === "neutral" ? COMPOSE_SCORE_NEUTRAL_DIR : COMPOSE_SCORE_DIR;
@@ -4263,6 +4266,15 @@ function composeScoreReadExpr(items) {
 function composeConfigKey(factors = state.composeFactors, N = state.composeN, constraintMode = state.composeConstraintMode) {
   const norm = cloneComposeFactors(factors).sort((a, b) => a.code.localeCompare(b.code));
   return JSON.stringify({ N, constraintMode: normalizeConstraintMode(constraintMode), factors: norm });
+}
+
+function composeScoreConfigKey(factors = state.composeFactors, startMonth = state.composeStart, endMonth = state.composeEnd) {
+  const norm = cloneComposeFactors(factors).sort((a, b) => {
+    const ka = `${composeShardKey(a.code, a.scoreMode)}|${a.side}|${a.weight}|${a.op}|${a.thr}`;
+    const kb = `${composeShardKey(b.code, b.scoreMode)}|${b.side}|${b.weight}|${b.op}|${b.thr}`;
+    return ka.localeCompare(kb);
+  });
+  return JSON.stringify({ startMonth: startMonth || null, endMonth: endMonth || null, factors: norm });
 }
 
 function cloneBacktest(bt) {
@@ -4353,6 +4365,8 @@ async function ensureComposeBase() {
     _latestComposeBt = null;
     _composeBtCache.clear();
     _composeBtBuilds.clear();
+    _composeIcDecayCache.clear();
+    _composeIcDecayBuilds.clear();
     _cpsBaseKey = key;
   })();
   try { await _cpsBaseBuild; } finally { _cpsBaseBuild = null; }
@@ -5221,11 +5235,12 @@ async function renderCompose() {
       document.getElementById("cps-kpi").innerHTML = `<div class="empty">选因子后显示</div>`;
       if (cpsNavChart) { cpsNavChart.dispose(); cpsNavChart = null; }
       document.getElementById("cps-nav-chart").innerHTML = "";
+      renderComposeIcDecayUnavailable("选因子后显示");
       return;
     }
     await ensureComposeBase();   // 因子集变了才重建窄表；权重/阈值/N 变则复用缓存
     if (isComposeRenderStale(renderSeq)) return;
-    await Promise.all([renderComposeStocks(renderSeq), renderComposeBacktest(renderSeq)]);
+    await Promise.all([renderComposeStocks(renderSeq), renderComposeBacktest(renderSeq), renderComposeIcDecay(renderSeq)]);
   } catch (err) {
     if (isComposeRenderStale(renderSeq)) return;
     console.error("renderCompose failed:", err);
@@ -5364,6 +5379,184 @@ async function renderComposeBacktest(renderSeq) {
   kdiv.innerHTML = `<table class="kpi-table">
     <thead><tr><th>组合 / 基准</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>超额vs300</th><th>超额vs800</th></tr></thead>
     <tbody>${krows}</tbody></table>`;
+}
+
+function renderComposeIcDecayUnavailable(message) {
+  const chartDiv = document.getElementById("cps-ic-decay-chart");
+  const tableDiv = document.getElementById("cps-ic-decay-table");
+  if (cpsIcDecayChart) { cpsIcDecayChart.dispose(); cpsIcDecayChart = null; }
+  if (chartDiv) chartDiv.innerHTML = `<div class="empty">${message}</div>`;
+  if (tableDiv) tableDiv.innerHTML = "";
+}
+
+function composeIcDecaySql(factors = state.composeFactors, startMonth = state.composeStart, endMonth = state.composeEnd) {
+  const scoreExpr = matrixScoreSql(factors);
+  const condSql = matrixCondSql(factors);
+  if (!scoreExpr || condSql === null) return null;
+  const rangeConds = [];
+  if (startMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') >= '${startMonth}'`);
+  if (endMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') <= '${endMonth}'`);
+  const rangeSql = rangeConds.length ? `AND ${rangeConds.join(" AND ")}` : "";
+  return `
+    WITH ret_base AS (
+      SELECT trade_date, return_date, stock_code, ANY_VALUE(fwd_return) AS r1
+      FROM cps_matrix
+      WHERE fwd_return IS NOT NULL
+      GROUP BY trade_date, return_date, stock_code
+    ),
+    ret_chain AS (
+      SELECT trade_date, return_date, stock_code,
+             r1,
+             LEAD(r1, 1) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r2,
+             LEAD(r1, 2) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r3,
+             LEAD(r1, 3) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r4,
+             LEAD(r1, 4) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r5,
+             LEAD(r1, 5) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r6,
+             LEAD(r1, 6) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r7,
+             LEAD(r1, 7) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r8,
+             LEAD(r1, 8) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r9,
+             LEAD(r1, 9) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r10,
+             LEAD(r1, 10) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r11,
+             LEAD(r1, 11) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r12,
+             LEAD(return_date, 2) OVER (PARTITION BY stock_code ORDER BY trade_date) AS rd3,
+             LEAD(return_date, 5) OVER (PARTITION BY stock_code ORDER BY trade_date) AS rd6,
+             LEAD(return_date, 11) OVER (PARTITION BY stock_code ORDER BY trade_date) AS rd12
+      FROM ret_base
+    ),
+    score_base AS (
+      SELECT m.trade_date, m.stock_code, ROUND(${scoreExpr}, 6) AS cs
+      FROM cps_matrix m
+      WHERE m.fwd_return IS NOT NULL ${condSql || ""} ${rangeSql}
+    ),
+    joined AS (
+      SELECT s.trade_date, s.stock_code, s.cs, h, fwd_return, return_date
+      FROM score_base s
+      JOIN (
+        SELECT trade_date, stock_code, 1 AS h, r1 AS fwd_return, return_date FROM ret_chain WHERE r1 IS NOT NULL
+        UNION ALL
+        SELECT trade_date, stock_code, 3 AS h, (1+r1)*(1+r2)*(1+r3)-1 AS fwd_return, rd3 AS return_date
+          FROM ret_chain WHERE r1 IS NOT NULL AND r2 IS NOT NULL AND r3 IS NOT NULL AND rd3 IS NOT NULL
+        UNION ALL
+        SELECT trade_date, stock_code, 6 AS h, (1+r1)*(1+r2)*(1+r3)*(1+r4)*(1+r5)*(1+r6)-1 AS fwd_return, rd6 AS return_date
+          FROM ret_chain WHERE r1 IS NOT NULL AND r2 IS NOT NULL AND r3 IS NOT NULL AND r4 IS NOT NULL AND r5 IS NOT NULL AND r6 IS NOT NULL AND rd6 IS NOT NULL
+        UNION ALL
+        SELECT trade_date, stock_code, 12 AS h, (1+r1)*(1+r2)*(1+r3)*(1+r4)*(1+r5)*(1+r6)*(1+r7)*(1+r8)*(1+r9)*(1+r10)*(1+r11)*(1+r12)-1 AS fwd_return, rd12 AS return_date
+          FROM ret_chain WHERE r1 IS NOT NULL AND r2 IS NOT NULL AND r3 IS NOT NULL AND r4 IS NOT NULL AND r5 IS NOT NULL AND r6 IS NOT NULL
+            AND r7 IS NOT NULL AND r8 IS NOT NULL AND r9 IS NOT NULL AND r10 IS NOT NULL AND r11 IS NOT NULL AND r12 IS NOT NULL AND rd12 IS NOT NULL
+      ) r ON s.trade_date = r.trade_date AND s.stock_code = r.stock_code
+      WHERE fwd_return > -0.95 AND fwd_return < 5.0
+    ),
+    ranked AS (
+      SELECT trade_date, h, cs, fwd_return,
+             rank() OVER (PARTITION BY trade_date, h ORDER BY cs) AS score_rank,
+             rank() OVER (PARTITION BY trade_date, h ORDER BY fwd_return) AS return_rank
+      FROM joined
+    ),
+    monthly AS (
+      SELECT strftime(trade_date, '%Y-%m') AS month, h,
+             corr(score_rank, return_rank) AS rank_ic,
+             COUNT(*) AS n
+      FROM ranked
+      GROUP BY trade_date, h
+      HAVING COUNT(*) >= 30
+    )
+    SELECT month, h, rank_ic, n FROM monthly ORDER BY h, month
+  `;
+}
+
+async function comboIcDecay(factors = state.composeFactors, startMonth = state.composeStart, endMonth = state.composeEnd) {
+  const cacheKey = composeScoreConfigKey(factors, startMonth, endMonth);
+  if (_composeIcDecayCache.has(cacheKey)) return _composeIcDecayCache.get(cacheKey);
+  if (_composeIcDecayBuilds.has(cacheKey)) return _composeIcDecayBuilds.get(cacheKey);
+  const build = (async () => {
+    const sql = composeIcDecaySql(factors, startMonth, endMonth);
+    if (!sql) return { horizons: [1, 3, 6, 12], stats: [], series: {} };
+    const res = await state.db.query(sql);
+    const rows = res.toArray();
+    const horizons = [1, 3, 6, 12];
+    const series = {};
+    const stats = horizons.map(h => {
+      const vals = rows
+        .filter(r => Number(r.h) === h && r.rank_ic !== null && Number.isFinite(Number(r.rank_ic)))
+        .map(r => Number(r.rank_ic));
+      series[String(h)] = rows
+        .filter(r => Number(r.h) === h)
+        .map(r => ({ month: r.month, rank_ic: Number(r.rank_ic), n: Number(r.n) || 0 }));
+      const mean = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+      const std = vals.length > 1
+        ? Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / (vals.length - 1))
+        : null;
+      const ir = std && std > 0 ? mean / std * Math.sqrt(12 / h) : null;
+      return { h, mean, ir, n: vals.length };
+    });
+    return { horizons, stats, series };
+  })();
+  _composeIcDecayBuilds.set(cacheKey, build);
+  try {
+    const out = await build;
+    _composeIcDecayCache.set(cacheKey, out);
+    while (_composeIcDecayCache.size > 12) _composeIcDecayCache.delete(_composeIcDecayCache.keys().next().value);
+    return out;
+  } finally {
+    _composeIcDecayBuilds.delete(cacheKey);
+  }
+}
+
+async function renderComposeIcDecay(renderSeq) {
+  if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
+  const chartDiv = document.getElementById("cps-ic-decay-chart");
+  const tableDiv = document.getElementById("cps-ic-decay-table");
+  if (!chartDiv || !tableDiv) return;
+  const rng = composeRangeLabel();
+  document.getElementById("cps-ic-decay-title").textContent =
+    `合成分数 IC 衰减 / 多前瞻期（${rng}；按当前方向、权重、口径和阈值）`;
+  const payload = await comboIcDecay(state.composeFactors, state.composeStart, state.composeEnd);
+  if (isComposeRenderStale(renderSeq)) return;
+  const stats = payload.stats || [];
+  const hasData = stats.some(s => s.mean !== null && Number.isFinite(Number(s.mean)));
+  if (!hasData) {
+    renderComposeIcDecayUnavailable("所选组合没有足够的多前瞻期 IC 数据");
+    return;
+  }
+  if (cpsIcDecayChart) { cpsIcDecayChart.dispose(); cpsIcDecayChart = null; }
+  chartDiv.innerHTML = "";
+  cpsIcDecayChart = echarts.init(chartDiv);
+  cpsIcDecayChart.setOption({
+    grid: { left: 54, right: 54, top: 34, bottom: 32 },
+    tooltip: { trigger: "axis" },
+    legend: { top: 0, textStyle: { fontSize: 11 } },
+    xAxis: { type: "category", data: stats.map(s => `${s.h}M`), axisLabel: { fontSize: 11 } },
+    yAxis: [
+      { type: "value", name: "RankIC", scale: true },
+      { type: "value", name: "IC_IR", scale: true },
+    ],
+    series: [
+      {
+        name: "RankIC均值",
+        type: "bar",
+        data: stats.map(s => s.mean == null ? null : +s.mean.toFixed(4)),
+        itemStyle: { color: "#1a4d80" },
+      },
+      {
+        name: "IC_IR",
+        type: "line",
+        yAxisIndex: 1,
+        data: stats.map(s => s.ir == null ? null : +s.ir.toFixed(3)),
+        symbol: "circle",
+        lineStyle: { width: 2, color: "#e07b39" },
+        itemStyle: { color: "#e07b39" },
+      },
+    ],
+  });
+  tableDiv.innerHTML = `
+    <table class="kpi-table">
+      <thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>样本月数</th></tr></thead>
+      <tbody>${stats.map(s => `
+        <tr><td>${s.h}个月</td><td>${numText(s.mean, 4)}</td><td>${numText(s.ir, 2)}</td><td>${s.n}</td></tr>
+      `).join("")}</tbody>
+    </table>
+    <p style="color:#888;font-size:11px;margin-top:6px">这里衡量的是当前合成分数排序对未来 1/3/6/12 个月收益的预测力；行业中性约束只影响持仓，不改变合成分数 IC。</p>
+  `;
 }
 
 // ============ 暂存组合 + 多组合对比 ============
@@ -6221,7 +6414,7 @@ window.addEventListener("resize", () => {
     navChart, quantileChart, scanChart,
     icDecayChart,
     cmpNavChart, cmpIcChart, cmpCorrChart,
-    cpsNavChart, cpsCompareChart,
+    cpsNavChart, cpsIcDecayChart, cpsCompareChart,
     topMktcapChart, topIndustryChart,
   ].forEach(ch => { if (ch && ch.resize) ch.resize(); });
 });
