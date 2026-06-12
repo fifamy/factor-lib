@@ -12,6 +12,7 @@ const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPL
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
 const SINGLE_SNAPSHOT_DIR = DATA_DIR + "single_snapshots/";
+const SINGLE_SLIM_SNAPSHOT_DIR = DATA_DIR + "single_slim_snapshots/";
 const STOCK_FACTOR_DETAIL_DIR = DATA_DIR + "stock_factor_details/";
 const STOCK_META_SNAPSHOT = DATA_DIR + "stock_meta_snapshot.json" + V;
 const BENCHMARK_SNAPSHOT = DATA_DIR + "benchmark_snapshot.json" + V;
@@ -63,6 +64,7 @@ const state = {
   adminRequests: [],
   adminPublishedCombos: [],
   singleSnapshots: new Map(),
+  singleSlimSnapshots: new Map(),
   stockFactorDetailBuckets: new Map(),
   stockMetaSnapshot: null,
   benchmarkSnapshot: null,
@@ -112,6 +114,11 @@ async function loadDataManifest() {
   }
 }
 
+async function ensureDataManifest() {
+  if (!state.dataManifest) await loadDataManifest();
+  return state.dataManifest;
+}
+
 function renderTopMeta() {
   const m = state.dataManifest || {};
   const asOf = m.return_end_date || m.backtest_end_month;
@@ -131,6 +138,14 @@ function singleSnapshotUrl(code) {
   return `${SINGLE_SNAPSHOT_DIR}${code}.json${V}`;
 }
 
+function singleSlimSnapshotMode(scoreMode = state.singleScoreMode, constraintMode = state.singleConstraintMode) {
+  return `${normalizeScoreMode(scoreMode)}_${normalizeConstraintMode(constraintMode) === "industry" ? "industry" : "none"}`;
+}
+
+function singleSlimSnapshotUrl(code, scoreMode = state.singleScoreMode, constraintMode = state.singleConstraintMode) {
+  return `${SINGLE_SLIM_SNAPSHOT_DIR}${singleSlimSnapshotMode(scoreMode, constraintMode)}/${code}.json${V}`;
+}
+
 async function loadSingleSnapshot(code) {
   if (!state.singleSnapshots.has(code)) {
     const promise = fetchJson(singleSnapshotUrl(code))
@@ -145,6 +160,29 @@ async function loadSingleSnapshot(code) {
     state.singleSnapshots.set(code, promise);
   }
   return state.singleSnapshots.get(code);
+}
+
+async function loadActiveSingleSnapshot(code) {
+  const mode = singleSlimSnapshotMode();
+  const key = `${mode}|${code}`;
+  if (!state.singleSlimSnapshots.has(key)) {
+    const promise = fetchJson(singleSlimSnapshotUrl(code))
+      .then(payload => {
+        state.singleSlimSnapshots.set(key, payload);
+        return payload;
+      })
+      .catch(err => {
+        state.singleSlimSnapshots.delete(key);
+        throw err;
+      });
+    state.singleSlimSnapshots.set(key, promise);
+  }
+  try {
+    return await state.singleSlimSnapshots.get(key);
+  } catch (err) {
+    console.warn("single slim snapshot unavailable, using full snapshot:", err.message || err);
+    return activePortfolioSnapshot(await loadSingleSnapshot(code));
+  }
 }
 
 function snapshotNumber(v) {
@@ -304,10 +342,12 @@ function activeSingleSnapshot(snap) {
 }
 
 function hasNeutralSnapshot(snap) {
+  if (state.dataManifest?.has_neutralized_scores) return true;
   return !!(snap?.neutral && Array.isArray(snap.neutral.months) && snap.neutral.months.length);
 }
 
 function hasIndustryNeutralSnapshot(snap) {
+  if (state.dataManifest?.has_industry_neutral_portfolio) return true;
   const scoreSnap = activeScoreSnapshot(snap);
   return !!(scoreSnap?.industry_neutral && Array.isArray(scoreSnap.industry_neutral.months) && scoreSnap.industry_neutral.months.length);
 }
@@ -959,15 +999,16 @@ async function selectFactor(code, opts = {}) {
   try {
     const tAll = performance.now();
     const [snap] = await Promise.all([
-      loadSingleSnapshot(code),
+      loadActiveSingleSnapshot(code),
       ensureBenchmarkSnapshot(),
+      ensureDataManifest(),
     ]);
     if (seq !== _singleRenderSeq) return;
     if (normalizeConstraintMode(state.singleConstraintMode) === "industry" && !hasIndustryNeutralSnapshot(snap)) {
       state.singleConstraintMode = "none";
     }
-    const scoreSnap = activeScoreSnapshot(snap);
-    const portfolioSnap = activePortfolioSnapshot(snap);
+    const scoreSnap = snap;
+    const portfolioSnap = snap;
     await initSingleRangeControlsFast(portfolioSnap);
     renderFactorDetail(meta, snap);
     const tQ = performance.now();
@@ -975,11 +1016,13 @@ async function selectFactor(code, opts = {}) {
       await Promise.all([
         (async () => { const t = performance.now(); await renderTopStocksFast(code, portfolioSnap); console.log(`  top table: ${(performance.now()-t).toFixed(0)}ms`); })(),
         (async () => { const t = performance.now(); await renderKpiTableFast(code, portfolioSnap, scoreSnap); console.log(`  kpi: ${(performance.now()-t).toFixed(0)}ms`); })(),
+        (async () => { const t = performance.now(); await renderNavChartFast(code, portfolioSnap); console.log(`  nav chart: ${(performance.now()-t).toFixed(0)}ms`); })(),
       ]);
     } else {
       await Promise.all([
         (async () => { const t = performance.now(); await renderTopStocksFromSnapshotSide(code, portfolioSnap, state.singleSide); console.log(`  top table(reverse): ${(performance.now()-t).toFixed(0)}ms`); })(),
         (async () => { const t = performance.now(); await renderKpiTableSide(code, state.singleSide, portfolioSnap, scoreSnap); console.log(`  kpi(reverse): ${(performance.now()-t).toFixed(0)}ms`); })(),
+        (async () => { const t = performance.now(); await renderNavChartSide(code, state.singleSide, portfolioSnap); console.log(`  nav chart(reverse): ${(performance.now()-t).toFixed(0)}ms`); })(),
       ]);
     }
     if (seq !== _singleRenderSeq) return;
@@ -1024,18 +1067,7 @@ async function selectFactor(code, opts = {}) {
 }
 
 function renderSingleDeferredCharts(code, portfolioSnap, scoreSnap, seq) {
-  runWhenIdle(async () => {
-    if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
-    const t = performance.now();
-    try {
-      if (state.singleSide === 1) await renderNavChartFast(code, portfolioSnap);
-      else await renderNavChartSide(code, state.singleSide, portfolioSnap);
-      console.log(`  nav chart: ${(performance.now() - t).toFixed(0)}ms`);
-    } catch (err) {
-      console.warn("deferred nav chart failed:", err);
-    }
-  }, 0, 800);
-  runWhenIdle(async () => {
+  setTimeout(async () => {
     if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
     const t = performance.now();
     try {
@@ -1044,7 +1076,7 @@ function renderSingleDeferredCharts(code, portfolioSnap, scoreSnap, seq) {
     } catch (err) {
       console.warn("deferred quantile chart failed:", err);
     }
-  }, 40, 850);
+  }, 40);
   runWhenIdle(async () => {
     if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
     const t = performance.now();
@@ -1496,7 +1528,7 @@ async function renderTopStocksFast(code, snap) {
   const target = document.getElementById("top-stocks");
   const meta = state.catalog.find(f => f.code === code) || {};
   const isEvent = !!meta.is_event;
-  const rows = (snap.top_stocks_by_n?.[String(N)] || snap.top_stocks || []).slice(0, N);
+  const rows = (snap.top_stocks_by_n?.[String(N)] || snap.top_stocks_by_n?.["100"] || snap.top_stocks || []).slice(0, N);
   renderTopStocksRows(code, rows, { isEvent, side: 1, snapshot: true });
 }
 
@@ -1505,7 +1537,7 @@ async function renderTopStocksFromSnapshotSide(code, snap, side) {
   const meta = state.catalog.find(f => f.code === code) || {};
   const isEvent = !!meta.is_event;
   const sideN = normalizeSide(side);
-  const baseRows = snap.top_stocks_by_n?.[String(N)] || snap.top_stocks || [];
+  const baseRows = snap.top_stocks_by_n?.[String(N)] || snap.top_stocks_by_n?.["100"] || snap.top_stocks || [];
   const rows = baseRows
     .map(r => ({ ...r, score: r.score == null ? r.score : Number(r.score) * sideN }))
     .filter(r => r.score !== null && r.score !== undefined && Number.isFinite(Number(r.score)))
