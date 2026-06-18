@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-06-18 08:30:16",
+  "generated_at": "2026-06-18 13:27:55",
   "summary": {
     "word_factor_count": 112,
     "system_factor_count": 125,
@@ -1232,29 +1232,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "002396.SZ",
-        "stock_name": "星网锐捷",
-        "raw_value": 0.11022948701741736,
-        "score": 0.008057764418064923,
+        "stock_code": "600195.SH",
+        "stock_name": "中牧股份",
+        "raw_value": 0.1271042636848571,
+        "score": 0.006215962458432933,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.110229，方向处理后的 score=0.008058。",
+          "系统输出 raw_value=0.127104，方向处理后的 score=0.006216。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.11022948701741736,
-            "display": "0.110229",
+            "value": 0.1271042636848571,
+            "display": "0.127104",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.008057764418064923,
-            "display": "0.008058",
+            "value": 0.006215962458432933,
+            "display": "0.006216",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -1448,13 +1448,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "000899.SZ",
-        "stock_name": "赣能股份",
+        "stock_code": "001356.SZ",
+        "stock_name": "富岭股份",
         "raw_value": 0.0,
-        "score": 0.4700526339556235,
+        "score": 0.6000187275758592,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=0.470053。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=0.600019。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -1469,8 +1469,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.4700526339556235,
-            "display": "0.470053",
+            "value": 0.6000187275758592,
+            "display": "0.600019",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -1664,29 +1664,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "603727.SH",
-        "stock_name": "博迈科",
-        "raw_value": 0.21964445227793108,
-        "score": 0.010364129368944564,
+        "stock_code": "688602.SH",
+        "stock_name": "康鹏科技",
+        "raw_value": 0.24161805117482857,
+        "score": 0.01663128118328435,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.219644，方向处理后的 score=0.010364。",
+          "系统输出 raw_value=0.241618，方向处理后的 score=0.016631。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.21964445227793108,
-            "display": "0.219644",
+            "value": 0.24161805117482857,
+            "display": "0.241618",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.010364129368944564,
-            "display": "0.010364",
+            "value": 0.01663128118328435,
+            "display": "0.016631",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -4347,8 +4347,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "001301.SZ",
-        "stock_name": "尚太科技",
+        "stock_code": "600109.SH",
+        "stock_name": "国金证券",
         "raw_value": 0.0,
         "score": -0.0464869022710699,
         "steps": [
@@ -5173,8 +5173,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "600182.SH",
-        "stock_name": "S佳通",
+        "stock_code": "300663.SZ",
+        "stock_name": "科蓝软件",
         "raw_value": 1.0,
         "score": -0.0,
         "steps": [
@@ -5324,8 +5324,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "600596.SH",
-        "stock_name": "新安股份",
+        "stock_code": "002432.SZ",
+        "stock_name": "九安医疗",
         "raw_value": 0.0,
         "score": 0.08916382217917575,
         "steps": [
@@ -5548,13 +5548,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "605089.SH",
-        "stock_name": "味知香",
+        "stock_code": "600988.SH",
+        "stock_name": "赤峰黄金",
         "raw_value": 2.0,
-        "score": -0.20529691595903493,
+        "score": -0.20050801431290713,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=2.0000，方向处理后的 score=-0.205297。",
+          "系统输出 raw_value=2.0000，方向处理后的 score=-0.200508。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -5569,8 +5569,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.20529691595903493,
-            "display": "-0.205297",
+            "value": -0.20050801431290713,
+            "display": "-0.200508",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -7978,8 +7978,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "600847.SH",
-        "stock_name": "万里股份",
+        "stock_code": "301190.SZ",
+        "stock_name": "善水科技",
         "raw_value": 0.0,
         "score": 0.24340417781063114,
         "steps": [
@@ -8646,8 +8646,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "600118.SH",
-        "stock_name": "中国卫星",
+        "stock_code": "002197.SZ",
+        "stock_name": "证通电子",
         "raw_value": 1.0,
         "score": -0.4756629708827457,
         "steps": [
@@ -8700,8 +8700,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "300270.SZ",
-        "stock_name": "中威电子",
+        "stock_code": "000899.SZ",
+        "stock_name": "赣能股份",
         "raw_value": 1.0,
         "score": -0.49079690620755945,
         "steps": [
@@ -8808,13 +8808,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "002611.SZ",
-        "stock_name": "东方精工",
+        "stock_code": "000738.SZ",
+        "stock_name": "航发控制",
         "raw_value": 0.0,
-        "score": 0.09622113205094114,
+        "score": 0.12389784333839829,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=0.096221。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=0.123898。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -8829,8 +8829,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.09622113205094114,
-            "display": "0.096221",
+            "value": 0.12389784333839829,
+            "display": "0.123898",
             "unit": "",
             "note": "用于排序和组合构建"
           }

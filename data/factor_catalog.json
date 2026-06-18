@@ -1648,7 +1648,7 @@
     "wind_source": "AShareStockRatingConsus.S_EST_PRICE; RATING_DT",
     "v2_status": "computed",
     "is_event": false,
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期转强"
   },
   {

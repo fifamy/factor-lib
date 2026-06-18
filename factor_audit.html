@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>因子核对 · 因子库 v1.0</title>
+  <link rel="stylesheet" href="vendor/katex.min.css">
+  <link rel="stylesheet" href="factor_audit.css">
+</head>
+<body>
+  <header class="fa-header">
+    <div class="fa-title">因子核对 <span class="fa-sub">每个因子：覆盖 · 分布 · 方向 · 对账 · 体检</span></div>
+    <a class="fa-back" href="index.html">← 返回因子库</a>
+  </header>
+  <section class="fa-toolbar">
+    <div class="fa-filters">
+      <button data-filter="all" class="active">全部</button>
+      <button data-filter="suspect">仅⚠可疑</button>
+      <button data-filter="error">仅✗错误</button>
+      <button data-filter="doc_missing">仅 Word 未收录</button>
+      <button data-filter="formula_mismatch">仅口径不一致</button>
+    </div>
+    <input id="fa-search" type="search" placeholder="搜索 代码/名称/分类…">
+    <span id="fa-stat" class="fa-stat"></span>
+  </section>
+  <main class="fa-main">
+    <table id="fa-table" class="fa-table">
+      <thead><tr>
+        <th>因子</th><th>分类</th><th class="fa-help" title="覆盖率 = 该因子有值的(股票×月末)格 ÷ 同期可投资域(上市满120个交易日的合格股)。&#10;· 低于100%：多为事件因子(业绩快报)、数据起步晚(部分技术因子2022-10才有)、或需长历史(252日窗口排除年轻股)导致的正常缺失。&#10;· 高于100%：因子也算了未满120日的新股(可投资域之外)。&#10;判断『算得对不对』请看右侧『对账』列；覆盖率只反映因子铺得多广。">覆盖率 ⓘ</th><th>分布</th>
+        <th>方向</th><th>对账</th><th>体检</th>
+      </tr></thead>
+      <tbody id="fa-tbody"></tbody>
+    </table>
+  </main>
+  <div id="fa-drawer" class="fa-drawer hidden">
+    <div class="fa-drawer-inner">
+      <button id="fa-close" class="fa-close">✕</button>
+      <div id="fa-detail"></div>
+    </div>
+  </div>
+  <script src="vendor/katex.min.js"></script>
+  <script src="factor_audit.js"></script>
+</body>
+</html>
