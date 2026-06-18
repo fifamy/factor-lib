@@ -125,6 +125,8 @@ function renderTopMeta() {
   const m = state.dataManifest || {};
   const asOf = m.return_end_date || m.backtest_end_month;
   const age = m.min_listing_trading_days || 120;
+  const countLabel = document.getElementById("factor-count-label");
+  if (countLabel) countLabel.textContent = `${state.catalog.length}因子`;
   document.getElementById("meta").textContent = asOf
     ? `${state.catalog.length} 因子 · 数据截至 ${asOf} · 上市满${age}交易日`
     : `${state.catalog.length} 因子可用`;
