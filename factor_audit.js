@@ -6,6 +6,7 @@ const RECON_LABEL = {
 const HEALTH_LABEL = { ok: ["●正常", "b-ok"], warn: ["●可疑", "b-warn"], error: ["●有误", "b-error"] };
 const DOC_MISSING_TIP = "Word 技术文档未单列该因子或未给公式，属于系统新增/待补文档项。";
 const FORMULA_MISMATCH_TIP = "Word 文档公式与当前系统实现的计算口径不一致，需要决定按 Word 改系统，或反向修订 Word。";
+const UNIVERSE_MISMATCH_TIP = "Word 文档股票池/样本空间规则与当前系统实际回测、IC、选股域不完全一致。";
 const ERROR_FLAGS = new Set(["nonfinite", "recon_mismatch", "recon_source_missing"]);
 const FLAG_LABEL = {
   coverage_low: ["覆盖偏低", "有值的合格股不足 50%（多为业绩快报等事件因子、或数据源稀疏，通常正常）"],
@@ -15,6 +16,7 @@ const FLAG_LABEL = {
   nonfinite: ["非有限值", "存在 NaN/inf —— 几乎肯定计算有误（本工具的红灯目标，已全部修复）"],
   direction_ic_flip: ["方向疑反", "实测 RankIC 的方向与你声明的 +/− 系统性相反（|t|>2）。要么方向标反，要么该因子近年失效/反转，值得复核"],
   formula_mismatch: ["文档/系统不一致", FORMULA_MISMATCH_TIP],
+  universe_mismatch: ["样本空间不一致", UNIVERSE_MISMATCH_TIP],
   recon_mismatch: ["对账不符", "独立重算 ≠ 系统存储值 —— 实现可能有 bug"],
   recon_source_missing: ["源缺失", "回查不到对应的 Wind 源数据"],
 };
@@ -52,6 +54,7 @@ function matchRow(f) {
   if (filter === "error" && f.health !== "error") return false;
   if (filter === "doc_missing" && !f.doc_missing) return false;
   if (filter === "formula_mismatch" && !f.formula_mismatch) return false;
+  if (filter === "universe_mismatch" && !f.universe_mismatch) return false;
   if (query) {
     const hay = `${f.code} ${f.name_cn} ${f.l1} ${f.l2}`.toLowerCase();
     if (!hay.includes(query)) return false;
@@ -61,7 +64,7 @@ function matchRow(f) {
 function rowHtml(f) {
   return `
     <tr class="fa-row lv-${f.health}" data-code="${f.code}">
-      <td><span class="fa-code">${esc(f.code)}</span><span class="fa-name">${esc(f.name_cn)}</span>${f.doc_missing ? `<span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${f.formula_mismatch ? `<span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}</td>
+      <td><span class="fa-code">${esc(f.code)}</span><span class="fa-name">${esc(f.name_cn)}</span>${f.doc_missing ? `<span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${f.formula_mismatch ? `<span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${f.universe_mismatch ? `<span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}</td>
       <td>${esc(f.l1)} / ${esc(f.l2)}</td>
       <td class="fa-help" title="真实覆盖 ${(Math.max(Number(f.coverage) || 0, 0) * 100).toFixed(0)}%${f.coverage > 1.001 ? '（含可投资域外新股）' : ''}">${pct(f.coverage).toFixed(0)}%</td>
       <td>${spark(f.hist)}</td>
@@ -89,7 +92,7 @@ function render() {
   }
   document.getElementById("fa-tbody").innerHTML = html || `<tr><td colspan="7" style="padding:16px;color:#8a94a6">无匹配因子</td></tr>`;
   document.getElementById("fa-stat").textContent =
-    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length}`;
+    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length} · 样本空间不一致 ${ALL.filter(f => f.universe_mismatch).length}`;
   document.querySelectorAll(".fa-row").forEach(tr =>
     tr.addEventListener("click", () => openDetail(tr.dataset.code)));
 }
@@ -113,7 +116,7 @@ async function openDetail(code) {
     : `存储值 ${fmt(s.stored)}（外部源类，见对账）`;
   box.innerHTML = `
     <h2 class="fa-detail-h">${esc(d.code)} · ${esc(d.name_cn)}</h2>
-    <div class="fa-detail-sub">${esc(d.l1)} / ${esc(d.l2)} · 方向 ${dirCell(d.direction)} · 体检 ${badge(HEALTH_LABEL, d.health.level)}${d.doc_missing ? ` · <span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${d.formula_mismatch && d.formula_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}</div>
+    <div class="fa-detail-sub">${esc(d.l1)} / ${esc(d.l2)} · 方向 ${dirCell(d.direction)} · 体检 ${badge(HEALTH_LABEL, d.health.level)}${d.doc_missing ? ` · <span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${d.formula_mismatch && d.formula_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${d.universe_mismatch && d.universe_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}</div>
     <div class="fa-block"><h3>公式对照</h3>
       ${d.doc_missing ? `<div class="fa-doc-alert">Word 技术文档未单列该因子或未给公式；下方“系统实现/Wind 字段”可作为补文档依据。</div>` : ""}
       ${d.formula_mismatch && d.formula_mismatch.level === "warn" ? `<div class="fa-formula-alert"><b>文档/系统口径不一致：</b>${esc(d.formula_mismatch.reason || "")}${d.formula_mismatch.word_scope ? `<br>Word：${esc(d.formula_mismatch.word_scope)}` : ""}${d.formula_mismatch.system_scope ? `<br>系统：${esc(d.formula_mismatch.system_scope)}` : ""}</div>` : ""}
@@ -123,6 +126,12 @@ async function openDetail(code) {
           : `<span class="fa-mono">${esc(d.formula.doc) || "—"}</span>`}</td></tr>
         <tr><td>系统实现</td><td class="fa-mono">${esc(d.formula.system) || "—"}</td></tr>
         <tr><td>Wind 字段</td><td class="fa-mono">${esc(d.formula.wind) || "—"}</td></tr>
+      </table></div>
+    <div class="fa-block"><h3>样本空间对照</h3>
+      ${d.universe_mismatch && d.universe_mismatch.level === "warn" ? `<div class="fa-formula-alert"><b>文档/系统样本空间不一致：</b>${esc(d.universe_mismatch.reason || "")}</div>` : ""}
+      <table class="fa-kv">
+        <tr><td>Word 股票池</td><td>${esc((d.universe_mismatch && d.universe_mismatch.word_scope) || (d.doc_missing ? "Word 未单列该因子，暂无可对照股票池规则。" : "—"))}</td></tr>
+        <tr><td>系统实际样本空间</td><td>${esc((d.universe_mismatch && d.universe_mismatch.system_scope) || "—")}</td></tr>
       </table></div>
     <div class="fa-block"><h3>样例核对 ${s.stock_code ? `· ${esc(s.stock_code)} ${esc(s.stock_name || "")} @ ${esc(s.trade_date)}` : ""}</h3>
       ${(s.inputs || []).length ? `<table class="fa-kv">${s.inputs.map(i =>
