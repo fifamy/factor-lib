@@ -500,7 +500,7 @@
     "wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CASHRATIO",
     "v2_status": "computed",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {
@@ -1414,6 +1414,20 @@
     "time_tag": "近期转弱"
   },
   {
+    "code": "FWDPE",
+    "name_cn": "Forward PE",
+    "l1": "公司内生信息",
+    "l2": "估值类",
+    "direction": -1,
+    "description": "未来 12 个月一致预期口径的滚动 PE；仅保留正 PE，数值越低，预期估值越便宜。",
+    "formula": "FWDPE = AShareConsensusRollingData.EST_PE，ROLLING_TYPE='FTTM'，EST_PE>0。",
+    "wind_source": "AShareConsensusRollingData.EST_PE; ROLLING_TYPE; TRADE_DT",
+    "v2_status": "computed",
+    "is_event": false,
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
+  },
+  {
     "code": "EV2EBIT",
     "name_cn": "EV/EBIT",
     "l1": "公司内生信息",
@@ -1494,8 +1508,22 @@
     "wind_source": "PITFinancialFactor.S_DFA_OR_TTM",
     "v2_status": "computed",
     "is_event": false,
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "近期转强"
+  },
+  {
+    "code": "RDEXPRATIOCHG",
+    "name_cn": "△研发费用占比",
+    "l1": "公司内生信息",
+    "l2": "成长类",
+    "direction": 1,
+    "description": "研发费用 TTM 占营业收入 TTM 比例相对上年同期的变化；数值越高，研发投入意愿边际越强。",
+    "formula": "RDEXPRATIOCHG = RD_EXPENSE_TTM / OPER_REV_TTM - lag_same_quarter(RD_EXPENSE_TTM / OPER_REV_TTM, 1年)。",
+    "wind_source": "AShareANNFinancialIndicator.RD_EXPENSE; AShareIncome.TOT_OPER_REV; OPER_REV; ANN_DT; REPORT_PERIOD",
+    "v2_status": "computed",
+    "is_event": false,
+    "env_tag": "震荡占优型",
+    "time_tag": "持续低效"
   },
   {
     "code": "INTDEBTRATIO",
