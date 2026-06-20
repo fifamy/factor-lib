@@ -1957,7 +1957,12 @@ function navFromReturnsForChart(rets) {
   const out = [1];
   let nav = 1;
   for (const r of rets) {
-    nav *= 1 + r;
+    const value = Number(r);
+    if (r === null || r === undefined || !Number.isFinite(value)) {
+      out.push(null);
+      continue;
+    }
+    nav *= 1 + value;
     out.push(+nav.toFixed(6));
   }
   return out;
