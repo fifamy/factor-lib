@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "generated_at": "2026-06-18 13:27:55",
+  "generated_at": "2026-06-21 10:54:08",
   "summary": {
     "word_factor_count": 112,
-    "system_factor_count": 125,
+    "system_factor_count": 148,
     "matched_count": 58,
     "word_only_count": 54,
     "system_extra_count": 67,
@@ -1448,8 +1448,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "001356.SZ",
-        "stock_name": "富岭股份",
+        "stock_code": "000800.SZ",
+        "stock_name": "一汽解放",
         "raw_value": 0.0,
         "score": 0.6000187275758592,
         "steps": [
@@ -2492,8 +2492,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "603285.SH",
-        "stock_name": "键邦股份",
+        "stock_code": "603787.SH",
+        "stock_name": "新日股份",
         "raw_value": 0.05,
         "score": -0.11319156500323582,
         "steps": [
@@ -2837,30 +2837,30 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "603121.SH",
-        "stock_name": "华培动力",
-        "raw_value": 0.05816406687485046,
-        "score": -0.020456822577371577,
+        "stock_code": "688166.SH",
+        "stock_name": "博瑞医药",
+        "raw_value": 0.02960021447503825,
+        "score": -0.006016329196389265,
         "steps": [
           "取 2026-04-29 到 2026-05-29 的近20个交易日。",
-          "每日 turnover = amount / (market_cap × free_shares / total_shares) / 10。",
-          "TURN20 = mean(turnover) = 0.058164。",
-          "系统保存 raw_value=0.058164，score=-0.020457。"
+          "每日 turnover = amount / S_DQ_MV / 10。",
+          "TURN20 = mean(turnover) = 0.029600。",
+          "系统保存 raw_value=0.029600，score=-0.006016。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.05816406687485046,
-            "display": "0.058164",
+            "value": 0.02960021447503825,
+            "display": "0.029600",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.020456822577371577,
-            "display": "-0.020457",
+            "value": -0.006016329196389265,
+            "display": "-0.006016",
             "unit": "",
             "note": "用于排序和组合构建"
           },
@@ -2891,40 +2891,40 @@
           {
             "field": "S_DQ_AMOUNT",
             "label": "末日成交额 amount",
-            "value": 92953.195,
-            "display": "92,953.20",
+            "value": 626609.627,
+            "display": "626,609.63",
             "unit": "千元",
             "note": "本地 price_panel.amount"
           },
           {
             "field": "S_DQ_ADJCLOSE",
             "label": "末日复权收盘价 adj_close",
-            "value": 33.3149,
-            "display": "33.3149",
+            "value": 52.7645,
+            "display": "52.7645",
             "unit": "元",
             "note": "本地 price_panel.adj_close"
           },
           {
-            "field": "free_mv",
-            "label": "自由流通市值 free_mv",
-            "value": 266141.39364540705,
-            "display": "266,141.39",
-            "unit": "千元",
-            "note": "market_cap × free_shares / total_shares"
+            "field": "float_mv",
+            "label": "流通市值 S_DQ_MV",
+            "value": 2256982.2584,
+            "display": "2,256,982.26",
+            "unit": "万元",
+            "note": "本地 market_cap 字段"
           },
           {
             "field": "turnover",
             "label": "末日换手率 turnover",
-            "value": 0.03492624492823015,
-            "display": "0.034926",
+            "value": 0.027763161392514026,
+            "display": "0.027763",
             "unit": "",
-            "note": "amount / free_mv / 10"
+            "note": "amount / S_DQ_MV / 10"
           },
           {
             "field": "turn20_mean",
             "label": "20日平均换手率",
-            "value": 0.05816406687485045,
-            "display": "0.058164",
+            "value": 0.029600214475038245,
+            "display": "0.029600",
             "unit": "",
             "note": ""
           }
@@ -3010,29 +3010,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "601958.SH",
-        "stock_name": "金钼股份",
-        "raw_value": 0.028241156767884374,
-        "score": 0.00048250786754449714,
+        "stock_code": "600111.SH",
+        "stock_name": "北方稀土",
+        "raw_value": 0.013963251030242561,
+        "score": 0.01109790832836731,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.028241，方向处理后的 score=0.000483。",
+          "系统输出 raw_value=0.013963，方向处理后的 score=0.011098。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.028241156767884374,
-            "display": "0.028241",
+            "value": 0.013963251030242561,
+            "display": "0.013963",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.00048250786754449714,
-            "display": "0.000483",
+            "value": 0.01109790832836731,
+            "display": "0.011098",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -3473,29 +3473,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "002767.SZ",
-        "stock_name": "先锋电子",
-        "raw_value": -0.019711999917137346,
-        "score": -0.024610384363672477,
+        "stock_code": "300823.SZ",
+        "stock_name": "建科智能",
+        "raw_value": -0.015175700877461118,
+        "score": -0.025093041240449185,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=-0.019712，方向处理后的 score=-0.024610。",
+          "系统输出 raw_value=-0.015176，方向处理后的 score=-0.025093。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": -0.019711999917137346,
-            "display": "-0.019712",
+            "value": -0.015175700877461118,
+            "display": "-0.015176",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.024610384363672477,
-            "display": "-0.024610",
+            "value": -0.025093041240449185,
+            "display": "-0.025093",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -3527,32 +3527,32 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "600893.SH",
-        "stock_name": "航发动力",
-        "raw_value": 0.6,
-        "score": -0.02438314160690937,
+        "stock_code": "300582.SZ",
+        "stock_name": "英飞特",
+        "raw_value": 0.6083333333333333,
+        "score": -0.027522313111476647,
         "steps": [
           "取 2025-11-27 到 2026-05-29 的近120个交易日。",
-          "每日 turnover = amount / (market_cap × free_shares / total_shares) / 10。",
-          "末日 turnover=0.033449。",
-          "不高于末日 turnover 的交易日数 = 72。",
-          "TURNPCTL = 72/120 = 0.600000。",
-          "系统保存 raw_value=0.600000，score=-0.024383。"
+          "每日 turnover = amount / S_DQ_MV / 10。",
+          "末日 turnover=0.058038。",
+          "不高于末日 turnover 的交易日数 = 73。",
+          "TURNPCTL = 73/120 = 0.608333。",
+          "系统保存 raw_value=0.608333，score=-0.027522。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.6,
-            "display": "0.600000",
+            "value": 0.6083333333333333,
+            "display": "0.608333",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.02438314160690937,
-            "display": "-0.024383",
+            "value": -0.027522313111476647,
+            "display": "-0.027522",
             "unit": "",
             "note": "用于排序和组合构建"
           },
@@ -3583,40 +3583,40 @@
           {
             "field": "S_DQ_AMOUNT",
             "label": "末日成交额 amount",
-            "value": 1815493.903,
-            "display": "1,815,493.90",
+            "value": 188130.092,
+            "display": "188,130.09",
             "unit": "千元",
             "note": "本地 price_panel.amount"
           },
           {
-            "field": "free_mv",
-            "label": "自由流通市值 free_mv",
-            "value": 5427578.773520084,
-            "display": "5,427,578.77",
-            "unit": "千元",
-            "note": "market_cap × free_shares / total_shares"
+            "field": "float_mv",
+            "label": "流通市值 S_DQ_MV",
+            "value": 324149.001,
+            "display": "324,149.00",
+            "unit": "万元",
+            "note": "本地 market_cap 字段"
           },
           {
             "field": "turnover",
             "label": "末日换手率 turnover",
-            "value": 0.03344942521806187,
-            "display": "0.033449",
+            "value": 0.05803815264573345,
+            "display": "0.058038",
             "unit": "",
-            "note": "amount / free_mv / 10"
+            "note": "amount / S_DQ_MV / 10"
           },
           {
             "field": "turnover_rank_count",
             "label": "不高于末日换手率的天数",
-            "value": 72,
-            "display": "72.0000",
+            "value": 73,
+            "display": "73.0000",
             "unit": "天",
             "note": ""
           },
           {
             "field": "turnpctl",
             "label": "历史分位 TURNPCTL",
-            "value": 0.6,
-            "display": "0.600000",
+            "value": 0.6083333333333333,
+            "display": "0.608333",
             "unit": "",
             "note": "turnover_rank_count / window_days"
           }
@@ -4347,8 +4347,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "600109.SH",
-        "stock_name": "国金证券",
+        "stock_code": "600167.SH",
+        "stock_name": "联美控股",
         "raw_value": 0.0,
         "score": -0.0464869022710699,
         "steps": [
@@ -5173,8 +5173,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "300663.SZ",
-        "stock_name": "科蓝软件",
+        "stock_code": "600182.SH",
+        "stock_name": "S佳通",
         "raw_value": 1.0,
         "score": -0.0,
         "steps": [
@@ -5324,8 +5324,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "002432.SZ",
-        "stock_name": "九安医疗",
+        "stock_code": "301180.SZ",
+        "stock_name": "万祥科技",
         "raw_value": 0.0,
         "score": 0.08916382217917575,
         "steps": [
@@ -5548,8 +5548,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "600988.SH",
-        "stock_name": "赤峰黄金",
+        "stock_code": "688382.SH",
+        "stock_name": "益方生物-U",
         "raw_value": 2.0,
         "score": -0.20050801431290713,
         "steps": [
@@ -5602,8 +5602,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "601155.SH",
-        "stock_name": "新城控股",
+        "stock_code": "688223.SH",
+        "stock_name": "晶科能源",
         "raw_value": -44.0,
         "score": -0.025363672078339127,
         "steps": [
@@ -7978,8 +7978,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "301190.SZ",
-        "stock_name": "善水科技",
+        "stock_code": "300875.SZ",
+        "stock_name": "捷强装备",
         "raw_value": 0.0,
         "score": 0.24340417781063114,
         "steps": [
@@ -8518,31 +8518,31 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "002651.SZ",
-        "stock_name": "利君股份",
-        "raw_value": 0.1976151162468919,
-        "score": -0.031944427040612094,
+        "stock_code": "000919.SZ",
+        "stock_name": "金陵药业",
+        "raw_value": -0.48127574271006973,
+        "score": -0.006285234864006793,
         "steps": [
           "取 2026-04-28 到 2026-05-29 的近21个交易日。",
-          "每日 turnover = amount / (market_cap × free_shares / total_shares) / 10。",
-          "换手率合计 = 1.2185。",
-          "STOM = ln(换手率合计) = 0.197615。",
-          "系统保存 raw_value=0.197615，score=-0.031944。"
+          "每日 turnover = amount / S_DQ_MV / 10。",
+          "换手率合计 = 0.617994。",
+          "STOM = ln(换手率合计) = -0.481276。",
+          "系统保存 raw_value=-0.481276，score=-0.006285。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.1976151162468919,
-            "display": "0.197615",
+            "value": -0.48127574271006973,
+            "display": "-0.481276",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.031944427040612094,
-            "display": "-0.031944",
+            "value": -0.006285234864006793,
+            "display": "-0.006285",
             "unit": "",
             "note": "用于排序和组合构建"
           },
@@ -8573,48 +8573,48 @@
           {
             "field": "S_DQ_AMOUNT",
             "label": "末日成交额 amount",
-            "value": 52725.448,
-            "display": "52,725.45",
+            "value": 81150.734,
+            "display": "81,150.73",
             "unit": "千元",
             "note": "本地 price_panel.amount"
           },
           {
             "field": "S_DQ_ADJCLOSE",
             "label": "末日复权收盘价 adj_close",
-            "value": 26.0972,
-            "display": "26.0972",
+            "value": 25.0788,
+            "display": "25.0788",
             "unit": "元",
             "note": "本地 price_panel.adj_close"
           },
           {
-            "field": "free_mv",
-            "label": "自由流通市值 free_mv",
-            "value": 133762.12764429327,
-            "display": "133,762.13",
-            "unit": "千元",
-            "note": "market_cap × free_shares / total_shares"
+            "field": "float_mv",
+            "label": "流通市值 S_DQ_MV",
+            "value": 394200.1056,
+            "display": "394,200.11",
+            "unit": "万元",
+            "note": "本地 market_cap 字段"
           },
           {
             "field": "turnover",
             "label": "末日换手率 turnover",
-            "value": 0.03941732157566308,
-            "display": "0.039417",
+            "value": 0.020586177641044243,
+            "display": "0.020586",
             "unit": "",
-            "note": "amount / free_mv / 10"
+            "note": "amount / S_DQ_MV / 10"
           },
           {
             "field": "turnover_sum_21d",
             "label": "21日换手率合计",
-            "value": 1.218493325274833,
-            "display": "1.2185",
+            "value": 0.6179944867318773,
+            "display": "0.617994",
             "unit": "",
             "note": ""
           },
           {
             "field": "ln_turnover_sum_21d",
             "label": "ln(21日换手率合计)",
-            "value": 0.1976151162468919,
-            "display": "0.197615",
+            "value": -0.48127574271006957,
+            "display": "-0.481276",
             "unit": "",
             "note": ""
           }
@@ -8646,8 +8646,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "002197.SZ",
-        "stock_name": "证通电子",
+        "stock_code": "603061.SH",
+        "stock_name": "金海通",
         "raw_value": 1.0,
         "score": -0.4756629708827457,
         "steps": [
@@ -8700,8 +8700,8 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "000899.SZ",
-        "stock_name": "赣能股份",
+        "stock_code": "601388.SH",
+        "stock_name": "怡球资源",
         "raw_value": 1.0,
         "score": -0.49079690620755945,
         "steps": [
