@@ -649,7 +649,7 @@ async function openDetail(code) {
     <div id="fa-review-root">${renderReviewPanelHtml(d, reviewAgg[d.code]?.records || [], reviewLoadError)}</div>
     <div class="fa-block"><h3>样例核对 ${s.stock_code ? `· ${esc(s.stock_code)} ${esc(s.stock_name || "")} @ ${esc(s.trade_date)}` : ""}</h3>
       ${(s.inputs || []).length ? `<table class="fa-kv">${s.inputs.map(i =>
-        `<tr><td>${esc(i.label)}</td><td class="fa-mono">${fmt(i.value)}</td></tr>`).join("")}</table>` : ""}
+        `<tr><td>${esc(i.label)}</td><td class="fa-mono">${sampleInputValue(i.value)}</td></tr>`).join("")}</table>` : ""}
       ${(s.steps || []).length ? `<div class="fa-steps">${s.steps.map(esc).join("<br>")}</div>` : ""}
       <p class="fa-mono" style="margin-top:8px">${sampleLine}</p></div>
     <div class="fa-block"><h3>对账（抽样 ${recon.n_checked || 0} 个单元）</h3>
@@ -680,6 +680,12 @@ async function openDetail(code) {
   refreshFactorReviewPanel(d);
 }
 function pct(x) { return Math.min(Math.max(Number(x) || 0, 0), 1) * 100; }
+function sampleInputValue(x) {
+  if (x === null || x === undefined) return "—";
+  if (typeof x === "string") return esc(x) || "—";
+  if (typeof x === "number") return fmt(x);
+  return esc(x);
+}
 function fmt(x) {
   if (x === null || x === undefined) return "—";
   const n = Number(x);
