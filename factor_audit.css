@@ -63,6 +63,8 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-doc-alert { margin: 0 0 8px; padding: 8px 10px; border: 1px solid #d9e0ea; border-radius: 6px; background: #f6f8fb; color: #5d6b82; font-size: 12px; line-height: 1.6; }
 .fa-formula-mismatch { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #fff3e0; color: #9a6500; font-size: 11px; font-weight: 600; vertical-align: middle; }
 .fa-formula-alert { margin: 0 0 8px; padding: 8px 10px; border: 1px solid #f0d49a; border-radius: 6px; background: #fff8e6; color: #7a5200; font-size: 12px; line-height: 1.6; }
+.fa-data-late { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #e0f2fe; color: #075985; font-size: 11px; font-weight: 600; vertical-align: middle; }
+.fa-data-alert { margin: 10px 0 12px; padding: 9px 11px; border: 1px solid #7dd3fc; border-radius: 6px; background: #f0f9ff; color: #075985; font-size: 12px; line-height: 1.6; }
 .fa-param-alert { margin: 0 0 8px; padding: 8px 10px; border: 1px solid #fed7aa; border-radius: 6px; background: #fff7ed; color: #7c2d12; font-size: 12px; line-height: 1.6; }
 .fa-param-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .fa-param-list span { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 999px; background: #eef2ff; color: #27346f; font-size: 12px; line-height: 1.3; }
