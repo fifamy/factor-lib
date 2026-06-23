@@ -124,11 +124,11 @@ async function ensureDataManifest() {
 function renderTopMeta() {
   const m = state.dataManifest || {};
   const asOf = m.return_end_date || m.backtest_end_month;
-  const age = m.min_listing_trading_days || 120;
+  const universe = m.stock_universe_rule === "word_v2" ? "Word股票池" : "历史股票池";
   const countLabel = document.getElementById("factor-count-label");
   if (countLabel) countLabel.textContent = `${state.catalog.length}因子`;
   document.getElementById("meta").textContent = asOf
-    ? `${state.catalog.length} 因子 · 数据截至 ${asOf} · 上市满${age}交易日`
+    ? `${state.catalog.length} 因子 · 数据截至 ${asOf} · ${universe}`
     : `${state.catalog.length} 因子可用`;
 }
 
@@ -1233,7 +1233,9 @@ function renderFactorDetail(meta, snap = null) {
   const snapReturns = returnDatesFromSnapshot(viewSnap);
   const coverageStart = snapMonths[0] || manifest.backtest_start_month || "—";
   const coverageEnd = snapReturns[snapReturns.length - 1] || manifest.return_end_date || manifest.backtest_end_month || "—";
-  const minAge = manifest.min_listing_trading_days || 120;
+  const universeText = manifest.backtest_universe || (
+    "每月末按因子对应股票池排序选股；历史回测不按最新 active 过滤，最新股票表仅展示当前 active 非 ST 股票。"
+  );
   const coverageText = snapMonths.length
     ? `${coverageStart} ~ ${coverageEnd}（${snapMonths.length} 期）`
     : `${coverageStart} ~ ${coverageEnd}`;
@@ -1312,7 +1314,7 @@ function renderFactorDetail(meta, snap = null) {
     <p style="color:#666;font-size:11px;margin-top:8px">
       下方股票表显示 <b>top${maxN()}</b>（小 N 是其子集）；净值图 / 指标表叠加对比所选各 N。
       覆盖期：${coverageText}。
-      口径：每月末按 <b>${meta.code}</b> ${scoreModeLabel()} z-score 排序选非 ST、月末未停牌、上市满 ${minAge} 个交易日股票，组合约束：${constraintModeLabel()}（${constraintHoldText()}），扣 0.2% 双边成本；历史回测不按最新 active 过滤，最新股票表仅展示当前 active 非 ST 股票。
+      口径：每月末按 <b>${meta.code}</b> ${scoreModeLabel()} z-score 在 Word 股票池内排序选股，组合约束：${constraintModeLabel()}（${constraintHoldText()}），扣 0.2% 双边成本；${universeText}
     </p>
   `;
   document.querySelectorAll(".single-side-btn").forEach(btn => {

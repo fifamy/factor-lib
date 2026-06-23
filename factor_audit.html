@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>因子核对 · 因子库 v1.1.0</title>
   <link rel="stylesheet" href="vendor/katex.min.css">
-  <link rel="stylesheet" href="factor_audit.css">
+  <link rel="stylesheet" href="factor_audit.css?v=20260623091032">
 </head>
 <body>
   <header class="fa-header">
@@ -13,6 +13,10 @@
     <a class="fa-back" href="index.html">← 返回因子库</a>
   </header>
   <section class="fa-toolbar">
+    <div class="fa-view-toggle" aria-label="视图切换">
+      <button data-view="list" class="active">因子列表</button>
+      <button data-view="dashboard">汇总看板</button>
+    </div>
     <div class="fa-filters">
       <button data-filter="all" class="active">全部</button>
       <button data-filter="suspect">仅⚠可疑</button>
@@ -20,18 +24,47 @@
       <button data-filter="doc_missing">仅 Word 未收录</button>
       <button data-filter="formula_mismatch">仅口径不一致</button>
       <button data-filter="universe_mismatch">仅样本空间不一致</button>
+      <button data-filter="review_unreviewed">未复核</button>
+      <button data-filter="review_in_progress">进行中</button>
+      <button data-filter="review_issue">有问题</button>
+      <button data-filter="review_passed">通过</button>
     </div>
     <input id="fa-search" type="search" placeholder="搜索 代码/名称/分类…">
+    <label class="fa-reviewer-box">我是谁
+      <input id="fa-reviewer-name" type="text" placeholder="填写姓名">
+    </label>
+    <span id="fa-reviewer-badge" class="fa-reviewer-badge">未填写</span>
     <span id="fa-stat" class="fa-stat"></span>
   </section>
   <main class="fa-main">
     <table id="fa-table" class="fa-table">
       <thead><tr>
-        <th>因子</th><th>分类</th><th class="fa-help" title="覆盖率 = 该因子有值的(股票×月末)格 ÷ 同期可投资域(上市满120个交易日的合格股)。&#10;· 低于100%：多为事件因子(业绩快报)、数据起步晚(部分技术因子2022-10才有)、或需长历史(252日窗口排除年轻股)导致的正常缺失。&#10;· 高于100%：因子也算了未满120日的新股(可投资域之外)。&#10;判断『算得对不对』请看右侧『对账』列；覆盖率只反映因子铺得多广。">覆盖率 ⓘ</th><th>分布</th>
+        <th>因子</th><th>分类</th><th>计算公式</th><th>样本空间</th><th>复核状态</th><th class="fa-help" title="覆盖率 = 该因子有值的(股票×月末)格 ÷ 同期 Word 股票池。&#10;· 低于100%：多为事件因子(业绩快报)、数据起步晚、或需长历史窗口导致的正常缺失。&#10;· 高于100%：说明实际计算样本超出 Word 股票池，需要复核。&#10;判断『算得对不对』请看右侧『对账』列；覆盖率只反映因子铺得多广。">覆盖率 ⓘ</th><th>分布</th>
         <th>方向</th><th>对账</th><th>体检</th>
       </tr></thead>
       <tbody id="fa-tbody"></tbody>
     </table>
+    <section id="fa-dashboard" class="fa-dashboard hidden">
+      <div class="fa-dashboard-head">
+        <h2>汇总看板</h2>
+        <button id="fa-export-reviews" class="fa-export-btn" type="button">导出 CSV</button>
+      </div>
+      <div id="fa-review-progress" class="fa-dashboard-card"></div>
+      <div class="fa-dashboard-grid">
+        <div class="fa-dashboard-card">
+          <h3>按复核人</h3>
+          <div id="fa-reviewer-summary" class="fa-review-list"></div>
+        </div>
+        <div class="fa-dashboard-card">
+          <h3>被标有问题清单</h3>
+          <div id="fa-review-issue-list" class="fa-review-list"></div>
+        </div>
+        <div class="fa-dashboard-card">
+          <h3>未复核清单</h3>
+          <div id="fa-review-unreviewed-list" class="fa-review-list"></div>
+        </div>
+      </div>
+    </section>
   </main>
   <div id="fa-drawer" class="fa-drawer hidden">
     <div class="fa-drawer-inner">
@@ -40,6 +73,6 @@
     </div>
   </div>
   <script src="vendor/katex.min.js"></script>
-  <script src="factor_audit.js"></script>
+  <script src="factor_audit.js?v=20260623091032"></script>
 </body>
 </html>

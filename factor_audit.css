@@ -5,11 +5,21 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-sub { font-size: 12px; color: #8a94a6; font-weight: 400; margin-left: 8px; }
 .fa-back { font-size: 13px; color: #2f6fb0; text-decoration: none; }
 .fa-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 24px; }
+.fa-view-toggle { display: inline-flex; border: 1px solid #d4dae3; border-radius: 6px; overflow: hidden; background: #fff; flex: 0 0 auto; }
+.fa-view-toggle button { border: 0; border-right: 1px solid #d4dae3; background: #fff; padding: 5px 10px; cursor: pointer; font-size: 13px; color: #5a6373; }
+.fa-view-toggle button:last-child { border-right: 0; }
+.fa-view-toggle button.active { background: #26384f; color: #fff; }
+.fa-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .fa-filters button { border: 1px solid #d4dae3; background: #fff; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .fa-filters button.active { background: #2f6fb0; color: #fff; border-color: #2f6fb0; }
 #fa-search { flex: 0 0 280px; padding: 6px 10px; border: 1px solid #d4dae3; border-radius: 6px; font-size: 13px; }
 .fa-stat { font-size: 12px; color: #8a94a6; }
+.fa-reviewer-box { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5a6373; white-space: nowrap; }
+#fa-reviewer-name { width: 118px; padding: 6px 8px; border: 1px solid #d4dae3; border-radius: 6px; font-size: 13px; }
+.fa-reviewer-badge { font-size: 12px; color: #2e7d32; white-space: nowrap; }
+.fa-reviewer-badge.empty { color: #b8860b; }
 .fa-main { padding: 0 24px 48px; }
+.hidden { display: none !important; }
 .fa-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; font-size: 13px; }
 .fa-table th { text-align: left; padding: 10px 12px; color: #8a94a6; font-weight: 500; border-bottom: 1px solid #e5e9f0; background: #fafbfc; }
 .fa-table td { padding: 9px 12px; border-bottom: 1px solid #f0f2f6; }
@@ -23,6 +33,12 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-name { color: #5a6373; margin-left: 6px; font-size: 12px; }
 .fa-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
 .b-ok { color: #2e7d32; } .b-warn { color: #b8860b; } .b-error { color: #c0392b; }
+.fa-review-status { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; white-space: nowrap; }
+.fa-review-status.rs-none { background: #eef2f7; color: #5d6b82; }
+.fa-review-status.rs-pending { background: #fff8e6; color: #9a6500; }
+.fa-review-status.rs-issue { background: #fdecea; color: #c0392b; }
+.fa-review-status.rs-pass { background: #eaf6ec; color: #2e7d32; }
+.fa-review-status.rs-offline { background: #f2f3f5; color: #8a94a6; }
 .fa-spark { display: inline-flex; align-items: flex-end; gap: 1px; height: 22px; }
 .fa-spark i { width: 3px; background: #8fb8e0; display: inline-block; }
 .fa-dir-pos { color: #2e7d32; } .fa-dir-neg { color: #c0392b; }
@@ -54,3 +70,44 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-note { color: #6b7790; font-size: 12px; margin-top: 4px; line-height: 1.7; }
 .fa-help { cursor: help; }
 .fa-table th.fa-help { text-decoration: underline dotted #c2c9d4; text-underline-offset: 3px; }
+.fa-review-panel { margin: 18px 0; padding: 14px; border: 1px solid #d9e0ea; border-radius: 8px; background: #fbfcfe; }
+.fa-review-panel h3 { font-size: 13px; color: #34507a; margin: 0 0 10px; border-left: 3px solid #2f6fb0; padding-left: 8px; }
+.fa-review-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0; }
+.fa-review-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #5a6373; }
+.fa-segmented { display: inline-flex; border: 1px solid #d4dae3; border-radius: 6px; overflow: hidden; background: #fff; }
+.fa-segmented button { flex: 1 1 auto; min-width: 54px; border: 0; border-right: 1px solid #d4dae3; background: #fff; color: #5a6373; padding: 5px 8px; font-size: 12px; cursor: pointer; }
+.fa-segmented button:last-child { border-right: 0; }
+.fa-segmented button.active { background: #2f6fb0; color: #fff; }
+.fa-segmented button:disabled { cursor: not-allowed; opacity: .65; }
+.fa-review-field { display: block; margin: 10px 0; color: #5a6373; font-size: 12px; }
+.fa-review-field textarea { width: 100%; margin-top: 6px; padding: 8px 10px; border: 1px solid #d4dae3; border-radius: 6px; resize: vertical; font-size: 13px; font-family: inherit; color: #1f2733; background: #fff; }
+.fa-review-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; font-size: 12px; color: #6b7790; }
+.fa-review-actions button, .fa-export-btn { border: 1px solid #2f6fb0; background: #2f6fb0; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.fa-review-actions button:disabled { border-color: #c2c9d4; background: #d9e0ea; color: #8a94a6; cursor: not-allowed; }
+.fa-review-others { margin-top: 14px; }
+.fa-review-others h4 { margin: 0 0 8px; font-size: 12px; color: #5a6373; }
+.fa-review-record { padding: 9px 10px; border: 1px solid #e5e9f0; border-radius: 6px; background: #fff; margin-bottom: 8px; }
+.fa-review-record-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.fa-review-record-time { color: #8a94a6; font-size: 11px; margin-top: 4px; }
+.fa-review-text { color: #3f4a5a; font-size: 12px; line-height: 1.6; margin-top: 6px; white-space: pre-wrap; }
+.fa-dashboard { background: #fff; border-radius: 8px; padding: 18px; }
+.fa-dashboard-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.fa-dashboard-head h2 { margin: 0; font-size: 16px; color: #1f2733; }
+.fa-dashboard-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.fa-dashboard-card { border: 1px solid #e5e9f0; border-radius: 8px; padding: 14px; background: #fbfcfe; }
+.fa-dashboard-card h3 { margin: 0 0 10px; color: #5a6373; font-size: 13px; }
+.fa-progress-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #5a6373; font-size: 13px; margin-bottom: 8px; }
+.fa-progress-top b { color: #1f2733; font-size: 18px; }
+.fa-progress { height: 8px; border-radius: 999px; overflow: hidden; background: #e5e9f0; }
+.fa-progress i { display: block; height: 100%; background: #2e7d32; }
+.fa-review-list { max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.fa-review-list-row { width: 100%; text-align: left; border: 1px solid #e5e9f0; border-radius: 6px; background: #fff; padding: 8px 10px; cursor: pointer; }
+.fa-review-list-row:hover { background: #f0f6ff; }
+.fa-review-list-row b { display: block; font-size: 12px; color: #1f2733; margin-bottom: 3px; }
+.fa-review-list-row span { display: block; font-size: 12px; color: #6b7790; line-height: 1.5; }
+.fa-empty { color: #8a94a6; font-size: 12px; padding: 8px 0; }
+@media (max-width: 960px) {
+  .fa-toolbar { align-items: stretch; flex-direction: column; gap: 10px; }
+  #fa-search { flex: 0 0 auto; width: 100%; }
+  .fa-review-grid, .fa-dashboard-grid { grid-template-columns: 1fr; }
+}
