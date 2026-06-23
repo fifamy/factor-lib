@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>因子核对 · 因子库 v1.1.0</title>
   <link rel="stylesheet" href="vendor/katex.min.css">
-  <link rel="stylesheet" href="factor_audit.css?v=20260623091032">
+  <link rel="stylesheet" href="factor_audit.css?v=20260623101809">
 </head>
 <body>
   <header class="fa-header">
@@ -24,6 +24,7 @@
       <button data-filter="doc_missing">仅 Word 未收录</button>
       <button data-filter="formula_mismatch">仅口径不一致</button>
       <button data-filter="universe_mismatch">仅样本空间不一致</button>
+      <button data-filter="parameter_mismatch">仅参数待补</button>
       <button data-filter="review_unreviewed">未复核</button>
       <button data-filter="review_in_progress">进行中</button>
       <button data-filter="review_issue">有问题</button>
@@ -39,7 +40,7 @@
   <main class="fa-main">
     <table id="fa-table" class="fa-table">
       <thead><tr>
-        <th>因子</th><th>分类</th><th>计算公式</th><th>样本空间</th><th>复核状态</th><th class="fa-help" title="覆盖率 = 该因子有值的(股票×月末)格 ÷ 同期 Word 股票池。&#10;· 低于100%：多为事件因子(业绩快报)、数据起步晚、或需长历史窗口导致的正常缺失。&#10;· 高于100%：说明实际计算样本超出 Word 股票池，需要复核。&#10;判断『算得对不对』请看右侧『对账』列；覆盖率只反映因子铺得多广。">覆盖率 ⓘ</th><th>分布</th>
+        <th>因子</th><th>分类</th><th>计算公式</th><th>样本空间</th><th>参数覆盖</th><th>复核状态</th><th class="fa-help" title="覆盖率 = 该因子有值的(股票×月末)格 ÷ 同期 Word 股票池。&#10;· 低于100%：多为事件因子(业绩快报)、数据起步晚、或需长历史窗口导致的正常缺失。&#10;· 高于100%：说明实际计算样本超出 Word 股票池，需要复核。&#10;判断『算得对不对』请看右侧『对账』列；覆盖率只反映因子铺得多广。">覆盖率 ⓘ</th><th>分布</th>
         <th>方向</th><th>对账</th><th>体检</th>
       </tr></thead>
       <tbody id="fa-tbody"></tbody>
@@ -73,6 +74,6 @@
     </div>
   </div>
   <script src="vendor/katex.min.js"></script>
-  <script src="factor_audit.js?v=20260623091032"></script>
+  <script src="factor_audit.js?v=20260623101809"></script>
 </body>
 </html>

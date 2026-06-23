@@ -7,6 +7,7 @@ const HEALTH_LABEL = { ok: ["●正常", "b-ok"], warn: ["●可疑", "b-warn"],
 const DOC_MISSING_TIP = "Word 技术文档未单列该因子或未给公式，属于系统新增/待补文档项。";
 const FORMULA_MISMATCH_TIP = "Word 文档公式与当前系统实现的计算口径不一致，需要决定按 Word 改系统，或反向修订 Word。";
 const UNIVERSE_MISMATCH_TIP = "Word 文档股票池/样本空间规则与当前系统实际回测、IC、选股域不完全一致。";
+const PARAMETER_MISMATCH_TIP = "Word 参数/窗口/子口径未被系统完整覆盖，需要判断是否补充实现或修订 Word 口径。";
 const UNIVERSE_ALIGNED_TIP = "系统已按 Word 股票池/样本空间规则执行。";
 const UNIVERSE_PROFILE_TIP = "Word 未单列该因子时，系统按分类映射的 Word 公共股票池执行。";
 const ERROR_FLAGS = new Set(["nonfinite", "recon_mismatch", "recon_source_missing"]);
@@ -41,6 +42,7 @@ const FLAG_LABEL = {
   direction_ic_flip: ["方向疑反", "实测 RankIC 的方向与你声明的 +/− 系统性相反（|t|>2）。要么方向标反，要么该因子近年失效/反转，值得复核"],
   formula_mismatch: ["文档/系统不一致", FORMULA_MISMATCH_TIP],
   universe_mismatch: ["样本空间不一致", UNIVERSE_MISMATCH_TIP],
+  parameter_mismatch: ["参数待补", PARAMETER_MISMATCH_TIP],
   recon_mismatch: ["对账不符", "独立重算 ≠ 系统存储值 —— 实现可能有 bug"],
   recon_source_missing: ["源缺失", "回查不到对应的 Wind 源数据"],
 };
@@ -510,6 +512,11 @@ function universeStatusCell(f) {
   if (f.doc_missing) return issueBadge("按分类执行", "b-ok", UNIVERSE_PROFILE_TIP);
   return issueBadge("已按Word", "b-ok", UNIVERSE_ALIGNED_TIP);
 }
+function parameterStatusCell(f) {
+  if (f.parameter_mismatch) return issueBadge("参数待补", "b-warn", PARAMETER_MISMATCH_TIP);
+  if (f.doc_missing) return issueBadge("Word未列", "b-warn", DOC_MISSING_TIP);
+  return issueBadge("参数覆盖", "b-ok", "未发现 Word 参数与系统实现存在明显覆盖缺口。");
+}
 function reviewStatusCell(f) {
   const status = reviewStatusForFactor(f.code);
   const [text, cls, tip] = REVIEW_STATUS_LABEL[status] || REVIEW_STATUS_LABEL.unreviewed;
@@ -517,12 +524,33 @@ function reviewStatusCell(f) {
   const label = count ? `${text} · ${count}` : text;
   return `<span class="fa-review-status ${cls}" title="${esc(tip)}">${esc(label)}</span>`;
 }
+function renderParamList(items) {
+  const rows = (items || []).filter(Boolean);
+  if (!rows.length) return `<span class="fa-empty">—</span>`;
+  return `<div class="fa-param-list">${rows.map(x => `<span>${esc(x)}</span>`).join("")}</div>`;
+}
+function renderParameterCoverageBlock(d) {
+  const pc = d.parameter_coverage || {};
+  const level = pc.level || "none";
+  const alertCls = level === "warn" ? "fa-param-alert" : "fa-doc-alert";
+  const title = pc.needs_supplement ? "建议补充：" : "状态：";
+  const reason = pc.reason || (level === "none" ? "Word 技术文档未单列该因子，暂无 Word 参数可比。" : "未发现明显参数覆盖缺口。");
+  return `
+    <div class="fa-block"><h3>参数覆盖</h3>
+      <div class="${alertCls}"><b>${title}</b>${esc(reason)}</div>
+      <table class="fa-kv">
+        <tr><td>Word 参数</td><td>${renderParamList(pc.word_parameters || [])}</td></tr>
+        <tr><td>系统已实现参数</td><td>${renderParamList(pc.system_parameters || [])}</td></tr>
+        <tr><td>补充建议</td><td>${esc(pc.suggestion || "—")}</td></tr>
+      </table></div>`;
+}
 function matchRow(f) {
   if (filter === "suspect" && f.health === "ok") return false;
   if (filter === "error" && f.health !== "error") return false;
   if (filter === "doc_missing" && !f.doc_missing) return false;
   if (filter === "formula_mismatch" && !f.formula_mismatch) return false;
   if (filter === "universe_mismatch" && !f.universe_mismatch) return false;
+  if (filter === "parameter_mismatch" && !f.parameter_mismatch) return false;
   if (filter.indexOf("review_") === 0) {
     const status = filter.replace("review_", "");
     const normalized = status === "pass" ? "passed" : status;
@@ -537,10 +565,11 @@ function matchRow(f) {
 function rowHtml(f) {
   return `
     <tr class="fa-row lv-${f.health}" data-code="${f.code}">
-      <td><span class="fa-code">${esc(f.code)}</span><span class="fa-name">${esc(f.name_cn)}</span>${f.doc_missing ? `<span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${f.formula_mismatch ? `<span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${f.universe_mismatch ? `<span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}</td>
+      <td><span class="fa-code">${esc(f.code)}</span><span class="fa-name">${esc(f.name_cn)}</span>${f.doc_missing ? `<span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${f.formula_mismatch ? `<span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${f.universe_mismatch ? `<span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}${f.parameter_mismatch ? `<span class="fa-formula-mismatch" title="${esc(PARAMETER_MISMATCH_TIP)}">参数待补</span>` : ""}</td>
       <td>${esc(f.l1)} / ${esc(f.l2)}</td>
       <td>${formulaStatusCell(f)}</td>
       <td>${universeStatusCell(f)}</td>
+      <td>${parameterStatusCell(f)}</td>
       <td>${reviewStatusCell(f)}</td>
       <td class="fa-help" title="真实覆盖 ${(Math.max(Number(f.coverage) || 0, 0) * 100).toFixed(0)}%${f.coverage > 1.001 ? '（含超出 Word 股票池样本）' : ''}">${pct(f.coverage).toFixed(0)}%</td>
       <td>${spark(f.hist)}</td>
@@ -561,17 +590,17 @@ function render() {
     if (cat !== curCat) {
       curCat = cat;
       const warn = rows.filter(x => `${x.l1} › ${x.l2}` === cat && x.health !== "ok").length;
-      html += `<tr class="fa-group"><td colspan="10">${esc(f.l1)} <span class="fa-group-sub">› ${esc(f.l2)}</span>` +
+      html += `<tr class="fa-group"><td colspan="11">${esc(f.l1)} <span class="fa-group-sub">› ${esc(f.l2)}</span>` +
         `<span class="fa-group-n">${catCount[cat]} 个${warn ? ` · ${warn} 可疑` : ""}</span></td></tr>`;
     }
     html += rowHtml(f);
   }
-  document.getElementById("fa-tbody").innerHTML = html || `<tr><td colspan="10" style="padding:16px;color:#8a94a6">无匹配因子</td></tr>`;
+  document.getElementById("fa-tbody").innerHTML = html || `<tr><td colspan="11" style="padding:16px;color:#8a94a6">无匹配因子</td></tr>`;
   const reviewed = ALL.filter(f => reviewStatusForFactor(f.code) !== "unreviewed" && reviewStatusForFactor(f.code) !== "unavailable").length;
   const issue = ALL.filter(f => reviewStatusForFactor(f.code) === "issue").length;
   const reviewText = reviewLoadError ? "复核库离线" : `已复核 ${reviewed} · 有问题 ${issue}`;
   document.getElementById("fa-stat").textContent =
-    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length} · 样本空间不一致 ${ALL.filter(f => f.universe_mismatch).length} · ${reviewText}`;
+    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length} · 样本空间不一致 ${ALL.filter(f => f.universe_mismatch).length} · 参数待补 ${ALL.filter(f => f.parameter_mismatch).length} · ${reviewText}`;
   document.querySelectorAll(".fa-row").forEach(tr =>
     tr.addEventListener("click", () => openDetail(tr.dataset.code)));
   renderReviewDashboard();
@@ -596,7 +625,7 @@ async function openDetail(code) {
     : `存储值 ${fmt(s.stored)}（外部源类，见对账）`;
   box.innerHTML = `
     <h2 class="fa-detail-h">${esc(d.code)} · ${esc(d.name_cn)}</h2>
-    <div class="fa-detail-sub">${esc(d.l1)} / ${esc(d.l2)} · 方向 ${dirCell(d.direction)} · 体检 ${badge(HEALTH_LABEL, d.health.level)}${d.doc_missing ? ` · <span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${d.formula_mismatch && d.formula_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${d.universe_mismatch && d.universe_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}</div>
+    <div class="fa-detail-sub">${esc(d.l1)} / ${esc(d.l2)} · 方向 ${dirCell(d.direction)} · 体检 ${badge(HEALTH_LABEL, d.health.level)}${d.doc_missing ? ` · <span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${d.formula_mismatch && d.formula_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${d.universe_mismatch && d.universe_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}${d.parameter_coverage && d.parameter_coverage.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(PARAMETER_MISMATCH_TIP)}">参数待补</span>` : ""}</div>
     <div class="fa-block"><h3>公式对照</h3>
       ${d.doc_missing ? `<div class="fa-doc-alert">Word 技术文档未单列该因子或未给公式；下方“系统实现/Wind 字段”可作为补文档依据。</div>` : ""}
       ${d.formula_mismatch && d.formula_mismatch.level === "warn" ? `<div class="fa-formula-alert"><b>文档/系统口径不一致：</b>${esc(d.formula_mismatch.reason || "")}${d.formula_mismatch.word_scope ? `<br>Word：${esc(d.formula_mismatch.word_scope)}` : ""}${d.formula_mismatch.system_scope ? `<br>系统：${esc(d.formula_mismatch.system_scope)}` : ""}</div>` : ""}
@@ -607,6 +636,7 @@ async function openDetail(code) {
         <tr><td>系统实现</td><td class="fa-mono">${esc(d.formula.system) || "—"}</td></tr>
         <tr><td>Wind 字段</td><td class="fa-mono">${esc(d.formula.wind) || "—"}</td></tr>
       </table></div>
+    ${renderParameterCoverageBlock(d)}
     <div class="fa-block"><h3>样本空间对照</h3>
       ${d.universe_mismatch && d.universe_mismatch.level === "warn" ? `<div class="fa-formula-alert"><b>文档/系统样本空间不一致：</b>${esc(d.universe_mismatch.reason || "")}</div>` : ""}
       ${d.universe_mismatch && d.universe_mismatch.level === "ok" && d.universe_mismatch.reason ? `<div class="fa-doc-alert"><b>样本空间状态：</b>${esc(d.universe_mismatch.reason || "")}</div>` : ""}
