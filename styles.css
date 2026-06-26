@@ -223,8 +223,18 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
 .validation-chart { height: 220px; margin-top: 8px; border: 1px solid #e1e6ec; border-radius: 5px; background: #fff; }
 .validation-heatmap { height: 300px; }
 .validation-note { color: #888; font-size: 11px; margin-top: 7px; line-height: 1.5; }
+.validation-guide { color: #4b5563; background: #f8fafc; border: 1px solid #e1e6ec; border-radius: 5px; padding: 10px 12px; }
+.guide-title { color: #1a4d80; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.guide-section { background: #fff; border: 1px solid #e7edf3; border-radius: 5px; padding: 8px 9px; }
+.guide-section b { display: block; color: #1a4d80; margin-bottom: 4px; }
+.guide-section ul { margin: 0; padding-left: 16px; }
+.guide-section li { margin: 2px 0; }
+.guide-flow, .guide-thresholds { margin-bottom: 8px; }
+.guide-foot { color: #6b7280; margin-top: 8px; }
 @media (max-width: 960px) {
   .validation-grid { grid-template-columns: 1fr; }
+  .guide-grid { grid-template-columns: 1fr; }
 }
 
 /* 最优权重表：目标列+权重列左对齐，权重不换行；数字列右对齐；末列居中放按钮 */
