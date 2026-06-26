@@ -2232,6 +2232,18 @@ function validationValueBlock(rows) {
   `).join("")}</div>`;
 }
 
+function renderValidationInterpretationNote() {
+  return `
+    <div class="validation-note">
+      <b>指标怎么看：</b>先看 RankIC 与 IC_IR 判断排序信号是否稳定，再看 Top30 与 10 分组多空确认组合收益，最后看前瞻期、样本外 / 滚动和分层 IC 验证结论是否稳健。
+      RankIC均值衡量因子排序与未来收益排序的一致性，绝对值越大说明排序信息越强；IC_IR衡量IC序列的稳定性，越高说明信号越不依赖少数月份。
+      胜率看正 IC 月份占比，月度胜率看正收益月份占比，主要反映方向持续性。
+      前瞻期用于观察信号衰减，若 1M 有效但 6M/12M 明显转弱，说明信号偏短期。
+      样本外 / 滚动用于检查结论是否依赖某一段行情；训练、验证、测试段越一致，越能说明结果不是单纯过拟合。
+      分层 IC 用于判断因子是否只在某类股票中有效，若只在单一市值、流动性或行业分层显著，使用时应控制适用范围。
+    </div>`;
+}
+
 function group10PayloadForSide(snap, side) {
   const g = snap?.group10;
   if (!g || !g.returns) return null;
@@ -2406,6 +2418,7 @@ function renderValidationPanel(code, snap) {
   }).join("");
 
   target.innerHTML = `
+    ${renderValidationInterpretationNote()}
     <div class="validation-grid">
       <div class="validation-block">
         <h4>有效性</h4>
