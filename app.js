@@ -2311,14 +2311,27 @@ function renderValidationPanel(code, snap) {
   const lsAnnual = fullLsMetrics?.annual ?? snapshotNumber(v.group10_ls_annual_return);
   const lsSharpe = fullLsMetrics?.sharpe ?? snapshotNumber(v.group10_ls_sharpe);
   const lsMonths = fullLsReturns.length || snapshotNumber(v.group10_ls_n);
-  const decayRows = [1, 3, 6, 12].map(h => `
-    <tr>
-      <td>${h}M</td>
-      <td>${signedPctText(snapshotNumber(v[`rank_ic_mean_${h}m`]) === null ? null : snapshotNumber(v[`rank_ic_mean_${h}m`]) * side)}</td>
-      <td>${signedNumText(snapshotNumber(v[`rank_ic_ir_${h}m`]) === null ? null : snapshotNumber(v[`rank_ic_ir_${h}m`]) * side, 2)}</td>
-      <td>${pctText(v[`rank_ic_win_rate_${h}m`])}</td>
-      <td>${numText(v[`rank_ic_n_${h}m`], 0)}</td>
-    </tr>`).join("");
+  const decayStats = filteredIcDecayStats(snap?.ic_decay, state.singleSide, null, null);
+  const decayRows = [1, 3, 6, 12].map(h => {
+    const fromValidation = {
+      mean: snapshotNumber(v[`rank_ic_mean_${h}m`]),
+      ir: snapshotNumber(v[`rank_ic_ir_${h}m`]),
+      win: snapshotNumber(v[`rank_ic_win_rate_${h}m`]),
+      n: snapshotNumber(v[`rank_ic_n_${h}m`]),
+    };
+    const fromDecay = decayStats.find(s => s.h === h) || {};
+    const mean = fromValidation.mean !== null ? fromValidation.mean * side : fromDecay.mean;
+    const ir = fromValidation.ir !== null ? fromValidation.ir * side : fromDecay.ir;
+    const n = fromValidation.n !== null ? fromValidation.n : fromDecay.n;
+    return `
+      <tr>
+        <td>${h}M</td>
+        <td>${signedPctText(mean)}</td>
+        <td>${signedNumText(ir, 2)}</td>
+        <td>${pctText(fromValidation.win)}</td>
+        <td>${numText(n, 0)}</td>
+      </tr>`;
+  }).join("");
 
   target.innerHTML = `
     <div class="validation-grid">
