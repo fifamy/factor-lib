@@ -207,6 +207,15 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
 .validation-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 8px; }
 .validation-metric { display: flex; justify-content: space-between; gap: 8px; color: #666; font-size: 11px; min-width: 0; }
 .validation-metric b { color: #333; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.validation-signal { display: inline-flex; align-items: center; justify-content: flex-end; gap: 3px; white-space: nowrap; font-weight: 600; }
+.signal-dot { font-size: 10px; line-height: 1; }
+.signal-value { font-variant-numeric: tabular-nums; }
+.signal-label { font-size: 10px; font-weight: 500; }
+.signal-strong { color: #19734d; }
+.signal-watch { color: #8a6200; }
+.signal-weak { color: #6b7280; }
+.signal-alert { color: #ad3b32; }
+.signal-muted { color: #9aa4b2; }
 .validation-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
 .validation-table th { background: #f3f6f9; color: #666; padding: 5px 6px; border-bottom: 1px solid #dce3eb; text-align: right; white-space: nowrap; }
 .validation-table th:first-child, .validation-table td:first-child { text-align: left; color: #1a4d80; font-weight: 600; }

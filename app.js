@@ -2221,6 +2221,66 @@ function firstSnapshotNumber(...values) {
   return null;
 }
 
+function metricSignal(metric, value) {
+  const n = snapshotNumber(value);
+  if (n === null) return { level: "muted", icon: "●", label: "缺失", title: "暂无可判定数据" };
+  if (metric === "rank_ic") {
+    if (n > 0.10) return { level: "alert", icon: "▲", label: "需核查", title: "RankIC 异常偏高，需排查数据泄露、样本偏差或过拟合" };
+    if (n >= 0.05) return { level: "strong", icon: "●", label: "较强", title: "RankIC 大于 5%，排序信息较强" };
+    if (n >= 0.03) return { level: "strong", icon: "●", label: "较好", title: "RankIC 位于 3%-5%，较有价值" };
+    if (n >= 0.01) return { level: "watch", icon: "●", label: "可观察", title: "RankIC 位于 1%-3%，有一定信息" };
+    if (n <= -0.01) return { level: "alert", icon: "▲", label: "反向", title: "当前方向下 RankIC 为负，需检查因子方向" };
+    return { level: "weak", icon: "●", label: "偏弱", title: "RankIC 绝对值小于 1%，排序信息偏弱" };
+  }
+  if (metric === "ic_ir") {
+    if (n > 2.0) return { level: "alert", icon: "▲", label: "需核查", title: "IC_IR 异常偏高，需排查过拟合或口径问题" };
+    if (n >= 1.0) return { level: "strong", icon: "●", label: "较强", title: "IC_IR 大于 1，稳定性较强" };
+    if (n >= 0.5) return { level: "strong", icon: "●", label: "稳定", title: "IC_IR 位于 0.5-1.0，稳定性较好" };
+    if (n >= 0.3) return { level: "watch", icon: "●", label: "初步可用", title: "IC_IR 位于 0.3-0.5，需结合其他指标" };
+    if (n < 0) return { level: "alert", icon: "▲", label: "反向", title: "IC_IR 为负，需检查因子方向" };
+    return { level: "weak", icon: "●", label: "不稳定", title: "IC_IR 小于 0.3，稳定性偏弱" };
+  }
+  if (metric === "win_rate") {
+    if (n >= 0.70) return { level: "alert", icon: "▲", label: "需核查", title: "胜率异常偏高，需确认样本和口径" };
+    if (n >= 0.60) return { level: "strong", icon: "●", label: "较稳定", title: "胜率大于 60%，方向较稳定" };
+    if (n >= 0.55) return { level: "watch", icon: "●", label: "可接受", title: "胜率位于 55%-60%，可接受" };
+    if (n >= 0.50) return { level: "weak", icon: "●", label: "一般", title: "胜率位于 50%-55%，方向优势偏弱" };
+    return { level: "weak", icon: "●", label: "偏弱", title: "胜率低于 50%，方向不稳定" };
+  }
+  if (metric === "sample_months") {
+    if (n < 36) return { level: "alert", icon: "▲", label: "样本短", title: "样本月数小于 36，参考意义有限" };
+    if (n < 60) return { level: "watch", icon: "●", label: "观察", title: "样本月数 36-60，可初步观察" };
+    return { level: "strong", icon: "●", label: "充分", title: "样本月数大于 60，更适合做稳健性判断" };
+  }
+  if (metric === "ann_return") {
+    if (n >= 0.15) return { level: "strong", icon: "●", label: "较强", title: "年化收益较高，仍需结合回撤和成本" };
+    if (n >= 0.08) return { level: "watch", icon: "●", label: "可用", title: "年化收益为正且有一定幅度" };
+    if (n > 0) return { level: "weak", icon: "●", label: "一般", title: "年化收益为正但幅度有限" };
+    return { level: "weak", icon: "●", label: "偏弱", title: "年化收益不占优" };
+  }
+  if (metric === "sharpe") {
+    if (n >= 1.5) return { level: "strong", icon: "●", label: "很强", title: "夏普大于 1.5，需加入交易成本后再判断" };
+    if (n >= 1.0) return { level: "strong", icon: "●", label: "较好", title: "夏普位于 1.0-1.5，风险调整后表现较好" };
+    if (n >= 0.5) return { level: "watch", icon: "●", label: "可用", title: "夏普位于 0.5-1.0，可用但需结合回撤" };
+    if (n > 0) return { level: "weak", icon: "●", label: "偏弱", title: "夏普小于 0.5，风险调整后表现偏弱" };
+    return { level: "weak", icon: "●", label: "偏弱", title: "夏普不占优" };
+  }
+  if (metric === "monotonicity") {
+    if (n >= 0.8) return { level: "strong", icon: "●", label: "清晰", title: "10 组单调性大于 0.8，分组排序较清晰" };
+    if (n >= 0.6) return { level: "watch", icon: "●", label: "较好", title: "10 组单调性大于 0.6，分组排序较好" };
+    if (n >= 0.3) return { level: "weak", icon: "●", label: "一般", title: "10 组单调性一般" };
+    return { level: "weak", icon: "●", label: "偏弱", title: "分组收益无明显排序" };
+  }
+  return { level: "muted", icon: "●", label: "观察", title: "暂无该指标的判定阈值" };
+}
+
+function signalValue(metric, value, text) {
+  const signal = metricSignal(metric, value);
+  return `<span class="validation-signal signal-${signal.level}" title="${signal.title}">
+    <span class="signal-dot">${signal.icon}</span><span class="signal-value">${text}</span><span class="signal-label">${signal.label}</span>
+  </span>`;
+}
+
 function renderValidationUnavailable(message) {
   const target = document.getElementById("validation-summary");
   if (target) target.innerHTML = `<div class="empty">${message}</div>`;
@@ -2244,6 +2304,7 @@ function renderValidationInterpretationNote() {
       经验参考区间，不是硬性标准：|RankIC| < 1% 通常偏弱，1%-3% 有一定信息，3%-5% 较有价值，>5% 较强，>10% 需排查数据泄露或样本偏差；
       IC_IR <0.3 不稳定，0.3-0.5 初步可用，0.5-1.0 稳定性较好，>1.0 较强，>2.0 需排查过拟合或口径问题；
       IC胜率 / 月度胜率 55%-60% 可接受，>60% 较稳定；样本月数 <36 参考意义有限，36-60 可初步观察，>60 更适合做稳健性判断。
+      页面中的 ● 为经验等级提示，▲ 表示异常偏高、方向反向、样本过短或其他需核查情况。
     </div>`;
 }
 
@@ -2289,8 +2350,8 @@ function renderGroup10ValidationTable(snap) {
     const m = metricsFromReturns(arr);
     return `<tr>
       <td>${g}${g === "G10" ? " 高分" : (g === "G1" ? " 低分" : "")}</td>
-      <td>${pctText(m?.annual)}</td>
-      <td>${m ? numText(m.sharpe, 2) : "—"}</td>
+      <td>${signalValue("ann_return", m?.annual, pctText(m?.annual))}</td>
+      <td>${signalValue("sharpe", m?.sharpe, m ? numText(m.sharpe, 2) : "—")}</td>
       <td>${pctText(m?.mdd)}</td>
       <td>${m ? numText(m.navEnd, 2) : "—"}</td>
     </tr>`;
@@ -2302,7 +2363,7 @@ function renderGroup10ValidationTable(snap) {
       <tbody>
         ${rows}
         <tr style="border-top:2px solid #d8dee6;font-weight:700">
-          <td>LS 高-低</td><td>${pctText(ls?.annual)}</td><td>${ls ? numText(ls.sharpe, 2) : "—"}</td><td>${pctText(ls?.mdd)}</td><td>${ls ? numText(ls.navEnd, 2) : "—"}</td>
+          <td>LS 高-低</td><td>${signalValue("ann_return", ls?.annual, pctText(ls?.annual))}</td><td>${signalValue("sharpe", ls?.sharpe, ls ? numText(ls.sharpe, 2) : "—")}</td><td>${pctText(ls?.mdd)}</td><td>${ls ? numText(ls.navEnd, 2) : "—"}</td>
         </tr>
       </tbody>
     </table>`;
@@ -2326,12 +2387,12 @@ function renderRollingValidationTable(snap) {
     return `<tr>
       <td>${labels[t] || t}</td>
       <td>${r.window_start || "—"} ~ ${r.window_end || "—"}</td>
-      <td>${numText(r.n_months, 0)}</td>
-      <td>${signedPctText(r.rank_ic_mean)}</td>
-      <td>${signedNumText(r.rank_ic_ir, 2)}</td>
-      <td>${pctText(r.rank_ic_win_rate)}</td>
-      <td>${pctText(r.top30_ann_return)}</td>
-      <td>${signedNumText(r.top30_sharpe, 2)}</td>
+      <td>${signalValue("sample_months", r.n_months, numText(r.n_months, 0))}</td>
+      <td>${signalValue("rank_ic", r.rank_ic_mean, signedPctText(r.rank_ic_mean))}</td>
+      <td>${signalValue("ic_ir", r.rank_ic_ir, signedNumText(r.rank_ic_ir, 2))}</td>
+      <td>${signalValue("win_rate", r.rank_ic_win_rate, pctText(r.rank_ic_win_rate))}</td>
+      <td>${signalValue("ann_return", r.top30_ann_return, pctText(r.top30_ann_return))}</td>
+      <td>${signalValue("sharpe", r.top30_sharpe, signedNumText(r.top30_sharpe, 2))}</td>
     </tr>`;
   }).join("");
   return `
@@ -2356,11 +2417,11 @@ function renderSegmentValidationTable(snap) {
   const body = rows.map(r => `<tr>
     <td>${segmentLabel(r.segment_type, r.segment_value)}</td>
     <td>${r.horizon_months}M</td>
-    <td>${numText(r.n_months, 0)}</td>
+    <td>${signalValue("sample_months", r.n_months, numText(r.n_months, 0))}</td>
     <td>${numText(r.avg_n_stocks, 0)}</td>
-    <td>${signedPctText(r.rank_ic_mean)}</td>
-    <td>${signedNumText(r.rank_ic_ir, 2)}</td>
-    <td>${pctText(r.rank_ic_win_rate)}</td>
+    <td>${signalValue("rank_ic", r.rank_ic_mean, signedPctText(r.rank_ic_mean))}</td>
+    <td>${signalValue("ic_ir", r.rank_ic_ir, signedNumText(r.rank_ic_ir, 2))}</td>
+    <td>${signalValue("win_rate", r.rank_ic_win_rate, pctText(r.rank_ic_win_rate))}</td>
   </tr>`).join("");
   return `
     <h4 style="margin-top:12px;color:#1a4d80;font-size:12px">分层 IC</h4>
@@ -2398,6 +2459,9 @@ function renderValidationPanel(code, snap) {
   const lsSharpe = fullLsMetrics?.sharpe ?? snapshotNumber(v.group10_ls_sharpe);
   const lsMonths = fullLsReturns.length || snapshotNumber(v.group10_ls_n);
   const decayStats = filteredIcDecayStats(snap?.ic_decay, state.singleSide, null, null);
+  const adjustedRankIcMean = rankIcMean === null ? null : rankIcMean * side;
+  const adjustedRankIcIr = rankIcIr === null ? null : rankIcIr * side;
+  const adjustedGroupMono = groupMono === null ? null : groupMono * side;
   const decayRows = [1, 3, 6, 12].map(h => {
     const fromValidation = {
       mean: snapshotNumber(v[`rank_ic_mean_${h}m`]),
@@ -2413,10 +2477,10 @@ function renderValidationPanel(code, snap) {
     return `
       <tr>
         <td>${h}M</td>
-        <td>${signedPctText(mean)}</td>
-        <td>${signedNumText(ir, 2)}</td>
-        <td>${pctText(winRate)}</td>
-        <td>${numText(n, 0)}</td>
+        <td>${signalValue("rank_ic", mean, signedPctText(mean))}</td>
+        <td>${signalValue("ic_ir", ir, signedNumText(ir, 2))}</td>
+        <td>${signalValue("win_rate", winRate, pctText(winRate))}</td>
+        <td>${signalValue("sample_months", n, numText(n, 0))}</td>
       </tr>`;
   }).join("");
 
@@ -2426,27 +2490,27 @@ function renderValidationPanel(code, snap) {
       <div class="validation-block">
         <h4>有效性</h4>
         ${validationValueBlock([
-          ["1M RankIC均值", signedPctText(rankIcMean === null ? null : rankIcMean * side)],
-          ["1M IC_IR", signedNumText(rankIcIr === null ? null : rankIcIr * side, 2)],
-          ["IC胜率", pctText(rankIcWin)],
-          ["10组单调性", signedNumText(groupMono === null ? null : groupMono * side, 2)],
+          ["1M RankIC均值", signalValue("rank_ic", adjustedRankIcMean, signedPctText(adjustedRankIcMean))],
+          ["1M IC_IR", signalValue("ic_ir", adjustedRankIcIr, signedNumText(adjustedRankIcIr, 2))],
+          ["IC胜率", signalValue("win_rate", rankIcWin, pctText(rankIcWin))],
+          ["10组单调性", signalValue("monotonicity", adjustedGroupMono, signedNumText(adjustedGroupMono, 2))],
         ])}
       </div>
       <div class="validation-block">
         <h4>Top30 默认表现</h4>
         ${validationValueBlock([
-          ["年化收益", pctText(top30Annual)],
-          ["夏普", signedNumText(top30Sharpe, 2)],
+          ["年化收益", signalValue("ann_return", top30Annual, pctText(top30Annual))],
+          ["夏普", signalValue("sharpe", top30Sharpe, signedNumText(top30Sharpe, 2))],
           ["最大回撤", pctText(top30Mdd)],
-          ["月度胜率", pctText(top30Win)],
+          ["月度胜率", signalValue("win_rate", top30Win, pctText(top30Win))],
         ])}
       </div>
       <div class="validation-block">
         <h4>10 分组多空</h4>
         ${validationValueBlock([
-          ["LS年化收益", pctText(lsAnnual)],
-          ["LS夏普", signedNumText(lsSharpe, 2)],
-          ["样本月数", numText(lsMonths, 0)],
+          ["LS年化收益", signalValue("ann_return", lsAnnual, pctText(lsAnnual))],
+          ["LS夏普", signalValue("sharpe", lsSharpe, signedNumText(lsSharpe, 2))],
+          ["样本月数", signalValue("sample_months", lsMonths, numText(lsMonths, 0))],
           ["展示方向", sideLabel(state.singleSide)],
         ])}
       </div>
