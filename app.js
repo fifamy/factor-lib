@@ -2213,6 +2213,14 @@ function signedNumText(v, d = 2) {
   return v == null || !Number.isFinite(Number(v)) ? "—" : (Number(v) >= 0 ? "+" : "") + Number(v).toFixed(d);
 }
 
+function firstSnapshotNumber(...values) {
+  for (const value of values) {
+    const n = snapshotNumber(value);
+    if (n !== null) return n;
+  }
+  return null;
+}
+
 function renderValidationUnavailable(message) {
   const target = document.getElementById("validation-summary");
   if (target) target.innerHTML = `<div class="empty">${message}</div>`;
@@ -2285,6 +2293,68 @@ function renderGroup10ValidationTable(snap) {
     </table>`;
 }
 
+function renderRollingValidationTable(snap) {
+  const rows = Array.isArray(snap?.rolling?.windows) ? snap.rolling.windows : [];
+  if (!rows.length) return `<div class="empty">暂无滚动/样本外检验数据</div>`;
+  const labels = {
+    full: "全样本",
+    recent_5y: "近5年",
+    recent_3y: "近3年",
+    train: "训练段",
+    validation: "验证段",
+    test: "测试段",
+  };
+  const order = ["full", "recent_5y", "recent_3y", "train", "validation", "test"];
+  const byType = new Map(rows.map(r => [r.window_type, r]));
+  const body = order.filter(t => byType.has(t)).map(t => {
+    const r = byType.get(t);
+    return `<tr>
+      <td>${labels[t] || t}</td>
+      <td>${r.window_start || "—"} ~ ${r.window_end || "—"}</td>
+      <td>${numText(r.n_months, 0)}</td>
+      <td>${signedPctText(r.rank_ic_mean)}</td>
+      <td>${signedNumText(r.rank_ic_ir, 2)}</td>
+      <td>${pctText(r.rank_ic_win_rate)}</td>
+      <td>${pctText(r.top30_ann_return)}</td>
+      <td>${signedNumText(r.top30_sharpe, 2)}</td>
+    </tr>`;
+  }).join("");
+  return `
+    <h4 style="margin-top:12px;color:#1a4d80;font-size:12px">样本外 / 滚动</h4>
+    <table class="validation-table">
+      <thead><tr><th>窗口</th><th>区间</th><th>月数</th><th>RankIC均值</th><th>IC_IR</th><th>胜率</th><th>Top30年化</th><th>Top30夏普</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
+function segmentLabel(type, value) {
+  if (type === "all") return "全市场";
+  if (type === "market_cap_bucket") return `市值-${value}`;
+  if (type === "liquidity_bucket") return `流动性-${value}`;
+  if (type === "industry_sw1") return `行业-${value}`;
+  return `${type}-${value}`;
+}
+
+function renderSegmentValidationTable(snap) {
+  const rows = Array.isArray(snap?.segments?.rows) ? snap.segments.rows : [];
+  if (!rows.length) return `<div class="empty">暂无分层 IC 数据</div>`;
+  const body = rows.map(r => `<tr>
+    <td>${segmentLabel(r.segment_type, r.segment_value)}</td>
+    <td>${r.horizon_months}M</td>
+    <td>${numText(r.n_months, 0)}</td>
+    <td>${numText(r.avg_n_stocks, 0)}</td>
+    <td>${signedPctText(r.rank_ic_mean)}</td>
+    <td>${signedNumText(r.rank_ic_ir, 2)}</td>
+    <td>${pctText(r.rank_ic_win_rate)}</td>
+  </tr>`).join("");
+  return `
+    <h4 style="margin-top:12px;color:#1a4d80;font-size:12px">分层 IC</h4>
+    <table class="validation-table">
+      <thead><tr><th>分层</th><th>前瞻期</th><th>月数</th><th>平均股票数</th><th>RankIC均值</th><th>IC_IR</th><th>胜率</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
 function renderValidationPanel(code, snap) {
   const target = document.getElementById("validation-summary");
   if (!target) return;
@@ -2301,15 +2371,15 @@ function renderValidationPanel(code, snap) {
   const rankIcWin = snapshotNumber(v.rank_ic_win_rate_1m);
   const groupMono = snapshotNumber(v.group10_monotonicity);
   const top30Sharpe = snapshotNumber(v.top30_sharpe);
-  const top30Annual = snapshotNumber(v.top30_annual_return);
+  const top30Annual = firstSnapshotNumber(v.top30_ann_return, v.top30_annual_return);
   const top30Mdd = snapshotNumber(v.top30_max_drawdown);
-  const top30Win = snapshotNumber(v.top30_win_rate);
+  const top30Win = firstSnapshotNumber(v.top30_month_win_rate, v.top30_win_rate);
   const fullGroup10 = group10PayloadForSide(snap, state.singleSide);
   const fullLsReturns = (fullGroup10?.returns?.LS || [])
     .filter(x => x !== null && x !== undefined && Number.isFinite(Number(x)))
     .map(Number);
   const fullLsMetrics = metricsFromReturns(fullLsReturns);
-  const lsAnnual = fullLsMetrics?.annual ?? snapshotNumber(v.group10_ls_annual_return);
+  const lsAnnual = fullLsMetrics?.annual ?? firstSnapshotNumber(v.group10_ls_ann_return, v.group10_ls_annual_return);
   const lsSharpe = fullLsMetrics?.sharpe ?? snapshotNumber(v.group10_ls_sharpe);
   const lsMonths = fullLsReturns.length || snapshotNumber(v.group10_ls_n);
   const decayStats = filteredIcDecayStats(snap?.ic_decay, state.singleSide, null, null);
@@ -2370,6 +2440,8 @@ function renderValidationPanel(code, snap) {
       <tbody>${decayRows}</tbody>
     </table>
     ${renderGroup10ValidationTable(snap)}
+    ${renderRollingValidationTable(snap)}
+    ${renderSegmentValidationTable(snap)}
     <p class="validation-note">${code} · ${scoreModeLabel()}。摘要指标为离线全样本统计；Top30 摘要按因子默认方向，IC 与 10 分组多空跟随当前分析方向；10 分组是无行业约束的排序有效性检验，表格随当前回测区间重算展示。</p>
   `;
 }
