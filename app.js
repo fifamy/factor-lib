@@ -36,6 +36,7 @@ const state = {
   singleSide: 1,           // 单因子方向：1=默认方向，-1=反向
   singleScoreMode: "raw",  // raw | neutral：单因子分数口径
   singleConstraintMode: "none", // none | industry：单因子组合约束
+  validationBenchmark: "HS300", // 单因子检验摘要中的超额收益基准
   selectedNs: [30],        // 单因子模式：要对比的持仓数集合（至少 1 个）
   scanMetric: "annual",    // 指标-N 曲线的纵轴：annual / sharpe / mdd / vol
   singleStart: null,       // 单因子回测区间起/止月（YYYY-MM）；null=不限
@@ -93,6 +94,17 @@ let cpsIcDecayChart = null;
 
 // 多条策略线的配色（按 selectedNs 顺序取）
 const STRAT_COLORS = ["#1a4d80", "#e07b39", "#3a9d6e", "#9b59b6", "#c0392b", "#16a085"];
+const BENCHMARK_OPTIONS = [
+  { code: "HS300", label: "沪深300" },
+  { code: "CSI500", label: "中证500" },
+  { code: "CSI800", label: "中证800" },
+];
+const COST_SCENARIOS = [
+  { bps: 0, label: "0bp" },
+  { bps: 10, label: "10bp" },
+  { bps: 20, label: "20bp" },
+  { bps: 50, label: "50bp" },
+];
 
 async function init() {
   await loadCatalog();
@@ -1889,6 +1901,80 @@ function metricsFromReturns(rets) {
   return computeMetrics(clean, navs);
 }
 
+function alignedBenchmarkReturns(snapshot, months, indexCode) {
+  const bmMonths = snapshot?.months || [];
+  const nav = snapshot?.nav?.[indexCode] || [];
+  const returns = new Map();
+  for (let i = 1; i < bmMonths.length; i++) {
+    const prev = nav[i - 1];
+    const cur = nav[i];
+    if (prev === null || cur === null || prev === undefined || cur === undefined) continue;
+    const p = Number(prev);
+    const c = Number(cur);
+    if (Number.isFinite(p) && Number.isFinite(c) && p > 0) returns.set(bmMonths[i], c / p - 1);
+  }
+  return months.map(m => {
+    const v = returns.get(m);
+    return v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
+  });
+}
+
+function computeTop30ExcessForBenchmark(snap, benchmarkSnapshot, indexCode, side = state.singleSide) {
+  const bt = sideBacktestFromSnapshot(snap, side, 30);
+  if (!bt.retArr.length) return { annual: null, mdd: null, n: 0 };
+  const idxs = rangeFilterIndexes(monthsFromSnapshot(snap), state.singleStart, state.singleEnd);
+  const months = labelsByIndexes(returnDatesFromSnapshot(snap), idxs).map(monthOfLabel);
+  const bmRets = alignedBenchmarkReturns(benchmarkSnapshot, months, indexCode);
+  const excess = [];
+  for (let i = 0; i < bt.retArr.length; i++) {
+    const r = bt.retArr[i];
+    const b = bmRets[i];
+    if (r === null || b === null || r === undefined || b === undefined) continue;
+    if (Number.isFinite(Number(r)) && Number.isFinite(Number(b))) excess.push(Number(r) - Number(b));
+  }
+  const m = metricsFromReturns(excess);
+  return { annual: m?.annual ?? null, mdd: m?.mdd ?? null, n: excess.length };
+}
+
+function estimateCostAdjustedReturns(rets, avgTurnover, baseSingleSideCost = 0.002, scenarioBps = 20) {
+  const clean = (rets || []).map(v => v === null || v === undefined ? null : Number(v));
+  const turnover = Number.isFinite(Number(avgTurnover)) ? Number(avgTurnover) : null;
+  const scenarioCost = scenarioBps / 10000;
+  const delta = turnover === null ? 0 : 2 * (scenarioCost - baseSingleSideCost) * turnover;
+  return clean.map(v => Number.isFinite(v) ? v - delta : null);
+}
+
+function renderBenchmarkSelect() {
+  const current = state.validationBenchmark;
+  const options = BENCHMARK_OPTIONS.map(b =>
+    `<option value="${b.code}" ${b.code === current ? "selected" : ""}>${b.label}</option>`
+  ).join("");
+  return `
+    <div class="validation-control-row">
+      <label for="validation-benchmark-select">基准选择</label>
+      <select id="validation-benchmark-select">${options}</select>
+      <span>超额年化 / 超额回撤随基准重算；排行榜仍使用离线默认基准。</span>
+    </div>
+  `;
+}
+
+function renderCostSensitivityTable(snap, avgTurnover, side = state.singleSide) {
+  const bt = sideBacktestFromSnapshot(snap, side, 30);
+  const rows = COST_SCENARIOS.map(s => {
+    const adjusted = estimateCostAdjustedReturns(bt.retArr, avgTurnover, 0.002, s.bps);
+    const m = metricsFromReturns(adjusted);
+    return `<tr><td>${s.label}</td><td>${signalValue("ann_return", m?.annual, pctText(m?.annual))}</td><td>${signalValue("sharpe", m?.sharpe, signedNumText(m?.sharpe, 2))}</td><td>${pctText(m?.mdd)}</td><td>${pctText(m?.winRate)}</td></tr>`;
+  }).join("");
+  return `
+    <h4 class="validation-subtitle">成本敏感性</h4>
+    <table class="validation-table cost-sensitivity-table">
+      <thead><tr><th>单边成本</th><th>Top30年化</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="validation-note">成本敏感性基于月均换手估算：以当前 Top30 月收益序列为基础，按不同单边交易成本调整收益，主要用于观察换手较高因子对成本的敏感程度。</p>
+  `;
+}
+
 function monthsFromSnapshot(snap) {
   return (snap && Array.isArray(snap.months)) ? snap.months : [];
 }
@@ -2320,14 +2406,16 @@ function renderValidationInterpretationNote() {
             <li>胜率看正 IC 月份占比，月度胜率看正收益月份占比，主要反映方向持续性。</li>
           </ul>
         </div>
-        <div class="guide-section">
-          <b>组合表现</b>
-          <ul>
-            <li>Top30超额年化表示 Top30 组合相对基准月收益的年化结果，主要看因子是否提供市场之外的增量收益。</li>
-            <li>Top30超额回撤表示超额收益曲线的最大回撤，数值越低说明相对基准的回撤压力越小。</li>
-            <li>月均换手和年化换手用于衡量交易频率，收益接近时优先关注换手较低、成本压力较小的因子。</li>
-          </ul>
-        </div>
+	        <div class="guide-section">
+	          <b>组合表现</b>
+	          <ul>
+	            <li>Top30超额年化表示 Top30 组合相对基准月收益的年化结果，主要看因子是否提供市场之外的增量收益。</li>
+	            <li>Top30超额回撤表示超额收益曲线的最大回撤，数值越低说明相对基准的回撤压力越小。</li>
+	            <li>月均换手和年化换手用于衡量交易频率，收益接近时优先关注换手较低、成本压力较小的因子。</li>
+	            <li>基准选择用于观察超额收益是否依赖某一个指数，若切换沪深300、中证500、中证800后结论差异很大，需要结合因子市值风格解释。</li>
+	            <li>成本敏感性基于月均换手估算不同单边成本下的 Top30 表现，若成本提高后收益明显消失，说明因子对交易摩擦更敏感。</li>
+	          </ul>
+	        </div>
         <div class="guide-section">
           <b>稳健性检查</b>
           <ul>
@@ -2588,10 +2676,14 @@ function renderValidationPanel(code, snap) {
   const top30Annual = firstSnapshotNumber(v.top30_ann_return, v.top30_annual_return);
   const top30Mdd = snapshotNumber(v.top30_max_drawdown);
   const top30Win = firstSnapshotNumber(v.top30_month_win_rate, v.top30_win_rate);
-  const top30ExcessAnnual = snapshotNumber(v.top30_excess_ann_return);
-  const top30ExcessMdd = snapshotNumber(v.top30_excess_max_drawdown);
   const top30Turnover = snapshotNumber(v.top30_avg_turnover);
   const top30AnnTurnover = snapshotNumber(v.top30_ann_turnover);
+  const benchmarkCode = BENCHMARK_OPTIONS.some(b => b.code === state.validationBenchmark) ? state.validationBenchmark : "HS300";
+  state.validationBenchmark = benchmarkCode;
+  const selectedBenchmark = BENCHMARK_OPTIONS.find(b => b.code === benchmarkCode);
+  const excessByBenchmark = computeTop30ExcessForBenchmark(snap, state.benchmarkSnapshot, benchmarkCode, state.singleSide);
+  const top30ExcessAnnual = excessByBenchmark.annual ?? snapshotNumber(v.top30_excess_ann_return);
+  const top30ExcessMdd = excessByBenchmark.mdd ?? snapshotNumber(v.top30_excess_max_drawdown);
   const fullGroup10 = group10PayloadForSide(snap, state.singleSide);
   const fullLsReturns = (fullGroup10?.returns?.LS || [])
     .filter(x => x !== null && x !== undefined && Number.isFinite(Number(x)))
@@ -2628,6 +2720,7 @@ function renderValidationPanel(code, snap) {
 
   target.innerHTML = `
     ${renderValidationInterpretationNote()}
+    ${renderBenchmarkSelect()}
     <div class="validation-grid">
       <div class="validation-block">
         <h4>有效性</h4>
@@ -2645,7 +2738,7 @@ function renderValidationPanel(code, snap) {
           ["夏普", signalValue("sharpe", top30Sharpe, signedNumText(top30Sharpe, 2))],
           ["最大回撤", pctText(top30Mdd)],
           ["月度胜率", signalValue("win_rate", top30Win, pctText(top30Win))],
-          ["超额年化", signalValue("ann_return", top30ExcessAnnual, signedPctText(top30ExcessAnnual))],
+          [`超额年化(${selectedBenchmark?.label || benchmarkCode})`, signalValue("ann_return", top30ExcessAnnual, signedPctText(top30ExcessAnnual))],
           ["超额回撤", pctText(top30ExcessMdd)],
           ["月均换手", pctText(top30Turnover)],
           ["年化换手", numText(top30AnnTurnover, 1)],
@@ -2665,14 +2758,22 @@ function renderValidationPanel(code, snap) {
       <thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>胜率</th><th>样本月数</th></tr></thead>
       <tbody>${decayRows}</tbody>
     </table>
+    ${renderCostSensitivityTable(snap, top30Turnover, state.singleSide)}
     ${renderGroup10ValidationTable(snap)}
     <div id="group10-validation-chart" class="validation-chart"></div>
     ${renderRollingValidationTable(snap)}
     <div id="rolling-36m-chart" class="validation-chart"></div>
     ${renderSegmentValidationTable(snap)}
     <div id="segment-heatmap" class="validation-chart validation-heatmap"></div>
-    <p class="validation-note">${code} · ${scoreModeLabel()}。摘要指标为离线全样本统计；Top30 摘要按因子默认方向，IC 与 10 分组多空跟随当前分析方向；10 分组是无行业约束的排序有效性检验，表格随当前回测区间重算展示。</p>
+    <p class="validation-note">${code} · ${scoreModeLabel()}。摘要指标为离线全样本统计；Top30 摘要和超额指标随当前分析方向、区间和基准选择重算；10 分组是无行业约束的排序有效性检验，表格随当前回测区间重算展示。</p>
   `;
+  const bmSelect = document.getElementById("validation-benchmark-select");
+  if (bmSelect) {
+    bmSelect.onchange = () => {
+      state.validationBenchmark = bmSelect.value;
+      renderValidationPanel(code, snap);
+    };
+  }
   renderGroup10ValidationChart(snap);
   renderRolling36mChart(snap);
   renderSegmentHeatmap(snap);
