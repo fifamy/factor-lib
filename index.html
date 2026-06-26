@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>因子库 v1.1.0</title>
-  <link rel="stylesheet" href="styles.css?v=20260626164616">
+  <link rel="stylesheet" href="styles.css?v=20260626170207">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -17,7 +17,7 @@
   <div id="topbar">
     <span><b>因子库 v1.1.0</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260626164616" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260626170207" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta">加载中…</span>
@@ -294,6 +294,28 @@
             各分项指标在全因子截面标准化(z-score)后加权；方向已统一（数值越大越好）。</p>
           <p style="color:#999;font-size:11px;margin-top:2px">业绩口径：top-30 等权、月末调仓、0.2% 双边成本。
             有效性：RankIC 均值 + IC_IR（信号稳定性）。点击列头可改排序（如点“最大回撤”看最抗跌、点“年化”看最赚钱），勾选因子后可一键带入对比 / 合成。</p>
+          <div class="rank-guide">
+            <div class="rank-guide-title">排行榜怎么看</div>
+            <div class="rank-guide-grid">
+              <div class="rank-guide-item">
+                <b>先筛稳定性</b>
+                <span>优先看 RankIC均值、IC_IR、IC胜率，判断排序信号是否稳定，不只依赖少数月份。</span>
+              </div>
+              <div class="rank-guide-item">
+                <b>再看收益质量</b>
+                <span>结合年化收益、夏普、最大回撤、月胜率；超额年化和超额回撤用于判断相对基准的增量价值。</span>
+              </div>
+              <div class="rank-guide-item">
+                <b>再看排序结构</b>
+                <span>用 IC3M/6M/12M 观察信号衰减，用 10组单调性检查分组收益是否沿因子排序清晰变化。</span>
+              </div>
+              <div class="rank-guide-item">
+                <b>最后看落地成本</b>
+                <span>收益接近时关注月均换手、中位市值、市值风格和前三行业，避免交易成本或适用范围问题。</span>
+              </div>
+            </div>
+            <div class="rank-guide-note">表头可悬停查看口径，点击列头排序；经验等级提示仍以单因子检验页的 ● / ▲ 和参考区间为准。</div>
+          </div>
           <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span style="color:#666;font-size:12px">排行口径：</span>
             <select id="rank-param-side" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
@@ -386,6 +408,6 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script type="module" src="app.js?v=20260626164616"></script>
+  <script type="module" src="app.js?v=20260626170207"></script>
 </body>
 </html>

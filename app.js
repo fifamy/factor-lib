@@ -2216,6 +2216,14 @@ function signedNumText(v, d = 2) {
   return v == null || !Number.isFinite(Number(v)) ? "—" : (Number(v) >= 0 ? "+" : "") + Number(v).toFixed(d);
 }
 
+function htmlAttr(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function firstSnapshotNumber(...values) {
   for (const value of values) {
     const n = snapshotNumber(value);
@@ -4019,30 +4027,31 @@ function clearComposeOptimization() {
 
 // 排行榜列定义：key 用于排序，label 表头，fmt 格式化，good=+1 表示越大越好（综合分方向用）
 const RANK_COLS = [
-  { key: "rank",      label: "#",       lcol: true,  fmt: v => v },
-  { key: "code",      label: "因子",    lcol: true,  fmt: v => v },
-  { key: "name_cn",   label: "名称",    lcol: true,  fmt: v => v },
-  { key: "score",     label: "综合分",  fmt: v => v.toFixed(2), cls: "score-cell" },
-  { key: "annual",    label: "年化收益", fmt: v => (v * 100).toFixed(1) + "%" },
-  { key: "vol",       label: "年化波动率", fmt: v => (v * 100).toFixed(1) + "%" },
-  { key: "sharpe",    label: "夏普",    fmt: v => v.toFixed(2) },
-  { key: "mdd",       label: "最大回撤", fmt: v => (v * 100).toFixed(1) + "%" },
-  { key: "winRate",   label: "月胜率",  fmt: v => (v * 100).toFixed(0) + "%" },
-  { key: "rankIC",    label: "RankIC均值", fmt: v => v.toFixed(3) },
-  { key: "rankIC3M",  label: "IC3M", fmt: v => numText(v, 3) },
-  { key: "rankIC6M",  label: "IC6M", fmt: v => numText(v, 3) },
-  { key: "rankIC12M", label: "IC12M", fmt: v => numText(v, 3) },
-  { key: "icir",      label: "IC_IR",   fmt: v => v.toFixed(2) },
-  { key: "rankIcWinRate", label: "IC胜率", fmt: v => pctText(v) },
-  { key: "top30ExcessAnnual", label: "超额年化", fmt: v => signedPctText(v) },
-  { key: "top30ExcessMdd", label: "超额回撤", fmt: v => pctText(v) },
-  { key: "group10Mono", label: "10组单调性", fmt: v => numText(v, 2) },
-  { key: "top30Turnover", label: "月均换手", fmt: v => pctText(v) },
-  { key: "medCap",    label: "中位市值(亿)", fmt: v => v === null ? "—" : Math.round(v).toLocaleString() },
-  { key: "capStyle",  label: "市值风格", lcol: true, fmt: v => v },
+  { key: "rank",      label: "#",       lcol: true,  fmt: v => v, help: "当前排序条件下的名次。" },
+  { key: "code",      label: "因子",    lcol: true,  fmt: v => v, help: "因子代码，点击因子行可进入单因子检验。" },
+  { key: "name_cn",   label: "名称",    lcol: true,  fmt: v => v, help: "因子中文名称。" },
+  { key: "score",     label: "综合分",  fmt: v => v.toFixed(2), cls: "score-cell", help: "综合分综合收益、风险、IC与稳定性，适合做第一轮排序，不代表单独买入结论。" },
+  { key: "annual",    label: "年化收益", fmt: v => (v * 100).toFixed(1) + "%", help: "Top30组合年化收益，反映绝对收益能力。" },
+  { key: "vol",       label: "年化波动率", fmt: v => (v * 100).toFixed(1) + "%", help: "Top30组合收益波动率，越低说明组合收益起伏越小。" },
+  { key: "sharpe",    label: "夏普",    fmt: v => v.toFixed(2), help: "Top30组合风险调整后收益，越高越好。" },
+  { key: "mdd",       label: "最大回撤", fmt: v => (v * 100).toFixed(1) + "%", help: "Top30组合最大回撤，越接近0回撤越小。" },
+  { key: "winRate",   label: "月胜率",  fmt: v => (v * 100).toFixed(0) + "%", help: "Top30组合正收益月份占比，反映收益持续性。" },
+  { key: "rankIC",    label: "RankIC均值", fmt: v => v.toFixed(3), help: "因子排序与未来收益排序的一致性，绝对值越大排序信息越强。" },
+  { key: "rankIC3M",  label: "IC3M", fmt: v => numText(v, 3), help: "3个月前瞻期RankIC，用于观察中短期信号是否延续。" },
+  { key: "rankIC6M",  label: "IC6M", fmt: v => numText(v, 3), help: "6个月前瞻期RankIC，用于观察信号衰减和持有期适配。" },
+  { key: "rankIC12M", label: "IC12M", fmt: v => numText(v, 3), help: "12个月前瞻期RankIC，用于观察信号是否具有更长期解释力。" },
+  { key: "icir",      label: "IC_IR",   fmt: v => v.toFixed(2), help: "RankIC均值除以波动后的稳定性指标，越高越稳定。" },
+  { key: "rankIcWinRate", label: "IC胜率", fmt: v => pctText(v), help: "RankIC为正的月份占比，反映排序方向持续性。" },
+  { key: "top30ExcessAnnual", label: "超额年化", fmt: v => signedPctText(v), help: "Top30月收益减基准月收益后的年化收益，反映相对基准的增量收益。" },
+  { key: "top30ExcessMdd", label: "超额回撤", fmt: v => pctText(v), help: "Top30超额收益曲线最大回撤，越接近0相对回撤压力越小。" },
+  { key: "group10Mono", label: "10组单调性", fmt: v => numText(v, 2), help: "10组收益排序单调性，越高说明分组排序越清晰。" },
+  { key: "top30Turnover", label: "月均换手", fmt: v => pctText(v), help: "Top30持仓月均换手，越高交易成本压力越大。" },
+  { key: "medCap",    label: "中位市值(亿)", fmt: v => v === null ? "—" : Math.round(v).toLocaleString(), help: "最新Top30持仓的中位市值，用于判断因子偏大盘或小盘。" },
+  { key: "capStyle",  label: "市值风格", lcol: true, fmt: v => v, help: "按最新Top30持仓市值分布归纳的风格标签。" },
   { key: "tags",      label: "标签", lcol: true, sortable: false,
-    fmt: (_, r) => `<span class="ftag ftag-${r.env_tag}">${r.env_tag}</span> <span class="ftag ftag-${r.time_tag}">${r.time_tag}</span>` },
-  { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => v },
+    fmt: (_, r) => `<span class="ftag ftag-${r.env_tag}">${r.env_tag}</span> <span class="ftag ftag-${r.time_tag}">${r.time_tag}</span>`,
+    help: "按市场环境和近12个月RankIC变化自动生成的辅助标签。" },
+  { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => v, help: "最新Top30持仓中权重靠前的三个行业，用于观察行业集中度。" },
 ];
 
 let _rankState = { rows: null, sortKey: "score", desc: true, checked: new Set(),
@@ -4610,9 +4619,10 @@ function drawRankTable() {
     if (!bf) return -1;
     return desc ? bv - av : av - bv;
   });
-  const ths = RANK_COLS.map(c =>
-    `<th class="${c.lcol ? "lcol " : ""}${c.key === sortKey ? "sorted" : ""}" data-key="${c.key}">${c.label}${c.key === sortKey ? (desc ? " ▼" : " ▲") : ""}</th>`
-  ).join("");
+  const ths = RANK_COLS.map(c => {
+    const cls = `${c.lcol ? "lcol " : ""}${c.key === sortKey ? "sorted " : ""}${c.help ? "rank-help" : ""}`.trim();
+    return `<th class="${cls}" data-key="${c.key}" title="${htmlAttr(c.help || c.label)}">${c.label}${c.key === sortKey ? (desc ? " ▼" : " ▲") : ""}</th>`;
+  }).join("");
   // 首列：勾选框（含全选）
   const allChecked = sorted.length > 0 && sorted.every(r => _rankState.checked.has(r.code));
   let html = `<table class="rank-table"><thead><tr>` +
