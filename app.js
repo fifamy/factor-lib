@@ -83,6 +83,9 @@ const state = {
 let navChart = null;
 let quantileChart = null;
 let icDecayChart = null;
+let group10ValidationChart = null;
+let rolling36mChart = null;
+let segmentHeatmapChart = null;
 let scanChart = null;
 let cmpNavChart = null, cmpIcChart = null, cmpCorrChart = null;
 let cpsNavChart = null;
@@ -2305,6 +2308,7 @@ function renderValidationInterpretationNote() {
       IC_IR <0.3 不稳定，0.3-0.5 初步可用，0.5-1.0 稳定性较好，>1.0 较强，>2.0 需排查过拟合或口径问题；
       IC胜率 / 月度胜率 55%-60% 可接受，>60% 较稳定；样本月数 <36 参考意义有限，36-60 可初步观察，>60 更适合做稳健性判断。
       页面中的 ● 为经验等级提示，▲ 表示异常偏高、方向反向、样本过短或其他需核查情况。
+      完整基准、分层、样本切片和交易成本口径记录在 docs/2026-06-26_因子检验口径说明.md。
     </div>`;
 }
 
@@ -2369,6 +2373,38 @@ function renderGroup10ValidationTable(snap) {
     </table>`;
 }
 
+function renderGroup10ValidationChart(snap) {
+  const div = document.getElementById("group10-validation-chart");
+  if (!div) return;
+  if (group10ValidationChart) { group10ValidationChart.dispose(); group10ValidationChart = null; }
+  const payload = group10PayloadForSide(snap, state.singleSide);
+  if (!payload || !payload.months.length) {
+    div.innerHTML = `<div class="empty">暂无 10 分组柱状图数据</div>`;
+    return;
+  }
+  const groups = Array.from({ length: 10 }, (_, i) => `G${i + 1}`);
+  const data = groups.map(g => snapshotNumber(payload.annReturns?.[g]));
+  if (!data.some(v => v !== null)) {
+    div.innerHTML = `<div class="empty">暂无 10 分组柱状图数据</div>`;
+    return;
+  }
+  div.innerHTML = "";
+  group10ValidationChart = echarts.init(div);
+  group10ValidationChart.setOption({
+    grid: { left: 54, right: 20, top: 24, bottom: 28 },
+    tooltip: { trigger: "axis", valueFormatter: v => pctText(v) },
+    xAxis: { type: "category", data: groups, axisLabel: { fontSize: 11 } },
+    yAxis: { type: "value", axisLabel: { formatter: v => `${(v * 100).toFixed(0)}%` } },
+    series: [{
+      name: "分组年化收益",
+      type: "bar",
+      data,
+      barMaxWidth: 22,
+      itemStyle: { color: "#1a4d80" },
+    }],
+  });
+}
+
 function renderRollingValidationTable(snap) {
   const rows = Array.isArray(snap?.rolling?.windows) ? snap.rolling.windows : [];
   if (!rows.length) return `<div class="empty">暂无滚动/样本外检验数据</div>`;
@@ -2403,6 +2439,34 @@ function renderRollingValidationTable(snap) {
     </table>`;
 }
 
+function renderRolling36mChart(snap) {
+  const div = document.getElementById("rolling-36m-chart");
+  if (!div) return;
+  if (rolling36mChart) { rolling36mChart.dispose(); rolling36mChart = null; }
+  const rows = Array.isArray(snap?.rolling?.rolling_36m) ? snap.rolling.rolling_36m : [];
+  const clean = rows.filter(r => r.window_end && Number.isFinite(Number(r.rank_ic_ir)));
+  if (!clean.length) {
+    div.innerHTML = `<div class="empty">暂无 36 个月滚动 IC_IR 数据</div>`;
+    return;
+  }
+  div.innerHTML = "";
+  rolling36mChart = echarts.init(div);
+  rolling36mChart.setOption({
+    grid: { left: 46, right: 20, top: 24, bottom: 34 },
+    tooltip: { trigger: "axis" },
+    xAxis: { type: "category", data: clean.map(r => String(r.window_end).slice(0, 7)), axisLabel: { fontSize: 10 } },
+    yAxis: { type: "value", name: "IC_IR", scale: true },
+    series: [{
+      name: "rolling_36m IC_IR",
+      type: "line",
+      data: clean.map(r => +Number(r.rank_ic_ir).toFixed(3)),
+      symbol: "none",
+      lineStyle: { width: 2, color: "#19734d" },
+      areaStyle: { color: "rgba(25,115,77,0.10)" },
+    }],
+  });
+}
+
 function segmentLabel(type, value) {
   if (type === "all") return "全市场";
   if (type === "market_cap_bucket") return `市值-${value}`;
@@ -2431,6 +2495,38 @@ function renderSegmentValidationTable(snap) {
     </table>`;
 }
 
+function renderSegmentHeatmap(snap) {
+  const div = document.getElementById("segment-heatmap");
+  if (!div) return;
+  if (segmentHeatmapChart) { segmentHeatmapChart.dispose(); segmentHeatmapChart = null; }
+  const rows = Array.isArray(snap?.segments?.rows) ? snap.segments.rows : [];
+  const clean = rows.filter(r => Number(r.horizon_months) === 1 && Number.isFinite(Number(r.rank_ic_ir)));
+  if (!clean.length) {
+    div.innerHTML = `<div class="empty">暂无分层 RankIC_IR 热力图数据</div>`;
+    return;
+  }
+  const xLabels = [...new Set(clean.map(r => `${r.segment_type}`))];
+  const yLabels = [...new Set(clean.map(r => segmentLabel(r.segment_type, r.segment_value)))];
+  const xMap = new Map(xLabels.map((v, i) => [v, i]));
+  const yMap = new Map(yLabels.map((v, i) => [v, i]));
+  const data = clean.map(r => [
+    xMap.get(r.segment_type),
+    yMap.get(segmentLabel(r.segment_type, r.segment_value)),
+    +Number(r.rank_ic_ir).toFixed(3),
+  ]);
+  div.innerHTML = "";
+  segmentHeatmapChart = echarts.init(div);
+  segmentHeatmapChart.setOption({
+    grid: { left: 110, right: 28, top: 24, bottom: 34 },
+    tooltip: { position: "top", formatter: p => `${xLabels[p.value[0]]}<br>${yLabels[p.value[1]]}: ${numText(p.value[2], 2)}` },
+    xAxis: { type: "category", data: xLabels, axisLabel: { fontSize: 10 } },
+    yAxis: { type: "category", data: yLabels, axisLabel: { fontSize: 10 } },
+    visualMap: { min: -1, max: 1, calculable: false, orient: "horizontal", left: "center", bottom: 0,
+      inRange: { color: ["#ad3b32", "#f2f4f7", "#19734d"] } },
+    series: [{ name: "分层 RankIC_IR", type: "heatmap", data }],
+  });
+}
+
 function renderValidationPanel(code, snap) {
   const target = document.getElementById("validation-summary");
   if (!target) return;
@@ -2450,6 +2546,10 @@ function renderValidationPanel(code, snap) {
   const top30Annual = firstSnapshotNumber(v.top30_ann_return, v.top30_annual_return);
   const top30Mdd = snapshotNumber(v.top30_max_drawdown);
   const top30Win = firstSnapshotNumber(v.top30_month_win_rate, v.top30_win_rate);
+  const top30ExcessAnnual = snapshotNumber(v.top30_excess_ann_return);
+  const top30ExcessMdd = snapshotNumber(v.top30_excess_max_drawdown);
+  const top30Turnover = snapshotNumber(v.top30_avg_turnover);
+  const top30AnnTurnover = snapshotNumber(v.top30_ann_turnover);
   const fullGroup10 = group10PayloadForSide(snap, state.singleSide);
   const fullLsReturns = (fullGroup10?.returns?.LS || [])
     .filter(x => x !== null && x !== undefined && Number.isFinite(Number(x)))
@@ -2503,6 +2603,10 @@ function renderValidationPanel(code, snap) {
           ["夏普", signalValue("sharpe", top30Sharpe, signedNumText(top30Sharpe, 2))],
           ["最大回撤", pctText(top30Mdd)],
           ["月度胜率", signalValue("win_rate", top30Win, pctText(top30Win))],
+          ["超额年化", signalValue("ann_return", top30ExcessAnnual, signedPctText(top30ExcessAnnual))],
+          ["超额回撤", pctText(top30ExcessMdd)],
+          ["月均换手", pctText(top30Turnover)],
+          ["年化换手", numText(top30AnnTurnover, 1)],
         ])}
       </div>
       <div class="validation-block">
@@ -2520,10 +2624,16 @@ function renderValidationPanel(code, snap) {
       <tbody>${decayRows}</tbody>
     </table>
     ${renderGroup10ValidationTable(snap)}
+    <div id="group10-validation-chart" class="validation-chart"></div>
     ${renderRollingValidationTable(snap)}
+    <div id="rolling-36m-chart" class="validation-chart"></div>
     ${renderSegmentValidationTable(snap)}
+    <div id="segment-heatmap" class="validation-chart validation-heatmap"></div>
     <p class="validation-note">${code} · ${scoreModeLabel()}。摘要指标为离线全样本统计；Top30 摘要按因子默认方向，IC 与 10 分组多空跟随当前分析方向；10 分组是无行业约束的排序有效性检验，表格随当前回测区间重算展示。</p>
   `;
+  renderGroup10ValidationChart(snap);
+  renderRolling36mChart(snap);
+  renderSegmentHeatmap(snap);
 }
 
 function benchmarkSeries(snapshot, months, indexCode) {
@@ -3889,6 +3999,11 @@ const RANK_COLS = [
   { key: "rankIC6M",  label: "IC6M", fmt: v => numText(v, 3) },
   { key: "rankIC12M", label: "IC12M", fmt: v => numText(v, 3) },
   { key: "icir",      label: "IC_IR",   fmt: v => v.toFixed(2) },
+  { key: "rankIcWinRate", label: "IC胜率", fmt: v => pctText(v) },
+  { key: "top30ExcessAnnual", label: "超额年化", fmt: v => signedPctText(v) },
+  { key: "top30ExcessMdd", label: "超额回撤", fmt: v => pctText(v) },
+  { key: "group10Mono", label: "10组单调性", fmt: v => numText(v, 2) },
+  { key: "top30Turnover", label: "月均换手", fmt: v => pctText(v) },
   { key: "medCap",    label: "中位市值(亿)", fmt: v => v === null ? "—" : Math.round(v).toLocaleString() },
   { key: "capStyle",  label: "市值风格", lcol: true, fmt: v => v },
   { key: "tags",      label: "标签", lcol: true, sortable: false,
@@ -4306,6 +4421,11 @@ async function computeRankingFast(startMonth, endMonth) {
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       rankIC, rankIC3M: decayMean(3), rankIC6M: decayMean(6), rankIC12M: decayMean(12), icir,
+      rankIcWinRate: f.rank_ic_win_rate_1m ?? null,
+      top30ExcessAnnual: f.top30_excess_ann_return ?? null,
+      top30ExcessMdd: f.top30_excess_max_drawdown ?? null,
+      group10Mono: f.group10_monotonicity ?? null,
+      top30Turnover: f.top30_avg_turnover ?? null,
       nMonths: rets.length,
       top3ind: f.top3ind || "—",
       medCap: f.medCap ?? null,
@@ -4386,6 +4506,11 @@ async function computeRanking(startMonth, endMonth) {
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       rankIC: ic.rankIC, rankIC3M: 0, rankIC6M: 0, rankIC12M: 0, icir: ic.icir,
+      rankIcWinRate: null,
+      top30ExcessAnnual: null,
+      top30ExcessMdd: null,
+      group10Mono: null,
+      top30Turnover: null,
       nMonths: s.rets.length,
       top3ind: ind3.get(f.code) || "—",
       medCap: mc ? mc.medCap : null,
@@ -4444,6 +4569,11 @@ function drawRankTable() {
   const sorted = [...base].sort((a, b) => {
     const av = a[sortKey], bv = b[sortKey];
     if (typeof av === "string") return desc ? bv.localeCompare(av) : av.localeCompare(bv);
+    const af = Number.isFinite(Number(av));
+    const bf = Number.isFinite(Number(bv));
+    if (!af && !bf) return 0;
+    if (!af) return 1;
+    if (!bf) return -1;
     return desc ? bv - av : av - bv;
   });
   const ths = RANK_COLS.map(c =>

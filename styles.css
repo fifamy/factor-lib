@@ -220,6 +220,8 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
 .validation-table th { background: #f3f6f9; color: #666; padding: 5px 6px; border-bottom: 1px solid #dce3eb; text-align: right; white-space: nowrap; }
 .validation-table th:first-child, .validation-table td:first-child { text-align: left; color: #1a4d80; font-weight: 600; }
 .validation-table td { padding: 4px 6px; border-bottom: 1px solid #eee; text-align: right; font-variant-numeric: tabular-nums; }
+.validation-chart { height: 220px; margin-top: 8px; border: 1px solid #e1e6ec; border-radius: 5px; background: #fff; }
+.validation-heatmap { height: 300px; }
 .validation-note { color: #888; font-size: 11px; margin-top: 7px; line-height: 1.5; }
 @media (max-width: 960px) {
   .validation-grid { grid-template-columns: 1fr; }
