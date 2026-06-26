@@ -201,6 +201,21 @@ table.kpi-table th:first-child { text-align: left; }
 table.kpi-table td { padding: 5px 8px; border-bottom: 1px solid #eee; text-align: right; }
 table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4d80; }
 
+.validation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.validation-block { background: #fff; border: 1px solid #e1e6ec; border-radius: 5px; padding: 9px 10px; min-width: 0; }
+.validation-block h4 { color: #1a4d80; font-size: 12px; margin: 0 0 7px; }
+.validation-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 8px; }
+.validation-metric { display: flex; justify-content: space-between; gap: 8px; color: #666; font-size: 11px; min-width: 0; }
+.validation-metric b { color: #333; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.validation-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+.validation-table th { background: #f3f6f9; color: #666; padding: 5px 6px; border-bottom: 1px solid #dce3eb; text-align: right; white-space: nowrap; }
+.validation-table th:first-child, .validation-table td:first-child { text-align: left; color: #1a4d80; font-weight: 600; }
+.validation-table td { padding: 4px 6px; border-bottom: 1px solid #eee; text-align: right; font-variant-numeric: tabular-nums; }
+.validation-note { color: #888; font-size: 11px; margin-top: 7px; line-height: 1.5; }
+@media (max-width: 960px) {
+  .validation-grid { grid-template-columns: 1fr; }
+}
+
 /* 最优权重表：目标列+权重列左对齐，权重不换行；数字列右对齐；末列居中放按钮 */
 table.opt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 table.opt-table th, table.opt-table td { padding: 5px 8px; border-bottom: 1px solid #eee; }

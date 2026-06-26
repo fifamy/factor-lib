@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260623101809" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "DEPLOY_VERSION" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260623101809";
+const _DEPLOY = "DEPLOY_VERSION";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -1015,6 +1015,7 @@ async function selectFactor(code, opts = {}) {
     const portfolioSnap = snap;
     await initSingleRangeControlsFast(portfolioSnap);
     renderFactorDetail(meta, snap);
+    renderValidationPanel(code, scoreSnap);
     const tQ = performance.now();
     if (state.singleSide === 1) {
       await Promise.all([
@@ -1046,6 +1047,7 @@ async function selectFactor(code, opts = {}) {
       renderFactorDetail(meta);
       renderQuantileUnavailable("分位多空需要快照数据，请重新导出 frontend/data 后刷新。");
       renderIcDecayUnavailable("IC 衰减需要快照数据，请重新导出 frontend/data 后刷新。");
+      renderValidationUnavailable("因子检验摘要需要快照数据，请重新导出 frontend/data 后刷新。");
       const tQ = performance.now();
       if (state.singleSide === 1) {
         await Promise.all([
@@ -2204,6 +2206,157 @@ function signedPctText(v) {
 
 function numText(v, d = 2) {
   return v == null || !Number.isFinite(Number(v)) ? "—" : Number(v).toFixed(d);
+}
+
+function signedNumText(v, d = 2) {
+  return v == null || !Number.isFinite(Number(v)) ? "—" : (Number(v) >= 0 ? "+" : "") + Number(v).toFixed(d);
+}
+
+function renderValidationUnavailable(message) {
+  const target = document.getElementById("validation-summary");
+  if (target) target.innerHTML = `<div class="empty">${message}</div>`;
+}
+
+function validationValueBlock(rows) {
+  return `<div class="validation-metrics">${rows.map(([label, value]) => `
+    <div class="validation-metric"><span>${label}</span><b>${value}</b></div>
+  `).join("")}</div>`;
+}
+
+function group10PayloadForSide(snap, side) {
+  const g = snap?.group10;
+  if (!g || !g.returns) return null;
+  const groups = Array.isArray(g.groups) && g.groups.length ? g.groups : Array.from({ length: 10 }, (_, i) => `G${i + 1}`);
+  const sideN = normalizeSide(side);
+  const visibleGroups = sideN === 1 ? groups : [...groups].reverse();
+  const returns = {};
+  const nav = {};
+  const annReturns = {};
+  visibleGroups.forEach((label, idx) => {
+    const dst = `G${idx + 1}`;
+    returns[dst] = g.returns[label] || [];
+    nav[dst] = g.nav?.[label] || [];
+    annReturns[dst] = snapshotNumber(g.annReturns?.[label]);
+  });
+  returns.LS = sideN === 1
+    ? (g.returns.LS || [])
+    : (g.returns.LS || []).map(v => v === null || v === undefined ? v : -Number(v));
+  nav.LS = navFromReturnsForChart(returns.LS || []).slice(1);
+  return {
+    groups,
+    months: g.months || [],
+    signal_months: g.signal_months || g.months || [],
+    return_dates: g.return_dates || g.months || [],
+    returns,
+    nav,
+    annReturns,
+  };
+}
+
+function renderGroup10ValidationTable(snap) {
+  const payload = group10PayloadForSide(snap, state.singleSide);
+  if (!payload || !payload.months.length) {
+    return `<div class="empty">暂无 10 分组回测数据</div>`;
+  }
+  const idxs = rangeFilterIndexes(payload.months, state.singleStart, state.singleEnd);
+  const groups = Array.from({ length: 10 }, (_, i) => `G${i + 1}`);
+  const rows = groups.map(g => {
+    const arr = sliceByIndexes(payload.returns[g], idxs);
+    const m = metricsFromReturns(arr);
+    return `<tr>
+      <td>${g}${g === "G10" ? " 高分" : (g === "G1" ? " 低分" : "")}</td>
+      <td>${pctText(m?.annual)}</td>
+      <td>${m ? numText(m.sharpe, 2) : "—"}</td>
+      <td>${pctText(m?.mdd)}</td>
+      <td>${m ? numText(m.navEnd, 2) : "—"}</td>
+    </tr>`;
+  }).join("");
+  const ls = metricsFromReturns(sliceByIndexes(payload.returns.LS, idxs));
+  return `
+    <table class="validation-table">
+      <thead><tr><th>分组</th><th>年化收益</th><th>夏普</th><th>最大回撤</th><th>期末净值</th></tr></thead>
+      <tbody>
+        ${rows}
+        <tr style="border-top:2px solid #d8dee6;font-weight:700">
+          <td>LS 高-低</td><td>${pctText(ls?.annual)}</td><td>${ls ? numText(ls.sharpe, 2) : "—"}</td><td>${pctText(ls?.mdd)}</td><td>${ls ? numText(ls.navEnd, 2) : "—"}</td>
+        </tr>
+      </tbody>
+    </table>`;
+}
+
+function renderValidationPanel(code, snap) {
+  const target = document.getElementById("validation-summary");
+  if (!target) return;
+  const v = snap?.validation || {};
+  const hasValidation = Object.keys(v).length > 0;
+  const hasGroup10 = !!(snap?.group10?.months?.length);
+  if (!hasValidation && !hasGroup10) {
+    renderValidationUnavailable("暂无因子检验摘要。请先运行新版因子检验流水线。");
+    return;
+  }
+  const side = normalizeSide(state.singleSide);
+  const rankIcMean = snapshotNumber(v.rank_ic_mean_1m);
+  const rankIcIr = snapshotNumber(v.rank_ic_ir_1m);
+  const rankIcWin = snapshotNumber(v.rank_ic_win_rate_1m);
+  const groupMono = snapshotNumber(v.group10_monotonicity);
+  const top30Sharpe = snapshotNumber(v.top30_sharpe);
+  const top30Annual = snapshotNumber(v.top30_annual_return);
+  const top30Mdd = snapshotNumber(v.top30_max_drawdown);
+  const top30Win = snapshotNumber(v.top30_win_rate);
+  const fullGroup10 = group10PayloadForSide(snap, state.singleSide);
+  const fullLsReturns = (fullGroup10?.returns?.LS || [])
+    .filter(x => x !== null && x !== undefined && Number.isFinite(Number(x)))
+    .map(Number);
+  const fullLsMetrics = metricsFromReturns(fullLsReturns);
+  const lsAnnual = fullLsMetrics?.annual ?? snapshotNumber(v.group10_ls_annual_return);
+  const lsSharpe = fullLsMetrics?.sharpe ?? snapshotNumber(v.group10_ls_sharpe);
+  const lsMonths = fullLsReturns.length || snapshotNumber(v.group10_ls_n);
+  const decayRows = [1, 3, 6, 12].map(h => `
+    <tr>
+      <td>${h}M</td>
+      <td>${signedPctText(snapshotNumber(v[`rank_ic_mean_${h}m`]) === null ? null : snapshotNumber(v[`rank_ic_mean_${h}m`]) * side)}</td>
+      <td>${signedNumText(snapshotNumber(v[`rank_ic_ir_${h}m`]) === null ? null : snapshotNumber(v[`rank_ic_ir_${h}m`]) * side, 2)}</td>
+      <td>${pctText(v[`rank_ic_win_rate_${h}m`])}</td>
+      <td>${numText(v[`rank_ic_n_${h}m`], 0)}</td>
+    </tr>`).join("");
+
+  target.innerHTML = `
+    <div class="validation-grid">
+      <div class="validation-block">
+        <h4>有效性</h4>
+        ${validationValueBlock([
+          ["1M RankIC均值", signedPctText(rankIcMean === null ? null : rankIcMean * side)],
+          ["1M IC_IR", signedNumText(rankIcIr === null ? null : rankIcIr * side, 2)],
+          ["IC胜率", pctText(rankIcWin)],
+          ["10组单调性", signedNumText(groupMono === null ? null : groupMono * side, 2)],
+        ])}
+      </div>
+      <div class="validation-block">
+        <h4>Top30 默认表现</h4>
+        ${validationValueBlock([
+          ["年化收益", pctText(top30Annual)],
+          ["夏普", signedNumText(top30Sharpe, 2)],
+          ["最大回撤", pctText(top30Mdd)],
+          ["月度胜率", pctText(top30Win)],
+        ])}
+      </div>
+      <div class="validation-block">
+        <h4>10 分组多空</h4>
+        ${validationValueBlock([
+          ["LS年化收益", pctText(lsAnnual)],
+          ["LS夏普", signedNumText(lsSharpe, 2)],
+          ["样本月数", numText(lsMonths, 0)],
+          ["展示方向", sideLabel(state.singleSide)],
+        ])}
+      </div>
+    </div>
+    <table class="validation-table">
+      <thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>胜率</th><th>样本月数</th></tr></thead>
+      <tbody>${decayRows}</tbody>
+    </table>
+    ${renderGroup10ValidationTable(snap)}
+    <p class="validation-note">${code} · ${scoreModeLabel()}。摘要指标为离线全样本统计；Top30 摘要按因子默认方向，IC 与 10 分组多空跟随当前分析方向；10 分组是无行业约束的排序有效性检验，表格随当前回测区间重算展示。</p>
+  `;
 }
 
 function benchmarkSeries(snapshot, months, indexCode) {
