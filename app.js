@@ -2129,7 +2129,8 @@ function filteredIcDecayStats(decay, side = state.singleSide, startMonth = state
       ? Math.sqrt(clean.reduce((s, v) => s + (v - mean) ** 2, 0) / (clean.length - 1))
       : null;
     const ir = std && std > 0 ? mean / std * Math.sqrt(12 / h) : null;
-    return { h, mean, ir, n: hasSeries ? clean.length : (clean.length || decay?.n?.[idx] || 0) };
+    const winRate = clean.length ? clean.filter(v => v > 0).length / clean.length : null;
+    return { h, mean, ir, winRate, n: hasSeries ? clean.length : (clean.length || decay?.n?.[idx] || 0) };
   });
 }
 
@@ -2322,13 +2323,14 @@ function renderValidationPanel(code, snap) {
     const fromDecay = decayStats.find(s => s.h === h) || {};
     const mean = fromValidation.mean !== null ? fromValidation.mean * side : fromDecay.mean;
     const ir = fromValidation.ir !== null ? fromValidation.ir * side : fromDecay.ir;
+    const winRate = fromValidation.win !== null ? fromValidation.win : fromDecay.winRate;
     const n = fromValidation.n !== null ? fromValidation.n : fromDecay.n;
     return `
       <tr>
         <td>${h}M</td>
         <td>${signedPctText(mean)}</td>
         <td>${signedNumText(ir, 2)}</td>
-        <td>${pctText(fromValidation.win)}</td>
+        <td>${pctText(winRate)}</td>
         <td>${numText(n, 0)}</td>
       </tr>`;
   }).join("");
