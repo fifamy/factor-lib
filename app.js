@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629112359" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629132615" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260629112359";
+const _DEPLOY = "20260629132615";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -6839,6 +6839,193 @@ function renderComboContributionTable(factors) {
   </table>`;
 }
 
+function comboAblationDelta(fullValue, ablatedValue) {
+  const a = snapshotNumber(fullValue);
+  const b = snapshotNumber(ablatedValue);
+  return a !== null && b !== null ? a - b : null;
+}
+
+function comboAblationJudgement(row) {
+  const positiveSignals = [
+    (row.delta_ic_ir ?? 0) >= 0.10,
+    (row.delta_rank_ic ?? 0) >= 0.005,
+    (row.delta_ann_return ?? 0) >= 0.02,
+    (row.delta_monotonicity ?? 0) >= 0.10,
+    (row.delta_ls_ann_return ?? 0) >= 0.02,
+    (row.delta_mdd ?? 0) >= 0.05,
+  ].filter(Boolean).length;
+  const dragSignals = [
+    (row.delta_ic_ir ?? 0) <= -0.10,
+    (row.delta_rank_ic ?? 0) <= -0.005,
+    (row.delta_ann_return ?? 0) <= -0.02,
+    (row.delta_mdd ?? 0) <= -0.05,
+  ].filter(Boolean).length;
+  const smallMove =
+    Math.abs(row.delta_ic_ir ?? 0) < 0.10 &&
+    Math.abs(row.delta_rank_ic ?? 0) < 0.005 &&
+    Math.abs(row.delta_ann_return ?? 0) < 0.02 &&
+    Math.abs(row.delta_monotonicity ?? 0) < 0.10 &&
+    Math.abs(row.delta_ls_ann_return ?? 0) < 0.02;
+  if (dragSignals >= 2 || (dragSignals >= 1 && positiveSignals === 0)) {
+    return { label: "拖累", cls: "drag", note: "剔除后关键指标改善" };
+  }
+  if (positiveSignals >= 2 || (positiveSignals >= 1 && dragSignals === 0 && !smallMove)) {
+    return { label: "增益", cls: "gain", note: "剔除后关键指标变差" };
+  }
+  return { label: "冗余", cls: "neutral", note: "剔除前后变化较小" };
+}
+
+function comboAblationRows(fullPayload, ablationPayloads) {
+  const fullRank = fullPayload?.rankStats || {};
+  const fullMetrics = fullPayload?.metrics || {};
+  const fullGroup = fullPayload?.group10 || {};
+  return (ablationPayloads || []).map(item => {
+    const p = item.payload || {};
+    const rank = p.rankStats || {};
+    const metrics = p.metrics || {};
+    const group = p.group10 || {};
+    const row = {
+      factor: item.factor,
+      name: item.name || "",
+      delta_rank_ic: comboAblationDelta(fullRank.mean, rank.mean),
+      delta_ic_ir: comboAblationDelta(fullRank.ir, rank.ir),
+      delta_ann_return: comboAblationDelta(fullMetrics.annual, metrics.annual),
+      delta_mdd: comboAblationDelta(fullMetrics.mdd, metrics.mdd),
+      delta_monotonicity: comboAblationDelta(fullGroup.monotonicity, group.monotonicity),
+      delta_ls_ann_return: comboAblationDelta(fullGroup.ls?.annual, group.ls?.annual),
+      ablated_rank_ic: rank.mean ?? null,
+      ablated_ic_ir: rank.ir ?? null,
+      ablated_ann_return: metrics.annual ?? null,
+      ablated_mdd: metrics.mdd ?? null,
+      ablated_n_months: rank.n ?? null,
+      error: item.error || "",
+    };
+    row.judgement = row.error ? { label: "失败", cls: "drag", note: row.error } : comboAblationJudgement(row);
+    return row;
+  });
+}
+
+function renderComboAblationShell(payload) {
+  const factors = cloneComposeFactors(payload?.factors || []);
+  if (factors.length < 2) {
+    return `<div class="combo-ablation">
+      <div class="combo-ablation-note">至少需要 2 个因子才支持剔除实验。单因子组合没有可剔除的对照组合。</div>
+    </div>`;
+  }
+  return `<div class="combo-ablation">
+    <div class="combo-ablation-note">
+      逐个剔除当前组合中的一个因子，并用相同 TopN、约束和样本区间重算检验指标。表中 Δ 表示“完整组合 - 剔除后组合”：正数通常说明该因子有边际贡献，负数说明剔除后更好。
+    </div>
+    <div class="combo-ablation-actions">
+      <button id="combo-ablation-run" class="cpsn-btn" type="button">运行剔除实验</button>
+      <span>经验判断仅用于提示，仍需结合相关性、换手、样本切片和行业暴露复核。</span>
+    </div>
+    <div id="combo-ablation-result"><div class="empty">点击“运行剔除实验”后显示</div></div>
+  </div>`;
+}
+
+function renderComboAblationTable(rows) {
+  if (!rows || !rows.length) return `<div class="empty">暂无剔除实验结果</div>`;
+  const body = rows.map(r => {
+    if (r.error) {
+      return `<tr>
+        <td>${r.factor}</td><td>${r.name || ""}</td>
+        <td><span class="combo-ablation-judge combo-ablation-${r.judgement.cls}">${r.judgement.label}</span></td>
+        <td colspan="9">${r.error}</td>
+      </tr>`;
+    }
+    return `<tr>
+      <td>${r.factor}</td>
+      <td>${r.name || ""}</td>
+      <td><span class="combo-ablation-judge combo-ablation-${r.judgement.cls}" title="${htmlAttr(r.judgement.note)}">${r.judgement.label}</span></td>
+      <td>${signalValue("rank_ic", r.delta_rank_ic, signedPctText(r.delta_rank_ic))}</td>
+      <td>${signalValue("ic_ir", r.delta_ic_ir, signedNumText(r.delta_ic_ir, 2))}</td>
+      <td>${signalValue("ann_return", r.delta_ann_return, signedPctText(r.delta_ann_return))}</td>
+      <td>${signalValue("ann_return", r.delta_mdd, signedPctText(r.delta_mdd))}</td>
+      <td>${signalValue("monotonicity", r.delta_monotonicity, signedNumText(r.delta_monotonicity, 2))}</td>
+      <td>${signalValue("ann_return", r.delta_ls_ann_return, signedPctText(r.delta_ls_ann_return))}</td>
+      <td>${signalValue("ic_ir", r.ablated_ic_ir, signedNumText(r.ablated_ic_ir, 2))}</td>
+      <td>${signalValue("ann_return", r.ablated_ann_return, pctText(r.ablated_ann_return))}</td>
+      <td>${signalValue("sample_months", r.ablated_n_months, numText(r.ablated_n_months, 0))}</td>
+    </tr>`;
+  }).join("");
+  return `<div class="combo-ablation-scroll"><table class="validation-table combo-ablation-table">
+    <thead><tr>
+      <th>剔除因子</th><th>名称</th><th>判断</th><th>ΔRankIC</th><th>ΔIC_IR</th><th>ΔTopN年化</th><th>Δ最大回撤</th><th>Δ10组单调性</th><th>Δ多空年化</th><th>剔除后IC_IR</th><th>剔除后年化</th><th>剔除后月数</th>
+    </tr></thead>
+    <tbody>${body}</tbody>
+  </table></div>`;
+}
+
+function bindComboAblationHandlers() {
+  const btn = document.getElementById("combo-ablation-run");
+  if (!btn) return;
+  btn.onclick = () => runComboAblation().catch(err => {
+    console.error("run combo ablation failed:", err);
+    const box = document.getElementById("combo-ablation-result");
+    if (box) box.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">剔除实验失败：${err.message || err}</pre>`;
+    btn.disabled = false;
+    btn.textContent = "运行剔除实验";
+  });
+}
+
+async function runComboAblation() {
+  const btn = document.getElementById("combo-ablation-run");
+  const box = document.getElementById("combo-ablation-result");
+  if (!btn || !box) return;
+  const original = {
+    factors: cloneComposeFactors(state.composeFactors),
+    N: state.composeN,
+    constraintMode: state.composeConstraintMode,
+    start: state.composeStart,
+    end: state.composeEnd,
+  };
+  if (original.factors.length < 2) {
+    box.innerHTML = `<div class="empty">至少需要 2 个因子才支持剔除实验</div>`;
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "计算中…";
+  box.innerHTML = `<div class="loading">正在计算完整组合基准…</div>`;
+  const results = [];
+  try {
+    await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+    state.composeFactors = cloneComposeFactors(original.factors);
+    state.composeN = original.N;
+    state.composeConstraintMode = normalizeConstraintMode(original.constraintMode);
+    state.composeStart = original.start;
+    state.composeEnd = original.end;
+    await ensureComposeBase();
+    const fullPayload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd);
+    for (let i = 0; i < original.factors.length; i += 1) {
+      const removed = original.factors[i];
+      const meta = state.catalog.find(x => x.code === removed.code);
+      const ablatedFactors = original.factors.filter((_, idx) => idx !== i);
+      box.innerHTML = `<div class="loading">正在计算 ${i + 1}/${original.factors.length}：剔除 ${removed.code} 后的组合…</div>`;
+      try {
+        state.composeFactors = cloneComposeFactors(ablatedFactors);
+        state.composeN = original.N;
+        state.composeConstraintMode = normalizeConstraintMode(original.constraintMode);
+        state.composeStart = original.start;
+        state.composeEnd = original.end;
+        await ensureComposeBase();
+        const payload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd);
+        results.push({ factor: removed.code, name: meta?.name_cn || "", payload });
+      } catch (err) {
+        console.warn("combo ablation item failed:", removed.code, err);
+        results.push({ factor: removed.code, name: meta?.name_cn || "", error: err.message || String(err) });
+      }
+    }
+    const rows = comboAblationRows(fullPayload, results);
+    box.innerHTML = renderComboAblationTable(rows);
+  } finally {
+    restoreComposeContext(original);
+    await ensureComposeBase();
+    btn.disabled = false;
+    btn.textContent = "重新运行剔除实验";
+  }
+}
+
 function renderComboCorrelationTable(correlation) {
   const rows = Array.isArray(correlation?.rows) ? correlation.rows : [];
   if (!rows.length) return `<div class="empty">暂无组合内相关性数据</div>`;
@@ -7030,6 +7217,8 @@ async function renderComposeValidation(renderSeq) {
         <div id="combo-rolling36-chart" class="combo-validation-chart"></div>
         <h4 class="validation-subtitle">因子贡献</h4>
         ${renderComboContributionTable(payload.factors)}
+        <h4 class="validation-subtitle">剔除实验 / 边际贡献</h4>
+        ${renderComboAblationShell(payload)}
         <h4 class="validation-subtitle">组合内相关性</h4>
         ${payload.correlation?.warnings?.length ? `<div class="combo-correlation-warning">${payload.correlation.warnings.join("；")}</div>` : ""}
         ${renderComboCorrelationTable(payload.correlation)}
@@ -7040,6 +7229,7 @@ async function renderComposeValidation(renderSeq) {
     `;
     renderComboGroup10Chart(payload);
     renderComboRolling36mChart(payload);
+    bindComboAblationHandlers();
   } catch (err) {
     if (isComposeRenderStale(renderSeq)) return;
     console.error("render compose validation failed:", err);

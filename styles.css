@@ -281,6 +281,15 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
 .combo-validation-chart { height: 230px; margin-top: 8px; border: 1px solid #e1e6ec; border-radius: 5px; background: #fff; }
 .combo-correlation-warning { margin-top: 7px; color: #8a6200; background: #fff8e5; border: 1px solid #ecd89b; border-radius: 5px; padding: 7px 9px; font-size: 11px; line-height: 1.5; }
 .combo-validation-scroll-target { scroll-margin-top: 12px; }
+.combo-ablation { background: #fff; border: 1px solid #e1e6ec; border-radius: 5px; padding: 9px 10px; }
+.combo-ablation-note { color: #666; font-size: 11px; line-height: 1.55; }
+.combo-ablation-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; color: #888; font-size: 11px; }
+.combo-ablation-scroll { overflow-x: auto; margin-top: 8px; }
+.combo-ablation-table { min-width: 1040px; }
+.combo-ablation-judge { display: inline-block; border-radius: 10px; padding: 1px 7px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.combo-ablation-gain { color: #19734d; background: #e9f6ef; border: 1px solid #cde8d8; }
+.combo-ablation-neutral { color: #6b7280; background: #f2f4f6; border: 1px solid #dde3ea; }
+.combo-ablation-drag { color: #ad3b32; background: #fff0ed; border: 1px solid #efc6be; }
 @media (max-width: 960px) {
   .validation-grid { grid-template-columns: 1fr; }
   .combo-validation-grid { grid-template-columns: 1fr; }
