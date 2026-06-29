@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "DEPLOY_VERSION" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629085512" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "DEPLOY_VERSION";
+const _DEPLOY = "20260629085512";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -2395,7 +2395,7 @@ function renderValidationInterpretationNote() {
       <div class="guide-title">指标怎么看</div>
       <div class="guide-section guide-flow">
         <b>阅读顺序</b>
-        <span>先看 RankIC 与 IC_IR 判断排序信号是否稳定，再看 Top30 与 10 分组多空确认组合收益，最后看前瞻期、样本外 / 滚动和分层 IC 验证结论是否稳健。</span>
+        <span>先看 RankIC 与 IC_IR 判断排序信号是否稳定，再看 Top30 与 10 分组多空确认组合收益，最后看前瞻期、样本外 / 滚动、分层 IC 和分层组合收益验证结论是否稳健。</span>
       </div>
       <div class="guide-grid">
         <div class="guide-section">
@@ -2422,6 +2422,7 @@ function renderValidationInterpretationNote() {
             <li>前瞻期用于观察信号衰减，若 1M 有效但 6M/12M 明显转弱，说明信号偏短期。</li>
             <li>样本外 / 滚动用于检查结论是否依赖某一段行情；训练、验证、测试段越一致，越能说明结果不是单纯过拟合。</li>
             <li>分层 IC 用于判断因子是否只在某类股票中有效，若只在单一市值、流动性或行业分层显著，使用时应控制适用范围。</li>
+            <li>分层组合收益用于判断同一分层内的 Top/Bottom 排序是否能转化为组合收益；若分层 IC 显著但多空收益不稳定，需要结合换手、行业集中和样本月数复核。</li>
           </ul>
         </div>
         <div class="guide-section">
@@ -2431,6 +2432,7 @@ function renderValidationInterpretationNote() {
             <li>10组收益柱状图用于观察从低分组到高分组的收益排序是否清晰，柱子越接近单调递增或递减，因子排序越有经济含义。</li>
             <li>36个月滚动 IC_IR 曲线用于观察信号稳定性是否随时间衰退或阶段性失效，若长期在 0 附近或频繁转负，需要谨慎使用。</li>
             <li>分层 IC 热力图用于比较因子在市值、流动性、行业等分层中的有效性，若颜色只集中在少数分层，说明因子更适合限定适用范围或配合约束使用。</li>
+            <li>分层组合收益表展示同一分层内 Top/Bottom 与多空收益，重点看多空年化、回撤、胜率和换手是否同时可接受。</li>
           </ul>
         </div>
       </div>
@@ -2625,6 +2627,28 @@ function renderSegmentValidationTable(snap) {
     </table>`;
 }
 
+function renderSegmentPortfolioTable(snap) {
+  const rows = Array.isArray(snap?.segment_portfolio?.rows) ? snap.segment_portfolio.rows : [];
+  if (!rows.length) return `<div class="empty">暂无分层组合收益数据</div>`;
+  const body = rows.map(r => `<tr>
+    <td>${segmentLabel(r.segment_type, r.segment_value)}</td>
+    <td>${signalValue("sample_months", r.n_months, numText(r.n_months, 0))}</td>
+    <td>${numText(r.avg_n_stocks, 0)}</td>
+    <td>${signalValue("ann_return", r.top_ann_return, pctText(r.top_ann_return))}</td>
+    <td>${signalValue("ann_return", r.bottom_ann_return, pctText(r.bottom_ann_return))}</td>
+    <td>${signalValue("ann_return", r.ls_ann_return, signedPctText(r.ls_ann_return))}</td>
+    <td>${pctText(r.ls_max_drawdown)}</td>
+    <td>${signalValue("win_rate", r.ls_month_win_rate, pctText(r.ls_month_win_rate))}</td>
+    <td>${pctText(r.ls_avg_turnover)}</td>
+  </tr>`).join("");
+  return `
+    <h4 style="margin-top:12px;color:#1a4d80;font-size:12px">分层组合收益</h4>
+    <table class="validation-table">
+      <thead><tr><th>分层</th><th>月数</th><th>平均股票数</th><th>Top年化</th><th>Bottom年化</th><th>多空年化</th><th>多空回撤</th><th>多空胜率</th><th>多空换手</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
 function renderSegmentHeatmap(snap) {
   const div = document.getElementById("segment-heatmap");
   if (!div) return;
@@ -2764,6 +2788,7 @@ function renderValidationPanel(code, snap) {
     ${renderRollingValidationTable(snap)}
     <div id="rolling-36m-chart" class="validation-chart"></div>
     ${renderSegmentValidationTable(snap)}
+    ${renderSegmentPortfolioTable(snap)}
     <div id="segment-heatmap" class="validation-chart validation-heatmap"></div>
     <p class="validation-note">${code} · ${scoreModeLabel()}。摘要指标为离线全样本统计；Top30 摘要和超额指标随当前分析方向、区间和基准选择重算；10 分组是无行业约束的排序有效性检验，表格随当前回测区间重算展示。</p>
   `;
