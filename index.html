@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>因子库 v1.3.0</title>
-  <link rel="stylesheet" href="styles.css?v=20260629104657">
+  <title>因子库 v1.3.1</title>
+  <link rel="stylesheet" href="styles.css?v=20260629112359">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -15,9 +15,9 @@
 </head>
 <body>
   <div id="topbar">
-    <span><b>因子库 v1.3.0</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
+    <span><b>因子库 v1.3.1</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260629104657" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260629112359" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta">加载中…</span>
@@ -253,6 +253,24 @@
       <div id="combo-library-view" style="display:none">
         <div class="panel" id="cps-library-panel">
           <h3>组合管理</h3>
+          <div id="combo-ranking-panel" class="combo-ranking-panel">
+            <div class="combo-ranking-head">
+              <div>
+                <b>多因子组合排行榜</b>
+                <span>批量检验已发布组合和我的组合，点击列头排序</span>
+              </div>
+              <div class="combo-ranking-toolbar">
+                <select id="combo-ranking-source" aria-label="组合来源">
+                  <option value="all">全部组合</option>
+                  <option value="published">已发布组合</option>
+                  <option value="mine">我的组合</option>
+                </select>
+                <button id="combo-ranking-run" class="cpsn-btn" type="button">计算排行榜</button>
+              </div>
+            </div>
+            <div id="combo-ranking-status" class="combo-ranking-status">尚未计算</div>
+            <div id="combo-ranking-table"><div class="empty">点击“计算排行榜”后显示</div></div>
+          </div>
           <div class="combo-tabs">
             <button class="combo-tab active" data-tab="published">已发布组合</button>
             <button class="combo-tab" data-tab="mine">我的组合</button>
@@ -412,6 +430,6 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script type="module" src="app.js?v=20260629104657"></script>
+  <script type="module" src="app.js?v=20260629112359"></script>
 </body>
 </html>

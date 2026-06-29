@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629104657" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629112359" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260629104657";
+const _DEPLOY = "20260629112359";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -61,6 +61,11 @@ const state = {
   myCombos: [],
   myComboOpen: new Set(),
   comboLibraryTab: "published",
+  comboRankingRows: [],
+  comboRankingSortKey: "score",
+  comboRankingSortDir: "desc",
+  comboRankingSource: "all",
+  comboRankingRunning: false,
   adminSession: null,
   adminRequests: [],
   adminPublishedCombos: [],
@@ -2370,6 +2375,12 @@ function metricSignal(metric, value) {
     if (n >= 0.6) return { level: "watch", icon: "●", label: "较好", title: "10 组单调性大于 0.6，分组排序较好" };
     if (n >= 0.3) return { level: "weak", icon: "●", label: "一般", title: "10 组单调性一般" };
     return { level: "weak", icon: "●", label: "偏弱", title: "分组收益无明显排序" };
+  }
+  if (metric === "correlation") {
+    const a = Math.abs(n);
+    if (a >= 0.7) return { level: "alert", icon: "▲", label: "高相关", title: "组合内最高相关性大于 0.7，需核查信号冗余" };
+    if (a >= 0.5) return { level: "watch", icon: "●", label: "偏高", title: "组合内相关性偏高，需关注因子冗余" };
+    return { level: "weak", icon: "●", label: "观察", title: "组合内相关性未触发高相关提示" };
   }
   return { level: "muted", icon: "●", label: "观察", title: "暂无该指标的判定阈值" };
 }
@@ -5320,6 +5331,7 @@ function renderComboLibrary() {
   const mine = document.getElementById("cps-my-list");
   if (pub) pub.style.display = state.comboLibraryTab === "published" ? "" : "none";
   if (mine) mine.style.display = state.comboLibraryTab === "mine" ? "" : "none";
+  renderComboRanking();
   renderPublishedCombos();
   renderMyCombos();
   document.querySelectorAll(".combo-tab").forEach(btn => {
@@ -5327,6 +5339,253 @@ function renderComboLibrary() {
       state.comboLibraryTab = btn.dataset.tab === "mine" ? "mine" : "published";
       renderComboLibrary();
     };
+  });
+}
+
+function comboRankingCandidates() {
+  const source = state.comboRankingSource || "all";
+  const rows = [];
+  if (source === "all" || source === "published") {
+    rows.push(...state.publishedCombos.filter(c => c.valid).map(c => ({ source: "published", combo: c })));
+  }
+  if (source === "all" || source === "mine") {
+    rows.push(...state.myCombos.filter(c => c.valid).map(c => ({ source: "mine", combo: c })));
+  }
+  return rows;
+}
+
+function comboRankingSourceLabel(source) {
+  return source === "mine" ? "我的组合" : "已发布";
+}
+
+function comboRankingScore(row) {
+  if (row.error) return -999;
+  const rankIc = snapshotNumber(row.rank_ic) ?? 0;
+  const icIr = snapshotNumber(row.ic_ir) ?? 0;
+  const annual = snapshotNumber(row.ann_return) ?? 0;
+  const mono = snapshotNumber(row.monotonicity) ?? 0;
+  const mdd = Math.abs(snapshotNumber(row.max_drawdown) ?? 0);
+  const corr = snapshotNumber(row.max_abs_corr) ?? 0;
+  const singleGain = snapshotNumber(row.best_single_ic_ir_gap) ?? 0;
+  const samplePenalty = (snapshotNumber(row.n_months) ?? 0) < 36 ? 0.8 : 0;
+  const corrPenalty = corr >= 0.7 ? (corr - 0.6) * 1.5 : 0;
+  return icIr + rankIc * 10 + annual * 1.5 + mono * 0.35 + singleGain * 0.45 - mdd * 0.45 - corrPenalty - samplePenalty;
+}
+
+function comboRankingRowFromPayload(source, combo, payload) {
+  const m = payload.metrics || {};
+  const rank = payload.rankStats || {};
+  const bm = payload.benchmarkMetrics || {};
+  const corrRows = payload.correlation?.rows || [];
+  const maxAbsCorr = corrRows.length ? Math.max(...corrRows.map(r => Math.abs(Number(r.corr) || 0))) : null;
+  const best = payload.singleComparison?.best || null;
+  const row = {
+    id: combo.id,
+    source,
+    source_label: comboRankingSourceLabel(source),
+    name: combo.name,
+    N: combo.N,
+    constraintMode: normalizeConstraintMode(combo.constraintMode),
+    factors: cloneComposeFactors(combo.factors),
+    rank_ic: rank.mean,
+    ic_ir: rank.ir,
+    ic_win_rate: rank.winRate,
+    n_months: rank.n,
+    ann_return: m.annual ?? null,
+    sharpe: m.sharpe ?? null,
+    max_drawdown: m.mdd ?? null,
+    win_rate: m.winRate ?? null,
+    excess_300: (m.annual !== null && m.annual !== undefined && bm.HS300) ? m.annual - bm.HS300.annual : null,
+    excess_800: (m.annual !== null && m.annual !== undefined && bm.CSI800) ? m.annual - bm.CSI800.annual : null,
+    monotonicity: payload.group10?.monotonicity ?? null,
+    ls_ann_return: payload.group10?.ls?.annual ?? null,
+    max_abs_corr: maxAbsCorr,
+    best_single: best?.code || "",
+    best_single_ic_ir: best?.ic_ir ?? null,
+    best_single_ic_ir_gap: (rank.ir !== null && rank.ir !== undefined && best?.ic_ir !== null && best?.ic_ir !== undefined) ? rank.ir - best.ic_ir : null,
+    error: "",
+  };
+  row.score = comboRankingScore(row);
+  return row;
+}
+
+function comboRankingErrorRow(source, combo, err) {
+  return {
+    id: combo.id,
+    source,
+    source_label: comboRankingSourceLabel(source),
+    name: combo.name,
+    N: combo.N,
+    constraintMode: normalizeConstraintMode(combo.constraintMode),
+    factors: cloneComposeFactors(combo.factors),
+    error: err?.message || String(err || "计算失败"),
+    score: -999,
+  };
+}
+
+function restoreComposeContext(snapshot) {
+  state.composeFactors = cloneComposeFactors(snapshot.factors);
+  state.composeN = snapshot.N;
+  state.composeConstraintMode = normalizeConstraintMode(snapshot.constraintMode);
+  state.composeStart = snapshot.start;
+  state.composeEnd = snapshot.end;
+  syncComposeNButtons();
+  updateTreeHighlight();
+}
+
+async function comboRankingPayloadFor(combo) {
+  state.composeFactors = cloneComposeFactors(combo.factors);
+  state.composeN = Number(combo.N);
+  state.composeConstraintMode = normalizeConstraintMode(combo.constraintMode);
+  state.composeStart = null;
+  state.composeEnd = null;
+  await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+  await ensureComposeBase();
+  return comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd);
+}
+
+async function runComboRanking() {
+  if (state.comboRankingRunning) return;
+  const candidates = comboRankingCandidates();
+  state.comboRankingRows = [];
+  state.comboRankingRunning = true;
+  renderComboRanking(`准备计算 ${candidates.length} 个组合…`);
+  const snapshot = {
+    factors: cloneComposeFactors(state.composeFactors),
+    N: state.composeN,
+    constraintMode: state.composeConstraintMode,
+    start: state.composeStart,
+    end: state.composeEnd,
+  };
+  try {
+    for (let i = 0; i < candidates.length; i += 1) {
+      const { source, combo } = candidates[i];
+      renderComboRanking(`正在计算 ${i + 1}/${candidates.length}：${combo.name}`);
+      try {
+        const payload = await comboRankingPayloadFor(combo);
+        state.comboRankingRows.push(comboRankingRowFromPayload(source, combo, payload));
+      } catch (err) {
+        console.error("combo ranking failed:", combo.name, err);
+        state.comboRankingRows.push(comboRankingErrorRow(source, combo, err));
+      }
+      renderComboRanking(`已计算 ${i + 1}/${candidates.length}`);
+    }
+  } finally {
+    restoreComposeContext(snapshot);
+    state.comboRankingRunning = false;
+    renderComboRanking(candidates.length ? `已完成 ${state.comboRankingRows.length} 个组合。点击列头排序，综合分只用于排序提示。` : "没有可计算的有效组合");
+  }
+}
+
+function sortedComboRankingRows() {
+  const key = state.comboRankingSortKey || "score";
+  const dir = state.comboRankingSortDir === "asc" ? 1 : -1;
+  return state.comboRankingRows.slice().sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (typeof av === "string" || typeof bv === "string") return String(av || "").localeCompare(String(bv || "")) * dir;
+    const an = snapshotNumber(av);
+    const bn = snapshotNumber(bv);
+    if (an === null && bn === null) return 0;
+    if (an === null) return 1;
+    if (bn === null) return -1;
+    return (an - bn) * dir;
+  });
+}
+
+function renderComboRanking(statusText = null) {
+  const box = document.getElementById("combo-ranking-table");
+  const status = document.getElementById("combo-ranking-status");
+  const runBtn = document.getElementById("combo-ranking-run");
+  const sourceSel = document.getElementById("combo-ranking-source");
+  if (!box) return;
+  if (sourceSel) sourceSel.value = state.comboRankingSource || "all";
+  if (runBtn) {
+    runBtn.disabled = state.comboRankingRunning;
+    runBtn.textContent = state.comboRankingRunning ? "计算中…" : "计算排行榜";
+  }
+  if (status) status.textContent = statusText || (state.comboRankingRows.length ? `已计算 ${state.comboRankingRows.length} 个组合。点击列头排序。` : "尚未计算");
+  if (!state.comboRankingRows.length) {
+    box.innerHTML = `<div class="empty">点击“计算排行榜”后显示</div>`;
+    bindComboRankingHandlers();
+    return;
+  }
+  const cols = [
+    { key: "name", label: "组合" },
+    { key: "source_label", label: "来源" },
+    { key: "score", label: "综合分" },
+    { key: "rank_ic", label: "RankIC" },
+    { key: "ic_ir", label: "IC_IR" },
+    { key: "ic_win_rate", label: "IC胜率" },
+    { key: "ann_return", label: "TopN年化" },
+    { key: "sharpe", label: "夏普" },
+    { key: "max_drawdown", label: "最大回撤" },
+    { key: "excess_300", label: "超额vs300" },
+    { key: "excess_800", label: "超额vs800" },
+    { key: "monotonicity", label: "10组单调性" },
+    { key: "ls_ann_return", label: "LS年化" },
+    { key: "n_months", label: "样本月数" },
+    { key: "max_abs_corr", label: "最高相关性" },
+    { key: "best_single_ic_ir_gap", label: "相对最佳单因子" },
+  ];
+  const rows = sortedComboRankingRows();
+  const th = cols.map(c => `<th class="${state.comboRankingSortKey === c.key ? "sorted" : ""}" data-key="${c.key}">${c.label}${state.comboRankingSortKey === c.key ? (state.comboRankingSortDir === "asc" ? " ↑" : " ↓") : ""}</th>`).join("");
+  const body = rows.map(r => {
+    const warn = (snapshotNumber(r.n_months) ?? 99) < 36 ? `<span class="combo-ranking-warn">样本短</span>` : ((snapshotNumber(r.max_abs_corr) ?? 0) >= 0.7 ? `<span class="combo-ranking-warn">高相关</span>` : "");
+    if (r.error) {
+      return `<tr class="failed"><td class="combo-ranking-name">${r.name}</td><td>${r.source_label}</td><td colspan="${cols.length - 2}">计算失败：${r.error}</td><td><button class="cpsn-btn combo-ranking-validate" data-source="${r.source}" data-id="${r.id}">检验</button></td></tr>`;
+    }
+    return `<tr>
+      <td class="combo-ranking-name" title="${htmlAttr(comboSummary(r))}">${r.name}${warn}</td>
+      <td>${r.source_label}</td>
+      <td>${signalValue("ic_ir", r.score, signedNumText(r.score, 2))}</td>
+      <td>${signalValue("rank_ic", r.rank_ic, signedPctText(r.rank_ic))}</td>
+      <td>${signalValue("ic_ir", r.ic_ir, signedNumText(r.ic_ir, 2))}</td>
+      <td>${signalValue("win_rate", r.ic_win_rate, pctText(r.ic_win_rate))}</td>
+      <td>${signalValue("ann_return", r.ann_return, pctText(r.ann_return))}</td>
+      <td>${signalValue("sharpe", r.sharpe, signedNumText(r.sharpe, 2))}</td>
+      <td>${pctText(r.max_drawdown)}</td>
+      <td>${signalValue("ann_return", r.excess_300, signedPctText(r.excess_300))}</td>
+      <td>${signalValue("ann_return", r.excess_800, signedPctText(r.excess_800))}</td>
+      <td>${signalValue("monotonicity", r.monotonicity, numText(r.monotonicity, 2))}</td>
+      <td>${signalValue("ann_return", r.ls_ann_return, pctText(r.ls_ann_return))}</td>
+      <td>${signalValue("sample_months", r.n_months, numText(r.n_months, 0))}</td>
+      <td>${r.max_abs_corr === null || r.max_abs_corr === undefined ? "—" : signalValue("correlation", r.max_abs_corr, numText(r.max_abs_corr, 2))}</td>
+      <td>${signalValue("ic_ir", r.best_single_ic_ir_gap, signedNumText(r.best_single_ic_ir_gap, 2))}${r.best_single ? `<span class="combo-ranking-warn">${r.best_single}</span>` : ""}</td>
+      <td><button class="cpsn-btn combo-ranking-validate" data-source="${r.source}" data-id="${r.id}">检验</button></td>
+    </tr>`;
+  }).join("");
+  box.innerHTML = `<div class="combo-ranking-scroll"><table class="combo-ranking-table">
+    <thead><tr>${th}<th>操作</th></tr></thead><tbody>${body}</tbody>
+  </table></div>`;
+  bindComboRankingHandlers();
+}
+
+function bindComboRankingHandlers() {
+  const runBtn = document.getElementById("combo-ranking-run");
+  if (runBtn) runBtn.onclick = () => runComboRanking().catch(e => {
+    console.error("run combo ranking failed:", e);
+    state.comboRankingRunning = false;
+    renderComboRanking(`计算失败：${e.message || e}`);
+  });
+  const sourceSel = document.getElementById("combo-ranking-source");
+  if (sourceSel) sourceSel.onchange = () => {
+    state.comboRankingSource = sourceSel.value || "all";
+    state.comboRankingRows = [];
+    renderComboRanking("来源已切换，点击“计算排行榜”重新计算");
+  };
+  document.querySelectorAll(".combo-ranking-table th[data-key]").forEach(th => {
+    th.onclick = () => {
+      const key = th.dataset.key;
+      if (state.comboRankingSortKey === key) state.comboRankingSortDir = state.comboRankingSortDir === "asc" ? "desc" : "asc";
+      else {
+        state.comboRankingSortKey = key;
+        state.comboRankingSortDir = key === "name" || key === "source_label" ? "asc" : "desc";
+      }
+      renderComboRanking();
+    };
+  });
+  document.querySelectorAll(".combo-ranking-validate").forEach(btn => {
+    btn.onclick = () => loadComboForValidation(btn.dataset.source, btn.dataset.id);
   });
 }
 
@@ -6586,7 +6845,7 @@ function renderComboCorrelationTable(correlation) {
   return `<table class="validation-table">
     <thead><tr><th>因子A</th><th>因子B</th><th>相关系数</th><th>提示</th></tr></thead>
     <tbody>${rows.slice(0, 10).map(r => `<tr>
-      <td>${r.factor_a}</td><td>${r.factor_b}</td><td>${signalValue("rank_ic", Math.abs(r.corr), numText(r.corr, 2))}</td>
+      <td>${r.factor_a}</td><td>${r.factor_b}</td><td>${signalValue("correlation", r.corr, numText(r.corr, 2))}</td>
       <td>${Math.abs(Number(r.corr)) >= 0.7 ? "相关性偏高" : "可观察"}</td>
     </tr>`).join("")}</tbody>
   </table>`;
@@ -6694,7 +6953,7 @@ function renderComboValidationWarning(payload) {
     warnings.push(`样本不足：多因子合成有效月份 ${numText(payload.rankStats?.n, 0)}，不足 36，排序信号和组合收益只适合做初步观察`);
   }
   if (Array.isArray(payload.correlation?.warnings)) warnings.push(...payload.correlation.warnings);
-  return warnings.length ? `<div class="validation-short-sample"><b>提示</b><span>${warnings.join("；")}。</span></div>` : "";
+  return warnings.length ? `<div class="validation-short-sample"><b>提示</b><span>${warnings.join("；").replace(/。+$/u, "")}。</span></div>` : "";
 }
 
 async function renderComposeValidation(renderSeq) {

@@ -129,6 +129,22 @@ tr.stock-row:hover td:nth-child(2) { text-decoration: underline; }
 .published-detail-table td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; }
 .published-meta { color: #aaa; margin-top: 5px; }
 .my-delete { border-color: #c14545; color: #c14545; }
+.combo-ranking-panel { background: #fff; border: 1px solid #dfe7ef; border-radius: 5px; padding: 10px; margin-bottom: 10px; }
+.combo-ranking-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.combo-ranking-head b { color: #1a4d80; font-size: 13px; margin-right: 8px; }
+.combo-ranking-head span { color: #777; font-size: 11px; }
+.combo-ranking-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.combo-ranking-toolbar select { border: 1px solid #ccd6e0; border-radius: 4px; padding: 3px 6px; font-size: 11px; color: #333; background: #fff; }
+.combo-ranking-status { color: #888; font-size: 11px; margin-top: 7px; }
+.combo-ranking-scroll { overflow-x: auto; margin-top: 8px; }
+.combo-ranking-table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 1180px; }
+.combo-ranking-table th { background: #f0f3f7; color: #666; padding: 5px 6px; border-bottom: 1px solid #d8dee6; text-align: right; white-space: nowrap; cursor: pointer; user-select: none; }
+.combo-ranking-table th:first-child, .combo-ranking-table td:first-child { text-align: left; }
+.combo-ranking-table th.sorted { color: #1a4d80; }
+.combo-ranking-table td { padding: 4px 6px; border-bottom: 1px solid #eee; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.combo-ranking-table td.combo-ranking-name { color: #1a4d80; font-weight: 600; text-align: left; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.combo-ranking-table tr.failed td { background: #fff8f6; color: #9a3a2f; }
+.combo-ranking-warn { color: #8a6200; font-size: 10px; margin-left: 4px; }
 .admin-login-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .admin-login-row input { border: 1px solid #ccd6e0; border-radius: 4px; padding: 5px 8px; font-size: 12px; min-width: 180px; }
 .admin-help, .admin-status { color: #888; font-size: 11px; margin-top: 7px; }
