@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629141657" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629145517" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260629141657";
+const _DEPLOY = "20260629145517";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -5448,7 +5448,7 @@ async function comboRankingPayloadFor(combo) {
   state.composeEnd = null;
   await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
   await ensureComposeBase();
-  return comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false });
+  return comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false, includeParameterSensitivity: false });
 }
 
 async function runComboRanking() {
@@ -7088,7 +7088,181 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
   if (options.includeCrowding !== false) {
     basePayload.crowdingDiagnostics = await comboCrowdingDiagnostics(basePayload);
   }
+  if (options.includeParameterSensitivity !== false) {
+    basePayload.parameterSensitivity = await comboParameterSensitivity(basePayload, startMonth, endMonth);
+  }
   return basePayload;
+}
+
+function perturbComboCoreWeight(factors, direction) {
+  const norm = cloneComposeFactors(factors);
+  if (norm.length < 2) return norm;
+  const originalAbs = norm.reduce((s, f) => s + Math.abs(Number(f.weight) || 0), 0) || 1;
+  let coreIdx = 0;
+  for (let i = 1; i < norm.length; i += 1) {
+    if (Math.abs(Number(norm[i].weight) || 0) > Math.abs(Number(norm[coreIdx].weight) || 0)) coreIdx = i;
+  }
+  norm[coreIdx].weight = (Number(norm[coreIdx].weight) || 0) * (direction > 0 ? 1.2 : 0.8);
+  const newAbs = norm.reduce((s, f) => s + Math.abs(Number(f.weight) || 0), 0) || 1;
+  const scale = originalAbs / newAbs;
+  return norm.map(f => ({ ...f, weight: (Number(f.weight) || 0) * scale }));
+}
+
+function comboParameterSensitivityScenarios(payload) {
+  const factors = cloneComposeFactors(payload?.factors || []);
+  const currentN = Number(payload?.N) || state.composeN || 30;
+  const currentConstraint = normalizeConstraintMode(payload?.constraintMode);
+  const scenarios = [];
+  [10, 30, 50].forEach(n => {
+    scenarios.push({
+      group: "TopN 敏感性",
+      label: `Top${n}`,
+      factors: cloneComposeFactors(factors),
+      N: n,
+      constraintMode: currentConstraint,
+    });
+  });
+  [
+    { mode: "none", label: "无约束等权" },
+    { mode: "industry", label: "行业中性约束" },
+  ].forEach(item => {
+    scenarios.push({
+      group: "约束敏感性",
+      label: item.label,
+      factors: cloneComposeFactors(factors),
+      N: currentN,
+      constraintMode: item.mode,
+    });
+  });
+  if (factors.length >= 2) {
+    scenarios.push({
+      group: "权重扰动敏感性",
+      label: "核心权重+20%",
+      factors: perturbComboCoreWeight(factors, 1),
+      N: currentN,
+      constraintMode: currentConstraint,
+    });
+    scenarios.push({
+      group: "权重扰动敏感性",
+      label: "核心权重-20%",
+      factors: perturbComboCoreWeight(factors, -1),
+      N: currentN,
+      constraintMode: currentConstraint,
+    });
+  }
+  return scenarios;
+}
+
+function valueSignFlipped(baseValue, testValue) {
+  const a = snapshotNumber(baseValue);
+  const b = snapshotNumber(testValue);
+  return a !== null && b !== null && Math.abs(a) >= 0.005 && Math.sign(a) !== Math.sign(b);
+}
+
+function comboParameterSensitivityJudgement(basePayload, row) {
+  const baseRank = snapshotNumber(basePayload?.rankStats?.mean);
+  const baseIr = snapshotNumber(basePayload?.rankStats?.ir);
+  const baseAnn = snapshotNumber(basePayload?.metrics?.annual);
+  const baseMdd = snapshotNumber(basePayload?.metrics?.mdd);
+  if (
+    snapshotNumber(row.rank_ic) === null ||
+    snapshotNumber(row.ic_ir) === null ||
+    snapshotNumber(row.ann_return) === null ||
+    snapshotNumber(row.max_drawdown) === null
+  ) {
+    return { label: "需复核", cls: "review", note: "关键指标缺失，需检查该参数场景的持仓或收益数据" };
+  }
+  if (valueSignFlipped(baseRank, row.rank_ic) || valueSignFlipped(baseAnn, row.ann_return)) {
+    return { label: "需复核", cls: "review", note: "RankIC 或收益方向在该参数场景下反转" };
+  }
+  const irDrop = baseIr !== null && row.ic_ir !== null && baseIr - row.ic_ir >= 0.30;
+  const annDrop = baseAnn !== null && row.ann_return !== null && baseAnn - row.ann_return >= 0.05;
+  const mddWorse = baseMdd !== null && row.max_drawdown !== null && row.max_drawdown - baseMdd <= -0.05;
+  if (irDrop || annDrop || mddWorse) {
+    return { label: "敏感", cls: "sensitive", note: "IC_IR、收益或回撤对该参数变化较敏感" };
+  }
+  return { label: "稳健", cls: "robust", note: "关键指标未出现明显恶化" };
+}
+
+function comboParameterSensitivitySummary(rows) {
+  const validRows = (rows || []).filter(r => !r.error);
+  const reviewCount = validRows.filter(r => r.judgement?.label === "需复核").length;
+  const sensitiveCount = validRows.filter(r => r.judgement?.label === "敏感").length;
+  const weakRows = validRows.slice().sort((a, b) => {
+    const scoreA = (snapshotNumber(a.ic_ir) ?? -99) + (snapshotNumber(a.ann_return) ?? -99);
+    const scoreB = (snapshotNumber(b.ic_ir) ?? -99) + (snapshotNumber(b.ann_return) ?? -99);
+    return scoreA - scoreB;
+  });
+  const overall = reviewCount > 0 ? "需复核" : (sensitiveCount > 0 ? "敏感" : "稳健");
+  const cls = overall === "需复核" ? "review" : (overall === "敏感" ? "sensitive" : "robust");
+  return {
+    overall,
+    cls,
+    sensitiveCount: reviewCount + sensitiveCount,
+    scenarioCount: validRows.length,
+    weakest: weakRows[0] || null,
+  };
+}
+
+async function comboParameterSensitivity(payload, startMonth, endMonth) {
+  const scenarios = comboParameterSensitivityScenarios(payload);
+  const rows = [];
+  const original = {
+    factors: cloneComposeFactors(state.composeFactors),
+    N: state.composeN,
+    constraintMode: state.composeConstraintMode,
+    start: state.composeStart,
+    end: state.composeEnd,
+  };
+  try {
+    if (scenarios.some(s => normalizeConstraintMode(s.constraintMode) === "industry")) {
+      await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+    }
+    for (const scenario of scenarios) {
+      try {
+        state.composeFactors = cloneComposeFactors(scenario.factors);
+        state.composeN = scenario.N;
+        state.composeConstraintMode = normalizeConstraintMode(scenario.constraintMode);
+        state.composeStart = startMonth;
+        state.composeEnd = endMonth;
+        await ensureComposeBase();
+        const p = await comboValidationPayload(
+          scenario.factors,
+          scenario.N,
+          scenario.constraintMode,
+          startMonth,
+          endMonth,
+          { includeCrowding: false, includeParameterSensitivity: false },
+        );
+        const row = {
+          group: scenario.group,
+          label: scenario.label,
+          N: scenario.N,
+          constraintMode: normalizeConstraintMode(scenario.constraintMode),
+          rank_ic: p.rankStats?.mean ?? null,
+          ic_ir: p.rankStats?.ir ?? null,
+          ann_return: p.metrics?.annual ?? null,
+          max_drawdown: p.metrics?.mdd ?? null,
+          monotonicity: p.group10?.monotonicity ?? null,
+        };
+        row.judgement = comboParameterSensitivityJudgement(payload, row);
+        rows.push(row);
+      } catch (err) {
+        rows.push({
+          group: scenario.group,
+          label: scenario.label,
+          N: scenario.N,
+          constraintMode: normalizeConstraintMode(scenario.constraintMode),
+          error: err.message || String(err),
+          judgement: { label: "需复核", cls: "review", note: err.message || String(err) },
+        });
+      }
+    }
+  } finally {
+    restoreComposeContext(original);
+    await ensureComposeBase();
+  }
+  return { rows, summary: comboParameterSensitivitySummary(rows) };
 }
 
 function renderComboContributionTable(factors) {
@@ -7265,7 +7439,7 @@ async function runComboAblation() {
     state.composeStart = original.start;
     state.composeEnd = original.end;
     await ensureComposeBase();
-    const fullPayload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false });
+    const fullPayload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false, includeParameterSensitivity: false });
     for (let i = 0; i < original.factors.length; i += 1) {
       const removed = original.factors[i];
       const meta = state.catalog.find(x => x.code === removed.code);
@@ -7278,7 +7452,7 @@ async function runComboAblation() {
         state.composeStart = original.start;
         state.composeEnd = original.end;
         await ensureComposeBase();
-        const payload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false });
+        const payload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false, includeParameterSensitivity: false });
         results.push({ factor: removed.code, name: meta?.name_cn || "", payload });
       } catch (err) {
         console.warn("combo ablation item failed:", removed.code, err);
@@ -7401,6 +7575,58 @@ function renderComboSingleComparison(payload) {
       <tr><td>最佳单因子 ${best.code} ${best.name || ""}</td><td>${signalValue("rank_ic", best.rank_ic, signedPctText(best.rank_ic))}</td><td>${signalValue("ic_ir", best.ic_ir, signedNumText(best.ic_ir, 2))}</td><td>${signalValue("ann_return", best.ann_return, pctText(best.ann_return))}</td><td>${pctText(best.max_drawdown)}</td></tr>
     </tbody>
   </table>`;
+}
+
+function renderComboParameterSensitivity(payload) {
+  const sens = payload.parameterSensitivity;
+  const rows = Array.isArray(sens?.rows) ? sens.rows : [];
+  if (!rows.length) return `<div class="empty">暂无参数敏感性数据</div>`;
+  const summary = sens.summary || comboParameterSensitivitySummary(rows);
+  const weakest = summary.weakest
+    ? `${summary.weakest.group} / ${summary.weakest.label}`
+    : "—";
+  const body = rows.map(r => {
+    if (r.error) {
+      return `<tr>
+        <td>${r.group}</td><td>${r.label}</td><td colspan="5">${r.error}</td>
+        <td><span class="combo-parameter-judge combo-parameter-review">需复核</span></td>
+      </tr>`;
+    }
+    return `<tr>
+      <td>${r.group}</td>
+      <td>${r.label}</td>
+      <td>${signalValue("rank_ic", r.rank_ic, signedPctText(r.rank_ic))}</td>
+      <td>${signalValue("ic_ir", r.ic_ir, signedNumText(r.ic_ir, 2))}</td>
+      <td>${signalValue("ann_return", r.ann_return, pctText(r.ann_return))}</td>
+      <td>${pctText(r.max_drawdown)}</td>
+      <td>${signalValue("monotonicity", r.monotonicity, numText(r.monotonicity, 2))}</td>
+      <td><span class="combo-parameter-judge combo-parameter-${r.judgement?.cls || "review"}" title="${htmlAttr(r.judgement?.note || "")}">${r.judgement?.label || "需复核"}</span></td>
+    </tr>`;
+  }).join("");
+  return `<div class="combo-parameter-sensitivity">
+    <div class="combo-parameter-grid">
+      <div class="combo-parameter-card">
+        <b>总体判断</b>
+        <strong class="combo-parameter-${summary.cls || "review"}">${summary.overall || "需复核"}</strong>
+        <span>稳健 / 敏感 / 需复核</span>
+      </div>
+      <div class="combo-parameter-card">
+        <b>最弱场景</b>
+        <strong>${weakest}</strong>
+        <span>按 IC_IR 与年化收益综合排序</span>
+      </div>
+      <div class="combo-parameter-card">
+        <b>敏感项数量</b>
+        <strong>${numText(summary.sensitiveCount, 0)} / ${numText(summary.scenarioCount, 0)}</strong>
+        <span>包含“敏感”和“需复核”场景</span>
+      </div>
+    </div>
+    <table class="validation-table combo-parameter-table">
+      <thead><tr><th>参数组</th><th>场景</th><th>RankIC</th><th>IC_IR</th><th>TopN年化</th><th>最大回撤</th><th>10组单调性</th><th>判断</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <p class="validation-note">参数敏感性用于检查组合结论是否依赖特定 TopN、约束方式或精确权重；该模块不做自动调参，也不用于寻找最优参数。</p>
+  </div>`;
 }
 
 function renderComboRollingTable(payload) {
@@ -7560,6 +7786,8 @@ async function renderComposeValidation(renderSeq) {
         <h4 class="validation-subtitle">样本切片</h4>
         ${renderComboRollingTable(payload)}
         <div id="combo-rolling36-chart" class="combo-validation-chart"></div>
+        <h4 class="validation-subtitle">参数敏感性</h4>
+        ${renderComboParameterSensitivity(payload)}
         <h4 class="validation-subtitle">因子贡献</h4>
         ${renderComboContributionTable(payload.factors)}
         <h4 class="validation-subtitle">剔除实验 / 边际贡献</h4>
