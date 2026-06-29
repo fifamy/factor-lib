@@ -4,8 +4,30 @@ import { chromium } from "playwright-core";
 
 const url = process.argv[2] || "http://127.0.0.1:8798/";
 
+async function launchValidationBrowser() {
+  const options = {
+    headless: process.env.PLAYWRIGHT_HEADLESS !== "0",
+  };
+  if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
+    options.executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  } else if (process.env.PLAYWRIGHT_CHROMIUM_CHANNEL) {
+    options.channel = process.env.PLAYWRIGHT_CHROMIUM_CHANNEL;
+  }
+
+  try {
+    return await chromium.launch(options);
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    throw new Error([
+      `浏览器进程启动失败：${message}`,
+      "这通常表示当前终端环境限制了 Playwright 创建或控制 Chromium 子进程；请在非沙箱权限下运行 e2e。",
+      "如需指定本机 Chrome，可设置 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome。",
+    ].join("\n"));
+  }
+}
+
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchValidationBrowser();
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = [];
   const requests = [];

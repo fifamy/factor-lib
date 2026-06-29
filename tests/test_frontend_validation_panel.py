@@ -324,6 +324,22 @@ def test_compose_validation_e2e_covers_current_modules():
     assert "权重扰动敏感性" in e2e
 
 
+def test_compose_validation_e2e_has_self_hosted_runner_and_browser_diagnostic():
+    root = Path(__file__).resolve().parents[1]
+    runner = (root / "e2e" / "run_compose_validation.mjs").read_text(encoding="utf-8")
+    e2e = (root / "e2e" / "compose_validation.mjs").read_text(encoding="utf-8")
+    package = (root / "e2e" / "package.json").read_text(encoding="utf-8")
+
+    assert "frontend/serve.py" in runner
+    assert "compose_validation.mjs" in runner
+    assert "waitForHttp" in runner
+    assert "SIGTERM" in runner
+    assert '"compose-validation": "node run_compose_validation.mjs"' in package
+    assert "launchValidationBrowser" in e2e
+    assert "浏览器进程启动失败" in e2e
+    assert "非沙箱权限" in e2e
+
+
 def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
     source = APP_JS.read_text(encoding="utf-8")
     styles = STYLES_CSS.read_text(encoding="utf-8")
