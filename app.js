@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629132615" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629141657" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260629132615";
+const _DEPLOY = "20260629141657";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -1907,6 +1907,13 @@ function metricsFromReturns(rets) {
   const navs = [1];
   for (const r of clean) navs.push(navs[navs.length - 1] * (1 + r));
   return computeMetrics(clean, navs);
+}
+
+function medianNumber(values) {
+  const clean = (values || []).map(snapshotNumber).filter(v => v !== null).sort((a, b) => a - b);
+  if (!clean.length) return null;
+  const mid = Math.floor(clean.length / 2);
+  return clean.length % 2 ? clean[mid] : (clean[mid - 1] + clean[mid]) / 2;
 }
 
 function alignedBenchmarkReturns(snapshot, months, indexCode) {
@@ -5441,7 +5448,7 @@ async function comboRankingPayloadFor(combo) {
   state.composeEnd = null;
   await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
   await ensureComposeBase();
-  return comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd);
+  return comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false });
 }
 
 async function runComboRanking() {
@@ -6764,6 +6771,264 @@ async function comboCorrelationWarnings(factors) {
   return { rows, warnings };
 }
 
+function comboRiskLabel(level) {
+  const map = {
+    low: "低",
+    watch: "观察",
+    high: "偏高",
+    alert: "高风险",
+  };
+  return map[level] || "观察";
+}
+
+function comboCorrelationRiskLevel(maxAbsCorr) {
+  const v = snapshotNumber(maxAbsCorr);
+  if (v === null) return "watch";
+  if (v >= 0.85) return "alert";
+  if (v >= 0.70) return "high";
+  if (v >= 0.50) return "watch";
+  return "low";
+}
+
+function comboCorrelationSummary(correlation, factorCount) {
+  const rows = Array.isArray(correlation?.rows) ? correlation.rows : [];
+  const vals = rows.map(r => Math.abs(Number(r.corr))).filter(Number.isFinite);
+  const n = Number(factorCount) || 0;
+  const pairCount = n >= 2 ? n * (n - 1) / 2 : 0;
+  const maxAbsCorr = vals.length ? Math.max(...vals) : null;
+  const avgAbsCorr = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+  const highPairCount = vals.filter(v => v >= 0.70).length;
+  const effectiveFactorCount = n > 0 && avgAbsCorr !== null
+    ? n / (1 + Math.max(0, n - 1) * avgAbsCorr)
+    : (n || null);
+  return {
+    factorCount: n,
+    pairCount,
+    observedPairCount: vals.length,
+    maxAbsCorr,
+    avgAbsCorr,
+    highPairCount,
+    effectiveFactorCount,
+    risk: comboCorrelationRiskLevel(maxAbsCorr),
+  };
+}
+
+async function comboLatestHoldingRows(factors, N, constraintMode) {
+  const metaMap = await ensureStockMetaSnapshot();
+  const scoreExpr = matrixScoreSql(factors);
+  const condSql = matrixCondSql(factors);
+  if (scoreExpr === null || condSql === null) return [];
+  const constraint = normalizeConstraintMode(constraintMode);
+  const candidateLimit = constraint === "industry"
+    ? Math.max(900, N * 30)
+    : Math.min(Math.max(N + 180, N * 4), 700);
+  const res = await state.db.query(`
+    SELECT stock_code,
+           ROUND(${scoreExpr}, 6) AS comp_score,
+           CAST(trade_date AS VARCHAR) AS dt
+    FROM cps_latest_matrix
+    WHERE TRUE ${condSql}
+    ORDER BY comp_score DESC, stock_code
+    LIMIT ${candidateLimit}
+  `);
+  const candidateRows = res.toArray()
+    .map(r => ({ ...r, meta: metaMap.get(r.stock_code) }))
+    .filter(r => r.meta && !r.meta.is_st && r.meta.is_active_latest)
+    .map(r => ({
+      stock_code: r.stock_code,
+      comp_score: snapshotNumber(r.comp_score),
+      cs: snapshotNumber(r.comp_score),
+      dt: String(r.dt || ""),
+      name: r.meta.name,
+      industry_sw1: r.meta.industry_sw1,
+      industry_sw2: r.meta.industry_sw2,
+      market_cap: r.meta.market_cap,
+      avg_amount: r.meta.avg_amount,
+    }));
+  const picked = constraint === "industry"
+    ? industryNeutralPickRows(candidateRows, N)
+    : candidateRows.slice(0, N).map(r => ({ ...r, weight: 1 / Math.max(1, Math.min(N, candidateRows.length)) }));
+  return picked.map(r => ({ ...r, weight: snapshotNumber(r.weight) ?? 0 }));
+}
+
+function comboBacktestAvgTurnover(backtest, N) {
+  if (!backtest || !Array.isArray(backtest.holdings)) return null;
+  let prev = null;
+  const turns = [];
+  for (const h of backtest.holdings) {
+    const cur = new Set(h?.stocks || []);
+    if (!cur.size) continue;
+    if (!prev) {
+      turns.push(1);
+    } else {
+      let diff = 0;
+      for (const s of cur) if (!prev.has(s)) diff += 1;
+      for (const s of prev) if (!cur.has(s)) diff += 1;
+      turns.push(diff / (2 * Math.max(1, Number(N) || cur.size)));
+    }
+    prev = cur;
+  }
+  return turns.length ? turns.reduce((s, v) => s + v, 0) / turns.length : null;
+}
+
+async function comboHistoricalAvgTurnover(factors, N, constraintMode) {
+  const sql = matrixBacktestSql(factors, N, "cps_matrix", constraintMode);
+  if (!sql) return null;
+  const res = await state.db.query(sql);
+  const rows = res.toArray();
+  const pickedRows = normalizeConstraintMode(constraintMode) === "industry"
+    ? groupIndustryNeutralRowsByMonth(rows, N)
+    : rows;
+  const byMonth = new Map();
+  for (const r of pickedRows) {
+    const key = String(r.dt || "");
+    if (!key) continue;
+    if (!byMonth.has(key)) byMonth.set(key, []);
+    byMonth.get(key).push(r);
+  }
+  let prev = null;
+  const turns = [];
+  for (const [_, arr] of [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const curWeights = new Map();
+    if (normalizeConstraintMode(constraintMode) === "industry") {
+      const sumW = arr.reduce((s, r) => s + (snapshotNumber(r.weight) ?? 0), 0) || 1;
+      arr.forEach(r => curWeights.set(r.stock_code, (snapshotNumber(r.weight) ?? 0) / sumW));
+    } else {
+      const w = 1 / Math.max(1, arr.length);
+      arr.forEach(r => curWeights.set(r.stock_code, w));
+    }
+    if (!curWeights.size) continue;
+    if (!prev) {
+      turns.push(1);
+    } else {
+      const codes = new Set([...prev.keys(), ...curWeights.keys()]);
+      let diff = 0;
+      for (const code of codes) diff += Math.abs((curWeights.get(code) || 0) - (prev.get(code) || 0));
+      turns.push(diff * 0.5);
+    }
+    prev = curWeights;
+  }
+  return turns.length ? turns.reduce((s, v) => s + v, 0) / turns.length : null;
+}
+
+function comboCrowdingRiskLevel(metrics) {
+  let score = 0;
+  if ((metrics.avgTurnover ?? 0) >= 0.80) score += 1;
+  if ((metrics.top3IndustryShare ?? 0) >= 0.60) score += 1;
+  if ((metrics.lowLiquidityShare ?? 0) >= 0.30) score += 1;
+  if ((metrics.highCrowdingExposureCount ?? 0) >= 2) score += 1;
+  if (score >= 3) return "alert";
+  if (score === 2) return "high";
+  if (score === 1) return "watch";
+  return "low";
+}
+
+function crowdingHoldingValuesSql(codes) {
+  const rows = [...new Set(codes || [])]
+    .filter(Boolean)
+    .map(code => String(code).replace(/'/g, "''"))
+    .map(code => `('${code}')`);
+  return rows.length ? rows.join(",") : "('__NO_HOLDINGS__')";
+}
+
+async function comboCrowdingFactorExposures(holdings) {
+  const factorDefs = [
+    { code: "ABTURN", label: "异常换手率", high: 0.5 },
+    { code: "TURNPCTL", label: "换手率历史分位", high: 0.7 },
+    { code: "HIGHMOMTURN", label: "高动量+高换手", high: 0.5 },
+    { code: "TURN20D120", label: "短长换手比", high: 0.5 },
+  ];
+  const holdingSql = crowdingHoldingValuesSql((holdings || []).map(r => r.stock_code));
+  const rows = [];
+  for (const def of factorDefs) {
+    try {
+      await ensureFactorData([def.code], { score: true, backtest: false, ic: false });
+      const res = await state.db.query(`
+        WITH holdings(stock_code) AS (
+          VALUES ${holdingSql}
+        ),
+        latest AS (
+          SELECT MAX(trade_date) AS d
+          FROM factor_score
+          WHERE factor_code = '${def.code}'
+        )
+        SELECT AVG(score) AS mean,
+               COUNT(*) AS n
+        FROM factor_score
+        JOIN holdings h USING(stock_code)
+        WHERE factor_code = '${def.code}'
+          AND trade_date = (SELECT d FROM latest)
+          AND score IS NOT NULL
+      `);
+      const row = res.toArray()[0] || {};
+      const mean = snapshotNumber(row.mean);
+      const n = snapshotNumber(row.n) || 0;
+      rows.push({
+        code: def.code,
+        label: def.label,
+        mean,
+        n,
+        threshold: def.high,
+        risk: mean !== null && mean >= def.high ? "high" : "low",
+      });
+    } catch (err) {
+      rows.push({
+        code: def.code,
+        label: def.label,
+        mean: null,
+        n: 0,
+        threshold: def.high,
+        risk: "watch",
+        error: err.message || String(err),
+      });
+    }
+  }
+  return rows;
+}
+
+async function comboCrowdingDiagnostics(payload) {
+  const holdings = await comboLatestHoldingRows(payload.factors, payload.N, payload.constraintMode);
+  let avgTurnover = comboBacktestAvgTurnover(payload.backtest, payload.N);
+  if (avgTurnover === null) {
+    avgTurnover = await comboHistoricalAvgTurnover(payload.factors, payload.N, payload.constraintMode);
+  }
+  const amounts = holdings.map(r => r.avg_amount).filter(v => snapshotNumber(v) !== null);
+  const caps = holdings.map(r => r.market_cap).filter(v => snapshotNumber(v) !== null);
+  const medianAmount = medianNumber(amounts);
+  const medianMarketCap = medianNumber(caps);
+  const industryWeights = new Map();
+  holdings.forEach(r => {
+    const industry = r.industry_sw1 || "未知";
+    const w = snapshotNumber(r.weight) ?? (1 / Math.max(1, holdings.length));
+    industryWeights.set(industry, (industryWeights.get(industry) || 0) + w);
+  });
+  const topIndustries = [...industryWeights.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([industry, weight]) => ({ industry, weight }));
+  const top3IndustryShare = topIndustries.reduce((s, r) => s + r.weight, 0);
+  const lowLiquidityRows = holdings.filter(r => {
+    const amt = snapshotNumber(r.avg_amount);
+    const cap = snapshotNumber(r.market_cap);
+    return medianAmount !== null && medianMarketCap !== null && amt !== null && cap !== null && amt < medianAmount && cap < medianMarketCap;
+  });
+  const exposures = await comboCrowdingFactorExposures(holdings);
+  const highCrowdingExposureCount = exposures.filter(r => r.risk === "high").length;
+  const metrics = {
+    holdingCount: holdings.length,
+    avgTurnover,
+    medianAmount,
+    medianMarketCap,
+    topIndustries,
+    top3IndustryShare,
+    lowLiquidityShare: holdings.length ? lowLiquidityRows.length / holdings.length : null,
+    highCrowdingExposureCount,
+    exposures,
+  };
+  metrics.risk = comboCrowdingRiskLevel(metrics);
+  return metrics;
+}
+
 async function comboBestSingleComparison(factors) {
   const codes = [...new Set(cloneComposeFactors(factors).map(f => f.code))];
   if (!codes.length) return null;
@@ -6793,7 +7058,7 @@ async function comboBestSingleComparison(factors) {
   return { rows, best };
 }
 
-async function comboValidationPayload(factors, N, constraintMode, startMonth, endMonth) {
+async function comboValidationPayload(factors, N, constraintMode, startMonth, endMonth, options = {}) {
   const fullBt = await comboBacktest(factors, N, "cps_matrix", constraintMode);
   const bt = sliceBacktestByRange(fullBt, startMonth, endMonth);
   const metrics = computeMetrics(bt.retArr, bt.navArr);
@@ -6806,7 +7071,7 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
   const singleComparison = await comboBestSingleComparison(factors);
   const bm = await ensureBenchmarkSnapshot();
   const bg = benchmarkMetrics(bm, startMonth, endMonth);
-  return {
+  const basePayload = {
     factors: cloneComposeFactors(factors),
     N,
     constraintMode: normalizeConstraintMode(constraintMode),
@@ -6820,6 +7085,10 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
     singleComparison,
     benchmarkMetrics: bg,
   };
+  if (options.includeCrowding !== false) {
+    basePayload.crowdingDiagnostics = await comboCrowdingDiagnostics(basePayload);
+  }
+  return basePayload;
 }
 
 function renderComboContributionTable(factors) {
@@ -6996,7 +7265,7 @@ async function runComboAblation() {
     state.composeStart = original.start;
     state.composeEnd = original.end;
     await ensureComposeBase();
-    const fullPayload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd);
+    const fullPayload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false });
     for (let i = 0; i < original.factors.length; i += 1) {
       const removed = original.factors[i];
       const meta = state.catalog.find(x => x.code === removed.code);
@@ -7009,7 +7278,7 @@ async function runComboAblation() {
         state.composeStart = original.start;
         state.composeEnd = original.end;
         await ensureComposeBase();
-        const payload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd);
+        const payload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false });
         results.push({ factor: removed.code, name: meta?.name_cn || "", payload });
       } catch (err) {
         console.warn("combo ablation item failed:", removed.code, err);
@@ -7036,6 +7305,82 @@ function renderComboCorrelationTable(correlation) {
       <td>${Math.abs(Number(r.corr)) >= 0.7 ? "相关性偏高" : "可观察"}</td>
     </tr>`).join("")}</tbody>
   </table>`;
+}
+
+function renderCrowdingRiskBadge(level) {
+  const safeLevel = ["low", "watch", "high", "alert"].includes(level) ? level : "watch";
+  return `<span class="combo-crowding-risk combo-crowding-${safeLevel}">${comboRiskLabel(safeLevel)}</span>`;
+}
+
+function renderComboCrowdingExposureValue(row) {
+  const v = snapshotNumber(row?.mean);
+  if (v === null) return signalValue("sample_months", null, "—");
+  const cls = row.risk === "high" ? "signal-alert" : "signal-muted";
+  const mark = row.risk === "high" ? "▲" : "●";
+  return `<span class="validation-signal ${cls}"><span class="signal-dot">${mark}</span>${signedNumText(v, 2)}</span>`;
+}
+
+function comboCrowdingExposureNote(row) {
+  if (row?.error) return "暂无数据";
+  if (!row?.n) return "暂无有效覆盖";
+  return row.risk === "high" ? "高拥挤因子暴露" : "未触发高拥挤提示";
+}
+
+function renderComboCorrelationCrowdingDiagnostics(payload) {
+  const corr = comboCorrelationSummary(payload.correlation, payload.factors?.length || 0);
+  const crowd = payload.crowdingDiagnostics || null;
+  if (!crowd) return `<div class="empty">暂无相关性 / 拥挤度诊断数据</div>`;
+  const riskNotes = [];
+  if ((corr.highPairCount || 0) > 0) riskNotes.push(`高相关因子对 ${corr.highPairCount} 组`);
+  if ((crowd.avgTurnover ?? 0) >= 0.80) riskNotes.push("月均换手偏高");
+  if ((crowd.top3IndustryShare ?? 0) >= 0.60) riskNotes.push("前三行业集中度偏高");
+  if ((crowd.lowLiquidityShare ?? 0) >= 0.30) riskNotes.push("低流动性持仓占比较高");
+  if ((crowd.highCrowdingExposureCount ?? 0) > 0) riskNotes.push(`高拥挤因子暴露 ${crowd.highCrowdingExposureCount} 项`);
+  const industryText = (crowd.topIndustries || [])
+    .map(r => `${r.industry}:${pctText(r.weight)}`)
+    .join("，") || "—";
+  const exposureRows = (crowd.exposures || []).map(r => `<tr>
+    <td>${r.code}</td>
+    <td>${r.label}</td>
+    <td>${renderComboCrowdingExposureValue(r)}</td>
+    <td>${numText(r.n, 0)}</td>
+    <td>${comboCrowdingExposureNote(r)}</td>
+  </tr>`).join("");
+  return `<div class="combo-crowding">
+    <div class="combo-crowding-grid">
+      <div class="combo-crowding-card">
+        <b>相关性风险</b>
+        ${renderCrowdingRiskBadge(corr.risk)}
+        <span>最高相关性 ${numText(corr.maxAbsCorr, 2)}，平均绝对相关性 ${numText(corr.avgAbsCorr, 2)}</span>
+      </div>
+      <div class="combo-crowding-card">
+        <b>拥挤度风险</b>
+        ${renderCrowdingRiskBadge(crowd.risk)}
+        <span>${riskNotes.length ? riskNotes.join("；") : "未触发主要拥挤风险提示"}</span>
+      </div>
+      <div class="combo-crowding-card">
+        <b>有效因子数估算</b>
+        <strong>${numText(corr.effectiveFactorCount, 1)}</strong>
+        <span>基于平均绝对相关性的简化估算，数值越低说明冗余越高。</span>
+      </div>
+    </div>
+    <table class="validation-table combo-crowding-table">
+      <thead><tr><th>诊断项</th><th>数值</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td>高相关因子对</td><td>${numText(corr.highPairCount, 0)} / ${numText(corr.pairCount, 0)}</td><td>绝对相关系数不低于 0.7 的因子对数量。</td></tr>
+        <tr><td>持仓月均换手</td><td>${pctText(crowd.avgTurnover)}</td><td>换手越高，交易成本和调仓冲击越敏感。</td></tr>
+        <tr><td>中位成交额</td><td>${crowd.medianAmount === null ? "—" : `${numText(crowd.medianAmount, 2)} 亿`}</td><td>越低说明组合容量和交易可实现性越需要复核。</td></tr>
+        <tr><td>中位市值</td><td>${crowd.medianMarketCap === null ? "—" : `${numText(crowd.medianMarketCap / 1e4, 0)} 亿`}</td><td>用于判断是否偏小市值或容量受限。</td></tr>
+        <tr><td>前三行业集中度</td><td>${pctText(crowd.top3IndustryShare)}</td><td>${industryText}</td></tr>
+        <tr><td>低流动性占比</td><td>${pctText(crowd.lowLiquidityShare)}</td><td>低流动性占比高时，回测收益更容易受到交易约束影响。</td></tr>
+      </tbody>
+    </table>
+    <table class="validation-table combo-crowding-table">
+      <thead><tr><th>拥挤因子</th><th>名称</th><th>持仓均值</th><th>覆盖数</th><th>提示</th></tr></thead>
+      <tbody>${exposureRows || `<tr><td colspan="5">暂无拥挤因子暴露数据</td></tr>`}</tbody>
+    </table>
+    <p class="validation-note">相关性 / 拥挤度诊断用于识别多因子组合是否过度依赖相近信号、短期热门交易或低容量股票；它是风险复核工具，不直接替代 RankIC、收益和样本外检验。</p>
+  </div>`;
 }
 
 function renderComboSingleComparison(payload) {
@@ -7222,6 +7567,8 @@ async function renderComposeValidation(renderSeq) {
         <h4 class="validation-subtitle">组合内相关性</h4>
         ${payload.correlation?.warnings?.length ? `<div class="combo-correlation-warning">${payload.correlation.warnings.join("；")}</div>` : ""}
         ${renderComboCorrelationTable(payload.correlation)}
+        <h4 class="validation-subtitle">相关性 / 拥挤度诊断</h4>
+        ${renderComboCorrelationCrowdingDiagnostics(payload)}
         <h4 class="validation-subtitle">与最佳单因子对比</h4>
         ${renderComboSingleComparison(payload)}
         <p class="validation-note">当前检验跟随多因子合成编辑器的方向、权重、阈值、TopN、回测区间和分数口径；行业中性约束影响组合表现，但 RankIC 检验仍衡量合成分数本身的排序能力。</p>
