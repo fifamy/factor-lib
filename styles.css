@@ -230,6 +230,18 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
 .validation-chart { height: 220px; margin-top: 8px; border: 1px solid #e1e6ec; border-radius: 5px; background: #fff; }
 .validation-heatmap { height: 300px; }
 .validation-note { color: #888; font-size: 11px; margin-top: 7px; line-height: 1.5; }
+.validation-short-sample {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid #f0c7bd;
+  border-left: 3px solid #ad3b32;
+  border-radius: 5px;
+  background: #fff7f5;
+  color: #7a3029;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.validation-short-sample b { color: #ad3b32; margin-right: 6px; }
 .validation-control-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 8px 0; color: #666; font-size: 11px; }
 .validation-control-row label { color: #1a4d80; font-weight: 700; }
 .validation-control-row select { border: 1px solid #cfd8e3; border-radius: 4px; background: #fff; padding: 3px 6px; font-size: 11px; color: #333; }

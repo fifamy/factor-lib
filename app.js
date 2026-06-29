@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629085512" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629092339" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260629085512";
+const _DEPLOY = "20260629092339";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -2378,6 +2378,41 @@ function signalValue(metric, value, text) {
   </span>`;
 }
 
+function validationShortSampleWarnings(v, group10Months, segmentRows = [], segmentPortfolioRows = []) {
+  const warnings = [];
+  const horizonShort = [1, 3, 6, 12]
+    .map(h => {
+      const n = firstSnapshotNumber(v?.[`rank_ic_n_${h}m`], h === 1 ? v?.n_months : null);
+      return n !== null && n < 36 ? `${h}M ${numText(n, 0)} 个月` : null;
+    })
+    .filter(Boolean);
+  if (horizonShort.length) warnings.push(`前瞻期 RankIC 样本较短：${horizonShort.join("、")}`);
+
+  const groupN = snapshotNumber(group10Months);
+  if (groupN !== null && groupN < 36) warnings.push(`10 分组样本 ${numText(groupN, 0)} 个月`);
+
+  const shortSegments = (Array.isArray(segmentRows) ? segmentRows : [])
+    .filter(r => Number(r?.n_months) > 0 && Number(r.n_months) < 36)
+    .slice(0, 3);
+  if (shortSegments.length) {
+    warnings.push(`分层 IC 存在短样本：${shortSegments.map(r => segmentLabel(r.segment_type, r.segment_value)).join("、")}`);
+  }
+
+  const shortPortfolios = (Array.isArray(segmentPortfolioRows) ? segmentPortfolioRows : [])
+    .filter(r => Number(r?.n_months) > 0 && Number(r.n_months) < 36)
+    .slice(0, 3);
+  if (shortPortfolios.length) {
+    warnings.push(`分层组合收益存在短样本：${shortPortfolios.map(r => segmentLabel(r.segment_type, r.segment_value)).join("、")}`);
+  }
+
+  return [...new Set(warnings)];
+}
+
+function renderValidationShortSampleWarning(warnings) {
+  if (!Array.isArray(warnings) || !warnings.length) return "";
+  return `<div class="validation-short-sample"><b>样本不足</b><span>${warnings.join("；")}。样本月数不足 36 时建议降低结论权重，优先结合前瞻期、滚动/样本外和分层结果复核。</span></div>`;
+}
+
 function renderValidationUnavailable(message) {
   const target = document.getElementById("validation-summary");
   if (target) target.innerHTML = `<div class="empty">${message}</div>`;
@@ -2716,6 +2751,9 @@ function renderValidationPanel(code, snap) {
   const lsAnnual = fullLsMetrics?.annual ?? firstSnapshotNumber(v.group10_ls_ann_return, v.group10_ls_annual_return);
   const lsSharpe = fullLsMetrics?.sharpe ?? snapshotNumber(v.group10_ls_sharpe);
   const lsMonths = fullLsReturns.length || snapshotNumber(v.group10_ls_n);
+  const segmentRows = Array.isArray(snap?.segments?.rows) ? snap.segments.rows : [];
+  const segmentPortfolioRows = Array.isArray(snap?.segment_portfolio?.rows) ? snap.segment_portfolio.rows : [];
+  const shortSampleWarnings = validationShortSampleWarnings(v, lsMonths, segmentRows, segmentPortfolioRows);
   const decayStats = filteredIcDecayStats(snap?.ic_decay, state.singleSide, null, null);
   const adjustedRankIcMean = rankIcMean === null ? null : rankIcMean * side;
   const adjustedRankIcIr = rankIcIr === null ? null : rankIcIr * side;
@@ -2745,6 +2783,7 @@ function renderValidationPanel(code, snap) {
   target.innerHTML = `
     ${renderValidationInterpretationNote()}
     ${renderBenchmarkSelect()}
+    ${renderValidationShortSampleWarning(shortSampleWarnings)}
     <div class="validation-grid">
       <div class="validation-block">
         <h4>有效性</h4>
