@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629092339" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629094109" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260629092339";
+const _DEPLOY = "20260629094109";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -87,6 +87,7 @@ let icDecayChart = null;
 let group10ValidationChart = null;
 let rolling36mChart = null;
 let segmentHeatmapChart = null;
+let segmentPortfolioChart = null;
 let scanChart = null;
 let cmpNavChart = null, cmpIcChart = null, cmpCorrChart = null;
 let cpsNavChart = null;
@@ -2468,6 +2469,7 @@ function renderValidationInterpretationNote() {
             <li>36个月滚动 IC_IR 曲线用于观察信号稳定性是否随时间衰退或阶段性失效，若长期在 0 附近或频繁转负，需要谨慎使用。</li>
             <li>分层 IC 热力图用于比较因子在市值、流动性、行业等分层中的有效性，若颜色只集中在少数分层，说明因子更适合限定适用范围或配合约束使用。</li>
             <li>分层组合收益表展示同一分层内 Top/Bottom 与多空收益，重点看多空年化、回撤、胜率和换手是否同时可接受。</li>
+            <li>分层组合收益图按多空年化展示各分层收益强弱，并在提示中同步展示多空回撤、胜率、换手和样本月数，用于快速识别收益是否只集中在少数分层。</li>
           </ul>
         </div>
       </div>
@@ -2684,6 +2686,53 @@ function renderSegmentPortfolioTable(snap) {
     </table>`;
 }
 
+function renderSegmentPortfolioChart(snap) {
+  const div = document.getElementById("segment-portfolio-chart");
+  if (!div) return;
+  if (segmentPortfolioChart) { segmentPortfolioChart.dispose(); segmentPortfolioChart = null; }
+  const rows = Array.isArray(snap?.segment_portfolio?.rows) ? snap.segment_portfolio.rows : [];
+  const clean = rows
+    .filter(r => Number.isFinite(Number(r.ls_ann_return)))
+    .sort((a, b) => Math.abs(Number(b.ls_ann_return)) - Math.abs(Number(a.ls_ann_return)))
+    .slice(0, 18)
+    .reverse();
+  if (!clean.length) {
+    div.innerHTML = `<div class="empty">暂无分层组合收益图数据</div>`;
+    return;
+  }
+  div.innerHTML = "";
+  segmentPortfolioChart = echarts.init(div);
+  segmentPortfolioChart.setOption({
+    grid: { left: 118, right: 28, top: 28, bottom: 34 },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: params => {
+        const p = params && params[0];
+        const r = clean[p?.dataIndex || 0] || {};
+        return [
+          `<b>${segmentLabel(r.segment_type, r.segment_value)}</b>`,
+          `多空年化：${signedPctText(r.ls_ann_return)}`,
+          `多空回撤：${pctText(r.ls_max_drawdown)}`,
+          `多空胜率：${pctText(r.ls_month_win_rate)}`,
+          `多空换手：${pctText(r.ls_avg_turnover)}`,
+          `样本月数：${numText(r.n_months, 0)}`,
+        ].join("<br>");
+      },
+    },
+    xAxis: { type: "value", axisLabel: { formatter: v => `${(v * 100).toFixed(0)}%` } },
+    yAxis: { type: "category", data: clean.map(r => segmentLabel(r.segment_type, r.segment_value)), axisLabel: { fontSize: 10 } },
+    series: [{
+      name: "分层组合收益图 多空年化",
+      type: "bar",
+      data: clean.map(r => +Number(r.ls_ann_return).toFixed(6)),
+      barMaxWidth: 16,
+      itemStyle: { color: p => Number(p.value) >= 0 ? "#19734d" : "#ad3b32" },
+      markLine: { symbol: "none", lineStyle: { color: "#9aa4b2", type: "dashed", width: 1 }, data: [{ xAxis: 0 }] },
+    }],
+  });
+}
+
 function renderSegmentHeatmap(snap) {
   const div = document.getElementById("segment-heatmap");
   if (!div) return;
@@ -2827,6 +2876,8 @@ function renderValidationPanel(code, snap) {
     ${renderRollingValidationTable(snap)}
     <div id="rolling-36m-chart" class="validation-chart"></div>
     ${renderSegmentValidationTable(snap)}
+    <h4 class="validation-subtitle">分层组合收益图</h4>
+    <div id="segment-portfolio-chart" class="validation-chart validation-segment-portfolio-chart"></div>
     ${renderSegmentPortfolioTable(snap)}
     <div id="segment-heatmap" class="validation-chart validation-heatmap"></div>
     <p class="validation-note">${code} · ${scoreModeLabel()}。摘要指标为离线全样本统计；Top30 摘要和超额指标随当前分析方向、区间和基准选择重算；10 分组是无行业约束的排序有效性检验，表格随当前回测区间重算展示。</p>
@@ -2840,6 +2891,7 @@ function renderValidationPanel(code, snap) {
   }
   renderGroup10ValidationChart(snap);
   renderRolling36mChart(snap);
+  renderSegmentPortfolioChart(snap);
   renderSegmentHeatmap(snap);
 }
 
@@ -7081,6 +7133,7 @@ window.addEventListener("resize", () => {
   [
     navChart, quantileChart, scanChart,
     icDecayChart,
+    group10ValidationChart, rolling36mChart, segmentHeatmapChart, segmentPortfolioChart,
     cmpNavChart, cmpIcChart, cmpCorrChart,
     cpsNavChart, cpsIcDecayChart, cpsCompareChart,
     topMktcapChart, topIndustryChart,

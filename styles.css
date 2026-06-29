@@ -229,6 +229,7 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
 .validation-table td { padding: 4px 6px; border-bottom: 1px solid #eee; text-align: right; font-variant-numeric: tabular-nums; }
 .validation-chart { height: 220px; margin-top: 8px; border: 1px solid #e1e6ec; border-radius: 5px; background: #fff; }
 .validation-heatmap { height: 300px; }
+.validation-segment-portfolio-chart { height: 300px; }
 .validation-note { color: #888; font-size: 11px; margin-top: 7px; line-height: 1.5; }
 .validation-short-sample {
   margin: 8px 0;
