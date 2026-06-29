@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629094109" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629104657" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260629094109";
+const _DEPLOY = "20260629104657";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -92,6 +92,8 @@ let scanChart = null;
 let cmpNavChart = null, cmpIcChart = null, cmpCorrChart = null;
 let cpsNavChart = null;
 let cpsIcDecayChart = null;
+let comboGroup10Chart = null;
+let comboRolling36mChart = null;
 
 // 多条策略线的配色（按 selectedNs 顺序取）
 const STRAT_COLORS = ["#1a4d80", "#e07b39", "#3a9d6e", "#9b59b6", "#c0392b", "#16a085"];
@@ -5188,6 +5190,14 @@ function loadLibraryCombo(source, id) {
   switchMode("compose");
 }
 
+function loadComboForValidation(source, id) {
+  loadLibraryCombo(source, id);
+  setTimeout(() => {
+    const el = document.getElementById("combo-validation-panel");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 250);
+}
+
 async function compareLibraryCombo(source, id) {
   const combo = getLibraryCombo(source, id);
   if (!combo) return;
@@ -5239,6 +5249,7 @@ function renderComboCards(box, combos, source, emptyText) {
         </div>
         <div class="published-actions">
           <button class="cpsn-btn library-load" data-source="${source}" data-id="${combo.id}"${disabled}>载入</button>
+          <button class="cpsn-btn library-validate" data-source="${source}" data-id="${combo.id}"${disabled}>检验</button>
           <button class="cpsn-btn library-compare" data-source="${source}" data-id="${combo.id}"${disabled}>加入对比</button>
           <button class="cpsn-btn library-detail-toggle" data-source="${source}" data-id="${combo.id}">${openSet.has(combo.id) ? "收起" : "详情"}</button>
           ${renameBtn}
@@ -5255,6 +5266,9 @@ function renderComboCards(box, combos, source, emptyText) {
   }).join("");
   box.querySelectorAll(".library-load").forEach(btn => {
     btn.onclick = () => loadLibraryCombo(btn.dataset.source, btn.dataset.id);
+  });
+  box.querySelectorAll(".library-validate").forEach(btn => {
+    btn.onclick = () => loadComboForValidation(btn.dataset.source, btn.dataset.id);
   });
   box.querySelectorAll(".library-compare").forEach(btn => {
     btn.onclick = () => compareLibraryCombo(btn.dataset.source, btn.dataset.id).catch(e => console.error("compare library combo failed:", e));
@@ -5956,11 +5970,17 @@ async function renderCompose() {
       if (cpsNavChart) { cpsNavChart.dispose(); cpsNavChart = null; }
       document.getElementById("cps-nav-chart").innerHTML = "";
       renderComposeIcDecayUnavailable("选因子后显示");
+      renderComposeValidationUnavailable("选因子后显示");
       return;
     }
     await ensureComposeBase();   // 因子集变了才重建窄表；权重/阈值/N 变则复用缓存
     if (isComposeRenderStale(renderSeq)) return;
-    await Promise.all([renderComposeStocks(renderSeq), renderComposeBacktest(renderSeq), renderComposeIcDecay(renderSeq)]);
+    await Promise.all([
+      renderComposeStocks(renderSeq),
+      renderComposeBacktest(renderSeq),
+      renderComposeIcDecay(renderSeq),
+      renderComposeValidation(renderSeq),
+    ]);
   } catch (err) {
     if (isComposeRenderStale(renderSeq)) return;
     console.error("renderCompose failed:", err);
@@ -6277,6 +6297,495 @@ async function renderComposeIcDecay(renderSeq) {
     </table>
     <p style="color:#888;font-size:11px;margin-top:6px">这里衡量的是当前合成分数排序对未来 1/3/6/12 个月收益的预测力；行业中性约束只影响持仓，不改变合成分数 IC。</p>
   `;
+}
+
+function renderComposeValidationUnavailable(message) {
+  const target = document.getElementById("combo-validation");
+  if (comboGroup10Chart) { comboGroup10Chart.dispose(); comboGroup10Chart = null; }
+  if (comboRolling36mChart) { comboRolling36mChart.dispose(); comboRolling36mChart = null; }
+  if (target) target.innerHTML = `<div class="empty">${message}</div>`;
+}
+
+function rankIcStatsFromSeries(series) {
+  const vals = (series || [])
+    .map(r => snapshotNumber(r?.rank_ic))
+    .filter(v => v !== null);
+  if (!vals.length) return { mean: null, ir: null, winRate: null, n: 0 };
+  const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+  const winRate = vals.filter(v => v > 0).length / vals.length;
+  if (vals.length < 2) return { mean, ir: null, winRate, n: vals.length };
+  const std = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / (vals.length - 1));
+  return { mean, ir: std > 0 ? mean / std * Math.sqrt(12) : null, winRate, n: vals.length };
+}
+
+function comboBacktestRowsForMonths(backtest) {
+  if (!backtest || !Array.isArray(backtest.retArr)) return [];
+  const hasStartAnchor = Array.isArray(backtest.x) && backtest.x.length === backtest.retArr.length + 1;
+  return backtest.retArr.map((ret, i) => {
+    const label = hasStartAnchor ? backtest.x[i + 1] : backtest.x?.[i];
+    return {
+      month: monthOfLabel(label),
+      label,
+      ret: snapshotNumber(ret),
+    };
+  }).filter(r => r.month && r.ret !== null);
+}
+
+function monthsWindowEnd(months, count) {
+  if (!months.length) return null;
+  return months[Math.max(0, months.length - count)];
+}
+
+function comboWindowStats(label, start, end, rankSeries, backtestRows) {
+  const icRows = (rankSeries || []).filter(r => {
+    const m = String(r.month || "").slice(0, 7);
+    return (!start || m >= start) && (!end || m <= end);
+  });
+  const btRows = (backtestRows || []).filter(r => (!start || r.month >= start) && (!end || r.month <= end));
+  const icStats = rankIcStatsFromSeries(icRows);
+  const metrics = metricsFromReturns(btRows.map(r => r.ret));
+  return {
+    window_type: label,
+    window_start: start || (icRows[0]?.month || btRows[0]?.month || null),
+    window_end: end || (icRows[icRows.length - 1]?.month || btRows[btRows.length - 1]?.month || null),
+    n_months: icStats.n || btRows.length,
+    rank_ic_mean: icStats.mean,
+    rank_ic_ir: icStats.ir,
+    rank_ic_win_rate: icStats.winRate,
+    top30_ann_return: metrics?.annual ?? null,
+    top30_sharpe: metrics?.sharpe ?? null,
+    top30_max_drawdown: metrics?.mdd ?? null,
+  };
+}
+
+function comboRollingValidation(rankIcSeries, backtest) {
+  const cleanIc = (rankIcSeries || [])
+    .map(r => ({ month: String(r.month || "").slice(0, 7), rank_ic: snapshotNumber(r.rank_ic), n: snapshotNumber(r.n) }))
+    .filter(r => r.month && r.rank_ic !== null)
+    .sort((a, b) => a.month.localeCompare(b.month));
+  const btRows = comboBacktestRowsForMonths(backtest);
+  const months = [...new Set(cleanIc.map(r => r.month))].sort();
+  const last = months[months.length - 1] || null;
+  const windows = [
+    comboWindowStats("full", null, null, cleanIc, btRows),
+    comboWindowStats("recent_5y", monthsWindowEnd(months, 60), last, cleanIc, btRows),
+    comboWindowStats("recent_3y", monthsWindowEnd(months, 36), last, cleanIc, btRows),
+    comboWindowStats("train", "2015-01", "2019-12", cleanIc, btRows),
+    comboWindowStats("validation", "2020-01", "2022-12", cleanIc, btRows),
+    comboWindowStats("test", "2023-01", last, cleanIc, btRows),
+  ].filter(r => Number(r.n_months) > 0);
+  const rolling_36m = [];
+  if (cleanIc.length >= 36) {
+    for (let i = 35; i < cleanIc.length; i++) {
+      const slice = cleanIc.slice(i - 35, i + 1);
+      const stats = rankIcStatsFromSeries(slice);
+      rolling_36m.push({
+        window_type: "rolling_36m",
+        window_start: slice[0].month,
+        window_end: slice[slice.length - 1].month,
+        n_months: stats.n,
+        rank_ic_mean: stats.mean,
+        rank_ic_ir: stats.ir,
+        rank_ic_win_rate: stats.winRate,
+      });
+    }
+  }
+  return { windows, rolling_36m };
+}
+
+function monotonicityFromReturns(values) {
+  const arr = (values || []).map(v => snapshotNumber(v));
+  if (arr.length < 2 || arr.some(v => v === null)) return null;
+  const xs = arr.map((_, i) => i + 1);
+  const rank = vals => {
+    const sorted = vals.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v || a.i - b.i);
+    const out = Array(vals.length);
+    for (let i = 0; i < sorted.length; i++) out[sorted[i].i] = i + 1;
+    return out;
+  };
+  const rx = rank(xs), ry = rank(arr);
+  const mx = rx.reduce((s, v) => s + v, 0) / rx.length;
+  const my = ry.reduce((s, v) => s + v, 0) / ry.length;
+  const cov = rx.reduce((s, v, i) => s + (v - mx) * (ry[i] - my), 0);
+  const sx = Math.sqrt(rx.reduce((s, v) => s + (v - mx) ** 2, 0));
+  const sy = Math.sqrt(ry.reduce((s, v) => s + (v - my) ** 2, 0));
+  return sx > 0 && sy > 0 ? cov / (sx * sy) : null;
+}
+
+async function comboGroupValidation(factors, startMonth = null, endMonth = null) {
+  const scoreExpr = matrixScoreSql(factors);
+  const condSql = matrixCondSql(factors);
+  if (!scoreExpr || condSql === null) return { groups: [], rows: [], monotonicity: null, ls: null };
+  const rangeConds = [];
+  if (startMonth) rangeConds.push(`strftime(trade_date, '%Y-%m') >= '${startMonth}'`);
+  if (endMonth) rangeConds.push(`strftime(trade_date, '%Y-%m') <= '${endMonth}'`);
+  const rangeSql = rangeConds.length ? `AND ${rangeConds.join(" AND ")}` : "";
+  const res = await state.db.query(`
+    WITH scored AS (
+      SELECT trade_date, return_date, stock_code, fwd_return, ROUND(${scoreExpr}, 6) AS cs
+      FROM cps_matrix
+      WHERE fwd_return IS NOT NULL ${condSql} ${rangeSql}
+    ),
+    ranked AS (
+      SELECT trade_date, return_date, stock_code, fwd_return, cs,
+             NTILE(10) OVER (PARTITION BY trade_date ORDER BY cs ASC, stock_code) AS grp
+      FROM scored
+    ),
+    monthly AS (
+      SELECT strftime(trade_date, '%Y-%m') AS signal_month,
+             strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS return_date,
+             grp,
+             AVG(fwd_return) AS port_ret,
+             COUNT(*) AS n
+      FROM ranked
+      GROUP BY trade_date, return_date, grp
+      HAVING COUNT(*) >= 5
+    )
+    SELECT signal_month, return_date, grp, port_ret, n
+    FROM monthly
+    ORDER BY signal_month, grp
+  `);
+  const rows = res.toArray().map(r => ({
+    signal_month: String(r.signal_month || "").slice(0, 7),
+    return_date: String(r.return_date || ""),
+    group: `G${Number(r.grp)}`,
+    port_ret: snapshotNumber(r.port_ret),
+    n: snapshotNumber(r.n),
+  })).filter(r => r.port_ret !== null);
+  const groups = Array.from({ length: 10 }, (_, i) => `G${i + 1}`);
+  const groupStats = groups.map(g => {
+    const rets = rows.filter(r => r.group === g).map(r => r.port_ret);
+    const m = metricsFromReturns(rets);
+    return { group: g, ann_return: m?.annual ?? null, sharpe: m?.sharpe ?? null, max_drawdown: m?.mdd ?? null, n_months: rets.length };
+  });
+  const byMonth = new Map();
+  for (const r of rows) {
+    if (!byMonth.has(r.signal_month)) byMonth.set(r.signal_month, {});
+    byMonth.get(r.signal_month)[r.group] = r.port_ret;
+  }
+  const lsReturns = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([_, g]) => (Number.isFinite(g.G10) && Number.isFinite(g.G1)) ? g.G10 - g.G1 : null)
+    .filter(v => v !== null);
+  return {
+    groups,
+    rows: groupStats,
+    monotonicity: monotonicityFromReturns(groupStats.map(r => r.ann_return)),
+    ls: metricsFromReturns(lsReturns),
+    months: [...byMonth.keys()].sort(),
+  };
+}
+
+async function comboCorrelationWarnings(factors) {
+  const rows = [];
+  try {
+    await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: true });
+    if (!state.hasCorr) return { rows, warnings: ["暂无组合内相关性数据"] };
+    const codes = [...new Set(cloneComposeFactors(factors).map(f => f.code))];
+    if (codes.length < 2) return { rows, warnings: [] };
+    const quoted = codes.map(c => `'${String(c).replace(/'/g, "''")}'`).join(",");
+    const res = await state.db.query(`
+      SELECT factor_a, factor_b, corr
+      FROM factor_corr
+      WHERE factor_a IN (${quoted}) AND factor_b IN (${quoted}) AND factor_a < factor_b
+      ORDER BY ABS(corr) DESC
+      LIMIT 20
+    `);
+    rows.push(...res.toArray().map(r => ({
+      factor_a: r.factor_a,
+      factor_b: r.factor_b,
+      corr: snapshotNumber(r.corr),
+    })).filter(r => r.corr !== null));
+  } catch (err) {
+    console.warn("combo correlation warning failed:", err);
+  }
+  const high = rows.filter(r => Math.abs(Number(r.corr)) >= 0.7).slice(0, 5);
+  const warnings = high.length
+    ? [`组合内相关性偏高：${high.map(r => `${r.factor_a}/${r.factor_b}=${numText(r.corr, 2)}`).join("，")}。高相关因子可能重复表达同一类信号。`]
+    : [];
+  return { rows, warnings };
+}
+
+async function comboBestSingleComparison(factors) {
+  const codes = [...new Set(cloneComposeFactors(factors).map(f => f.code))];
+  if (!codes.length) return null;
+  const rows = [];
+  for (const code of codes) {
+    try {
+      const snap = await loadActiveSingleSnapshot(code);
+      const v = snap?.validation || {};
+      rows.push({
+        code,
+        name: state.catalog.find(f => f.code === code)?.name_cn || "",
+        rank_ic: snapshotNumber(v.rank_ic_mean_1m),
+        ic_ir: snapshotNumber(v.rank_ic_ir_1m),
+        ann_return: firstSnapshotNumber(v.top30_ann_return, v.top30_annual_return),
+        max_drawdown: snapshotNumber(v.top30_max_drawdown),
+      });
+    } catch (err) {
+      console.warn("single comparison load failed:", code, err);
+    }
+  }
+  if (!rows.length) return null;
+  const best = rows.slice().sort((a, b) => {
+    const sa = (snapshotNumber(a.ic_ir) ?? -99) + (snapshotNumber(a.rank_ic) ?? -99);
+    const sb = (snapshotNumber(b.ic_ir) ?? -99) + (snapshotNumber(b.rank_ic) ?? -99);
+    return sb - sa;
+  })[0];
+  return { rows, best };
+}
+
+async function comboValidationPayload(factors, N, constraintMode, startMonth, endMonth) {
+  const fullBt = await comboBacktest(factors, N, "cps_matrix", constraintMode);
+  const bt = sliceBacktestByRange(fullBt, startMonth, endMonth);
+  const metrics = computeMetrics(bt.retArr, bt.navArr);
+  const icDecay = await comboIcDecay(factors, startMonth, endMonth);
+  const rankSeries = icDecay?.series?.["1"] || [];
+  const rankStats = rankIcStatsFromSeries(rankSeries);
+  const rolling = comboRollingValidation(rankSeries, bt);
+  const group10 = await comboGroupValidation(factors, startMonth, endMonth);
+  const correlation = await comboCorrelationWarnings(factors);
+  const singleComparison = await comboBestSingleComparison(factors);
+  const bm = await ensureBenchmarkSnapshot();
+  const bg = benchmarkMetrics(bm, startMonth, endMonth);
+  return {
+    factors: cloneComposeFactors(factors),
+    N,
+    constraintMode: normalizeConstraintMode(constraintMode),
+    backtest: bt,
+    metrics,
+    rankStats,
+    icDecay,
+    rolling,
+    group10,
+    correlation,
+    singleComparison,
+    benchmarkMetrics: bg,
+  };
+}
+
+function renderComboContributionTable(factors) {
+  const norm = cloneComposeFactors(factors);
+  const totalAbs = norm.reduce((s, f) => s + Math.abs(Number(f.weight) || 0), 0) || 1;
+  const rows = norm.map(f => {
+    const meta = state.catalog.find(x => x.code === f.code);
+    const thr = f.thr === null || !Number.isFinite(Number(f.thr)) ? "不过滤" : `得分 ${f.op} ${f.thr}`;
+    return `<tr>
+      <td>${f.code}</td><td>${meta?.name_cn || ""}</td><td>${sideLabel(f.side)}</td><td>${scoreModeLabel(f.scoreMode)}</td>
+      <td>${numText(f.weight, 2)}</td><td>${pctText(Math.abs(Number(f.weight) || 0) / totalAbs)}</td><td>${thr}</td>
+    </tr>`;
+  }).join("");
+  return `<table class="validation-table">
+    <thead><tr><th>因子</th><th>名称</th><th>方向</th><th>口径</th><th>权重</th><th>权重占比</th><th>过滤</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderComboCorrelationTable(correlation) {
+  const rows = Array.isArray(correlation?.rows) ? correlation.rows : [];
+  if (!rows.length) return `<div class="empty">暂无组合内相关性数据</div>`;
+  return `<table class="validation-table">
+    <thead><tr><th>因子A</th><th>因子B</th><th>相关系数</th><th>提示</th></tr></thead>
+    <tbody>${rows.slice(0, 10).map(r => `<tr>
+      <td>${r.factor_a}</td><td>${r.factor_b}</td><td>${signalValue("rank_ic", Math.abs(r.corr), numText(r.corr, 2))}</td>
+      <td>${Math.abs(Number(r.corr)) >= 0.7 ? "相关性偏高" : "可观察"}</td>
+    </tr>`).join("")}</tbody>
+  </table>`;
+}
+
+function renderComboSingleComparison(payload) {
+  const comp = payload.singleComparison;
+  if (!comp?.best) return `<div class="empty">暂无单因子对比数据</div>`;
+  const combo = {
+    label: "当前多因子",
+    rank_ic: payload.rankStats.mean,
+    ic_ir: payload.rankStats.ir,
+    ann_return: payload.metrics?.annual ?? null,
+    max_drawdown: payload.metrics?.mdd ?? null,
+  };
+  const best = comp.best;
+  return `<table class="validation-table">
+    <thead><tr><th>对象</th><th>RankIC均值</th><th>IC_IR</th><th>TopN年化</th><th>最大回撤</th></tr></thead>
+    <tbody>
+      <tr><td>${combo.label}</td><td>${signalValue("rank_ic", combo.rank_ic, signedPctText(combo.rank_ic))}</td><td>${signalValue("ic_ir", combo.ic_ir, signedNumText(combo.ic_ir, 2))}</td><td>${signalValue("ann_return", combo.ann_return, pctText(combo.ann_return))}</td><td>${pctText(combo.max_drawdown)}</td></tr>
+      <tr><td>最佳单因子 ${best.code} ${best.name || ""}</td><td>${signalValue("rank_ic", best.rank_ic, signedPctText(best.rank_ic))}</td><td>${signalValue("ic_ir", best.ic_ir, signedNumText(best.ic_ir, 2))}</td><td>${signalValue("ann_return", best.ann_return, pctText(best.ann_return))}</td><td>${pctText(best.max_drawdown)}</td></tr>
+    </tbody>
+  </table>`;
+}
+
+function renderComboRollingTable(payload) {
+  const rows = payload.rolling?.windows || [];
+  if (!rows.length) return `<div class="empty">暂无样本切片数据</div>`;
+  const labels = { full: "全样本", recent_5y: "近5年", recent_3y: "近3年", train: "训练段", validation: "验证段", test: "测试段" };
+  const body = rows.map(r => `<tr>
+    <td>${labels[r.window_type] || r.window_type}</td><td>${r.window_start || "—"} ~ ${r.window_end || "—"}</td>
+    <td>${signalValue("sample_months", r.n_months, numText(r.n_months, 0))}</td>
+    <td>${signalValue("rank_ic", r.rank_ic_mean, signedPctText(r.rank_ic_mean))}</td>
+    <td>${signalValue("ic_ir", r.rank_ic_ir, signedNumText(r.rank_ic_ir, 2))}</td>
+    <td>${signalValue("win_rate", r.rank_ic_win_rate, pctText(r.rank_ic_win_rate))}</td>
+    <td>${signalValue("ann_return", r.top30_ann_return, pctText(r.top30_ann_return))}</td>
+    <td>${signalValue("sharpe", r.top30_sharpe, signedNumText(r.top30_sharpe, 2))}</td>
+  </tr>`).join("");
+  return `<table class="validation-table">
+    <thead><tr><th>样本切片</th><th>区间</th><th>月数</th><th>RankIC均值</th><th>IC_IR</th><th>IC胜率</th><th>TopN年化</th><th>夏普</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
+function renderComboGroup10Table(group10) {
+  const rows = Array.isArray(group10?.rows) ? group10.rows : [];
+  if (!rows.length) return `<div class="empty">暂无 10 组收益数据</div>`;
+  return `<table class="validation-table">
+    <thead><tr><th>10组</th><th>年化收益</th><th>夏普</th><th>最大回撤</th><th>月数</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td>${r.group}${r.group === "G10" ? " 高分" : (r.group === "G1" ? " 低分" : "")}</td>
+      <td>${signalValue("ann_return", r.ann_return, pctText(r.ann_return))}</td>
+      <td>${signalValue("sharpe", r.sharpe, signedNumText(r.sharpe, 2))}</td>
+      <td>${pctText(r.max_drawdown)}</td>
+      <td>${signalValue("sample_months", r.n_months, numText(r.n_months, 0))}</td>
+    </tr>`).join("")}</tbody>
+  </table>`;
+}
+
+function renderComboGroup10Chart(payload) {
+  const div = document.getElementById("combo-group10-chart");
+  if (!div) return;
+  if (comboGroup10Chart) { comboGroup10Chart.dispose(); comboGroup10Chart = null; }
+  const rows = payload.group10?.rows || [];
+  if (!rows.length) {
+    div.innerHTML = `<div class="empty">暂无 10 组收益图数据</div>`;
+    return;
+  }
+  div.innerHTML = "";
+  comboGroup10Chart = echarts.init(div);
+  comboGroup10Chart.setOption({
+    grid: { left: 54, right: 20, top: 26, bottom: 30 },
+    tooltip: { trigger: "axis", valueFormatter: v => pctText(v) },
+    xAxis: { type: "category", data: rows.map(r => r.group), axisLabel: { fontSize: 11 } },
+    yAxis: { type: "value", axisLabel: { formatter: v => `${(v * 100).toFixed(0)}%` } },
+    series: [{ name: "10组年化收益", type: "bar", barMaxWidth: 22,
+      data: rows.map(r => snapshotNumber(r.ann_return)), itemStyle: { color: "#1a4d80" } }],
+  });
+}
+
+function renderComboRolling36mChart(payload) {
+  const div = document.getElementById("combo-rolling36-chart");
+  if (!div) return;
+  if (comboRolling36mChart) { comboRolling36mChart.dispose(); comboRolling36mChart = null; }
+  const rows = payload.rolling?.rolling_36m || [];
+  if (!rows.length) {
+    div.innerHTML = `<div class="empty">暂无 36 个月滚动 IC_IR 数据</div>`;
+    return;
+  }
+  div.innerHTML = "";
+  comboRolling36mChart = echarts.init(div);
+  comboRolling36mChart.setOption({
+    grid: { left: 46, right: 20, top: 24, bottom: 34 },
+    tooltip: { trigger: "axis" },
+    xAxis: { type: "category", data: rows.map(r => r.window_end), axisLabel: { fontSize: 10 } },
+    yAxis: { type: "value", name: "IC_IR", scale: true },
+    series: [{ name: "36个月滚动 IC_IR", type: "line", symbol: "none",
+      data: rows.map(r => snapshotNumber(r.rank_ic_ir)), lineStyle: { width: 2, color: "#19734d" } }],
+  });
+}
+
+function renderComboValidationWarning(payload) {
+  const warnings = [];
+  if ((payload.rankStats?.n || 0) < 36) {
+    warnings.push(`样本不足：多因子合成有效月份 ${numText(payload.rankStats?.n, 0)}，不足 36，排序信号和组合收益只适合做初步观察`);
+  }
+  if (Array.isArray(payload.correlation?.warnings)) warnings.push(...payload.correlation.warnings);
+  return warnings.length ? `<div class="validation-short-sample"><b>提示</b><span>${warnings.join("；")}。</span></div>` : "";
+}
+
+async function renderComposeValidation(renderSeq) {
+  const target = document.getElementById("combo-validation");
+  if (!target) return;
+  if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) {
+    renderComposeValidationUnavailable("选因子后显示");
+    return;
+  }
+  target.classList.add("combo-validation-scroll-target");
+  target.innerHTML = `<div class="loading">正在计算多因子检验…</div>`;
+  try {
+    const payload = await comboValidationPayload(
+      state.composeFactors,
+      state.composeN,
+      state.composeConstraintMode,
+      state.composeStart,
+      state.composeEnd,
+    );
+    if (isComposeRenderStale(renderSeq)) return;
+    const m = payload.metrics;
+    const rank = payload.rankStats || {};
+    const ex300 = (m && payload.benchmarkMetrics?.HS300) ? m.annual - payload.benchmarkMetrics.HS300.annual : null;
+    const ex800 = (m && payload.benchmarkMetrics?.CSI800) ? m.annual - payload.benchmarkMetrics.CSI800.annual : null;
+    const groupMono = payload.group10?.monotonicity ?? null;
+    const ls = payload.group10?.ls;
+    const horizons = (payload.icDecay?.stats || []).map(s => `<tr>
+      <td>${s.h}M</td><td>${signalValue("rank_ic", s.mean, signedPctText(s.mean))}</td><td>${signalValue("ic_ir", s.ir, signedNumText(s.ir, 2))}</td><td>${signalValue("sample_months", s.n, numText(s.n, 0))}</td>
+    </tr>`).join("");
+    target.innerHTML = `
+      <div class="combo-validation">
+        <div class="combo-validation-note">
+          <b>多因子检验</b>：多因子检验先看合成分数的 RankIC 与 IC_IR，再看 TopN 组合收益和 10 组单调性。若多因子收益高但 RankIC 不稳定，或组合内因子高度相关，应降低结论权重。
+        </div>
+        ${renderComboValidationWarning(payload)}
+        <div class="combo-validation-grid">
+          <div class="combo-validation-section">
+            <h4>排序信号</h4>
+            ${validationValueBlock([
+              ["RankIC均值", signalValue("rank_ic", rank.mean, signedPctText(rank.mean))],
+              ["IC_IR", signalValue("ic_ir", rank.ir, signedNumText(rank.ir, 2))],
+              ["IC胜率", signalValue("win_rate", rank.winRate, pctText(rank.winRate))],
+              ["样本月数", signalValue("sample_months", rank.n, numText(rank.n, 0))],
+            ])}
+          </div>
+          <div class="combo-validation-section">
+            <h4>组合表现</h4>
+            ${validationValueBlock([
+              ["TopN年化", signalValue("ann_return", m?.annual, pctText(m?.annual))],
+              ["夏普", signalValue("sharpe", m?.sharpe, signedNumText(m?.sharpe, 2))],
+              ["最大回撤", pctText(m?.mdd)],
+              ["月度胜率", signalValue("win_rate", m?.winRate, pctText(m?.winRate))],
+              ["超额vs300", signalValue("ann_return", ex300, signedPctText(ex300))],
+              ["超额vs800", signalValue("ann_return", ex800, signedPctText(ex800))],
+            ])}
+          </div>
+          <div class="combo-validation-section">
+            <h4>10组单调性</h4>
+            ${validationValueBlock([
+              ["10组单调性", signalValue("monotonicity", groupMono, numText(groupMono, 2))],
+              ["LS年化", signalValue("ann_return", ls?.annual, pctText(ls?.annual))],
+              ["LS夏普", signalValue("sharpe", ls?.sharpe, signedNumText(ls?.sharpe, 2))],
+              ["组合约束", constraintModeLabel(payload.constraintMode)],
+            ])}
+          </div>
+        </div>
+        <h4 class="validation-subtitle">前瞻期 RankIC</h4>
+        <table class="validation-table"><thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>样本月数</th></tr></thead><tbody>${horizons}</tbody></table>
+        <h4 class="validation-subtitle">10组收益</h4>
+        ${renderComboGroup10Table(payload.group10)}
+        <div id="combo-group10-chart" class="combo-validation-chart"></div>
+        <h4 class="validation-subtitle">样本切片</h4>
+        ${renderComboRollingTable(payload)}
+        <div id="combo-rolling36-chart" class="combo-validation-chart"></div>
+        <h4 class="validation-subtitle">因子贡献</h4>
+        ${renderComboContributionTable(payload.factors)}
+        <h4 class="validation-subtitle">组合内相关性</h4>
+        ${payload.correlation?.warnings?.length ? `<div class="combo-correlation-warning">${payload.correlation.warnings.join("；")}</div>` : ""}
+        ${renderComboCorrelationTable(payload.correlation)}
+        <h4 class="validation-subtitle">与最佳单因子对比</h4>
+        ${renderComboSingleComparison(payload)}
+        <p class="validation-note">当前检验跟随多因子合成编辑器的方向、权重、阈值、TopN、回测区间和分数口径；行业中性约束影响组合表现，但 RankIC 检验仍衡量合成分数本身的排序能力。</p>
+      </div>
+    `;
+    renderComboGroup10Chart(payload);
+    renderComboRolling36mChart(payload);
+  } catch (err) {
+    if (isComposeRenderStale(renderSeq)) return;
+    console.error("render compose validation failed:", err);
+    target.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">多因子检验失败：${err.message || err}</pre>`;
+  }
 }
 
 // ============ 暂存组合 + 多组合对比 ============

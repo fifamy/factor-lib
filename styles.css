@@ -257,8 +257,17 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
 .guide-section li { margin: 2px 0; }
 .guide-flow, .guide-thresholds { margin-bottom: 8px; }
 .guide-foot { color: #6b7280; margin-top: 8px; }
+.combo-validation { display: flex; flex-direction: column; gap: 10px; }
+.combo-validation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.combo-validation-section { background: #fff; border: 1px solid #e1e6ec; border-radius: 5px; padding: 9px 10px; min-width: 0; }
+.combo-validation-section h4 { color: #1a4d80; font-size: 12px; margin: 0 0 7px; }
+.combo-validation-note { color: #666; background: #f8fafc; border: 1px solid #e1e6ec; border-radius: 5px; padding: 9px 10px; font-size: 11px; line-height: 1.55; }
+.combo-validation-chart { height: 230px; margin-top: 8px; border: 1px solid #e1e6ec; border-radius: 5px; background: #fff; }
+.combo-correlation-warning { margin-top: 7px; color: #8a6200; background: #fff8e5; border: 1px solid #ecd89b; border-radius: 5px; padding: 7px 9px; font-size: 11px; line-height: 1.5; }
+.combo-validation-scroll-target { scroll-margin-top: 12px; }
 @media (max-width: 960px) {
   .validation-grid { grid-template-columns: 1fr; }
+  .combo-validation-grid { grid-template-columns: 1fr; }
   .rank-guide-grid { grid-template-columns: 1fr; }
   .guide-grid { grid-template-columns: 1fr; }
 }

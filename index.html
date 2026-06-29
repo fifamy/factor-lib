@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>因子库 v1.2.3</title>
-  <link rel="stylesheet" href="styles.css?v=20260629094109">
+  <title>因子库 v1.3.0</title>
+  <link rel="stylesheet" href="styles.css?v=20260629104657">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -15,9 +15,9 @@
 </head>
 <body>
   <div id="topbar">
-    <span><b>因子库 v1.2.3</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
+    <span><b>因子库 v1.3.0</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260629094109" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260629104657" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta">加载中…</span>
@@ -238,6 +238,10 @@
           <h3>合成组合指标</h3>
           <div id="cps-kpi"><div class="empty">选因子后显示</div></div>
         </div>
+        <div class="panel" id="combo-validation-panel">
+          <h3>多因子检验</h3>
+          <div id="combo-validation"><div class="empty">选因子后显示</div></div>
+        </div>
         <div class="panel" id="cps-compare-panel" style="display:none">
           <h3 id="cps-compare-title">暂存组合对比</h3>
           <div id="cps-compare-nav" style="width:100%;height:340px"></div>
@@ -408,6 +412,6 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script type="module" src="app.js?v=20260629094109"></script>
+  <script type="module" src="app.js?v=20260629104657"></script>
 </body>
 </html>
