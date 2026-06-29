@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629145517" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629160617" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260629145517";
+const _DEPLOY = "20260629160617";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -6610,11 +6610,15 @@ function comboWindowStats(label, start, end, rankSeries, backtestRows) {
   const btRows = (backtestRows || []).filter(r => (!start || r.month >= start) && (!end || r.month <= end));
   const icStats = rankIcStatsFromSeries(icRows);
   const metrics = metricsFromReturns(btRows.map(r => r.ret));
+  const icMonths = icStats.n;
+  const btMonths = btRows.length;
   return {
     window_type: label,
     window_start: start || (icRows[0]?.month || btRows[0]?.month || null),
     window_end: end || (icRows[icRows.length - 1]?.month || btRows[btRows.length - 1]?.month || null),
-    n_months: icStats.n || btRows.length,
+    n_months: Math.max(icMonths, btMonths),
+    ic_n_months: icMonths,
+    bt_n_months: btMonths,
     rank_ic_mean: icStats.mean,
     rank_ic_ir: icStats.ir,
     rank_ic_win_rate: icStats.winRate,
@@ -7635,7 +7639,8 @@ function renderComboRollingTable(payload) {
   const labels = { full: "全样本", recent_5y: "近5年", recent_3y: "近3年", train: "训练段", validation: "验证段", test: "测试段" };
   const body = rows.map(r => `<tr>
     <td>${labels[r.window_type] || r.window_type}</td><td>${r.window_start || "—"} ~ ${r.window_end || "—"}</td>
-    <td>${signalValue("sample_months", r.n_months, numText(r.n_months, 0))}</td>
+    <td>${signalValue("sample_months", r.ic_n_months, numText(r.ic_n_months, 0))}</td>
+    <td>${signalValue("sample_months", r.bt_n_months, numText(r.bt_n_months, 0))}</td>
     <td>${signalValue("rank_ic", r.rank_ic_mean, signedPctText(r.rank_ic_mean))}</td>
     <td>${signalValue("ic_ir", r.rank_ic_ir, signedNumText(r.rank_ic_ir, 2))}</td>
     <td>${signalValue("win_rate", r.rank_ic_win_rate, pctText(r.rank_ic_win_rate))}</td>
@@ -7643,7 +7648,7 @@ function renderComboRollingTable(payload) {
     <td>${signalValue("sharpe", r.top30_sharpe, signedNumText(r.top30_sharpe, 2))}</td>
   </tr>`).join("");
   return `<table class="validation-table">
-    <thead><tr><th>样本切片</th><th>区间</th><th>月数</th><th>RankIC均值</th><th>IC_IR</th><th>IC胜率</th><th>TopN年化</th><th>夏普</th></tr></thead>
+    <thead><tr><th>样本切片</th><th>区间</th><th>IC月数</th><th>收益月数</th><th>RankIC均值</th><th>IC_IR</th><th>IC胜率</th><th>TopN年化</th><th>夏普</th></tr></thead>
     <tbody>${body}</tbody>
   </table>`;
 }
