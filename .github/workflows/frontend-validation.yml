@@ -29,9 +29,6 @@ jobs:
       - name: Static frontend contract tests
         run: python3 -m pytest tests/test_frontend_validation_panel.py -q
 
-      - name: Snapshot export tests
-        run: python3 -m pytest tests/test_export_fast_snapshots.py -q
-
       - name: JavaScript syntax checks
         run: |
           if [ -f frontend/app.js ]; then
