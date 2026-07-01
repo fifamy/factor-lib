@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -6,12 +7,29 @@ FRONTEND_ROOT = ROOT / "frontend" if (ROOT / "frontend" / "app.js").exists() els
 APP_JS = FRONTEND_ROOT / "app.js"
 STYLES_CSS = FRONTEND_ROOT / "styles.css"
 INDEX_HTML = FRONTEND_ROOT / "index.html"
+FRONTEND_DATA = FRONTEND_ROOT / "data"
 
 
 def _source_between(source: str, start: str, end: str) -> str:
     start_idx = source.index(start)
     end_idx = source.index(end, start_idx)
     return source[start_idx:end_idx]
+
+
+def test_frontend_data_snapshots_keep_factor_tags():
+    catalog = json.loads((FRONTEND_DATA / "factor_catalog.json").read_text(encoding="utf-8"))
+    ranking = json.loads((FRONTEND_DATA / "factor_ranking_snapshot.json").read_text(encoding="utf-8"))
+    factors = ranking.get("factors") or []
+
+    catalog_env = sum(1 for row in catalog if row.get("env_tag") and row.get("env_tag") != "—")
+    catalog_time = sum(1 for row in catalog if row.get("time_tag") and row.get("time_tag") != "—")
+    ranking_env = sum(1 for row in factors if row.get("env_tag") and row.get("env_tag") != "—")
+    ranking_time = sum(1 for row in factors if row.get("time_tag") and row.get("time_tag") != "—")
+
+    assert catalog_env == len(catalog)
+    assert catalog_time == len(catalog)
+    assert ranking_env == len(factors)
+    assert ranking_time == len(factors)
 
 
 def test_validation_horizon_win_rate_falls_back_to_ic_decay_series():
@@ -450,6 +468,17 @@ def test_publish_worktree_record_points_to_current_clone():
 
     assert "/private/tmp/factor-lib-pages-publish-20260701/repo" in agents
     assert "不要再作为正式发布工作副本使用" in agents
+
+
+def test_deploy_script_targets_formal_factor_lib_pages_repo():
+    script = ROOT / "frontend" / "scripts" / "deploy_to_pages.sh"
+    if not script.exists():
+        return
+    text = script.read_text(encoding="utf-8")
+
+    assert "factor-lib-pages-publish-20260701/repo" in text
+    assert "factor-lib-demo" not in text
+    assert "scripts/test_frontend_sql.py" in text
 
 
 def test_ci_workflow_runs_static_frontend_checks():
