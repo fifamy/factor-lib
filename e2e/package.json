@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "compose-validation": "node run_compose_validation.mjs",
+    "online-compose-validation": "node online_compose_validation.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

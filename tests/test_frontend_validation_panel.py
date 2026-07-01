@@ -440,6 +440,37 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current_after_validation_upgrade():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v1.3.5</title>" in index
-    assert "<b>因子库 v1.3.5</b>" in index
+    assert "<title>因子库 v1.3.6</title>" in index
+    assert "<b>因子库 v1.3.6</b>" in index
     assert "v1.1.0" not in index
+
+
+def test_publish_worktree_record_points_to_current_clone():
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert "/private/tmp/factor-lib-pages-publish-20260701/repo" in agents
+    assert "不要再作为正式发布工作副本使用" in agents
+
+
+def test_ci_workflow_runs_static_frontend_checks():
+    workflow = ROOT / ".github" / "workflows" / "frontend-validation.yml"
+    text = workflow.read_text(encoding="utf-8")
+
+    assert "python3 -m pytest tests/test_frontend_validation_panel.py -q" in text
+    assert "node --check frontend/app.js" in text
+    assert "node --check app.js" in text
+    assert "node --check e2e/run_compose_validation.mjs" in text
+    assert "push" in text
+    assert "pull_request" in text
+
+
+def test_online_compose_validation_script_exists_and_checks_live_site():
+    script = ROOT / "e2e" / "online_compose_validation.mjs"
+    package_json = (ROOT / "e2e" / "package.json").read_text(encoding="utf-8")
+    text = script.read_text(encoding="utf-8")
+
+    assert "https://fifamy.github.io/factor-lib/" in text
+    assert "组合内相对低流动性占比" in text
+    assert "comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth)" in text
+    assert "factor_corr_neutral" in text
+    assert '"online-compose-validation": "node online_compose_validation.mjs"' in package_json
