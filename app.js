@@ -3,11 +3,11 @@
 // DuckDB-Wasm runs in a Worker with no notion of the page's "data/" relative path.
 // Use absolute URLs (resolved against page origin) for every read_parquet() call.
 const DATA_DIR = new URL("data/", document.baseURI).toString();
-// Cache-busting 版本号。部署时 deploy 脚本会把 "20260629160617" 替换成提交版本号：
+// Cache-busting 版本号。部署时 deploy 脚本会把 "DEPLOY_VERSION" 替换成提交版本号：
 //   - 本地（serve.py，未替换）→ 用 Date.now() 每次刷新强制重下，重跑流水线换数据后立即生效；
 //   - 部署后（已替换成稳定版本号）→ 浏览器可缓存 parquet，刷新/再访问秒开，只有重新部署才重下。
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
-const _DEPLOY = "20260629160617";
+const _DEPLOY = "DEPLOY_VERSION";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
@@ -82,6 +82,7 @@ const state = {
   hasDescriptors: false,
   hasBenchmarks: false,
   hasCorr: false,
+  hasCorrNeutral: false,
   duckdb: null,
   db: null,
 };
@@ -848,9 +849,15 @@ async function ensureOptionalTables(opts = {}) {
         `, `
           CREATE OR REPLACE TABLE factor_corr (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
         `);
+      state.hasCorrNeutral = await tryLoadOptional("factor_corr_neutral", `
+          CREATE OR REPLACE TABLE factor_corr_neutral AS
+          SELECT * FROM read_parquet('${DATA_DIR}factor_corr_neutral.parquet${V}')
+        `, `
+          CREATE OR REPLACE TABLE factor_corr_neutral (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
+        `);
       _optionalReady.corr = true;
     }
-    console.log(`Optional: stockMeta=${state.hasStockMeta}, descriptors=${state.hasDescriptors}, benchmarks=${state.hasBenchmarks}, corr=${state.hasCorr}`);
+    console.log(`Optional: stockMeta=${state.hasStockMeta}, descriptors=${state.hasDescriptors}, benchmarks=${state.hasBenchmarks}, corr=${state.hasCorr}, corrNeutral=${state.hasCorrNeutral}`);
   });
   return _optionalDataLoad;
 }
@@ -905,6 +912,9 @@ async function _initDB() {
     `);
     await state.db.query(`
       CREATE TABLE factor_corr (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
+    `);
+    await state.db.query(`
+      CREATE TABLE factor_corr_neutral (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
     `);
     console.log(`核心表加载 ${(performance.now() - t0).toFixed(0)}ms`);
 
@@ -2321,8 +2331,13 @@ function htmlAttr(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function htmlText(s) {
+  return htmlAttr(s);
 }
 
 function firstSnapshotNumber(...values) {
@@ -5164,13 +5179,13 @@ function comboDetailHtml(combo) {
   const rows = cloneComposeFactors(combo.factors).map(f => {
     const meta = state.catalog.find(x => x.code === f.code);
     const thr = f.thr === null ? "不过滤" : `得分 ${f.op} ${f.thr}`;
-    return `<tr><td>${f.code}</td><td>${meta?.name_cn || ""}</td><td>${sideLabel(f.side)}</td><td>${scoreModeLabel(f.scoreMode)}</td><td>${f.weight}</td><td>${thr}</td></tr>`;
+    return `<tr><td>${htmlText(f.code)}</td><td>${htmlText(meta?.name_cn || "")}</td><td>${htmlText(sideLabel(f.side))}</td><td>${htmlText(scoreModeLabel(f.scoreMode))}</td><td>${htmlText(f.weight)}</td><td>${htmlText(thr)}</td></tr>`;
   }).join("");
   return `<div class="published-detail">
-    ${combo.description ? `<p>${combo.description}</p>` : ""}
+    ${combo.description ? `<p>${htmlText(combo.description)}</p>` : ""}
     <p class="published-meta">组合约束：${constraintModeLabel(normalizeConstraintMode(combo.constraintMode))}</p>
     <table class="published-detail-table"><thead><tr><th>因子</th><th>名称</th><th>方向</th><th>口径</th><th>权重</th><th>过滤</th></tr></thead><tbody>${rows}</tbody></table>
-    <p class="published-meta">${combo.created_at ? "创建：" + combo.created_at + " · " : ""}ID：${combo.id}</p>
+    <p class="published-meta">${combo.created_at ? "创建：" + htmlText(combo.created_at) + " · " : ""}ID：${htmlText(combo.id)}</p>
   </div>`;
 }
 
@@ -5234,50 +5249,52 @@ function toggleLibraryDetail(source, id) {
 function renderComboCards(box, combos, source, emptyText) {
   if (!box) return;
   if (!combos.length) {
-    box.innerHTML = `<div class="empty">${emptyText}</div>`;
+    box.innerHTML = `<div class="empty">${htmlText(emptyText)}</div>`;
     return;
   }
   const openSet = source === "mine" ? state.myComboOpen : state.publishedComboOpen;
   const cardClass = source === "mine" ? "my-combo-card" : "published-combo-card";
   box.innerHTML = combos.map(combo => {
+    const safeId = htmlAttr(combo.id);
+    const safeSource = htmlAttr(source);
     const tags = combo.tags.length
-      ? combo.tags.map(t => `<span class="published-tag">${t}</span>`).join("")
+      ? combo.tags.map(t => `<span class="published-tag">${htmlText(t)}</span>`).join("")
       : "";
     const detail = openSet.has(combo.id) ? comboDetailHtml(combo) : "";
     const disabled = combo.valid ? "" : " disabled";
-    const invalid = combo.valid ? "" : `<div class="published-invalid">配置无效：${combo.invalidReason}</div>`;
+    const invalid = combo.valid ? "" : `<div class="published-invalid">配置无效：${htmlText(combo.invalidReason)}</div>`;
     const deleteBtn = source === "mine"
-      ? `<button class="cpsn-btn my-delete" data-source="${source}" data-id="${combo.id}"${disabled}>删除</button>`
+      ? `<button class="cpsn-btn my-delete" data-source="${safeSource}" data-id="${safeId}"${disabled}>删除</button>`
       : "";
     const renameBtn = source === "mine"
-      ? `<button class="cpsn-btn my-rename" data-source="${source}" data-id="${combo.id}"${disabled}>改名</button>`
+      ? `<button class="cpsn-btn my-rename" data-source="${safeSource}" data-id="${safeId}"${disabled}>改名</button>`
       : "";
     const publishBtn = source === "mine"
-      ? `<button class="cpsn-btn my-publish" data-source="${source}" data-id="${combo.id}"${disabled}>申请发布</button>`
+      ? `<button class="cpsn-btn my-publish" data-source="${safeSource}" data-id="${safeId}"${disabled}>申请发布</button>`
       : "";
     const deleteRequestBtn = source === "published" && combo.source === "supabase"
-      ? `<button class="cpsn-btn published-delete-request" data-id="${combo.id}"${disabled}>申请删除</button>`
+      ? `<button class="cpsn-btn published-delete-request" data-id="${safeId}"${disabled}>申请删除</button>`
       : "";
-    return `<div class="published-combo-card ${cardClass}${combo.valid ? "" : " invalid"}" data-id="${combo.id}">
+    return `<div class="published-combo-card ${cardClass}${combo.valid ? "" : " invalid"}" data-id="${safeId}">
       <div class="published-combo-head">
         <div>
-          <b class="published-combo-name">${combo.name}</b>
-          <span class="published-n">top${combo.N}</span>
+          <b class="published-combo-name">${htmlText(combo.name)}</b>
+          <span class="published-n">top${htmlText(combo.N)}</span>
           ${tags}
         </div>
         <div class="published-actions">
-          <button class="cpsn-btn library-load" data-source="${source}" data-id="${combo.id}"${disabled}>载入</button>
-          <button class="cpsn-btn library-validate" data-source="${source}" data-id="${combo.id}"${disabled}>检验</button>
-          <button class="cpsn-btn library-compare" data-source="${source}" data-id="${combo.id}"${disabled}>加入对比</button>
-          <button class="cpsn-btn library-detail-toggle" data-source="${source}" data-id="${combo.id}">${openSet.has(combo.id) ? "收起" : "详情"}</button>
+          <button class="cpsn-btn library-load" data-source="${safeSource}" data-id="${safeId}"${disabled}>载入</button>
+          <button class="cpsn-btn library-validate" data-source="${safeSource}" data-id="${safeId}"${disabled}>检验</button>
+          <button class="cpsn-btn library-compare" data-source="${safeSource}" data-id="${safeId}"${disabled}>加入对比</button>
+          <button class="cpsn-btn library-detail-toggle" data-source="${safeSource}" data-id="${safeId}">${openSet.has(combo.id) ? "收起" : "详情"}</button>
           ${renameBtn}
           ${publishBtn}
           ${deleteRequestBtn}
           ${deleteBtn}
         </div>
       </div>
-      <div class="published-summary">${comboSummary(combo)}</div>
-      ${combo.description ? `<div class="published-desc">${combo.description}</div>` : ""}
+      <div class="published-summary">${htmlText(comboSummary(combo))}</div>
+      ${combo.description ? `<div class="published-desc">${htmlText(combo.description)}</div>` : ""}
       ${invalid}
       ${detail}
     </div>`;
@@ -5316,12 +5333,12 @@ function renderPublishedCombos() {
     return;
   }
   if (state.publishedComboErrors.length && !state.publishedCombos.length) {
-    box.innerHTML = `<div class="empty" style="color:#c14545">${state.publishedComboErrors.join("；")}</div>`;
+    box.innerHTML = `<div class="empty" style="color:#c14545">${htmlText(state.publishedComboErrors.join("；"))}</div>`;
     return;
   }
   renderComboCards(box, state.publishedCombos, "published", "暂无已发布组合");
   if (state.publishedComboErrors.length) {
-    box.insertAdjacentHTML("afterbegin", `<div class="empty" style="margin-bottom:8px;color:#c14545">${state.publishedComboErrors.join("；")}</div>`);
+    box.insertAdjacentHTML("afterbegin", `<div class="empty" style="margin-bottom:8px;color:#c14545">${htmlText(state.publishedComboErrors.join("；"))}</div>`);
   }
 }
 
@@ -5407,7 +5424,7 @@ function comboRankingRowFromPayload(source, combo, payload) {
     monotonicity: payload.group10?.monotonicity ?? null,
     ls_ann_return: payload.group10?.ls?.annual ?? null,
     max_abs_corr: maxAbsCorr,
-    best_single: best?.code || "",
+    best_single: best?.label || best?.code || "",
     best_single_ic_ir: best?.ic_ir ?? null,
     best_single_ic_ir_gap: (rank.ir !== null && rank.ir !== undefined && best?.ic_ir !== null && best?.ic_ir !== undefined) ? rank.ir - best.ic_ir : null,
     error: "",
@@ -5539,11 +5556,11 @@ function renderComboRanking(statusText = null) {
   const body = rows.map(r => {
     const warn = (snapshotNumber(r.n_months) ?? 99) < 36 ? `<span class="combo-ranking-warn">样本短</span>` : ((snapshotNumber(r.max_abs_corr) ?? 0) >= 0.7 ? `<span class="combo-ranking-warn">高相关</span>` : "");
     if (r.error) {
-      return `<tr class="failed"><td class="combo-ranking-name">${r.name}</td><td>${r.source_label}</td><td colspan="${cols.length - 2}">计算失败：${r.error}</td><td><button class="cpsn-btn combo-ranking-validate" data-source="${r.source}" data-id="${r.id}">检验</button></td></tr>`;
+      return `<tr class="failed"><td class="combo-ranking-name">${htmlText(r.name)}</td><td>${htmlText(r.source_label)}</td><td colspan="${cols.length - 2}">计算失败：${htmlText(r.error)}</td><td><button class="cpsn-btn combo-ranking-validate" data-source="${htmlAttr(r.source)}" data-id="${htmlAttr(r.id)}">检验</button></td></tr>`;
     }
     return `<tr>
-      <td class="combo-ranking-name" title="${htmlAttr(comboSummary(r))}">${r.name}${warn}</td>
-      <td>${r.source_label}</td>
+      <td class="combo-ranking-name" title="${htmlAttr(comboSummary(r))}">${htmlText(r.name)}${warn}</td>
+      <td>${htmlText(r.source_label)}</td>
       <td>${signalValue("ic_ir", r.score, signedNumText(r.score, 2))}</td>
       <td>${signalValue("rank_ic", r.rank_ic, signedPctText(r.rank_ic))}</td>
       <td>${signalValue("ic_ir", r.ic_ir, signedNumText(r.ic_ir, 2))}</td>
@@ -5557,8 +5574,8 @@ function renderComboRanking(statusText = null) {
       <td>${signalValue("ann_return", r.ls_ann_return, pctText(r.ls_ann_return))}</td>
       <td>${signalValue("sample_months", r.n_months, numText(r.n_months, 0))}</td>
       <td>${r.max_abs_corr === null || r.max_abs_corr === undefined ? "—" : signalValue("correlation", r.max_abs_corr, numText(r.max_abs_corr, 2))}</td>
-      <td>${signalValue("ic_ir", r.best_single_ic_ir_gap, signedNumText(r.best_single_ic_ir_gap, 2))}${r.best_single ? `<span class="combo-ranking-warn">${r.best_single}</span>` : ""}</td>
-      <td><button class="cpsn-btn combo-ranking-validate" data-source="${r.source}" data-id="${r.id}">检验</button></td>
+      <td>${signalValue("ic_ir", r.best_single_ic_ir_gap, signedNumText(r.best_single_ic_ir_gap, 2))}${r.best_single ? `<span class="combo-ranking-warn">${htmlText(r.best_single)}</span>` : ""}</td>
+      <td><button class="cpsn-btn combo-ranking-validate" data-source="${htmlAttr(r.source)}" data-id="${htmlAttr(r.id)}">检验</button></td>
     </tr>`;
   }).join("");
   box.innerHTML = `<div class="combo-ranking-scroll"><table class="combo-ranking-table">
@@ -5759,7 +5776,7 @@ async function loadAdminPublishedCombos() {
     renderAdminPublishedCombos();
   } catch (err) {
     const list = document.getElementById("admin-published-list");
-    if (list) list.innerHTML = `<div class="empty" style="color:#c14545">已发布组合加载失败：${err.message || err}</div>`;
+    if (list) list.innerHTML = `<div class="empty" style="color:#c14545">已发布组合加载失败：${htmlText(err.message || err)}</div>`;
   }
 }
 
@@ -5777,14 +5794,16 @@ function renderAdminPublishedCombos() {
   list.innerHTML = state.adminPublishedCombos.map(row => {
     const payload = row.combo_payload || {};
     const created = row.created_at ? new Date(row.created_at).toLocaleString() : "";
-    return `<div class="admin-published-card" data-id="${row.id}">
+    const combo = payload.factors ? validatePublishedCombo(payload, 0, new Set(state.catalog.map(f => f.code))) : null;
+    const title = payload.name || row.name || row.combo_id;
+    return `<div class="admin-published-card" data-id="${htmlAttr(row.id)}">
       <div>
-        <b>${payload.name || row.name || row.combo_id}</b>
-        <span class="published-n">top${payload.N || "?"}</span>
-        <div class="admin-request-meta">${created}</div>
-        <div class="published-summary">${payload.factors ? comboSummary(validatePublishedCombo(payload, 0, new Set(state.catalog.map(f => f.code)))) : "无组合配置"}</div>
+        <b>${htmlText(title)}</b>
+        <span class="published-n">top${htmlText(payload.N || "?")}</span>
+        <div class="admin-request-meta">${htmlText(created)}</div>
+        <div class="published-summary">${combo ? htmlText(comboSummary(combo)) : "无组合配置"}</div>
       </div>
-      <button class="cpsn-btn admin-published-delete" data-id="${row.id}" data-name="${payload.name || row.name || row.combo_id}">删除</button>
+      <button class="cpsn-btn admin-published-delete" data-id="${htmlAttr(row.id)}" data-name="${htmlAttr(title)}">删除</button>
     </div>`;
   }).join("");
   list.querySelectorAll(".admin-published-delete").forEach(btn => {
@@ -5810,21 +5829,23 @@ function renderAdminRequests() {
     const pending = req.status === "pending";
     const statusText = req.status === "approved" ? "已同意" : (req.status === "rejected" ? "已拒绝" : "待审核");
     const created = req.created_at ? new Date(req.created_at).toLocaleString() : "";
-    return `<div class="admin-request-card ${pending ? "" : "reviewed"}" data-id="${req.id}">
+    const validated = payload.factors ? validatePublishedCombo(payload, 0, new Set(state.catalog.map(f => f.code))) : null;
+    const summary = validated ? comboSummary(validated) : `目标组合：${req.combo_name || req.combo_id}`;
+    return `<div class="admin-request-card ${pending ? "" : "reviewed"}" data-id="${htmlAttr(req.id)}">
       <div class="admin-request-head">
         <div>
           <div class="admin-request-kind">${isDelete ? "申请删除" : "申请发布"}</div>
-          <b class="admin-request-title">${payload.name || req.combo_name || "未命名组合"}</b>
-          <span class="published-n">top${payload.N || "?"}</span>
-          <div class="admin-request-meta">状态：${statusText} · ${created}</div>
-          <div class="published-summary">${payload.factors ? comboSummary(validatePublishedCombo(payload, 0, new Set(state.catalog.map(f => f.code)))) : `目标组合：${req.combo_name || req.combo_id}`}</div>
+          <b class="admin-request-title">${htmlText(payload.name || req.combo_name || "未命名组合")}</b>
+          <span class="published-n">top${htmlText(payload.N || "?")}</span>
+          <div class="admin-request-meta">状态：${htmlText(statusText)} · ${htmlText(created)}</div>
+          <div class="published-summary">${htmlText(summary)}</div>
         </div>
         <div class="admin-request-actions">
-          <button class="cpsn-btn admin-approve" data-id="${req.id}"${pending ? "" : " disabled"}>同意</button>
-          <button class="cpsn-btn admin-reject" data-id="${req.id}"${pending ? "" : " disabled"}>拒绝</button>
+          <button class="cpsn-btn admin-approve" data-id="${htmlAttr(req.id)}"${pending ? "" : " disabled"}>同意</button>
+          <button class="cpsn-btn admin-reject" data-id="${htmlAttr(req.id)}"${pending ? "" : " disabled"}>拒绝</button>
         </div>
       </div>
-      <pre class="admin-request-json">${JSON.stringify(payload, null, 2)}</pre>
+      <pre class="admin-request-json">${htmlText(JSON.stringify(payload, null, 2))}</pre>
     </div>`;
   }).join("");
   list.querySelectorAll(".admin-approve").forEach(btn => {
@@ -6745,17 +6766,35 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
   };
 }
 
+function comboCorrelationTableChoice(factors) {
+  const modes = new Set(cloneComposeFactors(factors).map(f => normalizeScoreMode(f.scoreMode)));
+  const allNeutral = modes.size > 0 && modes.size === 1 && modes.has("neutral");
+  return {
+    table: allNeutral ? "factor_corr_neutral" : "factor_corr",
+    mode: allNeutral ? "neutral" : (modes.size > 1 ? "mixed" : "raw"),
+    mixed: modes.size > 1,
+  };
+}
+
 async function comboCorrelationWarnings(factors) {
   const rows = [];
+  const warnings = [];
   try {
     await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: true });
-    if (!state.hasCorr) return { rows, warnings: ["暂无组合内相关性数据"] };
+    const choice = comboCorrelationTableChoice(factors);
+    const useNeutral = choice.table === "factor_corr_neutral";
+    const tableName = useNeutral && state.hasCorrNeutral ? "factor_corr_neutral" : "factor_corr";
+    if (choice.mixed) warnings.push("组合含混合分数口径，相关性暂按原始口径近似。");
+    if (useNeutral && !state.hasCorrNeutral) warnings.push("行业市值中性相关矩阵缺失，暂按原始相关矩阵近似。");
+    if (tableName === "factor_corr" && !state.hasCorr) {
+      return { rows, warnings: warnings.length ? warnings : ["暂无组合内相关性数据"], table: tableName, mode: choice.mode };
+    }
     const codes = [...new Set(cloneComposeFactors(factors).map(f => f.code))];
-    if (codes.length < 2) return { rows, warnings: [] };
+    if (codes.length < 2) return { rows, warnings, table: tableName, mode: choice.mode };
     const quoted = codes.map(c => `'${String(c).replace(/'/g, "''")}'`).join(",");
     const res = await state.db.query(`
       SELECT factor_a, factor_b, corr
-      FROM factor_corr
+      FROM ${tableName}
       WHERE factor_a IN (${quoted}) AND factor_b IN (${quoted}) AND factor_a < factor_b
       ORDER BY ABS(corr) DESC
       LIMIT 20
@@ -6769,9 +6808,9 @@ async function comboCorrelationWarnings(factors) {
     console.warn("combo correlation warning failed:", err);
   }
   const high = rows.filter(r => Math.abs(Number(r.corr)) >= 0.7).slice(0, 5);
-  const warnings = high.length
-    ? [`组合内相关性偏高：${high.map(r => `${r.factor_a}/${r.factor_b}=${numText(r.corr, 2)}`).join("，")}。高相关因子可能重复表达同一类信号。`]
-    : [];
+  if (high.length) {
+    warnings.push(`组合内相关性偏高：${high.map(r => `${r.factor_a}/${r.factor_b}=${numText(r.corr, 2)}`).join("，")}。高相关因子可能重复表达同一类信号。`);
+  }
   return { rows, warnings };
 }
 
@@ -7033,24 +7072,36 @@ async function comboCrowdingDiagnostics(payload) {
   return metrics;
 }
 
-async function comboBestSingleComparison(factors) {
-  const codes = [...new Set(cloneComposeFactors(factors).map(f => f.code))];
-  if (!codes.length) return null;
+async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth) {
+  const normFactors = cloneComposeFactors(factors);
+  if (!normFactors.length) return null;
   const rows = [];
-  for (const code of codes) {
+  const seen = new Set();
+  for (const raw of normFactors) {
+    const singleFactor = { ...raw, weight: 1, thr: null };
+    const key = `${singleFactor.code}|${singleFactor.side}|${singleFactor.scoreMode}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     try {
-      const snap = await loadActiveSingleSnapshot(code);
-      const v = snap?.validation || {};
+      const ic = await comboIcDecay([singleFactor], startMonth, endMonth);
+      const rank = rankIcStatsFromSeries(ic?.series?.["1"] || []);
+      const fullBt = await comboBacktest([singleFactor], N, "cps_matrix", constraintMode);
+      const bt = sliceBacktestByRange(fullBt, startMonth, endMonth);
+      const metrics = computeMetrics(bt.retArr, bt.navArr);
       rows.push({
-        code,
-        name: state.catalog.find(f => f.code === code)?.name_cn || "",
-        rank_ic: snapshotNumber(v.rank_ic_mean_1m),
-        ic_ir: snapshotNumber(v.rank_ic_ir_1m),
-        ann_return: firstSnapshotNumber(v.top30_ann_return, v.top30_annual_return),
-        max_drawdown: snapshotNumber(v.top30_max_drawdown),
+        code: singleFactor.code,
+        name: state.catalog.find(f => f.code === singleFactor.code)?.name_cn || "",
+        label: factorParamName(singleFactor.code, singleFactor.side, singleFactor.scoreMode),
+        side: normalizeSide(singleFactor.side),
+        scoreMode: normalizeScoreMode(singleFactor.scoreMode),
+        constraintMode: normalizeConstraintMode(constraintMode),
+        rank_ic: rank.mean,
+        ic_ir: rank.ir,
+        ann_return: metrics?.annual ?? null,
+        max_drawdown: metrics?.mdd ?? null,
       });
     } catch (err) {
-      console.warn("single comparison load failed:", code, err);
+      console.warn("single comparison load failed:", singleFactor.code, err);
     }
   }
   if (!rows.length) return null;
@@ -7063,6 +7114,9 @@ async function comboBestSingleComparison(factors) {
 }
 
 async function comboValidationPayload(factors, N, constraintMode, startMonth, endMonth, options = {}) {
+  if (normalizeConstraintMode(constraintMode) === "industry") {
+    await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+  }
   const fullBt = await comboBacktest(factors, N, "cps_matrix", constraintMode);
   const bt = sliceBacktestByRange(fullBt, startMonth, endMonth);
   const metrics = computeMetrics(bt.retArr, bt.navArr);
@@ -7072,7 +7126,7 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
   const rolling = comboRollingValidation(rankSeries, bt);
   const group10 = await comboGroupValidation(factors, startMonth, endMonth);
   const correlation = await comboCorrelationWarnings(factors);
-  const singleComparison = await comboBestSingleComparison(factors);
+  const singleComparison = await comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth);
   const bm = await ensureBenchmarkSnapshot();
   const bg = benchmarkMetrics(bm, startMonth, endMonth);
   const basePayload = {
@@ -7211,60 +7265,42 @@ function comboParameterSensitivitySummary(rows) {
 async function comboParameterSensitivity(payload, startMonth, endMonth) {
   const scenarios = comboParameterSensitivityScenarios(payload);
   const rows = [];
-  const original = {
-    factors: cloneComposeFactors(state.composeFactors),
-    N: state.composeN,
-    constraintMode: state.composeConstraintMode,
-    start: state.composeStart,
-    end: state.composeEnd,
-  };
-  try {
-    if (scenarios.some(s => normalizeConstraintMode(s.constraintMode) === "industry")) {
-      await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+  if (scenarios.some(s => normalizeConstraintMode(s.constraintMode) === "industry")) {
+    await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+  }
+  for (const scenario of scenarios) {
+    try {
+      const p = await comboValidationPayload(
+        scenario.factors,
+        scenario.N,
+        scenario.constraintMode,
+        startMonth,
+        endMonth,
+        { includeCrowding: false, includeParameterSensitivity: false },
+      );
+      const row = {
+        group: scenario.group,
+        label: scenario.label,
+        N: scenario.N,
+        constraintMode: normalizeConstraintMode(scenario.constraintMode),
+        rank_ic: p.rankStats?.mean ?? null,
+        ic_ir: p.rankStats?.ir ?? null,
+        ann_return: p.metrics?.annual ?? null,
+        max_drawdown: p.metrics?.mdd ?? null,
+        monotonicity: p.group10?.monotonicity ?? null,
+      };
+      row.judgement = comboParameterSensitivityJudgement(payload, row);
+      rows.push(row);
+    } catch (err) {
+      rows.push({
+        group: scenario.group,
+        label: scenario.label,
+        N: scenario.N,
+        constraintMode: normalizeConstraintMode(scenario.constraintMode),
+        error: err.message || String(err),
+        judgement: { label: "需复核", cls: "review", note: err.message || String(err) },
+      });
     }
-    for (const scenario of scenarios) {
-      try {
-        state.composeFactors = cloneComposeFactors(scenario.factors);
-        state.composeN = scenario.N;
-        state.composeConstraintMode = normalizeConstraintMode(scenario.constraintMode);
-        state.composeStart = startMonth;
-        state.composeEnd = endMonth;
-        await ensureComposeBase();
-        const p = await comboValidationPayload(
-          scenario.factors,
-          scenario.N,
-          scenario.constraintMode,
-          startMonth,
-          endMonth,
-          { includeCrowding: false, includeParameterSensitivity: false },
-        );
-        const row = {
-          group: scenario.group,
-          label: scenario.label,
-          N: scenario.N,
-          constraintMode: normalizeConstraintMode(scenario.constraintMode),
-          rank_ic: p.rankStats?.mean ?? null,
-          ic_ir: p.rankStats?.ir ?? null,
-          ann_return: p.metrics?.annual ?? null,
-          max_drawdown: p.metrics?.mdd ?? null,
-          monotonicity: p.group10?.monotonicity ?? null,
-        };
-        row.judgement = comboParameterSensitivityJudgement(payload, row);
-        rows.push(row);
-      } catch (err) {
-        rows.push({
-          group: scenario.group,
-          label: scenario.label,
-          N: scenario.N,
-          constraintMode: normalizeConstraintMode(scenario.constraintMode),
-          error: err.message || String(err),
-          judgement: { label: "需复核", cls: "review", note: err.message || String(err) },
-        });
-      }
-    }
-  } finally {
-    restoreComposeContext(original);
-    await ensureComposeBase();
   }
   return { rows, summary: comboParameterSensitivitySummary(rows) };
 }
@@ -7276,8 +7312,8 @@ function renderComboContributionTable(factors) {
     const meta = state.catalog.find(x => x.code === f.code);
     const thr = f.thr === null || !Number.isFinite(Number(f.thr)) ? "不过滤" : `得分 ${f.op} ${f.thr}`;
     return `<tr>
-      <td>${f.code}</td><td>${meta?.name_cn || ""}</td><td>${sideLabel(f.side)}</td><td>${scoreModeLabel(f.scoreMode)}</td>
-      <td>${numText(f.weight, 2)}</td><td>${pctText(Math.abs(Number(f.weight) || 0) / totalAbs)}</td><td>${thr}</td>
+      <td>${htmlText(f.code)}</td><td>${htmlText(meta?.name_cn || "")}</td><td>${htmlText(sideLabel(f.side))}</td><td>${htmlText(scoreModeLabel(f.scoreMode))}</td>
+      <td>${numText(f.weight, 2)}</td><td>${pctText(Math.abs(Number(f.weight) || 0) / totalAbs)}</td><td>${htmlText(thr)}</td>
     </tr>`;
   }).join("");
   return `<table class="validation-table">
@@ -7364,7 +7400,7 @@ function renderComboAblationShell(payload) {
       逐个剔除当前组合中的一个因子，并用相同 TopN、约束和样本区间重算检验指标。表中 Δ 表示“完整组合 - 剔除后组合”：正数通常说明该因子有边际贡献，负数说明剔除后更好。
     </div>
     <div class="combo-ablation-actions">
-      <button id="combo-ablation-run" class="cpsn-btn" type="button">运行剔除实验</button>
+      <button id="combo-ablation-run" class="cpsn-btn combo-ablation-run" type="button">运行剔除实验</button>
       <span>经验判断仅用于提示，仍需结合相关性、换手、样本切片和行业暴露复核。</span>
     </div>
     <div id="combo-ablation-result"><div class="empty">点击“运行剔除实验”后显示</div></div>
@@ -7376,15 +7412,15 @@ function renderComboAblationTable(rows) {
   const body = rows.map(r => {
     if (r.error) {
       return `<tr>
-        <td>${r.factor}</td><td>${r.name || ""}</td>
-        <td><span class="combo-ablation-judge combo-ablation-${r.judgement.cls}">${r.judgement.label}</span></td>
-        <td colspan="9">${r.error}</td>
+        <td>${htmlText(r.factor)}</td><td>${htmlText(r.name || "")}</td>
+        <td><span class="combo-ablation-judge combo-ablation-${r.judgement.cls}">${htmlText(r.judgement.label)}</span></td>
+        <td colspan="9">${htmlText(r.error)}</td>
       </tr>`;
     }
     return `<tr>
-      <td>${r.factor}</td>
-      <td>${r.name || ""}</td>
-      <td><span class="combo-ablation-judge combo-ablation-${r.judgement.cls}" title="${htmlAttr(r.judgement.note)}">${r.judgement.label}</span></td>
+      <td>${htmlText(r.factor)}</td>
+      <td>${htmlText(r.name || "")}</td>
+      <td><span class="combo-ablation-judge combo-ablation-${r.judgement.cls}" title="${htmlAttr(r.judgement.note)}">${htmlText(r.judgement.label)}</span></td>
       <td>${signalValue("rank_ic", r.delta_rank_ic, signedPctText(r.delta_rank_ic))}</td>
       <td>${signalValue("ic_ir", r.delta_ic_ir, signedNumText(r.delta_ic_ir, 2))}</td>
       <td>${signalValue("ann_return", r.delta_ann_return, signedPctText(r.delta_ann_return))}</td>
@@ -7410,7 +7446,7 @@ function bindComboAblationHandlers() {
   btn.onclick = () => runComboAblation().catch(err => {
     console.error("run combo ablation failed:", err);
     const box = document.getElementById("combo-ablation-result");
-    if (box) box.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">剔除实验失败：${err.message || err}</pre>`;
+    if (box) box.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">剔除实验失败：${htmlText(err.message || err)}</pre>`;
     btn.disabled = false;
     btn.textContent = "运行剔除实验";
   });
@@ -7479,7 +7515,7 @@ function renderComboCorrelationTable(correlation) {
   return `<table class="validation-table">
     <thead><tr><th>因子A</th><th>因子B</th><th>相关系数</th><th>提示</th></tr></thead>
     <tbody>${rows.slice(0, 10).map(r => `<tr>
-      <td>${r.factor_a}</td><td>${r.factor_b}</td><td>${signalValue("correlation", r.corr, numText(r.corr, 2))}</td>
+      <td>${htmlText(r.factor_a)}</td><td>${htmlText(r.factor_b)}</td><td>${signalValue("correlation", r.corr, numText(r.corr, 2))}</td>
       <td>${Math.abs(Number(r.corr)) >= 0.7 ? "相关性偏高" : "可观察"}</td>
     </tr>`).join("")}</tbody>
   </table>`;
@@ -7512,17 +7548,17 @@ function renderComboCorrelationCrowdingDiagnostics(payload) {
   if ((corr.highPairCount || 0) > 0) riskNotes.push(`高相关因子对 ${corr.highPairCount} 组`);
   if ((crowd.avgTurnover ?? 0) >= 0.80) riskNotes.push("月均换手偏高");
   if ((crowd.top3IndustryShare ?? 0) >= 0.60) riskNotes.push("前三行业集中度偏高");
-  if ((crowd.lowLiquidityShare ?? 0) >= 0.30) riskNotes.push("低流动性持仓占比较高");
+  if ((crowd.lowLiquidityShare ?? 0) >= 0.30) riskNotes.push("组合内相对低流动性持仓占比较高");
   if ((crowd.highCrowdingExposureCount ?? 0) > 0) riskNotes.push(`高拥挤因子暴露 ${crowd.highCrowdingExposureCount} 项`);
   const industryText = (crowd.topIndustries || [])
     .map(r => `${r.industry}:${pctText(r.weight)}`)
     .join("，") || "—";
   const exposureRows = (crowd.exposures || []).map(r => `<tr>
-    <td>${r.code}</td>
-    <td>${r.label}</td>
+    <td>${htmlText(r.code)}</td>
+    <td>${htmlText(r.label)}</td>
     <td>${renderComboCrowdingExposureValue(r)}</td>
     <td>${numText(r.n, 0)}</td>
-    <td>${comboCrowdingExposureNote(r)}</td>
+    <td>${htmlText(comboCrowdingExposureNote(r))}</td>
   </tr>`).join("");
   return `<div class="combo-crowding">
     <div class="combo-crowding-grid">
@@ -7534,7 +7570,7 @@ function renderComboCorrelationCrowdingDiagnostics(payload) {
       <div class="combo-crowding-card">
         <b>拥挤度风险</b>
         ${renderCrowdingRiskBadge(crowd.risk)}
-        <span>${riskNotes.length ? riskNotes.join("；") : "未触发主要拥挤风险提示"}</span>
+        <span>${htmlText(riskNotes.length ? riskNotes.join("；") : "未触发主要拥挤风险提示")}</span>
       </div>
       <div class="combo-crowding-card">
         <b>有效因子数估算</b>
@@ -7549,8 +7585,8 @@ function renderComboCorrelationCrowdingDiagnostics(payload) {
         <tr><td>持仓月均换手</td><td>${pctText(crowd.avgTurnover)}</td><td>换手越高，交易成本和调仓冲击越敏感。</td></tr>
         <tr><td>中位成交额</td><td>${crowd.medianAmount === null ? "—" : `${numText(crowd.medianAmount, 2)} 亿`}</td><td>越低说明组合容量和交易可实现性越需要复核。</td></tr>
         <tr><td>中位市值</td><td>${crowd.medianMarketCap === null ? "—" : `${numText(crowd.medianMarketCap / 1e4, 0)} 亿`}</td><td>用于判断是否偏小市值或容量受限。</td></tr>
-        <tr><td>前三行业集中度</td><td>${pctText(crowd.top3IndustryShare)}</td><td>${industryText}</td></tr>
-        <tr><td>低流动性占比</td><td>${pctText(crowd.lowLiquidityShare)}</td><td>低流动性占比高时，回测收益更容易受到交易约束影响。</td></tr>
+        <tr><td>前三行业集中度</td><td>${pctText(crowd.top3IndustryShare)}</td><td>${htmlText(industryText)}</td></tr>
+        <tr><td>组合内相对低流动性占比</td><td>${pctText(crowd.lowLiquidityShare)}</td><td>持仓中成交额和市值同时低于组合中位数的股票占比；该指标不是全市场低流动性股票占比。</td></tr>
       </tbody>
     </table>
     <table class="validation-table combo-crowding-table">
@@ -7572,11 +7608,12 @@ function renderComboSingleComparison(payload) {
     max_drawdown: payload.metrics?.mdd ?? null,
   };
   const best = comp.best;
+  const bestLabel = best.label || `${best.code} ${best.name || ""}`;
   return `<table class="validation-table">
     <thead><tr><th>对象</th><th>RankIC均值</th><th>IC_IR</th><th>TopN年化</th><th>最大回撤</th></tr></thead>
     <tbody>
       <tr><td>${combo.label}</td><td>${signalValue("rank_ic", combo.rank_ic, signedPctText(combo.rank_ic))}</td><td>${signalValue("ic_ir", combo.ic_ir, signedNumText(combo.ic_ir, 2))}</td><td>${signalValue("ann_return", combo.ann_return, pctText(combo.ann_return))}</td><td>${pctText(combo.max_drawdown)}</td></tr>
-      <tr><td>最佳单因子 ${best.code} ${best.name || ""}</td><td>${signalValue("rank_ic", best.rank_ic, signedPctText(best.rank_ic))}</td><td>${signalValue("ic_ir", best.ic_ir, signedNumText(best.ic_ir, 2))}</td><td>${signalValue("ann_return", best.ann_return, pctText(best.ann_return))}</td><td>${pctText(best.max_drawdown)}</td></tr>
+      <tr><td>最佳单因子 ${htmlText(bestLabel)}</td><td>${signalValue("rank_ic", best.rank_ic, signedPctText(best.rank_ic))}</td><td>${signalValue("ic_ir", best.ic_ir, signedNumText(best.ic_ir, 2))}</td><td>${signalValue("ann_return", best.ann_return, pctText(best.ann_return))}</td><td>${pctText(best.max_drawdown)}</td></tr>
     </tbody>
   </table>`;
 }
@@ -7716,7 +7753,7 @@ function renderComboValidationWarning(payload) {
     warnings.push(`样本不足：多因子合成有效月份 ${numText(payload.rankStats?.n, 0)}，不足 36，排序信号和组合收益只适合做初步观察`);
   }
   if (Array.isArray(payload.correlation?.warnings)) warnings.push(...payload.correlation.warnings);
-  return warnings.length ? `<div class="validation-short-sample"><b>提示</b><span>${warnings.join("；").replace(/。+$/u, "")}。</span></div>` : "";
+  return warnings.length ? `<div class="validation-short-sample"><b>提示</b><span>${htmlText(warnings.join("；").replace(/。+$/u, ""))}。</span></div>` : "";
 }
 
 async function renderComposeValidation(renderSeq) {
@@ -7798,7 +7835,7 @@ async function renderComposeValidation(renderSeq) {
         <h4 class="validation-subtitle">剔除实验 / 边际贡献</h4>
         ${renderComboAblationShell(payload)}
         <h4 class="validation-subtitle">组合内相关性</h4>
-        ${payload.correlation?.warnings?.length ? `<div class="combo-correlation-warning">${payload.correlation.warnings.join("；")}</div>` : ""}
+        ${payload.correlation?.warnings?.length ? `<div class="combo-correlation-warning">${htmlText(payload.correlation.warnings.join("；"))}</div>` : ""}
         ${renderComboCorrelationTable(payload.correlation)}
         <h4 class="validation-subtitle">相关性 / 拥挤度诊断</h4>
         ${renderComboCorrelationCrowdingDiagnostics(payload)}
@@ -7813,7 +7850,7 @@ async function renderComposeValidation(renderSeq) {
   } catch (err) {
     if (isComposeRenderStale(renderSeq)) return;
     console.error("render compose validation failed:", err);
-    target.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">多因子检验失败：${err.message || err}</pre>`;
+    target.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">多因子检验失败：${htmlText(err.message || err)}</pre>`;
   }
 }
 

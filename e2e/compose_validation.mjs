@@ -54,7 +54,14 @@ async function launchValidationBrowser() {
       && text.includes("权重扰动敏感性")
       && text.includes("因子贡献")
       && text.includes("剔除实验 / 边际贡献")
+      && text.includes("组合内相对低流动性占比")
       && text.includes("相关性 / 拥挤度诊断");
+  }, null, { timeout: 120000 });
+
+  await page.locator(".combo-ablation-run").click();
+  await page.waitForFunction(() => {
+    const text = document.querySelector("#combo-ablation-result")?.innerText || "";
+    return text.includes("剔除后IC_IR") && text.includes("剔除后年化");
   }, null, { timeout: 120000 });
 
   const text = await page.locator("#combo-validation").innerText();
@@ -73,6 +80,7 @@ async function launchValidationBrowser() {
     "约束敏感性",
     "权重扰动敏感性",
     "剔除实验 / 边际贡献",
+    "组合内相对低流动性占比",
     "相关性 / 拥挤度诊断",
   ];
   const missing = required.filter(item => !text.includes(item));

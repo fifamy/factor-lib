@@ -1,9 +1,17 @@
 from pathlib import Path
 
 
-APP_JS = Path(__file__).resolve().parents[1] / "frontend" / "app.js"
-STYLES_CSS = Path(__file__).resolve().parents[1] / "frontend" / "styles.css"
-INDEX_HTML = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
+ROOT = Path(__file__).resolve().parents[1]
+FRONTEND_ROOT = ROOT / "frontend" if (ROOT / "frontend" / "app.js").exists() else ROOT
+APP_JS = FRONTEND_ROOT / "app.js"
+STYLES_CSS = FRONTEND_ROOT / "styles.css"
+INDEX_HTML = FRONTEND_ROOT / "index.html"
+
+
+def _source_between(source: str, start: str, end: str) -> str:
+    start_idx = source.index(start)
+    end_idx = source.index(end, start_idx)
+    return source[start_idx:end_idx]
 
 
 def test_validation_horizon_win_rate_falls_back_to_ic_decay_series():
@@ -311,13 +319,79 @@ def test_combo_parameter_sensitivity_static_contract():
     assert "多因子参数敏感性" in docs
 
 
+def test_combo_best_single_comparison_uses_current_factor_configuration():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "async function comboBestSingleComparison", "async function comboValidationPayload")
+
+    assert "async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth)" in source
+    assert "comboIcDecay([singleFactor], startMonth, endMonth)" in body
+    assert 'comboBacktest([singleFactor], N, "cps_matrix", constraintMode)' in body
+    assert "rankIcStatsFromSeries(ic?.series?.[\"1\"] || [])" in body
+    assert "thr: null" in body
+    assert "loadActiveSingleSnapshot" not in body
+
+
+def test_combo_correlation_uses_neutral_matrix_for_neutral_score_mode():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "async function comboCorrelationWarnings", "function comboRiskLabel")
+
+    assert "hasCorrNeutral" in source
+    assert "factor_corr_neutral" in source
+    assert "function comboCorrelationTableChoice" in source
+    assert "comboCorrelationTableChoice(factors)" in body
+    assert "state.hasCorrNeutral" in body
+    assert "混合分数口径" in body
+
+
+def test_combo_parameter_sensitivity_does_not_mutate_global_compose_state():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "async function comboParameterSensitivity", "function renderComboContributionTable")
+
+    assert "state.composeFactors =" not in body
+    assert "state.composeN =" not in body
+    assert "state.composeConstraintMode =" not in body
+    assert "restoreComposeContext(original)" not in body
+    assert "await ensureComposeBase()" not in body
+
+
+def test_combo_library_and_admin_rendering_escape_user_supplied_text():
+    source = APP_JS.read_text(encoding="utf-8")
+
+    assert "function htmlText" in source
+    assert "htmlText(emptyText)" in source
+    assert "htmlText(t)" in source
+    assert "htmlText(combo.name)" in source
+    assert "htmlText(combo.description)" in source
+    assert "htmlText(combo.invalidReason)" in source
+    assert "htmlText(state.publishedComboErrors.join(\"；\"))" in source
+    assert "htmlText(JSON.stringify(payload, null, 2))" in source
+    assert "htmlAttr(combo.id)" in source
+    assert "htmlAttr(r.id)" in source
+    assert "htmlText(r.error)" in source
+
+
+def test_combo_crowding_low_liquidity_label_is_relative_to_holdings():
+    source = APP_JS.read_text(encoding="utf-8")
+    docs = (Path(__file__).resolve().parents[1] / "docs" / "2026-06-26_因子检验口径说明.md").read_text(encoding="utf-8")
+
+    assert "组合内相对低流动性占比" in source
+    assert "组合内相对低流动性持仓占比较高" in source
+    assert "组合内相对低流动性占比" in docs
+    assert "不是全市场低流动性股票占比" in docs
+
+
 def test_compose_validation_e2e_covers_current_modules():
     e2e = (Path(__file__).resolve().parents[1] / "e2e" / "compose_validation.mjs").read_text(encoding="utf-8")
+    runner = (Path(__file__).resolve().parents[1] / "e2e" / "run_compose_validation.mjs").read_text(encoding="utf-8")
 
     assert "IC月数" in e2e
     assert "收益月数" in e2e
     assert "参数敏感性" in e2e
     assert "剔除实验 / 边际贡献" in e2e
+    assert "组合内相对低流动性占比" in e2e
+    assert ".combo-ablation-run" in e2e
+    assert "existsSync(resolve(sourceFrontendDir, \"app.js\"))" in runner
+    assert "\"-m\", \"http.server\"" in runner
     assert "相关性 / 拥挤度诊断" in e2e
     assert "TopN 敏感性" in e2e
     assert "约束敏感性" in e2e

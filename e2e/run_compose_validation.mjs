@@ -1,17 +1,23 @@
 // 自动启动本地前端服务并运行多因子检验 e2e。
 // 用法：node e2e/run_compose_validation.mjs [port]
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { request } from "node:http";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(__dirname, "..");
-const frontendDir = resolve(rootDir, "frontend");
-const serverScriptLabel = "frontend/serve.py";
-const serverScript = resolve(rootDir, serverScriptLabel);
 const port = Number(process.argv[2] || process.env.FACTOR_LIB_E2E_PORT || 8878);
 const url = `http://127.0.0.1:${port}/`;
+const sourceFrontendDir = resolve(rootDir, "frontend");
+const frontendDir = existsSync(resolve(sourceFrontendDir, "app.js")) ? sourceFrontendDir : rootDir;
+const sourceServerScript = resolve(sourceFrontendDir, "serve.py");
+const hasSourceServer = existsSync(sourceServerScript);
+const serverScriptLabel = hasSourceServer ? "frontend/serve.py" : "python3 -m http.server";
+const serverArgs = hasSourceServer
+  ? [sourceServerScript, String(port)]
+  : ["-m", "http.server", String(port), "--bind", "127.0.0.1"];
 
 function waitForHttp(targetUrl, timeoutMs = 20000) {
   const started = Date.now();
@@ -36,7 +42,7 @@ function waitForHttp(targetUrl, timeoutMs = 20000) {
 }
 
 async function main() {
-  const server = spawn("python3", [serverScript, String(port)], {
+  const server = spawn("python3", serverArgs, {
     cwd: frontendDir,
     stdio: ["ignore", "pipe", "pipe"],
   });
