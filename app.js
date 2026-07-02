@@ -2244,7 +2244,10 @@ function filteredIcDecayStats(decay, side = state.singleSide, startMonth = state
       : null;
     const ir = std && std > 0 ? mean / std * Math.sqrt(12 / h) : null;
     const winRate = clean.length ? clean.filter(v => v > 0).length / clean.length : null;
-    return { h, mean, ir, winRate, n: hasSeries ? clean.length : (clean.length || decay?.n?.[idx] || 0) };
+    const hacT = clean.length > 1
+      ? neweyWestTStat(clean, h - 1)
+      : snapshotNumber(decay?.hac_t?.[idx]);
+    return { h, mean, ir, hacT, winRate, n: hasSeries ? clean.length : (clean.length || decay?.n?.[idx] || 0) };
   });
 }
 
@@ -2300,14 +2303,15 @@ async function renderIcDecayChartFast(code, snap) {
       <td>${s.h}个月</td>
       <td>${numText(s.mean, 4)}</td>
       <td>${numText(s.ir, 2)}</td>
+      <td>${signedNumText(s.hacT, 2)}</td>
       <td>${s.n}</td>
     </tr>`).join("");
   target.innerHTML = `
     <table class="kpi-table">
-      <thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>样本月数</th></tr></thead>
+      <thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>HAC t值</th><th>样本月数</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="color:#888;font-size:11px;margin-top:6px">前瞻期表示用当前月末因子分数预测未来 1/3/6/12 个月持有收益；IC_IR 按前瞻期年化。</p>
+    <p style="color:#888;font-size:11px;margin-top:6px">前瞻期表示用当前月末因子分数预测未来 1/3/6/12 个月持有收益；IC_IR 按前瞻期年化，HAC t值采用 Newey-West 口径修正 IC 序列自相关。</p>
   `;
 }
 
@@ -2348,6 +2352,31 @@ function firstSnapshotNumber(...values) {
   return null;
 }
 
+function defaultNeweyWestLags(n) {
+  if (!Number.isFinite(Number(n)) || Number(n) < 2) return 0;
+  return Math.max(0, Math.floor(4 * Math.pow(Number(n) / 100, 2 / 9)));
+}
+
+function neweyWestTStat(values, minLags = 0) {
+  const clean = (values || []).map(Number).filter(v => Number.isFinite(v));
+  const n = clean.length;
+  if (n < 2) return null;
+  const mean = clean.reduce((s, v) => s + v, 0) / n;
+  const demeaned = clean.map(v => v - mean);
+  const maxLag = n - 1;
+  const lagCount = Math.min(maxLag, Math.max(defaultNeweyWestLags(n), Number(minLags) || 0));
+  let longRunVar = demeaned.reduce((s, v) => s + v * v, 0) / n;
+  for (let lag = 1; lag <= lagCount; lag++) {
+    let gamma = 0;
+    for (let i = lag; i < n; i++) gamma += demeaned[i] * demeaned[i - lag];
+    gamma /= n;
+    const weight = 1 - lag / (lagCount + 1);
+    longRunVar += 2 * weight * gamma;
+  }
+  if (!Number.isFinite(longRunVar) || longRunVar <= 0) return null;
+  return mean / Math.sqrt(longRunVar / n);
+}
+
 function metricSignal(metric, value) {
   const n = snapshotNumber(value);
   if (n === null) return { level: "muted", icon: "●", label: "缺失", title: "暂无可判定数据" };
@@ -2378,6 +2407,11 @@ function metricSignal(metric, value) {
     if (n < 36) return { level: "alert", icon: "▲", label: "样本短", title: "样本月数小于 36，参考意义有限" };
     if (n < 60) return { level: "watch", icon: "●", label: "观察", title: "样本月数 36-60，可初步观察" };
     return { level: "strong", icon: "●", label: "充分", title: "样本月数大于 60，更适合做稳健性判断" };
+  }
+  if (metric === "q_value") {
+    if (n <= 0.05) return { level: "strong", icon: "●", label: "显著", title: "FDR q值不高于 5%，多重检验调整后仍较显著" };
+    if (n <= 0.10) return { level: "watch", icon: "●", label: "观察", title: "FDR q值位于 5%-10%，可作为观察信号" };
+    return { level: "weak", icon: "●", label: "不显著", title: "FDR q值较高，多重检验调整后证据不足" };
   }
   if (metric === "ann_return") {
     if (n >= 0.15) return { level: "strong", icon: "●", label: "较强", title: "年化收益较高，仍需结合回撤和成本" };
@@ -2474,6 +2508,7 @@ function renderValidationInterpretationNote() {
           <ul>
             <li>RankIC均值衡量因子排序与未来收益排序的一致性，绝对值越大说明排序信息越强。</li>
             <li>IC_IR衡量IC序列的稳定性，越高说明信号越不依赖少数月份。</li>
+            <li>HAC t值采用 Newey-West 自相关修正，FDR q值用于控制多因子同时检验下的偶然显著。</li>
             <li>胜率看正 IC 月份占比，月度胜率看正收益月份占比，主要反映方向持续性。</li>
           </ul>
         </div>
@@ -2510,7 +2545,7 @@ function renderValidationInterpretationNote() {
       </div>
       <div class="guide-section guide-thresholds">
         <b>经验参考区间，不是硬性标准</b>
-        <span>|RankIC| < 1% 通常偏弱，1%-3% 有一定信息，3%-5% 较有价值，>5% 较强，>10% 需排查数据泄露或样本偏差；IC_IR <0.3 不稳定，0.3-0.5 初步可用，0.5-1.0 稳定性较好，>1.0 较强，>2.0 需排查过拟合或口径问题；IC胜率 / 月度胜率 55%-60% 可接受，>60% 较稳定；样本月数 <36 参考意义有限，36-60 可初步观察，>60 更适合做稳健性判断。</span>
+        <span>|RankIC| < 1% 通常偏弱，1%-3% 有一定信息，3%-5% 较有价值，>5% 较强，>10% 需排查数据泄露或样本偏差；IC_IR <0.3 不稳定，0.3-0.5 初步可用，0.5-1.0 稳定性较好，>1.0 较强，>2.0 需排查过拟合或口径问题；FDR q值 ≤5% 说明多重检验调整后仍较显著，5%-10% 可观察；IC胜率 / 月度胜率 55%-60% 可接受，>60% 较稳定；样本月数 <36 参考意义有限，36-60 可初步观察，>60 更适合做稳健性判断。</span>
       </div>
       <div class="guide-foot">页面中的 ● 为经验等级提示，▲ 表示异常偏高、方向反向、样本过短或其他需核查情况。完整基准、分层、样本切片和交易成本口径记录在 docs/2026-06-26_因子检验口径说明.md。</div>
     </div>`;
@@ -2814,6 +2849,8 @@ function renderValidationPanel(code, snap) {
   const rankIcMean = snapshotNumber(v.rank_ic_mean_1m);
   const rankIcIr = snapshotNumber(v.rank_ic_ir_1m);
   const rankIcWin = snapshotNumber(v.rank_ic_win_rate_1m);
+  const rankIcHacT = snapshotNumber(v.rank_ic_hac_t_stat_1m);
+  const rankIcQ = snapshotNumber(v.rank_ic_q_value_1m);
   const groupMono = snapshotNumber(v.group10_monotonicity);
   const top30Sharpe = snapshotNumber(v.top30_sharpe);
   const top30Annual = firstSnapshotNumber(v.top30_ann_return, v.top30_annual_return);
@@ -2841,6 +2878,7 @@ function renderValidationPanel(code, snap) {
   const decayStats = filteredIcDecayStats(snap?.ic_decay, state.singleSide, null, null);
   const adjustedRankIcMean = rankIcMean === null ? null : rankIcMean * side;
   const adjustedRankIcIr = rankIcIr === null ? null : rankIcIr * side;
+  const adjustedRankIcHacT = rankIcHacT === null ? null : rankIcHacT * side;
   const adjustedGroupMono = groupMono === null ? null : groupMono * side;
   const decayRows = [1, 3, 6, 12].map(h => {
     const fromValidation = {
@@ -2859,6 +2897,7 @@ function renderValidationPanel(code, snap) {
         <td>${h}M</td>
         <td>${signalValue("rank_ic", mean, signedPctText(mean))}</td>
         <td>${signalValue("ic_ir", ir, signedNumText(ir, 2))}</td>
+        <td>${signedNumText(fromDecay.hacT, 2)}</td>
         <td>${signalValue("win_rate", winRate, pctText(winRate))}</td>
         <td>${signalValue("sample_months", n, numText(n, 0))}</td>
       </tr>`;
@@ -2874,6 +2913,8 @@ function renderValidationPanel(code, snap) {
         ${validationValueBlock([
           ["1M RankIC均值", signalValue("rank_ic", adjustedRankIcMean, signedPctText(adjustedRankIcMean))],
           ["1M IC_IR", signalValue("ic_ir", adjustedRankIcIr, signedNumText(adjustedRankIcIr, 2))],
+          ["1M HAC t值", signedNumText(adjustedRankIcHacT, 2)],
+          ["FDR q值", signalValue("q_value", rankIcQ, numText(rankIcQ, 3))],
           ["IC胜率", signalValue("win_rate", rankIcWin, pctText(rankIcWin))],
           ["10组单调性", signalValue("monotonicity", adjustedGroupMono, signedNumText(adjustedGroupMono, 2))],
         ])}
@@ -2902,7 +2943,7 @@ function renderValidationPanel(code, snap) {
       </div>
     </div>
     <table class="validation-table">
-      <thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>胜率</th><th>样本月数</th></tr></thead>
+      <thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>HAC t值</th><th>胜率</th><th>样本月数</th></tr></thead>
       <tbody>${decayRows}</tbody>
     </table>
     ${renderCostSensitivityTable(snap, top30Turnover, state.singleSide)}
@@ -4288,6 +4329,8 @@ const RANK_COLS = [
   { key: "rankIC6M",  label: "IC6M", fmt: v => numText(v, 3), help: "6个月前瞻期RankIC，用于观察信号衰减和持有期适配。" },
   { key: "rankIC12M", label: "IC12M", fmt: v => numText(v, 3), help: "12个月前瞻期RankIC，用于观察信号是否具有更长期解释力。" },
   { key: "icir",      label: "IC_IR",   fmt: v => v.toFixed(2), help: "RankIC均值除以波动后的稳定性指标，越高越稳定。" },
+  { key: "rankIcHacT", label: "HAC t值", fmt: v => signedNumText(v, 2), help: "RankIC均值的 Newey-West 修正 t 值，用于降低自相关对显著性的影响。" },
+  { key: "rankIcQ", label: "FDR q值", fmt: v => numText(v, 3), help: "RankIC显著性的多重检验调整结果，用于降低多因子筛选中的偶然显著风险。" },
   { key: "rankIcWinRate", label: "IC胜率", fmt: v => pctText(v), help: "RankIC为正的月份占比，反映排序方向持续性。" },
   { key: "top30ExcessAnnual", label: "超额年化", fmt: v => signedPctText(v), help: "Top30月收益减基准月收益后的年化收益，反映相对基准的增量收益。" },
   { key: "top30ExcessMdd", label: "超额回撤", fmt: v => pctText(v), help: "Top30超额收益曲线最大回撤，越接近0相对回撤压力越小。" },
@@ -4711,6 +4754,8 @@ async function computeRankingFast(startMonth, endMonth) {
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       rankIC, rankIC3M: decayMean(3), rankIC6M: decayMean(6), rankIC12M: decayMean(12), icir,
+      rankIcHacT: f.rank_ic_hac_t_stat_1m ?? null,
+      rankIcQ: f.rank_ic_q_value_1m ?? null,
       rankIcWinRate: f.rank_ic_win_rate_1m ?? null,
       top30ExcessAnnual: f.top30_excess_ann_return ?? null,
       top30ExcessMdd: f.top30_excess_max_drawdown ?? null,
@@ -4796,6 +4841,8 @@ async function computeRanking(startMonth, endMonth) {
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       rankIC: ic.rankIC, rankIC3M: 0, rankIC6M: 0, rankIC12M: 0, icir: ic.icir,
+      rankIcHacT: null,
+      rankIcQ: null,
       rankIcWinRate: null,
       top30ExcessAnnual: null,
       top30ExcessMdd: null,
