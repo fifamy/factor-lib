@@ -59,6 +59,34 @@ def test_validation_panel_renders_rolling_and_segment_tables():
     assert "segment_portfolio" in source
 
 
+def test_compare_fast_table_recomputes_annualized_rank_ic_ir_from_rank_ic_series():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "async function renderCmpTableFast()", "function drawCmpTable")
+
+    assert "scoreSnap.ic?.rank_ic" in body
+    assert "Math.sqrt(12)" in body
+    assert "scoreSnap.ic?.ic_ir_12m" not in body
+    assert "latestIcir" not in body
+
+
+def test_compare_table_labels_rank_ic_mean_explicitly():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "function drawCmpTable", "async function renderCmpNav")
+
+    assert 'label: "RankIC 均值"' in body
+    assert 'label: "IC 均值"' not in body
+
+
+def test_combo_ic_decay_sql_uses_average_ranks_for_ties():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "function composeIcDecaySql", "async function comboIcDecay")
+
+    assert "AVG(score_pos) OVER (PARTITION BY trade_date, h, cs) AS score_rank" in body
+    assert "AVG(return_pos) OVER (PARTITION BY trade_date, h, fwd_return) AS return_rank" in body
+    assert "rank() OVER (PARTITION BY trade_date, h ORDER BY cs)" not in body
+    assert "rank() OVER (PARTITION BY trade_date, h ORDER BY fwd_return)" not in body
+
+
 def test_validation_panel_explains_new_validation_metrics():
     source = APP_JS.read_text(encoding="utf-8")
 

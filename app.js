@@ -3584,24 +3584,18 @@ async function renderCmpTable() {
     if (!byKey[k]) byKey[k] = { rets: [] };
     if (r.port_ret !== null) byKey[k].rets.push(r.port_ret);
   }
-  // 各因子 IC 统计（与 N 无关）
+  // 各因子 IC 统计（与 N 无关）：区间内 RankIC 均值 + 年化 IC_IR。
   const icRes = await state.db.query(`
     SELECT factor_code,
-           AVG(ic) AS ic_mean, AVG(rank_ic) AS rankic_mean
-    FROM factor_ic WHERE factor_code IN (${inList}) AND NOT ISNAN(ic)
+           AVG(rank_ic) AS rankic_mean,
+           STDDEV_SAMP(rank_ic) AS rankic_std,
+           COUNT(rank_ic) AS rankic_n
+    FROM factor_ic WHERE factor_code IN (${inList}) AND NOT ISNAN(rank_ic)
       ${icRangeWhere(state.compareStart, state.compareEnd)}
     GROUP BY factor_code
   `);
   const icMap = {};
   for (const r of icRes.toArray()) icMap[r.factor_code] = r;
-  const icirRes = await state.db.query(`
-    SELECT factor_code, ic_ir_12m FROM factor_ic
-    WHERE factor_code IN (${inList}) AND ic_ir_12m IS NOT NULL AND NOT ISNAN(ic_ir_12m)
-      ${icRangeWhere(state.compareStart, state.compareEnd)}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY factor_code ORDER BY month DESC) = 1
-  `);
-  const icirMap = {};
-  for (const r of icirRes.toArray()) icirMap[r.factor_code] = r.ic_ir_12m;
 
   const ba = await benchAnnuals();
   const pct = (v) => (v * 100).toFixed(1) + "%";
@@ -3627,8 +3621,10 @@ async function renderCmpTable() {
     factors.push({
       label, annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       ex300: ("HS300" in ba) ? (m.annual - ba.HS300) : null,
-      ic_mean: ic.ic_mean == null ? null : Number(ic.ic_mean) * f.side,
-      icir: icirMap[code] == null ? null : Number(icirMap[code]) * f.side,
+      ic_mean: ic.rankic_mean == null ? null : Number(ic.rankic_mean) * f.side,
+      icir: ic.rankic_std && ic.rankic_std > 0
+        ? Number(ic.rankic_mean) / Number(ic.rankic_std) * Math.sqrt(12) * f.side
+        : null,
     });
   }
   // 基准行（固定排在底部，不参与排序）
@@ -3683,18 +3679,17 @@ async function renderCmpTableFast() {
     const icMonths = scoreSnap.ic?.months || [];
     const icIdxs = rangeFilterIndexes(icMonths, state.compareStart, state.compareEnd);
     const rankIc = sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs).map(v => v * f.side);
-    const icVals = sliceByIndexes(scoreSnap.ic?.ic, icIdxs).map(v => v * f.side);
     const label = `${factorParamName(f.code, f.side, f.scoreMode, f.constraintMode)} <span style="color:#888;font-weight:400">top${f.n}</span>`;
     if (!m) { factors.push({ label, noData: true }); continue; }
     const ricMean = rankIc.length ? rankIc.reduce((s, v) => s + v, 0) / rankIc.length : null;
-    const icMean = icVals.length ? icVals.reduce((s, v) => s + v, 0) / icVals.length : null;
-    const icirs = icIdxs.map(i => scoreSnap.ic?.ic_ir_12m?.[i]);
-    const latestIcir = [...icirs].reverse()
-      .find(v => v !== null && v !== undefined && Number.isFinite(Number(v)));
+    const ricStd = rankIc.length > 1
+      ? Math.sqrt(rankIc.reduce((s, v) => s + (v - ricMean) ** 2, 0) / (rankIc.length - 1))
+      : null;
+    const ricIr = ricStd && ricStd > 0 ? ricMean / ricStd * Math.sqrt(12) : null;
     factors.push({
       label, annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       ex300: ba.HS300 ? (m.annual - ba.HS300.annual) : null,
-      ic_mean: icMean ?? ricMean, icir: latestIcir == null ? null : Number(latestIcir) * f.side,
+      ic_mean: ricMean, icir: ricIr,
     });
   }
 
@@ -3726,7 +3721,7 @@ function drawCmpTable() {
     { key: "mdd",     label: "最大回撤",   cell: r => pct(r.mdd) },
     { key: "winRate", label: "月度胜率",   cell: r => r.winRate == null ? "—" : (r.winRate * 100).toFixed(0) + "%" },
     { key: "ex300",   label: "超额 vs 300", cell: r => pct(r.ex300) },
-    { key: "ic_mean", label: "IC 均值",    cell: r => num(r.ic_mean, 3) },
+    { key: "ic_mean", label: "RankIC 均值", cell: r => num(r.ic_mean, 3) },
     { key: "icir",    label: "IC_IR",      cell: r => num(r.icir, 2) },
   ];
   const factors = _cmpRows.factors.slice();
@@ -6473,11 +6468,17 @@ function composeIcDecaySql(factors = state.composeFactors, startMonth = state.co
       ) r ON s.trade_date = r.trade_date AND s.stock_code = r.stock_code
       WHERE fwd_return > -0.95 AND fwd_return < 5.0
     ),
+    ranked_positions AS (
+      SELECT trade_date, h, cs, fwd_return,
+             ROW_NUMBER() OVER (PARTITION BY trade_date, h ORDER BY cs) AS score_pos,
+             ROW_NUMBER() OVER (PARTITION BY trade_date, h ORDER BY fwd_return) AS return_pos
+      FROM joined
+    ),
     ranked AS (
       SELECT trade_date, h, cs, fwd_return,
-             rank() OVER (PARTITION BY trade_date, h ORDER BY cs) AS score_rank,
-             rank() OVER (PARTITION BY trade_date, h ORDER BY fwd_return) AS return_rank
-      FROM joined
+             AVG(score_pos) OVER (PARTITION BY trade_date, h, cs) AS score_rank,
+             AVG(return_pos) OVER (PARTITION BY trade_date, h, fwd_return) AS return_rank
+      FROM ranked_positions
     ),
     monthly AS (
       SELECT strftime(trade_date, '%Y-%m') AS month, h,
