@@ -2850,6 +2850,7 @@ function renderValidationPanel(code, snap) {
   const rankIcIr = snapshotNumber(v.rank_ic_ir_1m);
   const rankIcWin = snapshotNumber(v.rank_ic_win_rate_1m);
   const rankIcHacT = snapshotNumber(v.rank_ic_hac_t_stat_1m);
+  const rankIcP = snapshotNumber(v.rank_ic_p_value_1m);
   const rankIcQ = snapshotNumber(v.rank_ic_q_value_1m);
   const groupMono = snapshotNumber(v.group10_monotonicity);
   const top30Sharpe = snapshotNumber(v.top30_sharpe);
@@ -2914,6 +2915,7 @@ function renderValidationPanel(code, snap) {
           ["1M RankIC均值", signalValue("rank_ic", adjustedRankIcMean, signedPctText(adjustedRankIcMean))],
           ["1M IC_IR", signalValue("ic_ir", adjustedRankIcIr, signedNumText(adjustedRankIcIr, 2))],
           ["1M HAC t值", signedNumText(adjustedRankIcHacT, 2)],
+          ["原始 p值", numText(rankIcP, 3)],
           ["FDR q值", signalValue("q_value", rankIcQ, numText(rankIcQ, 3))],
           ["IC胜率", signalValue("win_rate", rankIcWin, pctText(rankIcWin))],
           ["10组单调性", signalValue("monotonicity", adjustedGroupMono, signedNumText(adjustedGroupMono, 2))],
@@ -4330,6 +4332,7 @@ const RANK_COLS = [
   { key: "rankIC12M", label: "IC12M", fmt: v => numText(v, 3), help: "12个月前瞻期RankIC，用于观察信号是否具有更长期解释力。" },
   { key: "icir",      label: "IC_IR",   fmt: v => v.toFixed(2), help: "RankIC均值除以波动后的稳定性指标，越高越稳定。" },
   { key: "rankIcHacT", label: "HAC t值", fmt: v => signedNumText(v, 2), help: "RankIC均值的 Newey-West 修正 t 值，用于降低自相关对显著性的影响。" },
+  { key: "rankIcP", label: "p值", fmt: v => numText(v, 3), help: "RankIC均值 HAC t 检验对应的原始双侧 p 值，未做多重检验调整。" },
   { key: "rankIcQ", label: "FDR q值", fmt: v => numText(v, 3), help: "RankIC显著性的多重检验调整结果，用于降低多因子筛选中的偶然显著风险。" },
   { key: "rankIcWinRate", label: "IC胜率", fmt: v => pctText(v), help: "RankIC为正的月份占比，反映排序方向持续性。" },
   { key: "top30ExcessAnnual", label: "超额年化", fmt: v => signedPctText(v), help: "Top30月收益减基准月收益后的年化收益，反映相对基准的增量收益。" },
@@ -4755,6 +4758,7 @@ async function computeRankingFast(startMonth, endMonth) {
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       rankIC, rankIC3M: decayMean(3), rankIC6M: decayMean(6), rankIC12M: decayMean(12), icir,
       rankIcHacT: f.rank_ic_hac_t_stat_1m ?? null,
+      rankIcP: f.rank_ic_p_value_1m ?? null,
       rankIcQ: f.rank_ic_q_value_1m ?? null,
       rankIcWinRate: f.rank_ic_win_rate_1m ?? null,
       top30ExcessAnnual: f.top30_excess_ann_return ?? null,
@@ -4842,6 +4846,7 @@ async function computeRanking(startMonth, endMonth) {
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       rankIC: ic.rankIC, rankIC3M: 0, rankIC6M: 0, rankIC12M: 0, icir: ic.icir,
       rankIcHacT: null,
+      rankIcP: null,
       rankIcQ: null,
       rankIcWinRate: null,
       top30ExcessAnnual: null,
