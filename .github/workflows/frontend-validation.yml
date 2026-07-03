@@ -29,6 +29,23 @@ jobs:
       - name: Static frontend contract tests
         run: python3 -m pytest tests/test_frontend_validation_panel.py -q
 
+      - name: Static release manifest smoke
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("frontend") if Path("frontend/data").exists() else Path(".")
+          manifest = json.loads((root / "data" / "release_manifest.json").read_text(encoding="utf-8"))
+          catalog = json.loads((root / "data" / "factor_catalog.json").read_text(encoding="utf-8"))
+          audit = json.loads((root / "data" / "factor_audit" / "index.json").read_text(encoding="utf-8"))
+          assert manifest["factor_count"] == len(catalog)
+          assert manifest["audit_factor_count"] == audit["n_factors"] == len(audit["factors"])
+          assert "DEPLOY_VERSION" not in (root / "index.html").read_text(encoding="utf-8")
+          if (root / "factor_audit.html").exists():
+              assert "DEPLOY_VERSION" not in (root / "factor_audit.html").read_text(encoding="utf-8")
+          PY
+
       - name: JavaScript syntax checks
         run: |
           if [ -f frontend/app.js ]; then

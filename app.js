@@ -9,6 +9,7 @@ const DATA_DIR = new URL("data/", document.baseURI).toString();
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
 const _DEPLOY = "DEPLOY_VERSION";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
+const STATIC_INDUSTRY_LIMITATION = "行业分层、行业中性组合和行业市值中性化当前使用静态申万行业，不是历史申万行业 PIT；补齐历史行业归属表前，相关分层归因只作为辅助复核。";
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
 const SINGLE_SNAPSHOT_DIR = DATA_DIR + "single_snapshots/";
@@ -1022,7 +1023,7 @@ async function tryLoadOptional(tableName, loadSql, emptySql) {
 
 function showError(msg) {
   const detail = document.getElementById("factor-detail");
-  detail.innerHTML = `<h3 style="color:#c00">错误</h3><pre style="color:#c00;white-space:pre-wrap;font-size:11px">${msg}</pre>`;
+  detail.innerHTML = `<h3 style="color:#c00">错误</h3><pre style="color:#c00;white-space:pre-wrap;font-size:11px">${htmlText(msg)}</pre>`;
 }
 
 async function selectFactor(code, opts = {}) {
@@ -2483,6 +2484,10 @@ function renderValidationShortSampleWarning(warnings) {
   return `<div class="validation-short-sample"><b>样本不足</b><span>${warnings.join("；")}。样本月数不足 36 时建议降低结论权重，优先结合前瞻期、滚动/样本外和分层结果复核。</span></div>`;
 }
 
+function renderValidationIndustryLimitation() {
+  return `<div class="validation-short-sample"><b>行业口径</b><span>${STATIC_INDUSTRY_LIMITATION}</span></div>`;
+}
+
 function renderValidationUnavailable(message) {
   const target = document.getElementById("validation-summary");
   if (target) target.innerHTML = `<div class="empty">${message}</div>`;
@@ -2906,6 +2911,7 @@ function renderValidationPanel(code, snap) {
 
   target.innerHTML = `
     ${renderValidationInterpretationNote()}
+    ${renderValidationIndustryLimitation()}
     ${renderBenchmarkSelect()}
     ${renderValidationShortSampleWarning(shortSampleWarnings)}
     <div class="validation-grid">
@@ -4458,7 +4464,7 @@ async function renderRanking() {
       drawRankTable();
     } catch (fallbackErr) {
       console.error("renderRanking failed:", fallbackErr);
-      box.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">排行榜失败：${fallbackErr.message || fallbackErr}</pre>`;
+      box.innerHTML = `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">排行榜失败：${htmlText(fallbackErr.message || fallbackErr)}</pre>`;
     }
   }
 }
@@ -8315,7 +8321,7 @@ async function renderComboCompare() {
       for (const c of missing) c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base", c.constraintMode);
     } catch (e) {
       if (titleEl) titleEl.textContent = "暂存组合对比";
-      navDiv.innerHTML = `<div class="empty">对比计算失败：${e.message || e}</div>`; return;
+      navDiv.innerHTML = `<div class="empty">对比计算失败：${htmlText(e.message || e)}</div>`; return;
     }
   }
   if (titleEl) titleEl.textContent = "暂存组合对比";
@@ -8575,7 +8581,7 @@ async function optimizeWeights() {
 function bindComposeButtons() {
   const optBtn = document.getElementById("cps-optimize");
   if (optBtn) optBtn.onclick = () => optimizeWeights().catch(e => {
-    document.getElementById("cps-opt").innerHTML = `<pre style="color:#c00;font-size:11px">最优权重失败：${e.message}</pre>`;
+    document.getElementById("cps-opt").innerHTML = `<pre style="color:#c00;font-size:11px">最优权重失败：${htmlText(e.message || e)}</pre>`;
   });
   const saveBtn = document.getElementById("cps-save");
   if (saveBtn) saveBtn.onclick = () => {
@@ -8745,7 +8751,7 @@ async function showStockDetail(code, name) {
       }
       body.innerHTML = renderStockDetailBody(scoreRows, metaRow);
     } catch (fallbackErr) {
-      body.innerHTML = `<div class="empty">查询失败：${fallbackErr.message || fallbackErr}</div>`;
+      body.innerHTML = `<div class="empty">查询失败：${htmlText(fallbackErr.message || fallbackErr)}</div>`;
     }
   }
 }

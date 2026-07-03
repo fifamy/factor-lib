@@ -115,6 +115,18 @@ def test_validation_panel_explains_new_validation_metrics():
     assert "分层 IC 热力图" in source
     assert "分层组合收益表" in source
     assert "同一分层内的 Top/Bottom" in source
+    assert "HAC t值" in source
+    assert "FDR q值" in source
+    assert "Newey-West" in source
+
+
+def test_validation_panel_discloses_static_industry_limitation():
+    source = APP_JS.read_text(encoding="utf-8")
+
+    assert "STATIC_INDUSTRY_LIMITATION" in source
+    assert "历史申万行业 PIT" in source
+    assert "行业分层、行业中性组合和行业市值中性化当前使用静态申万行业" in source
+    assert "renderValidationIndustryLimitation" in source
 
 
 def test_validation_panel_includes_reference_ranges_for_metrics():
@@ -213,6 +225,10 @@ def test_ranking_table_exposes_validation_sort_fields():
     assert "top30_excess_ann_return" in source
     assert "top30_excess_max_drawdown" in source
     assert "top30_avg_turnover" in source
+    assert "rank_ic_hac_t_stat_1m" in source
+    assert "rank_ic_p_value_1m" in source
+    assert "rank_ic_q_value_1m" in source
+    assert 'key: "rankIcP"' in source
 
 
 def test_ranking_view_explains_metric_reading_order_and_column_meanings():
@@ -251,6 +267,33 @@ def test_compose_validation_static_contract():
     assert "因子贡献" in source
     assert "样本切片" in source
     assert "多因子检验先看合成分数的 RankIC 与 IC_IR" in source
+
+
+def test_release_manifest_matches_factor_catalog_and_audit_index_when_present():
+    manifest_path = FRONTEND_DATA / "release_manifest.json"
+    if not manifest_path.exists():
+        return
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    catalog = json.loads((FRONTEND_DATA / "factor_catalog.json").read_text(encoding="utf-8"))
+    audit = json.loads((FRONTEND_DATA / "factor_audit" / "index.json").read_text(encoding="utf-8"))
+
+    assert manifest["factor_count"] == len(catalog)
+    assert manifest["audit_factor_count"] == audit["n_factors"] == len(audit["factors"])
+    assert manifest["source_root"].endswith("因子库")
+    assert manifest["pages_worktree"] == "/private/tmp/factor-lib-pages-publish-20260701/repo"
+
+
+def test_frontend_error_paths_escape_dynamic_error_text():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    docs = (Path(__file__).resolve().parents[1] / "docs" / "2026-06-26_因子检验口径说明.md").read_text(encoding="utf-8")
+
+    assert "${htmlText(msg)}" in source
+    assert "排行榜失败：${htmlText(fallbackErr.message || fallbackErr)}" in source
+    assert "对比计算失败：${htmlText(e.message || e)}" in source
+    assert "最优权重失败：${htmlText(e.message || e)}" in source
+    assert "查询失败：${htmlText(fallbackErr.message || fallbackErr)}" in source
     assert "ic_n_months" in source
     assert "bt_n_months" in source
     assert "IC月数" in source
@@ -496,6 +539,8 @@ def test_publish_worktree_record_points_to_current_clone():
 
     assert "/private/tmp/factor-lib-pages-publish-20260701/repo" in agents
     assert "不要再作为正式发布工作副本使用" in agents
+    assert "是旧 demo 脚本" not in agents
+    assert "factor-lib-demo" not in agents
 
 
 def test_deploy_script_targets_formal_factor_lib_pages_repo():
@@ -506,7 +551,24 @@ def test_deploy_script_targets_formal_factor_lib_pages_repo():
 
     assert "factor-lib-pages-publish-20260701/repo" in text
     assert "factor-lib-demo" not in text
-    assert "scripts/test_frontend_sql.py" in text
+    assert "bash scripts/pre_publish_validation.sh" in text
+    pre_publish = (ROOT / "scripts" / "pre_publish_validation.sh").read_text(encoding="utf-8")
+    assert "scripts/test_frontend_sql.py" in pre_publish
+
+
+def test_publish_runbook_uses_current_pages_worktree():
+    docs = [
+        ROOT / "docs" / "2026-06-10_标签规则与发布避坑记录.md",
+        ROOT / "docs" / "2026-06-29_因子检验扩展端到端验收记录.md",
+        ROOT / "docs" / "superpowers" / "specs" / "2026-06-29-multi-factor-validation-design.md",
+        ROOT / "docs" / "superpowers" / "plans" / "2026-06-29-multi-factor-parameter-sensitivity.md",
+        ROOT / "docs" / "superpowers" / "plans" / "2026-06-23-factor-audit-parameter-coverage.md",
+    ]
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        assert "/private/tmp/factor-lib-pages-publish-20260701/repo" in text, path
+        assert "factor-lib-pages-publish-120d/repo" not in text, path
+        assert "factor-lib-demo" not in text, path
 
 
 def test_ci_workflow_runs_static_frontend_checks():
