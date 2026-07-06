@@ -1,6 +1,8 @@
 from pathlib import Path
 import json
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = ROOT / "frontend" if (ROOT / "frontend" / "app.js").exists() else ROOT
@@ -8,6 +10,13 @@ APP_JS = FRONTEND_ROOT / "app.js"
 STYLES_CSS = FRONTEND_ROOT / "styles.css"
 INDEX_HTML = FRONTEND_ROOT / "index.html"
 FRONTEND_DATA = FRONTEND_ROOT / "data"
+
+
+def _skip_without_full_project_docs():
+    if not (ROOT / "frontend" / "scripts" / "deploy_to_pages.sh").exists():
+        pytest.skip("publish worktree ships only static frontend files")
+    if not (ROOT / "docs" / "2026-06-10_标签规则与发布避坑记录.md").exists():
+        pytest.skip("publish worktree ships only static frontend files")
 
 
 def _source_between(source: str, start: str, end: str) -> str:
@@ -535,6 +544,7 @@ def test_frontend_visible_version_is_current_after_validation_upgrade():
 
 
 def test_publish_worktree_record_points_to_current_clone():
+    _skip_without_full_project_docs()
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
 
     assert "/private/tmp/factor-lib-pages-publish-20260701/repo" in agents
@@ -552,11 +562,22 @@ def test_deploy_script_targets_formal_factor_lib_pages_repo():
     assert "factor-lib-pages-publish-20260701/repo" in text
     assert "factor-lib-demo" not in text
     assert "bash scripts/pre_publish_validation.sh" in text
+    assert "--exclude='data/single_snapshots/'" in text
+    assert "--exclude='data/monthly_return.parquet'" in text
+    assert "--exclude='data/backtests_neutral/'" in text
+    assert "--exclude='data/factor_scores_latest_neutral/'" in text
+    assert "--exclude='data/quantile_backtests/'" in text
+    assert "--filter='P .git/***'" in text
+    assert '"$ROOT/e2e/compose_validation.mjs"' in text
+    assert '"$ROOT/e2e/package-lock.json"' in text
+    assert 'touch "$DEPLOY/.nojekyll"' in text
+    assert 'cp "$ROOT/docs/2026-06-26_因子检验口径说明.md" "$DEPLOY/docs/"' in text
     pre_publish = (ROOT / "scripts" / "pre_publish_validation.sh").read_text(encoding="utf-8")
     assert "scripts/test_frontend_sql.py" in pre_publish
 
 
 def test_publish_runbook_uses_current_pages_worktree():
+    _skip_without_full_project_docs()
     docs = [
         ROOT / "docs" / "2026-06-10_标签规则与发布避坑记录.md",
         ROOT / "docs" / "2026-06-29_因子检验扩展端到端验收记录.md",
