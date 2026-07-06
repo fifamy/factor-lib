@@ -564,9 +564,11 @@ def test_deploy_script_targets_formal_factor_lib_pages_repo():
     assert "bash scripts/pre_publish_validation.sh" in text
     assert "--exclude='data/single_snapshots/'" in text
     assert "--exclude='data/monthly_return.parquet'" in text
+    assert "--exclude='data/compose_scores_neutral/'" in text
     assert "--exclude='data/backtests_neutral/'" in text
     assert "--exclude='data/factor_scores_latest_neutral/'" in text
     assert "--exclude='data/quantile_backtests/'" in text
+    assert '"has_compose_scores_neutral"' in text
     assert "--filter='P .git/***'" in text
     assert '"$ROOT/e2e/compose_validation.mjs"' in text
     assert '"$ROOT/e2e/package-lock.json"' in text
@@ -574,6 +576,16 @@ def test_deploy_script_targets_formal_factor_lib_pages_repo():
     assert 'cp "$ROOT/docs/2026-06-26_因子检验口径说明.md" "$DEPLOY/docs/"' in text
     pre_publish = (ROOT / "scripts" / "pre_publish_validation.sh").read_text(encoding="utf-8")
     assert "scripts/test_frontend_sql.py" in pre_publish
+
+
+def test_compose_neutral_scores_can_be_disabled_for_slim_pages_artifact():
+    source = APP_JS.read_text(encoding="utf-8")
+
+    assert "function hasComposeNeutralScores()" in source
+    assert "has_compose_scores_neutral !== false" in source
+    assert "function normalizeComposeScoreMode(mode)" in source
+    assert 'scoreMode: normalizeComposeScoreMode(f.scoreMode)' in source
+    assert 'const neutralDisabled = hasComposeNeutralScores() ? "" : " disabled"' in source
 
 
 def test_publish_runbook_uses_current_pages_worktree():

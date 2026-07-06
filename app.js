@@ -335,6 +335,15 @@ function normalizeScoreMode(mode) {
   return mode === "neutral" ? "neutral" : "raw";
 }
 
+function hasComposeNeutralScores() {
+  return state.dataManifest?.has_compose_scores_neutral !== false;
+}
+
+function normalizeComposeScoreMode(mode) {
+  const scoreMode = normalizeScoreMode(mode);
+  return scoreMode === "neutral" && !hasComposeNeutralScores() ? "raw" : scoreMode;
+}
+
 function scoreModeLabel(mode = state.singleScoreMode) {
   return normalizeScoreMode(mode) === "neutral" ? "行业市值中性" : "原始口径";
 }
@@ -407,7 +416,7 @@ function normalizeComposeFactor(f) {
     code: f.code,
     weight: Number.isFinite(Number(f.weight)) ? Number(f.weight) : 0,
     side: normalizeSide(f.side),
-    scoreMode: normalizeScoreMode(f.scoreMode),
+    scoreMode: normalizeComposeScoreMode(f.scoreMode),
     op: f.op === "<=" ? "<=" : ">=",
     thr: f.thr !== null && Number.isFinite(Number(f.thr)) ? Number(f.thr) : null,
   };
@@ -5000,7 +5009,8 @@ function rankSendTo(mode) {
   if (mode === "compare") {
     state.compareFactors = codes.map(code => ({ code, n: state.compareDefaultN, side, scoreMode, constraintMode }));
   } else {
-    state.composeFactors = codes.map(code => ({ code, weight: 1, side, scoreMode, op: ">=", thr: null }));
+    const composeScoreMode = scoreMode === "neutral" && !hasComposeNeutralScores() ? "raw" : scoreMode;
+    state.composeFactors = codes.map(code => ({ code, weight: 1, side, scoreMode: composeScoreMode, op: ">=", thr: null }));
     state.composeConstraintMode = constraintMode;
   }
   switchMode(mode);
@@ -6178,6 +6188,7 @@ function renderComposeControls() {
   if (state.composeFactors.length === 0) { box.innerHTML = `<div class="empty">未选因子</div>`; return; }
   const wsum = state.composeFactors.reduce((s, f) => s + Math.abs(f.weight), 0) || 1;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
+  const neutralDisabled = hasComposeNeutralScores() ? "" : " disabled";
   const constraintBtns = `
     <div style="margin:0 0 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">组合约束：</span>
@@ -6198,7 +6209,7 @@ function renderComposeControls() {
       </select>
       <select class="cps-score-mode" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
         <option value="raw"${normalizeScoreMode(f.scoreMode) === "raw" ? " selected" : ""}>原始口径</option>
-        <option value="neutral"${normalizeScoreMode(f.scoreMode) === "neutral" ? " selected" : ""}>行业市值中性</option>
+        <option value="neutral"${normalizeScoreMode(f.scoreMode) === "neutral" ? " selected" : ""}${neutralDisabled}>行业市值中性</option>
       </select>
       <span style="color:#888;font-size:11px">权重</span>
       <input class="cps-w-input" data-idx="${i}" type="number" step="0.1" value="${f.weight}"
