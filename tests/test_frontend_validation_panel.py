@@ -251,6 +251,18 @@ def test_compose_backtest_keeps_missing_returns_and_charges_initial_single_side_
     assert "WHERE fwd_return IS NOT NULL" not in matrix_sql
 
 
+def test_compose_ic_and_portfolio_sql_share_valid_forward_return_rule():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function tradingCostForTurnover")
+    ic_sql = _source_between(source, "function composeIcDecaySql", "async function renderComposeIcDecay")
+
+    assert "function validForwardReturnSql" in source
+    assert "validForwardReturnSql(column)" in helpers
+    assert ic_sql.count('validForwardReturnSql("fwd_return")') >= 2
+    assert "WHERE fwd_return > ${MIN_VALID_FORWARD_RETURN}" not in ic_sql
+    assert "fwd_return < ${MAX_VALID_FORWARD_RETURN}" not in ic_sql
+
+
 def test_optimal_weight_backtest_matches_compose_kpi_turnover_cost_and_tie_break():
     source = APP_JS.read_text(encoding="utf-8")
     helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")

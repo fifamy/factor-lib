@@ -1992,11 +1992,14 @@ function memberForwardReturn(value) {
   return Number.isFinite(n) ? n : -1.0;
 }
 
+function validForwardReturnSql(column = "fwd_return") {
+  return `${column} IS NOT NULL AND ${column} > ${MIN_VALID_FORWARD_RETURN} AND ${column} < ${MAX_VALID_FORWARD_RETURN}`;
+}
+
 function forwardReturnSql(column = "fwd_return") {
   return `CASE
-    WHEN ${column} IS NULL THEN -1.0
-    WHEN ${column} <= ${MIN_VALID_FORWARD_RETURN} OR ${column} >= ${MAX_VALID_FORWARD_RETURN} THEN -1.0
-    ELSE CAST(${column} AS DOUBLE)
+    WHEN ${validForwardReturnSql(column)} THEN CAST(${column} AS DOUBLE)
+    ELSE -1.0
   END`;
 }
 
@@ -6681,7 +6684,7 @@ function composeIcDecaySql(factors = state.composeFactors, startMonth = state.co
              CAST(strftime(ANY_VALUE(return_date), '%Y') AS INTEGER) * 12 + CAST(strftime(ANY_VALUE(return_date), '%m') AS INTEGER) AS return_month_id,
              ANY_VALUE(fwd_return) AS r1
       FROM cps_matrix
-      WHERE fwd_return > ${MIN_VALID_FORWARD_RETURN} AND fwd_return < ${MAX_VALID_FORWARD_RETURN}
+      WHERE ${validForwardReturnSql("fwd_return")}
       GROUP BY trade_date, stock_code
     ),
     score_base AS (
@@ -6733,7 +6736,7 @@ function composeIcDecaySql(factors = state.composeFactors, startMonth = state.co
       SELECT s.trade_date, s.stock_code, s.cs, h, fwd_return, return_date
       FROM score_base s
       JOIN horizon_returns r ON s.trade_date = r.trade_date AND s.stock_code = r.stock_code
-      WHERE fwd_return > ${MIN_VALID_FORWARD_RETURN} AND fwd_return < ${MAX_VALID_FORWARD_RETURN}
+      WHERE ${validForwardReturnSql("fwd_return")}
     ),
     ranked_positions AS (
       SELECT trade_date, h, cs, fwd_return,
