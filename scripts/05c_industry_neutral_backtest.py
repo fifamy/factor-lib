@@ -1,0 +1,281 @@
+"""生成单因子行业中性组合回测与最新持仓权重。
+
+行业口径：申万一级行业。当前项目只有静态行业描述表，未拥有历史 PIT 行业归属。
+目标权重：每个月可投资股票池内，各行业股票数量占比。
+
+用法：
+    python3 scripts/05c_industry_neutral_backtest.py [--score ...] [--out ...] [--holdings-out ...]
+"""
+import argparse
+from pathlib import Path
+
+import polars as pl
+
+from factor_lib.factors import momentum, volatility, liquidity, beta, company, market_extra, investor, derived, tech_event, word_v2  # noqa: F401
+from factor_lib.registry import FACTOR_REGISTRY
+from factor_lib.universe import word_universe_for_scores
+try:
+    from _monthly_returns import monthly_forward_return
+except ModuleNotFoundError:
+    from scripts._monthly_returns import monthly_forward_return
+
+
+TOP_NS = list(range(1, 101))
+COST_PER_SIDE = 0.002
+
+
+def load_descriptors(path: str) -> pl.DataFrame:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"stock descriptors not found: {path}")
+    return (
+        pl.read_parquet(p, columns=["stock_code", "industry_sw1"])
+        .filter(pl.col("industry_sw1").is_not_null() & (pl.col("industry_sw1").cast(pl.Utf8).str.len_chars() > 0))
+        .unique("stock_code")
+    )
+
+
+def add_industry_targets(score: pl.DataFrame, eligible_with_industry: pl.DataFrame) -> pl.DataFrame:
+    industry_targets = (
+        eligible_with_industry
+        .group_by(["trade_date", "industry_sw1"])
+        .agg(pl.len().alias("industry_count"))
+        .with_columns(
+            (pl.col("industry_count") / pl.col("industry_count").sum().over("trade_date")).alias("industry_weight")
+        )
+        .select(["trade_date", "industry_sw1", "industry_weight"])
+    )
+    return (
+        score.join(eligible_with_industry, on=["trade_date", "stock_code"], how="inner")
+        .join(industry_targets, on=["trade_date", "industry_sw1"], how="inner")
+        .select(["trade_date", "stock_code", "score", "industry_sw1", "industry_weight"])
+    )
+
+
+def empty_holdings() -> pl.DataFrame:
+    return pl.DataFrame(schema={
+        "trade_date": pl.Date,
+        "top_n": pl.Int64,
+        "stock_code": pl.Utf8,
+        "weight": pl.Float64,
+        "industry_sw1": pl.Utf8,
+    })
+
+
+def build_industry_neutral_holdings_all_topn(score: pl.DataFrame, top_ns: list[int]) -> pl.DataFrame:
+    if score.is_empty():
+        return empty_holdings()
+    ranked = (
+        score.drop_nulls(["score", "industry_sw1", "industry_weight"])
+        .filter(pl.col("industry_weight") > 0)
+        .sort(["trade_date", "industry_sw1", "score", "stock_code"], descending=[False, False, True, False])
+        .with_columns(pl.col("score").cum_count().over(["trade_date", "industry_sw1"]).alias("industry_rank"))
+    )
+    if ranked.is_empty():
+        return empty_holdings()
+
+    targets = (
+        ranked.group_by(["trade_date", "industry_sw1"])
+        .agg(pl.col("industry_weight").max().alias("target_weight"))
+        .with_columns((pl.col("target_weight") / pl.col("target_weight").sum().over("trade_date")).alias("target_weight"))
+    )
+    topn = pl.DataFrame({"top_n": top_ns})
+    targets_n = (
+        targets.join(topn, how="cross")
+        .with_columns([
+            (pl.col("target_weight") * pl.col("top_n")).alias("_raw_quota"),
+        ])
+        .with_columns([
+            pl.col("_raw_quota").floor().cast(pl.Int64).alias("_base_quota"),
+            (pl.col("_raw_quota") - pl.col("_raw_quota").floor()).alias("_frac_quota"),
+        ])
+        .with_columns([
+            pl.col("_base_quota").sum().over(["trade_date", "top_n"]).alias("_base_sum"),
+            pl.col("_frac_quota").rank("ordinal", descending=True).over(["trade_date", "top_n"]).alias("_frac_rank"),
+        ])
+        .with_columns(
+            (
+                pl.col("_base_quota")
+                + (pl.col("_frac_rank") <= (pl.col("top_n") - pl.col("_base_sum"))).cast(pl.Int64)
+            ).alias("quota")
+        )
+        .filter(pl.col("quota") > 0)
+        .select(["trade_date", "industry_sw1", "top_n", "target_weight", "quota"])
+    )
+    selected = (
+        ranked.join(targets_n, on=["trade_date", "industry_sw1"], how="inner")
+        .filter(pl.col("industry_rank") <= pl.col("quota"))
+    )
+    if selected.is_empty():
+        return empty_holdings()
+
+    counts = (
+        selected.group_by(["trade_date", "top_n", "industry_sw1"])
+        .agg([
+            pl.len().alias("selected_count"),
+            pl.col("target_weight").max().alias("target_weight"),
+        ])
+    )
+    holdings = (
+        selected.join(counts, on=["trade_date", "top_n", "industry_sw1"], how="inner", suffix="_industry")
+        .with_columns((pl.col("target_weight_industry") / pl.col("selected_count")).alias("_weight"))
+        .with_columns((pl.col("_weight") / pl.col("_weight").sum().over(["trade_date", "top_n"])).alias("weight"))
+        .select(["trade_date", "top_n", "stock_code", "weight", "industry_sw1"])
+        .sort(["top_n", "trade_date", "weight", "stock_code"], descending=[False, False, True, False])
+    )
+    return holdings
+
+
+def nav_from_weighted_holdings_all_topn(
+    holdings: pl.DataFrame,
+    monthly_ret: pl.DataFrame,
+    cost_per_side: float,
+) -> pl.DataFrame:
+    if holdings.is_empty():
+        return pl.DataFrame(schema={
+            "trade_date": pl.Date,
+            "return_date": pl.Date,
+            "top_n": pl.Int64,
+            "port_ret": pl.Float64,
+            "turnover": pl.Float64,
+            "nav": pl.Float64,
+        })
+
+    held = holdings.join(monthly_ret, on=["trade_date", "stock_code"], how="left")
+    held = held.with_columns([
+        pl.col("return_date").max().over(["top_n", "trade_date"]).alias("_period_return_date"),
+        pl.when(pl.col("fwd_return").is_not_null()).then(pl.col("fwd_return")).otherwise(-1.0).alias("_member_return"),
+    ]).filter(pl.col("_period_return_date").is_not_null())
+    if held.is_empty():
+        return pl.DataFrame(schema={
+            "trade_date": pl.Date,
+            "return_date": pl.Date,
+            "top_n": pl.Int64,
+            "port_ret": pl.Float64,
+            "turnover": pl.Float64,
+            "nav": pl.Float64,
+        })
+    port_ret = (
+        held.with_columns([
+            (pl.col("weight") * pl.col("_member_return")).alias("_ret"),
+        ])
+        .group_by(["top_n", "trade_date"])
+        .agg([
+            pl.col("_period_return_date").max().alias("return_date"),
+            pl.col("_ret").sum().alias("_weighted_ret"),
+        ])
+        .with_columns(pl.col("_weighted_ret").alias("port_ret_gross"))
+        .select(["top_n", "trade_date", "return_date", "port_ret_gross"])
+    )
+
+    months = sorted(holdings["trade_date"].unique().to_list())
+    month_idx = pl.DataFrame({"trade_date": months, "month_idx": list(range(len(months)))})
+    h = holdings.join(month_idx, on="trade_date", how="inner")
+    changes = pl.concat([
+        h.select(["top_n", "month_idx", "stock_code", pl.col("weight").alias("delta")]),
+        h.select(["top_n", (pl.col("month_idx") + 1).alias("month_idx"), "stock_code", (-pl.col("weight")).alias("delta")]),
+    ])
+    turnover = (
+        changes.group_by(["top_n", "month_idx", "stock_code"])
+        .agg(pl.col("delta").sum().alias("delta"))
+        .group_by(["top_n", "month_idx"])
+        .agg((pl.col("delta").abs().sum() * 0.5).alias("turnover"))
+        .join(month_idx, on="month_idx", how="inner")
+        .with_columns(
+            pl.when(pl.col("month_idx") == 0).then(1.0).otherwise(pl.col("turnover")).alias("turnover")
+        )
+        .with_columns(
+            pl.when(pl.col("month_idx") == 0)
+            .then(cost_per_side * pl.col("turnover"))
+            .otherwise(2 * cost_per_side * pl.col("turnover"))
+            .alias("trading_cost")
+        )
+        .select(["top_n", "trade_date", "turnover", "trading_cost"])
+    )
+
+    out = (
+        port_ret.join(turnover, on=["top_n", "trade_date"], how="left")
+        .with_columns([
+            pl.col("turnover").fill_null(0.0),
+            pl.col("trading_cost").fill_null(0.0),
+        ])
+        .with_columns((pl.col("port_ret_gross") - pl.col("trading_cost")).alias("port_ret"))
+        .sort(["top_n", "trade_date"])
+        .with_columns((1.0 + pl.col("port_ret")).cum_prod().over("top_n").alias("nav"))
+        .select(["trade_date", "return_date", "top_n", "port_ret", "turnover", "nav"])
+    )
+    return out
+
+
+def main(
+    score_path: str,
+    panel_path: str,
+    meta_path: str,
+    descriptors_path: str,
+    out_path: str,
+    holdings_out_path: str,
+):
+    score_all = pl.read_parquet(score_path)
+    panel = pl.read_parquet(panel_path).sort(["stock_code", "trade_date"])
+    meta = pl.read_parquet(meta_path)
+    desc = load_descriptors(descriptors_path)
+
+    month_end, monthly_ret = monthly_forward_return(panel)
+    score_all = word_universe_for_scores(score_all, panel, meta, FACTOR_REGISTRY)
+    eligible_with_industry_all = (
+        score_all
+        .select(["factor_code", "trade_date", "stock_code"])
+        .unique()
+        .join(desc, on="stock_code", how="inner")
+    )
+    print(
+        f"月度收益 {monthly_ret.height:,} 行；Word 股票池过滤后 score 样本 {score_all.height:,} 行；"
+        f"行业可投资样本 {eligible_with_industry_all.height:,} 行",
+        flush=True,
+    )
+
+    all_nav = []
+    all_holdings = []
+    for code in score_all["factor_code"].unique().sort():
+        score_one = (
+            score_all.filter(pl.col("factor_code") == code)
+            .drop_nulls("score")
+            .select(["trade_date", "stock_code", "score"])
+        )
+        eligible_with_industry = (
+            eligible_with_industry_all
+            .filter(pl.col("factor_code") == code)
+            .select(["trade_date", "stock_code", "industry_sw1"])
+        )
+        score_one = add_industry_targets(score_one, eligible_with_industry)
+        if score_one.is_empty():
+            print(f"  Skip {code}: no industry coverage", flush=True)
+            continue
+        holdings = build_industry_neutral_holdings_all_topn(score_one, TOP_NS)
+        nav = nav_from_weighted_holdings_all_topn(holdings, monthly_ret, COST_PER_SIDE)
+        if not nav.is_empty():
+            all_nav.append(nav.with_columns(pl.lit(code).alias("factor_code")))
+
+        latest_holdings = holdings.filter(pl.col("trade_date") == pl.col("trade_date").max())
+        if not latest_holdings.is_empty():
+            all_holdings.append(latest_holdings.with_columns(pl.lit(code).alias("factor_code")))
+        print(f"  Done {code}", flush=True)
+
+    out = pl.concat(all_nav) if all_nav else pl.DataFrame()
+    out.write_parquet(out_path)
+    holdings = pl.concat(all_holdings) if all_holdings else pl.DataFrame()
+    holdings.write_parquet(holdings_out_path)
+    print(f"Wrote {out_path}: {out.height:,} rows", flush=True)
+    print(f"Wrote {holdings_out_path}: {holdings.height:,} rows", flush=True)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--score", default="data/factor_score.parquet")
+    parser.add_argument("--panel", default="data/raw/price_panel.parquet")
+    parser.add_argument("--meta", default="data/raw/stock_meta.parquet")
+    parser.add_argument("--descriptors", default="frontend/data/stock_descriptors.parquet")
+    parser.add_argument("--out", default="data/preset_backtest_industry_neutral.parquet")
+    parser.add_argument("--holdings-out", default="data/factor_holdings_industry_neutral.parquet")
+    args = parser.parse_args()
+    main(args.score, args.panel, args.meta, args.descriptors, args.out, args.holdings_out)
