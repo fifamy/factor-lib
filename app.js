@@ -8617,7 +8617,7 @@ function weightGrid(nF, step) {
 // 在 JS 内存里对一组权重跑合成回测，返回指标。conds=[{idx,op,thr}] 先过滤再打分。
 function backtestWeights(monthsArr, weights, N, conds) {
   let prev = null, nav = 1;
-  const navArr = [], retArr = [];
+  const navArr = [1], retArr = [];
   for (const mo of monthsArr) {
     let elig = mo.stocks;
     if (conds && conds.length) {
@@ -8631,7 +8631,7 @@ function backtestWeights(monthsArr, weights, N, conds) {
       let c = 0; for (let i = 0; i < weights.length; i++) c += weights[i] * s.scores[i];
       return { code: s.code, comp: c, ret: s.ret };
     });
-    scored.sort((a, b) => b.comp - a.comp);
+    scored.sort((a, b) => b.comp - a.comp || String(a.code).localeCompare(String(b.code)));
     const picks = scored.slice(0, N);
     const weight = 1 / picks.length;
     const gross = picks.reduce((s, p) => s + weight * memberForwardReturn(p.ret), 0);
