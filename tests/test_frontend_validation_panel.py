@@ -457,6 +457,21 @@ def test_positive_only_factor_handling_is_visible_in_catalog_and_detail_copy():
     assert "负值或零值不参与排序" in source
 
 
+def test_latest_holdings_copy_distinguishes_display_pool_from_historical_backtest_pool():
+    source = APP_JS.read_text(encoding="utf-8")
+    single_rows = _source_between(source, "function renderTopStocksRows", "async function renderNavChart")
+    compose_rows = _source_between(source, "async function renderComposeStocks", "async function renderComposeBacktest")
+
+    assert "function latestHoldingScopeNote" in source
+    assert "当前最新持仓展示" in source
+    assert "不是历史回测持仓" in source
+    assert "历史回测股票池" in source
+    assert "as_of_date" in single_rows
+    assert "pool_date" in single_rows
+    assert "as_of_date" in compose_rows
+    assert "pool_date" in compose_rows
+
+
 def test_validation_panel_explicitly_warns_short_samples():
     source = APP_JS.read_text(encoding="utf-8")
     styles = STYLES_CSS.read_text(encoding="utf-8")

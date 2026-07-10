@@ -1289,6 +1289,24 @@ function positiveOnlyNote(meta) {
   </div>`;
 }
 
+function holdingAsOfDate(row) {
+  return row?.as_of_date || row?.dt || "—";
+}
+
+function holdingPoolDate(row) {
+  return row?.pool_date || row?.as_of_date || row?.dt || "—";
+}
+
+function latestHoldingScopeNote(rows, opts = {}) {
+  const validRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  const asOfs = [...new Set(validRows.map(holdingAsOfDate).filter(v => v && v !== "—"))].sort();
+  const poolDates = [...new Set(validRows.map(holdingPoolDate).filter(v => v && v !== "—"))].sort();
+  const asOfText = asOfs.length > 1 ? `${asOfs[0]} ~ ${asOfs[asOfs.length - 1]}` : (asOfs[0] || "—");
+  const poolText = poolDates.length > 1 ? `${poolDates[0]} ~ ${poolDates[poolDates.length - 1]}` : (poolDates[0] || "—");
+  const eventText = opts.isEvent ? "事件因子可能汇总多个公告/快报截面，表内每行的得分截面以 as_of_date 为准；" : "";
+  return `当前最新持仓展示：本表用于查看最新可持有/可交易股票池，不是历史回测持仓；仅保留当前 active、非 ST 股票。${eventText}as_of_date=${asOfText}，pool_date=${poolText}。历史回测股票池仍按每月末 Word 股票池和当期可交易状态执行，不按最新 active 过滤。`;
+}
+
 function renderFactorDetail(meta, snap = null) {
   const dirArrow = meta.direction === 1 ? "↑（越高越好）" : "↓（越低越好）";
   const side = normalizeSide(state.singleSide);
@@ -1300,8 +1318,11 @@ function renderFactorDetail(meta, snap = null) {
   const snapReturns = returnDatesFromSnapshot(viewSnap);
   const coverageStart = snapMonths[0] || manifest.backtest_start_month || "—";
   const coverageEnd = snapReturns[snapReturns.length - 1] || manifest.return_end_date || manifest.backtest_end_month || "—";
-  const universeText = manifest.backtest_universe || (
-    "每月末按因子对应股票池排序选股；历史回测不按最新 active 过滤，最新股票表仅展示当前 active 非 ST 股票。"
+  const backtestUniverseText = manifest.backtest_universe || (
+    "历史回测股票池按每月末因子对应 Word 股票池排序选股；不按最新 active 过滤。"
+  );
+  const latestHoldingsUniverseText = manifest.latest_holdings_universe || (
+    "当前最新持仓展示仅显示当前 active、非 ST 股票，不是历史回测持仓。"
   );
   const coverageText = snapMonths.length
     ? `${coverageStart} ~ ${coverageEnd}（${snapMonths.length} 期）`
@@ -1382,7 +1403,8 @@ function renderFactorDetail(meta, snap = null) {
     <p style="color:#666;font-size:11px;margin-top:8px">
       下方股票表显示 <b>top${maxN()}</b>（小 N 是其子集）；净值图 / 指标表叠加对比所选各 N。
       覆盖期：${coverageText}。
-      口径：每月末按 <b>${meta.code}</b> ${scoreModeLabel()} 高斯秩标准化分数在 Word 股票池内排序选股，组合约束：${constraintModeLabel()}（${constraintHoldText()}），单边 0.2%，按换手扣成本；${universeText}
+      历史回测股票池：每月末按 <b>${meta.code}</b> ${scoreModeLabel()} 高斯秩标准化分数在 Word 股票池内排序选股，组合约束：${constraintModeLabel()}（${constraintHoldText()}），单边 0.2%，按换手扣成本；${backtestUniverseText}
+      当前最新持仓展示：${latestHoldingsUniverseText}
     </p>
   `;
   document.querySelectorAll(".single-side-btn").forEach(btn => {
@@ -1450,6 +1472,8 @@ async function renderTopStocks(code) {
         AND s.trade_date IN (SELECT trade_date FROM recent)
     )
     SELECT p.stock_code, m.name, p.score, p.raw_value, CAST(p.trade_date AS VARCHAR) AS dt,
+           CAST(p.trade_date AS VARCHAR) AS as_of_date,
+           CAST(p.trade_date AS VARCHAR) AS pool_date,
            d.industry_sw1, d.industry_sw2, d.market_cap, d.pe, d.pb, d.avg_amount
     FROM pooled p
     LEFT JOIN stock_meta m USING(stock_code)
@@ -1466,6 +1490,8 @@ async function renderTopStocks(code) {
     SELECT
       s.stock_code, m.name, s.score, s.raw_value,
       CAST(s.trade_date AS VARCHAR) AS dt,
+      CAST(s.trade_date AS VARCHAR) AS as_of_date,
+      CAST(s.trade_date AS VARCHAR) AS pool_date,
       d.industry_sw1, d.industry_sw2,
       d.market_cap, d.pe, d.pb, d.avg_amount
     FROM factor_score s
@@ -1489,27 +1515,29 @@ async function renderTopStocks(code) {
 
   const descNote = state.hasDescriptors ? "" :
     " <span style='color:#aaa;font-size:11px'>(行业/市值/PE/PB/成交额待数据)</span>";
+  const scopeNote = latestHoldingScopeNote(rows, { isEvent });
   let head;
   if (isEvent) {
     const dts = rows.map(r => r.dt).sort();
     const lo = dts[0], hi = dts[dts.length - 1];
-    head = `<h3>${code} · Top ${N} 股票（近6月快报池，按高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    head = `<h3>${code} · 当前最新持仓展示 Top ${N}（近6月快报池，按高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
       <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
         事件因子：每股取其<b>最近一期业绩快报</b>（池含 ${lo} ~ ${hi} 的快报月，去重后取最高一期）；
-        年末三季报快报稀少，故按近 6 个快报月汇总。申万行业 / 市值 / PE / PB 为最新快照。
+        年末三季报快报稀少，故按近 6 个快报月汇总。申万行业 / 市值 / PE / PB 为最新快照。${scopeNote}
       </p>`;
   } else {
     const dt = rows[0].dt;
-    head = `<h3>${code} · Top ${N} 股票（截面日 ${dt}，按高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    head = `<h3>${code} · 当前最新持仓展示 Top ${N}（截面日 ${dt}，按高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
       <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
         指标口径：得分/原始值基于因子截面 ${dt}；申万行业 / 市值 / PE / PB 为 ${dt} 当日快照；
-        近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。
+        近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。${scopeNote}
       </p>`;
   }
   let html = head + `
     <table class="stock-table">
       <thead><tr>
         <th>#</th><th>代码</th><th>名称</th>
+        <th>得分截面</th><th>展示池日期</th>
         <th>申万一级</th><th>申万二级</th>
         <th>市值(亿)</th><th>PE</th><th>PB</th><th>近一年日均成交额(亿)</th>
         <th>得分</th><th>原始值</th>
@@ -1519,10 +1547,14 @@ async function renderTopStocks(code) {
   const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));  // 万元 → 亿元
   const fmtAmt = (v) => (v === null || v === undefined ? "—" : Number(v).toFixed(2));  // 已是亿元
   rows.forEach((r, i) => {
+    const as_of_date = holdingAsOfDate(r);
+    const pool_date = holdingPoolDate(r);
     html += `<tr class="stock-row" data-stock="${r.stock_code}" data-name="${r.name || ""}" title="点击看该股各因子打分（为什么入选）">
       <td>${i + 1}</td>
       <td>${r.stock_code}</td>
       <td>${r.name || ""}</td>
+      <td>${as_of_date}</td>
+      <td>${pool_date}</td>
       <td>${r.industry_sw1 || "—"}</td>
       <td>${r.industry_sw2 || "—"}</td>
       <td>${fmtMV(r.market_cap)}</td>
@@ -1573,7 +1605,9 @@ async function renderTopStocksDynamic(code) {
       WHERE s.factor_code = '${code}' AND s.score IS NOT NULL
         AND s.trade_date IN (SELECT trade_date FROM recent)
     )
-    SELECT p.stock_code, p.score, p.raw_value, CAST(p.trade_date AS VARCHAR) AS dt
+    SELECT p.stock_code, p.score, p.raw_value, CAST(p.trade_date AS VARCHAR) AS dt,
+           CAST(p.trade_date AS VARCHAR) AS as_of_date,
+           CAST(p.trade_date AS VARCHAR) AS pool_date
     FROM pooled p
     WHERE p.rn = 1
     ORDER BY p.score DESC, p.stock_code
@@ -1582,7 +1616,9 @@ async function renderTopStocksDynamic(code) {
     WITH latest AS (
       SELECT MAX(trade_date) AS d FROM factor_score WHERE factor_code = '${code}'
     )
-    SELECT s.stock_code, ${scoreExpr} AS score, s.raw_value, CAST(s.trade_date AS VARCHAR) AS dt
+    SELECT s.stock_code, ${scoreExpr} AS score, s.raw_value, CAST(s.trade_date AS VARCHAR) AS dt,
+           CAST(s.trade_date AS VARCHAR) AS as_of_date,
+           CAST(s.trade_date AS VARCHAR) AS pool_date
     FROM factor_score s
     WHERE s.factor_code = '${code}'
       AND s.trade_date = (SELECT d FROM latest)
@@ -1643,6 +1679,7 @@ function renderTopStocksRows(code, rows, opts = {}) {
     return;
   }
   const hasWeight = rows.some(r => r.weight !== null && r.weight !== undefined && Number.isFinite(Number(r.weight)));
+  const scopeNote = latestHoldingScopeNote(rows, { isEvent });
   const descNote = opts.snapshot
     ? ` <span style='color:#aaa;font-size:11px'>(${scoreModeLabel()} / ${constraintModeLabel()}快照)</span>`
     : " <span style='color:#aaa;font-size:11px'>(按当前方向即时排序)</span>";
@@ -1650,23 +1687,24 @@ function renderTopStocksRows(code, rows, opts = {}) {
   if (isEvent) {
     const dts = rows.map(r => r.dt).filter(Boolean).sort();
     const lo = dts[0] || "—", hi = dts[dts.length - 1] || "—";
-    head = `<h3>${code}${sideText} · Top ${N} 股票（近6月快报池，按有效高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    head = `<h3>${code}${sideText} · 当前最新持仓展示 Top ${N}（近6月快报池，按有效高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
       <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
         事件因子：每股取其<b>最近一期业绩快报</b>（池含 ${lo} ~ ${hi} 的快报月，去重后取最高一期）；
-        年末三季报快报稀少，故按近 6 个快报月汇总。申万行业 / 市值 / PE / PB 为最新快照。
+        年末三季报快报稀少，故按近 6 个快报月汇总。申万行业 / 市值 / PE / PB 为最新快照。${scopeNote}
       </p>`;
   } else {
     const dt = rows[0].dt || "—";
-    head = `<h3>${code}${sideText} · Top ${N} 股票（截面日 ${dt}，按有效高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    head = `<h3>${code}${sideText} · 当前最新持仓展示 Top ${N}（截面日 ${dt}，按有效高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
       <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
         指标口径：得分/原始值基于因子截面 ${dt}；申万行业 / 市值 / PE / PB 为 ${dt} 当日快照；
-        近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。
+        近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。${scopeNote}
       </p>`;
   }
   let html = head + `
     <table class="stock-table">
       <thead><tr>
         <th>#</th><th>代码</th><th>名称</th>
+        <th>得分截面</th><th>展示池日期</th>
         <th>申万一级</th><th>申万二级</th>
         <th>市值(亿)</th><th>PE</th><th>PB</th><th>近一年日均成交额(亿)</th>
         ${hasWeight ? "<th>权重</th>" : ""}
@@ -1677,10 +1715,14 @@ function renderTopStocksRows(code, rows, opts = {}) {
   const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));
   const fmtAmt = (v) => (v === null || v === undefined ? "—" : Number(v).toFixed(2));
   rows.forEach((r, i) => {
+    const as_of_date = holdingAsOfDate(r);
+    const pool_date = holdingPoolDate(r);
     html += `<tr class="stock-row" data-stock="${r.stock_code}" data-name="${r.name || ""}" title="点击看该股各因子打分（为什么入选）">
       <td>${i + 1}</td>
       <td>${r.stock_code}</td>
       <td>${r.name || ""}</td>
+      <td>${as_of_date}</td>
+      <td>${pool_date}</td>
       <td>${r.industry_sw1 || "—"}</td>
       <td>${r.industry_sw2 || "—"}</td>
       <td>${fmtMV(r.market_cap)}</td>
@@ -6542,7 +6584,9 @@ async function renderComposeStocks(renderSeq) {
   const res = await state.db.query(`
     SELECT stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
-           CAST(trade_date AS VARCHAR) AS dt
+           CAST(trade_date AS VARCHAR) AS dt,
+           CAST(trade_date AS VARCHAR) AS as_of_date,
+           CAST(trade_date AS VARCHAR) AS pool_date
     FROM cps_latest_matrix
     WHERE TRUE ${condSql}
     ORDER BY comp_score DESC, stock_code
@@ -6555,6 +6599,9 @@ async function renderComposeStocks(renderSeq) {
     .map(r => ({
       ...r,
       cs: Number(r.comp_score),
+      as_of_date: r.as_of_date || r.dt,
+      pool_date: r.pool_date || r.as_of_date || r.dt,
+      pool_scope: "current_active_non_st",
       name: r.meta.name,
       industry_sw1: r.meta.industry_sw1,
       industry_sw2: r.meta.industry_sw2,
@@ -6573,16 +6620,20 @@ async function renderComposeStocks(renderSeq) {
     return;
   }
   const dt = rows[0].dt;
+  const scopeNote = latestHoldingScopeNote(rows);
   const wdesc = state.composeFactors.map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}`).join(" + ");
   const fmt = (v, dp = 2) => (v === null || v === undefined ? "—" : Number(v).toFixed(dp));
   const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));
-  let html = `<h3>合成 Top ${state.composeN} 股票（当前仍在市成分展示，截面日 ${dt}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
-    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${wdesc}（高斯秩标准化分数加权和）${condDesc ? "；过滤：" + condDesc : ""}；组合约束：${constraintModeLabel(constraint)}（当前展示剔除 ST/停牌/非 active 股票；历史回测不按最新 active 过滤）</p>
+  let html = `<h3>合成 Top ${state.composeN} 股票（当前最新持仓展示，截面日 ${dt}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${wdesc}（高斯秩标准化分数加权和）${condDesc ? "；过滤：" + condDesc : ""}；组合约束：${constraintModeLabel(constraint)}。${scopeNote}</p>
     <table class="stock-table"><thead><tr>
-      <th>#</th><th>代码</th><th>名称</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${constraint === "industry" ? "<th>权重</th>" : ""}<th>合成得分</th>
+      <th>#</th><th>代码</th><th>名称</th><th>得分截面</th><th>展示池日期</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${constraint === "industry" ? "<th>权重</th>" : ""}<th>合成得分</th>
     </tr></thead><tbody>`;
   rows.forEach((r, i) => {
+    const as_of_date = holdingAsOfDate(r);
+    const pool_date = holdingPoolDate(r);
     html += `<tr class="stock-row" data-stock="${r.stock_code}" data-name="${r.name || ""}" title="点击看该股各因子打分（为什么入选）"><td>${i + 1}</td><td>${r.stock_code}</td><td>${r.name || ""}</td>
+      <td>${as_of_date}</td><td>${pool_date}</td>
       <td>${r.industry_sw1 || "—"}</td><td>${fmtMV(r.market_cap)}</td>
       <td>${fmt(r.pe, 1)}</td><td>${fmt(r.pb, 2)}</td>${constraint === "industry" ? `<td>${pctText(Number(r.weight))}</td>` : ""}<td>${fmt(r.comp_score, 3)}</td></tr>`;
   });
@@ -7141,7 +7192,9 @@ async function comboLatestHoldingRows(factors, N, constraintMode) {
   const res = await state.db.query(`
     SELECT stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
-           CAST(trade_date AS VARCHAR) AS dt
+           CAST(trade_date AS VARCHAR) AS dt,
+           CAST(trade_date AS VARCHAR) AS as_of_date,
+           CAST(trade_date AS VARCHAR) AS pool_date
     FROM cps_latest_matrix
     WHERE TRUE ${condSql}
     ORDER BY comp_score DESC, stock_code
@@ -7155,6 +7208,9 @@ async function comboLatestHoldingRows(factors, N, constraintMode) {
       comp_score: snapshotNumber(r.comp_score),
       cs: snapshotNumber(r.comp_score),
       dt: String(r.dt || ""),
+      as_of_date: String(r.as_of_date || r.dt || ""),
+      pool_date: String(r.pool_date || r.as_of_date || r.dt || ""),
+      pool_scope: "current_active_non_st",
       name: r.meta.name,
       industry_sw1: r.meta.industry_sw1,
       industry_sw2: r.meta.industry_sw2,
