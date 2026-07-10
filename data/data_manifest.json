@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-03 16:29:04",
+  "generated_at": "2026-07-06 17:50:32",
   "factor_count": 148,
   "backtest_start_month": "2015-02",
   "backtest_end_month": "2026-05",
@@ -10,13 +10,19 @@
   "has_quantile_backtest": true,
   "has_group10_backtest": true,
   "has_validation_summary": true,
+  "has_compose_scores_raw": true,
+  "has_compose_scores_neutral": false,
+  "capabilities": {
+    "compose_scores_raw": true,
+    "compose_scores_neutral": true,
+    "segment_validation_parquet": true,
+    "rolling_validation_parquet": true
+  },
   "has_neutralized_scores": true,
   "neutralization": "中性化口径使用申万一级行业哑变量 + log(市值) 截面回归残差；当前行业字段来自静态描述快照，不是历史申万行业 PIT。",
   "industry_classification_source": "static_stock_descriptors",
   "industry_classification_limitation": "行业分层、行业中性组合和行业市值中性化当前使用静态申万行业，不是历史申万行业 PIT；补齐历史行业归属表前，相关分层归因只作为辅助复核。",
   "has_industry_neutral_portfolio": true,
   "has_neutral_industry_neutral_portfolio": true,
-  "industry_neutral_portfolio": "组合行业中性口径使用申万一级行业；行业目标权重为当月可投资股票池行业数量占比，行业内按因子分数选股并等权；当前行业字段来自静态描述快照。",
-  "has_compose_scores_raw": true,
-  "has_compose_scores_neutral": false
+  "industry_neutral_portfolio": "组合行业中性口径使用申万一级行业；行业目标权重为当月可投资股票池行业数量占比，行业内按因子分数选股并等权；当前行业字段来自静态描述快照。"
 }

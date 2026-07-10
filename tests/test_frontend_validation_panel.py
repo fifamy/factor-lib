@@ -68,14 +68,25 @@ def test_validation_panel_renders_rolling_and_segment_tables():
     assert "segment_portfolio" in source
 
 
-def test_compare_fast_table_recomputes_annualized_rank_ic_ir_from_rank_ic_series():
+def test_compare_fast_table_uses_effective_annualization_for_rank_ic_ir():
     source = APP_JS.read_text(encoding="utf-8")
     body = _source_between(source, "async function renderCmpTableFast()", "function drawCmpTable")
 
+    assert "function effectiveAnnualizationScale" in source
+    assert "rankIcStats(" in body
     assert "scoreSnap.ic?.rank_ic" in body
-    assert "Math.sqrt(12)" in body
+    assert "Math.sqrt(12)" not in body
     assert "scoreSnap.ic?.ic_ir_12m" not in body
     assert "latestIcir" not in body
+
+
+def test_frontend_compute_metrics_uses_backend_sharpe_definition():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
+
+    assert "const vol = std * Math.sqrt(12)" in body
+    assert "const sharpe = vol > 0 ? annual / vol : 0" in body
+    assert "mean / std * Math.sqrt(12)" not in body
 
 
 def test_compare_table_labels_rank_ic_mean_explicitly():
@@ -86,6 +97,22 @@ def test_compare_table_labels_rank_ic_mean_explicitly():
     assert 'label: "IC 均值"' not in body
 
 
+def test_compare_corr_tooltip_exposes_pairwise_sample_counts():
+    source = APP_JS.read_text(encoding="utf-8")
+    fallback = _source_between(source, "async function renderCmpCorr()", "async function renderCmpCorrFast()")
+    fast = _source_between(source, "async function renderCmpCorrFast()", "function bindModeButtons")
+
+    assert "SELECT factor_a, factor_b, corr, n_obs, n_months FROM factor_corr" in fallback
+    assert "p.data[3]" in fallback
+    assert "p.data[4]" in fallback
+    assert "样本股票-月" in fallback
+    assert "样本月份" in fallback
+    assert "for (const [a, b, c, nObs, nMonths] of rawCorrSnap.rows || [])" in fast
+    assert "for (const [a, b, c, nObs, nMonths] of neutralCorrSnap.rows || [])" in fast
+    assert "p.data[3]" in fast
+    assert "p.data[4]" in fast
+
+
 def test_combo_ic_decay_sql_uses_average_ranks_for_ties():
     source = APP_JS.read_text(encoding="utf-8")
     body = _source_between(source, "function composeIcDecaySql", "async function comboIcDecay")
@@ -94,6 +121,72 @@ def test_combo_ic_decay_sql_uses_average_ranks_for_ties():
     assert "AVG(return_pos) OVER (PARTITION BY trade_date, h, fwd_return) AS return_rank" in body
     assert "rank() OVER (PARTITION BY trade_date, h ORDER BY cs)" not in body
     assert "rank() OVER (PARTITION BY trade_date, h ORDER BY fwd_return)" not in body
+
+
+def test_combo_ic_decay_sql_uses_calendar_month_self_join_not_physical_lead():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "function composeIcDecaySql", "async function comboIcDecay")
+
+    assert "LEAD(" not in body
+    assert "month_id" in body
+    assert "month_id + 1" in body
+    assert "month_id + 3" in body
+    assert "month_id + 6" in body
+    assert "month_id + 12" in body
+    assert "WHERE m.fwd_return IS NOT NULL" not in body
+
+
+def test_frontend_ranking_and_combo_validation_keep_missing_forward_returns_in_sample_space():
+    source = APP_JS.read_text(encoding="utf-8")
+    side_rank = _source_between(source, "async function factorSideRankedRows", "async function factorSideBacktest")
+    group_validation = _source_between(source, "async function comboGroupValidation", "function renderComboContributionTable")
+    optimizer = _source_between(source, "async function optimizeWeights", "function bindComposeButtons")
+
+    assert "function forwardReturnSql" in source
+    assert "WHERE score IS NOT NULL AND fwd_return IS NOT NULL" not in side_rank
+    assert "WHERE fwd_return IS NOT NULL" not in group_validation
+    assert "WHERE fwd_return IS NOT NULL" not in optimizer
+    assert "missing_return_count" in group_validation
+    assert "observed_return_count" in group_validation
+
+
+def test_compare_fallback_does_not_silently_downgrade_score_or_constraint_modes():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "async function renderCompare", "function cmpPairCond")
+
+    assert "function compareFallbackBlockedReason" in source
+    assert "compareFallbackBlockedReason(sel)" in body
+    assert "不退回原始口径" in source
+    assert "scoreMode" in source
+    assert "constraintMode" in source
+
+
+def test_rank_ic_stats_from_series_uses_effective_annualization_scale():
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "function rankIcStatsFromSeries", "function comboBacktestRowsForMonths")
+
+    assert "effectiveAnnualizationScale" in body
+    assert "horizonMonths" in body
+    assert "Math.sqrt(12)" not in body
+
+
+def test_compose_backtest_keeps_missing_returns_and_charges_initial_single_side_cost():
+    source = APP_JS.read_text(encoding="utf-8")
+    build = _source_between(source, "function buildBacktestFromRows", "function industryNeutralPickRows")
+    weighted = _source_between(source, "function buildWeightedBacktestFromRows", "function matrixBacktestSql")
+    matrix_sql = _source_between(source, "function matrixBacktestSql", "async function comboBacktest")
+    optimizer = _source_between(source, "function backtestWeights", "async function optimizeWeights")
+
+    assert "function memberForwardReturn" in source
+    assert "function tradingCostForTurnover" in source
+    assert "function weightedTurnover" in source
+    assert "memberForwardReturn(r.fwd_return)" in build
+    assert "memberForwardReturn(h.ret)" in weighted
+    assert "tradingCostForTurnover(turnover, !prev)" in build
+    assert "tradingCostForTurnover(turnover, !prev)" in weighted
+    assert "tradingCostForTurnover(turnover, !prev)" in optimizer
+    assert "if (r.fwd_return != null) o.rets.push" not in build
+    assert "WHERE fwd_return IS NOT NULL" not in matrix_sql
 
 
 def test_validation_panel_explains_new_validation_metrics():
@@ -182,6 +275,28 @@ def test_validation_panel_uses_signal_lights_for_metric_judgement():
     assert ".signal-strong" in styles
     assert ".signal-watch" in styles
     assert ".signal-alert" in styles
+
+
+def test_frontend_copy_uses_gaussian_rank_score_and_precise_cost_wording():
+    source = APP_JS.read_text(encoding="utf-8")
+
+    assert "z-score" not in source
+    assert "0.2%双边成本" not in source
+    assert "0.2% 双边成本" not in source
+    assert "高斯秩标准化分数" in source
+    assert "单边 0.2%" in source
+    assert "按换手扣成本" in source
+
+
+def test_positive_only_factor_handling_is_visible_in_catalog_and_detail_copy():
+    catalog = json.loads((FRONTEND_DATA / "factor_catalog.json").read_text(encoding="utf-8"))
+    by_code = {row["code"]: row for row in catalog}
+    source = APP_JS.read_text(encoding="utf-8")
+
+    assert by_code["PE"]["positive_only"] is True
+    assert by_code["FWDPE"]["positive_only"] is True
+    assert "function positiveOnlyNote" in source
+    assert "负值或零值不参与排序" in source
 
 
 def test_validation_panel_explicitly_warns_short_samples():
@@ -568,7 +683,10 @@ def test_deploy_script_targets_formal_factor_lib_pages_repo():
     assert "--exclude='data/backtests_neutral/'" in text
     assert "--exclude='data/factor_scores_latest_neutral/'" in text
     assert "--exclude='data/quantile_backtests/'" in text
+    assert '"compose_scores_raw"' in text
     assert '"has_compose_scores_neutral"' in text
+    assert '"segment_validation_parquet"' in text
+    assert '"rolling_validation_parquet"' in text
     assert "--filter='P .git/***'" in text
     assert '"$ROOT/e2e/compose_validation.mjs"' in text
     assert '"$ROOT/e2e/package-lock.json"' in text
@@ -586,6 +704,7 @@ def test_compose_neutral_scores_can_be_disabled_for_slim_pages_artifact():
     assert "function normalizeComposeScoreMode(mode)" in source
     assert 'scoreMode: normalizeComposeScoreMode(f.scoreMode)' in source
     assert 'const neutralDisabled = hasComposeNeutralScores() ? "" : " disabled"' in source
+    assert "线上版本未发布 neutral 多因子合成分片；本地完整数据可用。" in source
 
 
 def test_publish_runbook_uses_current_pages_worktree():
@@ -609,6 +728,7 @@ def test_ci_workflow_runs_static_frontend_checks():
     text = workflow.read_text(encoding="utf-8")
 
     assert "python3 -m pytest tests/test_frontend_validation_panel.py -q" in text
+    assert "python3 -m pytest tests/test_monthly_returns.py tests/test_backtest.py tests/test_calendar_windows.py tests/test_normalize.py -q" in text
     assert "node --check frontend/app.js" in text
     assert "node --check app.js" in text
     assert "node --check e2e/run_compose_validation.mjs" in text

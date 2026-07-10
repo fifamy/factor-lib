@@ -27,6 +27,9 @@ const FACTOR_IC_DIR = DATA_DIR + "factor_ics/";
 const COMPOSE_SCORE_DIR = DATA_DIR + "compose_scores/";
 const COMPOSE_SCORE_NEUTRAL_DIR = DATA_DIR + "compose_scores_neutral/";
 const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
+const COST_PER_SIDE = 0.002;
+const MIN_VALID_FORWARD_RETURN = -0.95;
+const MAX_VALID_FORWARD_RETURN = 5.0;
 const SUPABASE_URL = "https://tsyplhfshxzoduynzixk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_6osvaEI8pookLkmkzBUbHQ_kyUU2SKn";
 let _myComboIdSeq = 0;
@@ -337,6 +340,10 @@ function normalizeScoreMode(mode) {
 
 function hasComposeNeutralScores() {
   return state.dataManifest?.has_compose_scores_neutral !== false;
+}
+
+function composeNeutralUnavailableMessage() {
+  return "线上版本未发布 neutral 多因子合成分片；本地完整数据可用。";
 }
 
 function normalizeComposeScoreMode(mode) {
@@ -857,13 +864,17 @@ async function ensureOptionalTables(opts = {}) {
           CREATE OR REPLACE TABLE factor_corr AS
           SELECT * FROM read_parquet('${DATA_DIR}factor_corr.parquet${V}')
         `, `
-          CREATE OR REPLACE TABLE factor_corr (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
+          CREATE OR REPLACE TABLE factor_corr (
+            factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE, n_obs INTEGER, n_months INTEGER
+          )
         `);
       state.hasCorrNeutral = await tryLoadOptional("factor_corr_neutral", `
           CREATE OR REPLACE TABLE factor_corr_neutral AS
           SELECT * FROM read_parquet('${DATA_DIR}factor_corr_neutral.parquet${V}')
         `, `
-          CREATE OR REPLACE TABLE factor_corr_neutral (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
+          CREATE OR REPLACE TABLE factor_corr_neutral (
+            factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE, n_obs INTEGER, n_months INTEGER
+          )
         `);
       _optionalReady.corr = true;
     }
@@ -921,10 +932,14 @@ async function _initDB() {
       )
     `);
     await state.db.query(`
-      CREATE TABLE factor_corr (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
+      CREATE TABLE factor_corr (
+        factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE, n_obs INTEGER, n_months INTEGER
+      )
     `);
     await state.db.query(`
-      CREATE TABLE factor_corr_neutral (factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE)
+      CREATE TABLE factor_corr_neutral (
+        factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE, n_obs INTEGER, n_months INTEGER
+      )
     `);
     console.log(`核心表加载 ${(performance.now() - t0).toFixed(0)}ms`);
 
@@ -1186,7 +1201,7 @@ async function factorSideRankedRows(code, side, maxRank = 100) {
                  ORDER BY score * ${sideN} DESC, stock_code
                ) AS rk
         FROM read_parquet('${path}')
-        WHERE score IS NOT NULL AND fwd_return IS NOT NULL
+        WHERE score IS NOT NULL
       )
       SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
              strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
@@ -1267,6 +1282,13 @@ function toggleN(n) {
   selectFactor(state.activeFactor);
 }
 
+function positiveOnlyNote(meta) {
+  if (!meta?.positive_only) return "";
+  return `<div class="method-note" style="margin-top:8px">
+    <div><b>无效值处理</b>：该因子标记为 positive_only，原始值小于等于 0 时缺少可比较的经济含义，负值或零值不参与排序，raw_value 仍保留用于追溯。</div>
+  </div>`;
+}
+
 function renderFactorDetail(meta, snap = null) {
   const dirArrow = meta.direction === 1 ? "↑（越高越好）" : "↓（越低越好）";
   const side = normalizeSide(state.singleSide);
@@ -1324,6 +1346,7 @@ function renderFactorDetail(meta, snap = null) {
     <p><b>${meta.l1} → ${meta.l2}</b>　默认方向：${dirArrow}　当前：<b>${sideLabel(side)}</b>（${sideRawDirection(meta, side)}）</p>
     ${tagBlock}
     <p>${meta.description}</p>
+    ${positiveOnlyNote(meta)}
     ${formulaBlock}
     ${sourceBlock}
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1359,7 +1382,7 @@ function renderFactorDetail(meta, snap = null) {
     <p style="color:#666;font-size:11px;margin-top:8px">
       下方股票表显示 <b>top${maxN()}</b>（小 N 是其子集）；净值图 / 指标表叠加对比所选各 N。
       覆盖期：${coverageText}。
-      口径：每月末按 <b>${meta.code}</b> ${scoreModeLabel()} z-score 在 Word 股票池内排序选股，组合约束：${constraintModeLabel()}（${constraintHoldText()}），扣 0.2% 双边成本；${universeText}
+      口径：每月末按 <b>${meta.code}</b> ${scoreModeLabel()} 高斯秩标准化分数在 Word 股票池内排序选股，组合约束：${constraintModeLabel()}（${constraintHoldText()}），单边 0.2%，按换手扣成本；${universeText}
     </p>
   `;
   document.querySelectorAll(".single-side-btn").forEach(btn => {
@@ -1470,14 +1493,14 @@ async function renderTopStocks(code) {
   if (isEvent) {
     const dts = rows.map(r => r.dt).sort();
     const lo = dts[0], hi = dts[dts.length - 1];
-    head = `<h3>${code} · Top ${N} 股票（近6月快报池，按 z-score 降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    head = `<h3>${code} · Top ${N} 股票（近6月快报池，按高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
       <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
         事件因子：每股取其<b>最近一期业绩快报</b>（池含 ${lo} ~ ${hi} 的快报月，去重后取最高一期）；
         年末三季报快报稀少，故按近 6 个快报月汇总。申万行业 / 市值 / PE / PB 为最新快照。
       </p>`;
   } else {
     const dt = rows[0].dt;
-    head = `<h3>${code} · Top ${N} 股票（截面日 ${dt}，按 z-score 降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    head = `<h3>${code} · Top ${N} 股票（截面日 ${dt}，按高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
       <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
         指标口径：得分/原始值基于因子截面 ${dt}；申万行业 / 市值 / PE / PB 为 ${dt} 当日快照；
         近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。
@@ -1627,14 +1650,14 @@ function renderTopStocksRows(code, rows, opts = {}) {
   if (isEvent) {
     const dts = rows.map(r => r.dt).filter(Boolean).sort();
     const lo = dts[0] || "—", hi = dts[dts.length - 1] || "—";
-    head = `<h3>${code}${sideText} · Top ${N} 股票（近6月快报池，按有效 z-score 降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    head = `<h3>${code}${sideText} · Top ${N} 股票（近6月快报池，按有效高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
       <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
         事件因子：每股取其<b>最近一期业绩快报</b>（池含 ${lo} ~ ${hi} 的快报月，去重后取最高一期）；
         年末三季报快报稀少，故按近 6 个快报月汇总。申万行业 / 市值 / PE / PB 为最新快照。
       </p>`;
   } else {
     const dt = rows[0].dt || "—";
-    head = `<h3>${code}${sideText} · Top ${N} 股票（截面日 ${dt}，按有效 z-score 降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    head = `<h3>${code}${sideText} · Top ${N} 股票（截面日 ${dt}，按有效高斯秩标准化分数降序）${descNote} <span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
       <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">
         指标口径：得分/原始值基于因子截面 ${dt}；申万行业 / 市值 / PE / PB 为 ${dt} 当日快照；
         近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。
@@ -1760,7 +1783,7 @@ async function renderNavChart(code) {
   const rng = (state.singleStart || state.singleEnd)
     ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
   document.getElementById("nav-title").textContent =
-    `${code} · ${scoreModeLabel()} / ${constraintModeLabel()}组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，${constraintHoldText()}，0.2%双边成本）`;
+    `${code} · ${scoreModeLabel()} / ${constraintModeLabel()}组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，${constraintHoldText()}，单边 0.2%，按换手扣成本）`;
 
   const chartDiv = document.getElementById("nav-chart");
   if (navChart) { navChart.dispose(); navChart = null; }
@@ -1852,7 +1875,7 @@ async function renderNavChartFast(code, snap) {
   const rng = (state.singleStart || state.singleEnd)
     ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
   document.getElementById("nav-title").textContent =
-    `${code} · ${scoreModeLabel()} / ${constraintModeLabel()}组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，${constraintHoldText()}，0.2%双边成本）`;
+    `${code} · ${scoreModeLabel()} / ${constraintModeLabel()}组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，${constraintHoldText()}，单边 0.2%，按换手扣成本）`;
 
   const chartDiv = document.getElementById("nav-chart");
   if (navChart) { navChart.dispose(); navChart = null; }
@@ -1912,12 +1935,12 @@ function computeMetrics(rets, navs) {
   const annual = Math.pow(1 + totalRet, 12 / n) - 1;
   const mean = rets.reduce((s, v) => s + v, 0) / n;
   const std = Math.sqrt(rets.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1));
-  const sharpe = std > 0 ? mean / std * Math.sqrt(12) : 0;
+  const vol = std * Math.sqrt(12);   // 年化波动率
+  const sharpe = vol > 0 ? annual / vol : 0;
   let peak = navs[0], mdd = 0;
   for (const v of navs) { if (v > peak) peak = v; const dd = v / peak - 1; if (dd < mdd) mdd = dd; }
   const winRate = rets.filter(r => r > 0).length / n;
   const navEnd = navs[navs.length - 1] / navs[0];
-  const vol = std * Math.sqrt(12);   // 年化波动率
   return { annual, sharpe, mdd, winRate, navEnd, vol };
 }
 
@@ -1927,6 +1950,67 @@ function metricsFromReturns(rets) {
   const navs = [1];
   for (const r of clean) navs.push(navs[navs.length - 1] * (1 + r));
   return computeMetrics(clean, navs);
+}
+
+function monthIdFromLabel(label) {
+  const s = String(label || "").slice(0, 7);
+  const parts = s.split("-").map(Number);
+  if (parts.length < 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return null;
+  return parts[0] * 12 + parts[1];
+}
+
+function effectiveAnnualizationScale(months, horizonMonths = 1) {
+  const ids = (months || [])
+    .map(monthIdFromLabel)
+    .filter(v => v !== null)
+    .sort((a, b) => a - b);
+  if (ids.length < 2 || horizonMonths <= 0) return null;
+  const spanMonths = Math.max(1, ids[ids.length - 1] - ids[0] + 1);
+  const observationsPerYear = Math.min(12, ids.length * 12 / spanMonths);
+  const independentFrequency = observationsPerYear / horizonMonths;
+  return independentFrequency > 0 ? Math.sqrt(independentFrequency) : null;
+}
+
+function rankIcStats(months, values, side = 1, horizonMonths = 1) {
+  const pairs = [];
+  (values || []).forEach((value, i) => {
+    const n = Number(value);
+    if (Number.isFinite(n)) pairs.push({ month: months?.[i], value: n * side });
+  });
+  if (!pairs.length) return { mean: null, ir: null, winRate: null, n: 0 };
+  const vals = pairs.map(p => p.value);
+  const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+  const winRate = vals.filter(v => v > 0).length / vals.length;
+  if (vals.length < 2) return { mean, ir: null, winRate, n: vals.length };
+  const std = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / (vals.length - 1));
+  const scale = effectiveAnnualizationScale(pairs.map(p => p.month), horizonMonths);
+  return { mean, ir: std > 0 && scale !== null ? mean / std * scale : null, winRate, n: vals.length };
+}
+
+function memberForwardReturn(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : -1.0;
+}
+
+function forwardReturnSql(column = "fwd_return") {
+  return `CASE
+    WHEN ${column} IS NULL THEN -1.0
+    WHEN ${column} <= ${MIN_VALID_FORWARD_RETURN} OR ${column} >= ${MAX_VALID_FORWARD_RETURN} THEN -1.0
+    ELSE CAST(${column} AS DOUBLE)
+  END`;
+}
+
+function tradingCostForTurnover(turnover, isInitialPosition) {
+  const t = Number.isFinite(Number(turnover)) ? Math.max(0, Number(turnover)) : 0;
+  return (isInitialPosition ? COST_PER_SIDE : 2 * COST_PER_SIDE) * t;
+}
+
+function weightedTurnover(currentWeights, previousWeights) {
+  if (!previousWeights) return 1.0;
+  const keys = new Set([...currentWeights.keys(), ...previousWeights.keys()]);
+  let diff = 0;
+  for (const key of keys) diff += Math.abs((currentWeights.get(key) || 0) - (previousWeights.get(key) || 0));
+  return diff * 0.5;
 }
 
 function medianNumber(values) {
@@ -3021,7 +3105,7 @@ async function renderNavChartSide(code, side, snap = null) {
   const rng = (state.singleStart || state.singleEnd)
     ? `${state.singleStart || "起"}~${state.singleEnd || "今"}` : "全样本";
   document.getElementById("nav-title").textContent =
-    `${factorSideName(code, side)} · ${scoreModeLabel()} / ${constraintModeLabel()}组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，${constraintHoldText()}，0.2%双边成本）`;
+    `${factorSideName(code, side)} · ${scoreModeLabel()} / ${constraintModeLabel()}组合净值对比 top-[${ns.join(", ")}]（起点=1.0；${rng}，${constraintHoldText()}，单边 0.2%，按换手扣成本）`;
 
   const chartDiv = document.getElementById("nav-chart");
   if (navChart) { navChart.dispose(); navChart = null; }
@@ -3114,15 +3198,16 @@ async function renderKpiTable(code) {
   }
   const ba = await benchAnnuals();
 
-  // 因子级 IC_IR（与 N 无关）：区间内 RankIC 均值 / 标准差 × √12（年化）
+  // 因子级 IC_IR（与 N 无关）：区间内 RankIC 均值 / 标准差，按有效观测频率年化。
   const icRes = await state.db.query(`
-    SELECT AVG(rank_ic) m, STDDEV_SAMP(rank_ic) s, COUNT(rank_ic) n FROM factor_ic
+    SELECT strftime(COALESCE(return_month, month), '%Y-%m') AS ym, rank_ic FROM factor_ic
     WHERE factor_code = '${code}' AND NOT ISNAN(rank_ic)
       ${icRangeWhere(state.singleStart, state.singleEnd)}
+    ORDER BY ym
   `);
-  const icRow = icRes.toArray()[0];
-  const icir = (icRow && icRow.s > 0 && icRow.n >= 2)
-    ? (icRow.m / icRow.s * Math.sqrt(12)).toFixed(2) : "—";
+  const icRows = icRes.toArray();
+  const icStats = rankIcStats(icRows.map(r => r.ym), icRows.map(r => r.rank_ic), 1, 1);
+  const icir = icStats.ir == null ? "—" : icStats.ir.toFixed(2);
 
   const pct = (v) => (v * 100).toFixed(1) + "%";
   const signed = (v) => (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
@@ -3193,12 +3278,8 @@ async function renderKpiTableFast(code, snap, scoreSnap = snap) {
   const bmMetrics = benchmarkMetrics(bm, state.singleStart, state.singleEnd);
   const icMonths = scoreSnap.ic?.months || [];
   const icIdxs = rangeFilterIndexes(icMonths, state.singleStart, state.singleEnd);
-  const rankIcs = sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs);
-  const mean = rankIcs.length ? rankIcs.reduce((s, v) => s + v, 0) / rankIcs.length : null;
-  const std = rankIcs.length > 1
-    ? Math.sqrt(rankIcs.reduce((s, v) => s + (v - mean) ** 2, 0) / (rankIcs.length - 1))
-    : null;
-  const icir = std && std > 0 ? (mean / std * Math.sqrt(12)).toFixed(2) : "—";
+  const rankStats = rankIcStats(sliceByIndexes(icMonths, icIdxs), sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs), 1, 1);
+  const icir = rankStats.ir == null ? "—" : rankStats.ir.toFixed(2);
 
   let rows = "";
   for (const n of state.selectedNs) {
@@ -3249,14 +3330,12 @@ async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
   const bm = await ensureBenchmarkSnapshot();
   const bmMetrics = benchmarkMetrics(bm, state.singleStart, state.singleEnd);
   const sideN = normalizeSide(side);
-  const rankIcs = scoreSnap
-    ? sliceByIndexes(scoreSnap.ic?.rank_ic, rangeFilterIndexes(scoreSnap.ic?.months || [], state.singleStart, state.singleEnd)).map(v => v * sideN)
-    : [];
-  const mean = rankIcs.length ? rankIcs.reduce((s, v) => s + v, 0) / rankIcs.length : null;
-  const std = rankIcs.length > 1
-    ? Math.sqrt(rankIcs.reduce((s, v) => s + (v - mean) ** 2, 0) / (rankIcs.length - 1))
-    : null;
-  const icir = std && std > 0 ? (mean / std * Math.sqrt(12)).toFixed(2) : "—";
+  const icMonths = scoreSnap?.ic?.months || [];
+  const icIdxs = rangeFilterIndexes(icMonths, state.singleStart, state.singleEnd);
+  const rankStats = scoreSnap
+    ? rankIcStats(sliceByIndexes(icMonths, icIdxs), sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs), sideN, 1)
+    : { ir: null };
+  const icir = rankStats.ir == null ? "—" : rankStats.ir.toFixed(2);
 
   let rows = "";
   for (const n of state.selectedNs) {
@@ -3586,6 +3665,16 @@ function renderCmpControls() {
   });
 }
 
+function compareFallbackBlockedReason(sel) {
+  const offender = (sel || []).find(f =>
+    normalizeSide(f.side) !== 1
+    || normalizeScoreMode(f.scoreMode) !== "raw"
+    || normalizeConstraintMode(f.constraintMode) !== "none"
+  );
+  if (!offender) return "";
+  return `当前对比包含方向、分数口径或组合约束的非默认设置（${offender.code}：scoreMode=${normalizeScoreMode(offender.scoreMode)}，constraintMode=${normalizeConstraintMode(offender.constraintMode)}）。快速快照加载失败时不退回原始口径，避免把不同口径结果画成同一口径。`;
+}
+
 async function renderCompare() {
   const sel = state.compareFactors;
   document.getElementById("cmp-selected").textContent = sel.length ? `（已选 ${sel.length} 个）` : "";
@@ -3604,6 +3693,16 @@ async function renderCompare() {
     await Promise.all([renderCmpTableFast(), renderCmpNavFast(), renderCmpIcFast(), renderCmpCorrFast()]);
   } catch (err) {
     console.warn("fast renderCompare failed, falling back to DuckDB:", err);
+    const blockedReason = compareFallbackBlockedReason(sel);
+    if (blockedReason) {
+      const msg = `${blockedReason}\n\n原始错误：${err.message || err}`;
+      document.getElementById("cmp-table").innerHTML =
+        `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">${htmlText(msg)}</pre>`;
+      document.getElementById("cmp-nav").innerHTML = `<div class="empty">对比净值未渲染：${htmlText(blockedReason)}</div>`;
+      document.getElementById("cmp-ic").innerHTML = `<div class="empty">IC 对比未渲染：${htmlText(blockedReason)}</div>`;
+      document.getElementById("cmp-corr").innerHTML = `<div class="empty">相关性未渲染：${htmlText(blockedReason)}</div>`;
+      return;
+    }
     try {
       await ensureDB();
       await ensureFactorData(sel.map(f => f.code), { score: false });
@@ -3645,15 +3744,18 @@ async function renderCmpTable() {
   // 各因子 IC 统计（与 N 无关）：区间内 RankIC 均值 + 年化 IC_IR。
   const icRes = await state.db.query(`
     SELECT factor_code,
-           AVG(rank_ic) AS rankic_mean,
-           STDDEV_SAMP(rank_ic) AS rankic_std,
-           COUNT(rank_ic) AS rankic_n
+           strftime(COALESCE(return_month, month), '%Y-%m') AS ym,
+           rank_ic
     FROM factor_ic WHERE factor_code IN (${inList}) AND NOT ISNAN(rank_ic)
       ${icRangeWhere(state.compareStart, state.compareEnd)}
-    GROUP BY factor_code
+    ORDER BY factor_code, ym
   `);
   const icMap = {};
-  for (const r of icRes.toArray()) icMap[r.factor_code] = r;
+  for (const r of icRes.toArray()) {
+    if (!icMap[r.factor_code]) icMap[r.factor_code] = { months: [], values: [] };
+    icMap[r.factor_code].months.push(r.ym);
+    icMap[r.factor_code].values.push(r.rank_ic);
+  }
 
   const ba = await benchAnnuals();
   const pct = (v) => (v * 100).toFixed(1) + "%";
@@ -3673,16 +3775,15 @@ async function renderCmpTable() {
       const sliced = sliceBacktestByRange(fullBt, state.compareStart, state.compareEnd);
       m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
     }
-    const ic = icMap[code] || {};
+    const ic = icMap[code] || { months: [], values: [] };
+    const icStats = rankIcStats(ic.months, ic.values, f.side, 1);
     const label = `${factorSideName(code, f.side)} <span style="color:#888;font-weight:400">top${f.n}</span>`;
     if (!m) { factors.push({ label, noData: true }); continue; }
     factors.push({
       label, annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       ex300: ("HS300" in ba) ? (m.annual - ba.HS300) : null,
-      ic_mean: ic.rankic_mean == null ? null : Number(ic.rankic_mean) * f.side,
-      icir: ic.rankic_std && ic.rankic_std > 0
-        ? Number(ic.rankic_mean) / Number(ic.rankic_std) * Math.sqrt(12) * f.side
-        : null,
+      ic_mean: icStats.mean,
+      icir: icStats.ir,
     });
   }
   // 基准行（固定排在底部，不参与排序）
@@ -3736,18 +3837,18 @@ async function renderCmpTableFast() {
     }
     const icMonths = scoreSnap.ic?.months || [];
     const icIdxs = rangeFilterIndexes(icMonths, state.compareStart, state.compareEnd);
-    const rankIc = sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs).map(v => v * f.side);
+    const rankStats = rankIcStats(
+      sliceByIndexes(icMonths, icIdxs),
+      sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs),
+      f.side,
+      1,
+    );
     const label = `${factorParamName(f.code, f.side, f.scoreMode, f.constraintMode)} <span style="color:#888;font-weight:400">top${f.n}</span>`;
     if (!m) { factors.push({ label, noData: true }); continue; }
-    const ricMean = rankIc.length ? rankIc.reduce((s, v) => s + v, 0) / rankIc.length : null;
-    const ricStd = rankIc.length > 1
-      ? Math.sqrt(rankIc.reduce((s, v) => s + (v - ricMean) ** 2, 0) / (rankIc.length - 1))
-      : null;
-    const ricIr = ricStd && ricStd > 0 ? ricMean / ricStd * Math.sqrt(12) : null;
     factors.push({
       label, annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
       ex300: ba.HS300 ? (m.annual - ba.HS300.annual) : null,
-      ic_mean: ricMean, icir: ricIr,
+      ic_mean: rankStats.mean, icir: rankStats.ir,
     });
   }
 
@@ -4055,15 +4156,28 @@ async function renderCmpCorr() {
   }
   const inList = codes.map(c => `'${c}'`).join(",");
   const res = await state.db.query(`
-    SELECT factor_a, factor_b, corr FROM factor_corr
+    SELECT factor_a, factor_b, corr, n_obs, n_months FROM factor_corr
     WHERE factor_a IN (${inList}) AND factor_b IN (${inList})
   `);
   const cmap = {};
-  for (const r of res.toArray()) cmap[`${r.factor_a}|${r.factor_b}`] = r.corr;
+  for (const r of res.toArray()) {
+    cmap[`${r.factor_a}|${r.factor_b}`] = {
+      corr: r.corr,
+      nObs: r.n_obs,
+      nMonths: r.n_months,
+    };
+  }
   const data = [];
   codes.forEach((a, i) => codes.forEach((b, j) => {
-    const c = cmap[`${a}|${b}`];
-    data.push([j, i, c === null || c === undefined ? "-" : +c.toFixed(2)]);
+    const item = cmap[`${a}|${b}`] || {};
+    const c = item.corr;
+    data.push([
+      j,
+      i,
+      c === null || c === undefined ? "-" : +c.toFixed(2),
+      item.nObs ?? null,
+      item.nMonths ?? null,
+    ]);
   }));
 
   const n = codes.length;
@@ -4089,7 +4203,10 @@ async function renderCmpCorr() {
   cmpCorrChart = echarts.init(div);
   cmpCorrChart.setOption({
     grid: { left: 90, right: 20, top: 16, bottom: 70 },
-    tooltip: { position: "top", formatter: p => `${codes[p.data[1]]} × ${codes[p.data[0]]}<br/>corr: ${p.data[2]}` },
+    tooltip: {
+      position: "top",
+      formatter: p => `${codes[p.data[1]]} × ${codes[p.data[0]]}<br/>corr: ${p.data[2]}<br/>样本股票-月：${p.data[3] ?? "—"}<br/>样本月份：${p.data[4] ?? "—"}`,
+    },
     xAxis: { type: "category", data: codes, axisLabel: { fontSize: axisFont, rotate: 90, interval: 0 } },
     yAxis: { type: "category", data: codes, axisLabel: { fontSize: axisFont, interval: 0 } },
     visualMap: { min: -1, max: 1, calculable: true, orient: "horizontal", left: "center", bottom: 0,
@@ -4133,19 +4250,26 @@ async function renderCmpCorrFast() {
   const labels = items.map(item => factorParamName(item.code, item.side, item.scoreMode));
   const want = new Set(codes);
   const cmapByMode = { raw: {}, neutral: {} };
-  for (const [a, b, c] of rawCorrSnap.rows || []) {
-    if (want.has(a) && want.has(b)) cmapByMode.raw[`${a}|${b}`] = c;
+  for (const [a, b, c, nObs, nMonths] of rawCorrSnap.rows || []) {
+    if (want.has(a) && want.has(b)) cmapByMode.raw[`${a}|${b}`] = { corr: c, nObs, nMonths };
   }
-  for (const [a, b, c] of neutralCorrSnap.rows || []) {
-    if (want.has(a) && want.has(b)) cmapByMode.neutral[`${a}|${b}`] = c;
+  for (const [a, b, c, nObs, nMonths] of neutralCorrSnap.rows || []) {
+    if (want.has(a) && want.has(b)) cmapByMode.neutral[`${a}|${b}`] = { corr: c, nObs, nMonths };
   }
   const data = [];
   items.forEach((a, i) => items.forEach((b, j) => {
     const mode = normalizeScoreMode(a.scoreMode) === "neutral" && normalizeScoreMode(b.scoreMode) === "neutral"
       ? "neutral"
       : "raw";
-    const c = cmapByMode[mode][`${a.code}|${b.code}`];
-    data.push([j, i, c === null || c === undefined ? "-" : +(Number(c) * a.side * b.side).toFixed(2)]);
+    const item = cmapByMode[mode][`${a.code}|${b.code}`] || {};
+    const c = item.corr;
+    data.push([
+      j,
+      i,
+      c === null || c === undefined ? "-" : +(Number(c) * a.side * b.side).toFixed(2),
+      item.nObs ?? null,
+      item.nMonths ?? null,
+    ]);
   }));
 
   const n = items.length;
@@ -4166,7 +4290,10 @@ async function renderCmpCorrFast() {
   cmpCorrChart = echarts.init(div);
   cmpCorrChart.setOption({
     grid: { left: 90, right: 20, top: 16, bottom: 70 },
-    tooltip: { position: "top", formatter: p => `${labels[p.data[1]]} × ${labels[p.data[0]]}<br/>corr: ${p.data[2]}` },
+    tooltip: {
+      position: "top",
+      formatter: p => `${labels[p.data[1]]} × ${labels[p.data[0]]}<br/>corr: ${p.data[2]}<br/>样本股票-月：${p.data[3] ?? "—"}<br/>样本月份：${p.data[4] ?? "—"}`,
+    },
     xAxis: { type: "category", data: labels, axisLabel: { fontSize: axisFont, rotate: 90, interval: 0 } },
     yAxis: { type: "category", data: labels, axisLabel: { fontSize: axisFont, interval: 0 } },
     visualMap: { min: -1, max: 1, calculable: true, orient: "horizontal", left: "center", bottom: 0,
@@ -4752,7 +4879,7 @@ async function computeRankingFast(startMonth, endMonth) {
   const rows = [];
   for (const f of snap.factors || []) {
     const rets = sliceByIndexes(f[retKey] || f.top30_ret, idxs).map(v => Number(v) * side);
-    const rankIcs = sliceByIndexes(f[icKey] || f.rank_ic, idxs).map(v => Number(v) * side);
+    const rankStats = rankIcStats(sliceByIndexes(months, idxs), sliceByIndexes(f[icKey] || f.rank_ic, idxs), side, 1);
     const decayStats = filteredIcDecayStats(f[decayKey], side, startMonth, endMonth);
     const decayMean = (h) => {
       const item = decayStats.find(s => s.h === h);
@@ -4761,13 +4888,8 @@ async function computeRankingFast(startMonth, endMonth) {
     };
     const m = metricsFromReturns(rets);
     if (!m) continue;
-    const rankIC = rankIcs.length ? rankIcs.reduce((s, v) => s + v, 0) / rankIcs.length : 0;
-    let icir = 0;
-    if (rankIcs.length > 1) {
-      const mean = rankIC;
-      const std = Math.sqrt(rankIcs.reduce((s, v) => s + (v - mean) ** 2, 0) / (rankIcs.length - 1));
-      icir = std > 0 ? mean / std * Math.sqrt(12) : 0;
-    }
+    const rankIC = rankStats.mean ?? 0;
+    const icir = rankStats.ir ?? 0;
     rows.push({
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
@@ -4831,18 +4953,20 @@ async function computeRanking(startMonth, endMonth) {
     const prev = o.navs[o.navs.length - 1];
     o.navs.push(prev * (1 + r.port_ret));   // 区间内重建净值，保证回撤/年化口径对齐区间
   }
-  // 2) IC 统计：区间内 RankIC 均值 + IC_IR（= RankIC均值 / RankIC标准差 × √12，年化）
+  // 2) IC 统计：区间内 RankIC 均值 + IC_IR（按有效观测频率年化）
   const icRes = await state.db.query(`
     SELECT factor_code,
-           AVG(rank_ic) AS rank_ic_mean,
-           STDDEV_SAMP(rank_ic) AS rank_ic_std,
-           COUNT(rank_ic) AS n
-    FROM factor_ic ${icWhereSql} GROUP BY factor_code
+           strftime(COALESCE(return_month, month), '%Y-%m') AS ym,
+           rank_ic
+    FROM factor_ic ${icWhereSql}
+    ORDER BY factor_code, ym
   `);
   const icStat = new Map();
   for (const r of icRes.toArray()) {
-    const ir = (r.rank_ic_std && r.rank_ic_std > 0) ? r.rank_ic_mean / r.rank_ic_std * Math.sqrt(12) : 0;
-    icStat.set(r.factor_code, { rankIC: r.rank_ic_mean ?? 0, icir: ir });
+    if (!icStat.has(r.factor_code)) icStat.set(r.factor_code, { months: [], values: [] });
+    const item = icStat.get(r.factor_code);
+    item.months.push(r.ym);
+    item.values.push(r.rank_ic);
   }
   // 2.5) 每因子 top-30 选股的前三行业 + 市值特征（最新截面，与时间区间无关，缓存只查一次）
   const ind3 = await factorTop3Industries();
@@ -4853,13 +4977,14 @@ async function computeRanking(startMonth, endMonth) {
   for (const f of state.catalog) {
     const s = series.get(f.code);
     const m = s ? computeMetrics(s.rets, s.navs) : null;
-    const ic = icStat.get(f.code) || { rankIC: 0, icir: 0 };
+    const icSeries = icStat.get(f.code) || { months: [], values: [] };
+    const ic = rankIcStats(icSeries.months, icSeries.values, 1, 1);
     if (!m) continue;
     const mc = mcap.get(f.code);
     rows.push({
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
-      rankIC: ic.rankIC, rankIC3M: 0, rankIC6M: 0, rankIC12M: 0, icir: ic.icir,
+      rankIC: ic.mean ?? 0, rankIC3M: 0, rankIC6M: 0, rankIC12M: 0, icir: ic.ir ?? 0,
       rankIcHacT: null,
       rankIcP: null,
       rankIcQ: null,
@@ -4876,7 +5001,7 @@ async function computeRanking(startMonth, endMonth) {
       time_tag: f.time_tag || "—",
     });
   }
-  // 4) 综合分：各分项在全因子截面 z-score 后加权。
+  // 4) 综合分：各分项在全因子截面标准化后加权。
   //    有效性(50%)：RankIC均值 25% + IC_IR 25%
   //    业绩(50%)：年化 15% + 夏普 15% + 最大回撤 10%(取负，回撤越小越好) + 月胜率 10%
   const zget = makeZScorer(rows);
@@ -4893,7 +5018,7 @@ async function computeRanking(startMonth, endMonth) {
   return rows;
 }
 
-// 返回一个 (key, value) → z-score 的函数（基于 rows 中该 key 的均值/标准差）
+// 返回一个 (key, value) → 标准化分数 的函数（基于 rows 中该 key 的均值/标准差）
 function makeZScorer(rows) {
   const stats = {};
   return (key, val) => {
@@ -5009,7 +5134,11 @@ function rankSendTo(mode) {
   if (mode === "compare") {
     state.compareFactors = codes.map(code => ({ code, n: state.compareDefaultN, side, scoreMode, constraintMode }));
   } else {
-    const composeScoreMode = scoreMode === "neutral" && !hasComposeNeutralScores() ? "raw" : scoreMode;
+    let composeScoreMode = scoreMode;
+    if (scoreMode === "neutral" && !hasComposeNeutralScores()) {
+      alert(composeNeutralUnavailableMessage());
+      composeScoreMode = "raw";
+    }
     state.composeFactors = codes.map(code => ({ code, weight: 1, side, scoreMode: composeScoreMode, op: ">=", thr: null }));
     state.composeConstraintMode = constraintMode;
   }
@@ -6189,6 +6318,9 @@ function renderComposeControls() {
   const wsum = state.composeFactors.reduce((s, f) => s + Math.abs(f.weight), 0) || 1;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
   const neutralDisabled = hasComposeNeutralScores() ? "" : " disabled";
+  const neutralNotice = hasComposeNeutralScores()
+    ? ""
+    : `<div style="margin:0 0 8px 0;color:#8a5a00;font-size:11px">${composeNeutralUnavailableMessage()}</div>`;
   const constraintBtns = `
     <div style="margin:0 0 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">组合约束：</span>
@@ -6196,7 +6328,7 @@ function renderComposeControls() {
       <button id="cps-constraint-industry" class="cpsn-btn cps-constraint-btn${constraint === "industry" ? " active" : ""}" data-mode="industry">行业中性</button>
       <span style="color:#888;font-size:11px">先按合成分数选股，再按申万一级行业目标权重配权</span>
     </div>`;
-  box.innerHTML = constraintBtns + state.composeFactors.map((raw, i) => {
+  box.innerHTML = constraintBtns + neutralNotice + state.composeFactors.map((raw, i) => {
     const f = normalizeComposeFactor(raw);
     state.composeFactors[i] = f;
     const pctw = (f.weight / wsum * 100).toFixed(0);
@@ -6389,8 +6521,8 @@ async function renderComposeStocks(renderSeq) {
   const wdesc = state.composeFactors.map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}`).join(" + ");
   const fmt = (v, dp = 2) => (v === null || v === undefined ? "—" : Number(v).toFixed(dp));
   const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));
-  let html = `<h3>合成 Top ${state.composeN} 股票（截面日 ${dt}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
-    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${wdesc}（z-score 加权和）${condDesc ? "；过滤：" + condDesc : ""}；组合约束：${constraintModeLabel(constraint)}（已剔 ST/停牌）</p>
+  let html = `<h3>合成 Top ${state.composeN} 股票（当前仍在市成分展示，截面日 ${dt}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${wdesc}（高斯秩标准化分数加权和）${condDesc ? "；过滤：" + condDesc : ""}；组合约束：${constraintModeLabel(constraint)}（当前展示剔除 ST/停牌/非 active 股票；历史回测不按最新 active 过滤）</p>
     <table class="stock-table"><thead><tr>
       <th>#</th><th>代码</th><th>名称</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${constraint === "industry" ? "<th>权重</th>" : ""}<th>合成得分</th>
     </tr></thead><tbody>`;
@@ -6406,7 +6538,7 @@ async function renderComposeBacktest(renderSeq) {
   if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
   document.getElementById("cps-nav-title").textContent =
-    `合成组合净值（top-${state.composeN}，${constraintModeLabel(constraint)}，${constraintHoldText(constraint)}，0.2% 双边成本，起点=1.0；${composeRangeLabel()}）`;
+    `合成组合净值（top-${state.composeN}，${constraintModeLabel(constraint)}，${constraintHoldText(constraint)}，单边 0.2%，按换手扣成本，起点=1.0；${composeRangeLabel()}）`;
   const key = composeConfigKey(state.composeFactors, state.composeN, constraint);
   const fullBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix", constraint);
   if (isComposeRenderStale(renderSeq)) return;
@@ -6490,52 +6622,66 @@ function composeIcDecaySql(factors = state.composeFactors, startMonth = state.co
   const rangeSql = rangeConds.length ? `AND ${rangeConds.join(" AND ")}` : "";
   return `
     WITH ret_base AS (
-      SELECT trade_date, return_date, stock_code, ANY_VALUE(fwd_return) AS r1
+      SELECT trade_date,
+             ANY_VALUE(return_date) AS return_date,
+             stock_code,
+             CAST(strftime(trade_date, '%Y') AS INTEGER) * 12 + CAST(strftime(trade_date, '%m') AS INTEGER) AS month_id,
+             CAST(strftime(ANY_VALUE(return_date), '%Y') AS INTEGER) * 12 + CAST(strftime(ANY_VALUE(return_date), '%m') AS INTEGER) AS return_month_id,
+             ANY_VALUE(fwd_return) AS r1
       FROM cps_matrix
-      WHERE fwd_return IS NOT NULL
-      GROUP BY trade_date, return_date, stock_code
-    ),
-    ret_chain AS (
-      SELECT trade_date, return_date, stock_code,
-             r1,
-             LEAD(r1, 1) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r2,
-             LEAD(r1, 2) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r3,
-             LEAD(r1, 3) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r4,
-             LEAD(r1, 4) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r5,
-             LEAD(r1, 5) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r6,
-             LEAD(r1, 6) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r7,
-             LEAD(r1, 7) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r8,
-             LEAD(r1, 8) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r9,
-             LEAD(r1, 9) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r10,
-             LEAD(r1, 10) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r11,
-             LEAD(r1, 11) OVER (PARTITION BY stock_code ORDER BY trade_date) AS r12,
-             LEAD(return_date, 2) OVER (PARTITION BY stock_code ORDER BY trade_date) AS rd3,
-             LEAD(return_date, 5) OVER (PARTITION BY stock_code ORDER BY trade_date) AS rd6,
-             LEAD(return_date, 11) OVER (PARTITION BY stock_code ORDER BY trade_date) AS rd12
-      FROM ret_base
+      WHERE fwd_return > ${MIN_VALID_FORWARD_RETURN} AND fwd_return < ${MAX_VALID_FORWARD_RETURN}
+      GROUP BY trade_date, stock_code
     ),
     score_base AS (
-      SELECT m.trade_date, m.stock_code, ROUND(${scoreExpr}, 6) AS cs
+      SELECT m.trade_date,
+             m.stock_code,
+             CAST(strftime(m.trade_date, '%Y') AS INTEGER) * 12 + CAST(strftime(m.trade_date, '%m') AS INTEGER) AS month_id,
+             ROUND(${scoreExpr}, 6) AS cs
       FROM cps_matrix m
-      WHERE m.fwd_return IS NOT NULL ${condSql || ""} ${rangeSql}
+      WHERE (${scoreExpr}) IS NOT NULL ${condSql || ""} ${rangeSql}
+    ),
+    horizon_returns AS (
+      SELECT b1.trade_date, b1.stock_code, 1 AS h, b1.r1 AS fwd_return, b1.return_date
+      FROM ret_base b1
+      WHERE b1.return_month_id = b1.month_id + 1
+      UNION ALL
+      SELECT b1.trade_date, b1.stock_code, 3 AS h, (1+b1.r1)*(1+b2.r1)*(1+b3.r1)-1 AS fwd_return, b3.return_date
+      FROM ret_base b1
+      JOIN ret_base b2 ON b2.stock_code = b1.stock_code AND b2.month_id = b1.month_id + 1
+      JOIN ret_base b3 ON b3.stock_code = b1.stock_code AND b3.month_id = b1.month_id + 2 AND b3.return_month_id = b1.month_id + 3
+      UNION ALL
+      SELECT b1.trade_date, b1.stock_code, 6 AS h,
+             (1+b1.r1)*(1+b2.r1)*(1+b3.r1)*(1+b4.r1)*(1+b5.r1)*(1+b6.r1)-1 AS fwd_return,
+             b6.return_date
+      FROM ret_base b1
+      JOIN ret_base b2 ON b2.stock_code = b1.stock_code AND b2.month_id = b1.month_id + 1
+      JOIN ret_base b3 ON b3.stock_code = b1.stock_code AND b3.month_id = b1.month_id + 2
+      JOIN ret_base b4 ON b4.stock_code = b1.stock_code AND b4.month_id = b1.month_id + 3
+      JOIN ret_base b5 ON b5.stock_code = b1.stock_code AND b5.month_id = b1.month_id + 4
+      JOIN ret_base b6 ON b6.stock_code = b1.stock_code AND b6.month_id = b1.month_id + 5 AND b6.return_month_id = b1.month_id + 6
+      UNION ALL
+      SELECT b1.trade_date, b1.stock_code, 12 AS h,
+             (1+b1.r1)*(1+b2.r1)*(1+b3.r1)*(1+b4.r1)*(1+b5.r1)*(1+b6.r1)*
+             (1+b7.r1)*(1+b8.r1)*(1+b9.r1)*(1+b10.r1)*(1+b11.r1)*(1+b12.r1)-1 AS fwd_return,
+             b12.return_date
+      FROM ret_base b1
+      JOIN ret_base b2 ON b2.stock_code = b1.stock_code AND b2.month_id = b1.month_id + 1
+      JOIN ret_base b3 ON b3.stock_code = b1.stock_code AND b3.month_id = b1.month_id + 2
+      JOIN ret_base b4 ON b4.stock_code = b1.stock_code AND b4.month_id = b1.month_id + 3
+      JOIN ret_base b5 ON b5.stock_code = b1.stock_code AND b5.month_id = b1.month_id + 4
+      JOIN ret_base b6 ON b6.stock_code = b1.stock_code AND b6.month_id = b1.month_id + 5
+      JOIN ret_base b7 ON b7.stock_code = b1.stock_code AND b7.month_id = b1.month_id + 6
+      JOIN ret_base b8 ON b8.stock_code = b1.stock_code AND b8.month_id = b1.month_id + 7
+      JOIN ret_base b9 ON b9.stock_code = b1.stock_code AND b9.month_id = b1.month_id + 8
+      JOIN ret_base b10 ON b10.stock_code = b1.stock_code AND b10.month_id = b1.month_id + 9
+      JOIN ret_base b11 ON b11.stock_code = b1.stock_code AND b11.month_id = b1.month_id + 10
+      JOIN ret_base b12 ON b12.stock_code = b1.stock_code AND b12.month_id = b1.month_id + 11 AND b12.return_month_id = b1.month_id + 12
     ),
     joined AS (
       SELECT s.trade_date, s.stock_code, s.cs, h, fwd_return, return_date
       FROM score_base s
-      JOIN (
-        SELECT trade_date, stock_code, 1 AS h, r1 AS fwd_return, return_date FROM ret_chain WHERE r1 IS NOT NULL
-        UNION ALL
-        SELECT trade_date, stock_code, 3 AS h, (1+r1)*(1+r2)*(1+r3)-1 AS fwd_return, rd3 AS return_date
-          FROM ret_chain WHERE r1 IS NOT NULL AND r2 IS NOT NULL AND r3 IS NOT NULL AND rd3 IS NOT NULL
-        UNION ALL
-        SELECT trade_date, stock_code, 6 AS h, (1+r1)*(1+r2)*(1+r3)*(1+r4)*(1+r5)*(1+r6)-1 AS fwd_return, rd6 AS return_date
-          FROM ret_chain WHERE r1 IS NOT NULL AND r2 IS NOT NULL AND r3 IS NOT NULL AND r4 IS NOT NULL AND r5 IS NOT NULL AND r6 IS NOT NULL AND rd6 IS NOT NULL
-        UNION ALL
-        SELECT trade_date, stock_code, 12 AS h, (1+r1)*(1+r2)*(1+r3)*(1+r4)*(1+r5)*(1+r6)*(1+r7)*(1+r8)*(1+r9)*(1+r10)*(1+r11)*(1+r12)-1 AS fwd_return, rd12 AS return_date
-          FROM ret_chain WHERE r1 IS NOT NULL AND r2 IS NOT NULL AND r3 IS NOT NULL AND r4 IS NOT NULL AND r5 IS NOT NULL AND r6 IS NOT NULL
-            AND r7 IS NOT NULL AND r8 IS NOT NULL AND r9 IS NOT NULL AND r10 IS NOT NULL AND r11 IS NOT NULL AND r12 IS NOT NULL AND rd12 IS NOT NULL
-      ) r ON s.trade_date = r.trade_date AND s.stock_code = r.stock_code
-      WHERE fwd_return > -0.95 AND fwd_return < 5.0
+      JOIN horizon_returns r ON s.trade_date = r.trade_date AND s.stock_code = r.stock_code
+      WHERE fwd_return > ${MIN_VALID_FORWARD_RETURN} AND fwd_return < ${MAX_VALID_FORWARD_RETURN}
     ),
     ranked_positions AS (
       SELECT trade_date, h, cs, fwd_return,
@@ -6579,12 +6725,8 @@ async function comboIcDecay(factors = state.composeFactors, startMonth = state.c
       series[String(h)] = rows
         .filter(r => Number(r.h) === h)
         .map(r => ({ month: r.month, rank_ic: Number(r.rank_ic), n: Number(r.n) || 0 }));
-      const mean = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
-      const std = vals.length > 1
-        ? Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / (vals.length - 1))
-        : null;
-      const ir = std && std > 0 ? mean / std * Math.sqrt(12 / h) : null;
-      return { h, mean, ir, n: vals.length };
+      const stats = rankIcStatsFromSeries(series[String(h)], h);
+      return { h, mean: stats.mean, ir: stats.ir, n: stats.n };
     });
     return { horizons, stats, series };
   })();
@@ -6663,16 +6805,18 @@ function renderComposeValidationUnavailable(message) {
   if (target) target.innerHTML = `<div class="empty">${message}</div>`;
 }
 
-function rankIcStatsFromSeries(series) {
-  const vals = (series || [])
-    .map(r => snapshotNumber(r?.rank_ic))
-    .filter(v => v !== null);
-  if (!vals.length) return { mean: null, ir: null, winRate: null, n: 0 };
+function rankIcStatsFromSeries(series, horizonMonths = 1) {
+  const pairs = (series || [])
+    .map(r => ({ month: String(r?.month || "").slice(0, 7), value: snapshotNumber(r?.rank_ic) }))
+    .filter(r => r.month && r.value !== null);
+  if (!pairs.length) return { mean: null, ir: null, winRate: null, n: 0 };
+  const vals = pairs.map(r => r.value);
   const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
   const winRate = vals.filter(v => v > 0).length / vals.length;
   if (vals.length < 2) return { mean, ir: null, winRate, n: vals.length };
   const std = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / (vals.length - 1));
-  return { mean, ir: std > 0 ? mean / std * Math.sqrt(12) : null, winRate, n: vals.length };
+  const scale = effectiveAnnualizationScale(pairs.map(r => r.month), horizonMonths);
+  return { mean, ir: std > 0 && scale !== null ? mean / std * scale : null, winRate, n: vals.length };
 }
 
 function comboBacktestRowsForMonths(backtest) {
@@ -6785,7 +6929,7 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
     WITH scored AS (
       SELECT trade_date, return_date, stock_code, fwd_return, ROUND(${scoreExpr}, 6) AS cs
       FROM cps_matrix
-      WHERE fwd_return IS NOT NULL ${condSql} ${rangeSql}
+      WHERE (${scoreExpr}) IS NOT NULL ${condSql} ${rangeSql}
     ),
     ranked AS (
       SELECT trade_date, return_date, stock_code, fwd_return, cs,
@@ -6796,13 +6940,15 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
       SELECT strftime(trade_date, '%Y-%m') AS signal_month,
              strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS return_date,
              grp,
-             AVG(fwd_return) AS port_ret,
-             COUNT(*) AS n
+             AVG(${forwardReturnSql("fwd_return")}) AS port_ret,
+             COUNT(*) AS n,
+             COUNT(fwd_return) AS observed_return_count,
+             SUM(CASE WHEN fwd_return IS NULL THEN 1 ELSE 0 END) AS missing_return_count
       FROM ranked
       GROUP BY trade_date, return_date, grp
       HAVING COUNT(*) >= 5
     )
-    SELECT signal_month, return_date, grp, port_ret, n
+    SELECT signal_month, return_date, grp, port_ret, n, observed_return_count, missing_return_count
     FROM monthly
     ORDER BY signal_month, grp
   `);
@@ -6812,6 +6958,8 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
     group: `G${Number(r.grp)}`,
     port_ret: snapshotNumber(r.port_ret),
     n: snapshotNumber(r.n),
+    observed_return_count: snapshotNumber(r.observed_return_count),
+    missing_return_count: snapshotNumber(r.missing_return_count),
   })).filter(r => r.port_ret !== null);
   const groups = Array.from({ length: 10 }, (_, i) => `G${i + 1}`);
   const groupStats = groups.map(g => {
@@ -7955,32 +8103,34 @@ async function ensureCmpBase(factors) {
 function buildBacktestFromRows(rows, N) {
   const byMonth = new Map();
   for (const r of rows) {
-    const key = r.dt;
+    const key = r.signal_dt || monthOfLabel(r.dt);
     if (!byMonth.has(key)) {
       byMonth.set(key, {
-        signalDt: r.signal_dt || monthOfLabel(r.dt),
-        returnDt: r.dt,
-        rets: [],
-        stocks: new Set(),
+        signalDt: key,
+        returnDt: r.dt || key,
+        holdings: [],
       });
     }
     const o = byMonth.get(key);
-    o.stocks.add(r.stock_code);
-    if (r.fwd_return != null) o.rets.push(r.fwd_return);
+    if (r.dt && String(r.dt) > String(o.returnDt)) o.returnDt = String(r.dt);
+    o.holdings.push({ stock_code: r.stock_code, ret: memberForwardReturn(r.fwd_return) });
   }
-  const periods = [...byMonth.values()].sort((a, b) => a.returnDt.localeCompare(b.returnDt));
-  const COST = 0.002; let prev = null, nav = 1; const x = [], navArr = [1], retArr = [];
+  const periods = [...byMonth.values()]
+    .filter(o => o.returnDt && o.holdings.length)
+    .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
+  let prev = null, nav = 1; const x = [], navArr = [1], retArr = [];
   if (periods.length) x.push(periods[0].signalDt);
   for (const o of periods) {
-    const gross = o.rets.length ? o.rets.reduce((s, v) => s + v, 0) / o.rets.length : 0;
-    let turnover = 1;
-    if (prev) { let diff = 0; for (const s of o.stocks) if (!prev.has(s)) diff++; for (const s of prev) if (!o.stocks.has(s)) diff++; turnover = diff / (2 * N); }
-    const net = gross - 2 * COST * turnover;
+    const weight = 1 / Math.max(1, o.holdings.length);
+    const gross = o.holdings.reduce((s, h) => s + weight * h.ret, 0);
+    const cur = new Map(o.holdings.map(h => [h.stock_code, weight]));
+    const turnover = weightedTurnover(cur, prev);
+    const net = gross - tradingCostForTurnover(turnover, !prev);
     nav *= (1 + net);
     x.push(o.returnDt);
     navArr.push(nav);
     retArr.push(net);
-    prev = o.stocks;
+    prev = cur;
   }
   return { x, navArr, retArr };
 }
@@ -8035,35 +8185,26 @@ function buildWeightedBacktestFromRows(rows) {
     if (!Number.isFinite(w) || w <= 0) continue;
     byMonth.get(key).holdings.set(r.stock_code, {
       weight: w,
-      ret: Number.isFinite(Number(r.fwd_return)) ? Number(r.fwd_return) : null,
+      ret: r.fwd_return,
     });
   }
   const periods = [...byMonth.values()].sort((a, b) => a.returnDt.localeCompare(b.returnDt));
-  const COST = 0.002;
   let prev = null, nav = 1;
   const x = [], navArr = [1], retArr = [];
   if (periods.length) x.push(periods[0].signalDt);
   for (const o of periods) {
-    let gross = 0, retWeight = 0;
+    let gross = 0;
     for (const h of o.holdings.values()) {
-      if (h.ret === null) continue;
-      gross += h.weight * h.ret;
-      retWeight += h.weight;
+      gross += h.weight * memberForwardReturn(h.ret);
     }
-    if (retWeight > 0) gross /= retWeight;
-    let turnover = 1;
-    if (prev) {
-      const codes = new Set([...prev.keys(), ...o.holdings.keys()]);
-      let diff = 0;
-      for (const code of codes) diff += Math.abs((o.holdings.get(code)?.weight || 0) - (prev.get(code) || 0));
-      turnover = diff * 0.5;
-    }
-    const net = gross - 2 * COST * turnover;
+    const cur = new Map([...o.holdings.entries()].map(([code, h]) => [code, h.weight]));
+    const turnover = weightedTurnover(cur, prev);
+    const net = gross - tradingCostForTurnover(turnover, !prev);
     nav *= (1 + net);
     x.push(o.returnDt);
     navArr.push(nav);
     retArr.push(net);
-    prev = new Map([...o.holdings.entries()].map(([code, h]) => [code, h.weight]));
+    prev = cur;
   }
   return { x, navArr, retArr };
 }
@@ -8104,7 +8245,7 @@ function matrixBacktestSql(factors, N, baseTable, constraintMode = state.compose
              d.industry_sw1
       FROM ${baseTable} m
       LEFT JOIN stock_descriptors d ON d.stock_code = m.stock_code
-      WHERE fwd_return IS NOT NULL ${condSql}
+      WHERE TRUE ${condSql}
     ),
     ranked AS (
       SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1,
@@ -8168,7 +8309,7 @@ async function comboBacktest(factors, N, baseTable, constraintMode = state.compo
              ROW_NUMBER() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC, c.stock_code) AS rk
       FROM comp c
       ${cond.join}
-      WHERE c.cnt = ${nF} AND c.fwd_return IS NOT NULL
+      WHERE c.cnt = ${nF}
     )
     SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
@@ -8428,7 +8569,6 @@ function weightGrid(nF, step) {
 
 // 在 JS 内存里对一组权重跑合成回测，返回指标。conds=[{idx,op,thr}] 先过滤再打分。
 function backtestWeights(monthsArr, weights, N, conds) {
-  const COST = 0.002;
   let prev = null, nav = 1;
   const navArr = [], retArr = [];
   for (const mo of monthsArr) {
@@ -8438,7 +8578,7 @@ function backtestWeights(monthsArr, weights, N, conds) {
         c.op === ">=" ? s.scores[c.idx] >= c.thr : s.scores[c.idx] <= c.thr));
     }
     if (elig.length === 0) {   // 该月无符合 → 空仓
-      nav *= 1; navArr.push(nav); retArr.push(0); prev = new Set(); continue;
+      nav *= 1; navArr.push(nav); retArr.push(0); prev = new Map(); continue;
     }
     const scored = elig.map(s => {
       let c = 0; for (let i = 0; i < weights.length; i++) c += weights[i] * s.scores[i];
@@ -8446,16 +8586,11 @@ function backtestWeights(monthsArr, weights, N, conds) {
     });
     scored.sort((a, b) => b.comp - a.comp);
     const picks = scored.slice(0, N);
-    const gross = picks.reduce((s, p) => s + p.ret, 0) / picks.length;
-    const cur = new Set(picks.map(p => p.code));
-    let turnover = 1;
-    if (prev) {
-      let diff = 0;
-      for (const c of cur) if (!prev.has(c)) diff++;
-      for (const c of prev) if (!cur.has(c)) diff++;
-      turnover = diff / (cur.size + prev.size || 1);
-    }
-    const net = gross - 2 * COST * turnover;
+    const weight = 1 / picks.length;
+    const gross = picks.reduce((s, p) => s + weight * memberForwardReturn(p.ret), 0);
+    const cur = new Map(picks.map(p => [p.code, weight]));
+    const turnover = weightedTurnover(cur, prev);
+    const net = gross - tradingCostForTurnover(turnover, !prev);
     nav *= (1 + net); navArr.push(nav); retArr.push(net); prev = cur;
   }
   return computeMetrics(retArr, navArr);
@@ -8484,6 +8619,7 @@ async function optimizeWeights() {
   const scoreCols = state.composeFactors
     .map((f, i) => `${effectiveScoreSql(`m.f${matrixIndexes[i]}`, f.side)} AS f${i}`)
     .join(", ");
+  const scorePresenceSql = matrixIndexes.map(idx => `m.f${idx} IS NOT NULL`).join(" AND ");
   // 候选股裁剪：只保留"在任一所选因子排进前 500"的股。合成 top-N(N≤100) 的成分
   // 必在此并集内（全因子都排 500 外 → 加权和必偏低 → 进不了 top），裁剪不改结果但大幅提速。
   const res = await state.db.query(`
@@ -8493,7 +8629,7 @@ async function optimizeWeights() {
           SELECT trade_date, stock_code,
                  ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY ${effectiveScoreSql(`f${matrixIndexes[i]}`, f.side)} DESC) AS rk
           FROM cps_matrix
-          WHERE fwd_return IS NOT NULL
+          WHERE f${matrixIndexes[i]} IS NOT NULL
         ) WHERE rk <= 500
       `).join("\nUNION\n")}
     )
@@ -8503,7 +8639,7 @@ async function optimizeWeights() {
            m.fwd_return
     FROM cps_matrix m
     JOIN cand c ON c.trade_date = m.trade_date AND c.stock_code = m.stock_code
-    WHERE m.fwd_return IS NOT NULL
+    WHERE ${scorePresenceSql}
     ORDER BY m.trade_date
   `);
   // 组织成 months[ym] = { stocks: [{code, scores:[按codes顺序], ret}] }，仅保留所有因子都有得分的股
@@ -8649,7 +8785,7 @@ function bindScanButtons() {
 }
 
 // ===================== 个股「为什么入选」弹窗 =====================
-// 标准正态 CDF（Abramowitz-Stegun 近似）：把 z-score 转成「强于全市场 X%」
+// 标准正态 CDF（Abramowitz-Stegun 近似）：把标准正态分数转成「强于全市场 X%」
 function _ncdf(z) {
   const t = 1 / (1 + 0.2316419 * Math.abs(z));
   const d = 0.3989423 * Math.exp(-z * z / 2);

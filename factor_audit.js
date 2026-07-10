@@ -702,8 +702,8 @@ async function openDetail(code) {
     <div class="fa-block"><h3>分布体检</h3>
       <p>覆盖 ${(Math.max(Number(d.dist.coverage) || 0, 0) * 100).toFixed(0)}%${d.dist.coverage > 1.001 ? '（含超出 Word 股票池样本）' : ''} · 中位 ${fmt(d.dist.median)} · 区间 [${fmt(d.dist.min)}, ${fmt(d.dist.max)}]</p>
       ${spark(d.dist.hist)}
-      <p style="margin-top:8px">近12月 RankIC 均值 ${fmt(d.ic.mean_rank_ic)}${
-        d.ic.mean_rank_ic === null ? '（暂无 IC）'
+      <p style="margin-top:8px">Raw RankIC 均值 ${fmt(d.ic.rank_ic_raw ?? d.ic.mean_rank_ic)} · Neutral RankIC 均值 ${fmt(d.ic.rank_ic_neutral)}${
+        (d.ic.rank_ic_raw ?? d.ic.mean_rank_ic) === null ? '（暂无 Raw IC）'
           : ' · ' + (d.ic.consistent_with_direction === false
               ? '<span class="fa-recon-bad">与方向不一致</span>' : '与方向一致')}</p>
       <div>${(d.health.flags || []).map(flagChip).join("") || '<span class="b-ok">无异常标签</span>'}</div></div>`;

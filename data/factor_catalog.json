@@ -93,6 +93,7 @@
     "formula": "市盈率PE = AShareValuationIndicator.S_VAL_PE_TTM（Wind 已算好，月末截面取值）",
     "wind_source": "AShareValuationIndicator.S_VAL_PE_TTM",
     "v2_status": "computed",
+    "positive_only": true,
     "is_event": false,
     "env_tag": "熊市防御型",
     "time_tag": "近期失效"
@@ -1061,7 +1062,7 @@
     "v2_status": "computed",
     "is_event": false,
     "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "NBHOLDCHG",
@@ -1075,7 +1076,7 @@
     "v2_status": "computed",
     "is_event": false,
     "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "HOLDERCHG",
@@ -1172,7 +1173,7 @@
     "wind_source": "派生（已有数据计算）",
     "v2_status": "computed",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期转弱"
   },
   {
@@ -1451,6 +1452,7 @@
     "formula": "FWDPE = AShareConsensusRollingData.EST_PE，ROLLING_TYPE='FTTM'，EST_PE>0。",
     "wind_source": "AShareConsensusRollingData.EST_PE; ROLLING_TYPE; TRADE_DT",
     "v2_status": "computed",
+    "positive_only": true,
     "is_event": false,
     "env_tag": "熊市防御型",
     "time_tag": "近期失效"
@@ -1494,7 +1496,7 @@
     "wind_source": "AShareStockRatingConsus.S_WRATING_UPGRADE; AShareStockRatingConsus.S_WRATING_DOWNGRADE; RATING_DT",
     "v2_status": "computed",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1527,7 +1529,7 @@
   },
   {
     "code": "ORCAGR3Y",
-    "name_cn": "营收复合增速",
+    "name_cn": "营业收入3年复合增速",
     "l1": "公司内生信息",
     "l2": "成长类",
     "direction": 1,
@@ -1746,8 +1748,8 @@
     "wind_source": "SHSCChannelholdings.S_QUANTITY; TRADE_DT",
     "v2_status": "computed",
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "HOLDERAVGCHG",
@@ -1844,7 +1846,7 @@
     "wind_source": "AShareStockRatingConsus.S_EST_PRICE; RATING_DT",
     "v2_status": "computed",
     "is_event": false,
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "近期转强"
   },
   {
@@ -1929,7 +1931,7 @@
     "v2_status": "computed",
     "is_event": false,
     "env_tag": "牛市进攻型",
-    "time_tag": "近期失效"
+    "time_tag": "近期转强"
   },
   {
     "code": "PUNISHAMT",
@@ -2054,7 +2056,7 @@
     "wind_source": "AShareCompRestricted.S_SHARE_LST; AShareEODPrices.FREE_SHARES_TODAY",
     "v2_status": "computed",
     "is_event": false,
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期转弱"
   },
   {
