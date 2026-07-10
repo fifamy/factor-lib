@@ -200,13 +200,15 @@ def test_frontend_ranking_and_combo_validation_keep_missing_forward_returns_in_s
     assert "observed_return_count" in group_validation
 
 
-def test_compare_fallback_does_not_silently_downgrade_score_or_constraint_modes():
+def test_compare_fallback_does_not_silently_downgrade_score_constraint_or_side_modes():
     source = APP_JS.read_text(encoding="utf-8")
     body = _source_between(source, "async function renderCompare", "function cmpPairCond")
+    fallback_reason = _source_between(source, "function compareFallbackBlockedReason", "async function renderCompare")
 
     assert "function compareFallbackBlockedReason" in source
     assert "compareFallbackBlockedReason(sel)" in body
     assert "不退回原始口径" in source
+    assert "normalizeSide(offender.side)" in fallback_reason
     assert "scoreMode" in source
     assert "constraintMode" in source
 

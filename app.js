@@ -3701,7 +3701,7 @@ function compareFallbackBlockedReason(sel) {
     || normalizeConstraintMode(f.constraintMode) !== "none"
   );
   if (!offender) return "";
-  return `当前对比包含方向、分数口径或组合约束的非默认设置（${offender.code}：scoreMode=${normalizeScoreMode(offender.scoreMode)}，constraintMode=${normalizeConstraintMode(offender.constraintMode)}）。快速快照加载失败时不退回原始口径，避免把不同口径结果画成同一口径。`;
+  return `当前对比包含方向、分数口径或组合约束的非默认设置（${offender.code}：side=${normalizeSide(offender.side)}，scoreMode=${normalizeScoreMode(offender.scoreMode)}，constraintMode=${normalizeConstraintMode(offender.constraintMode)}）。快速快照加载失败时不退回原始口径，避免把不同口径结果画成同一口径。`;
 }
 
 async function renderCompare() {
