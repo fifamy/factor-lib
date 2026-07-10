@@ -187,7 +187,38 @@ table.rank-table td.score-cell { font-weight: 600; color: #1a4d80; }
 .rank-explainer-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
 /* 因子标签 chip */
 .ftag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; line-height: 1.5; white-space: nowrap; }
-.ftag[title] { cursor: help; }
+.ftag[data-help] { position: relative; cursor: default; }
+.ftag[data-help]::after {
+  content: attr(data-help);
+  position: absolute;
+  z-index: 50;
+  left: 50%;
+  top: calc(100% + 6px);
+  width: max-content;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 7px 9px;
+  border-radius: 4px;
+  background: #111827;
+  color: #fff;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.16);
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -2px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+}
+.ftag[data-help]:hover::after,
+.ftag[data-help]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
 .ftag-牛市进攻型 { background: #fde2e1; color: #c0392b; }
 .ftag-熊市防御型 { background: #dde8f5; color: #1a4d80; }
 .ftag-全天候型 { background: #ddf0e0; color: #2e7d4f; }
@@ -199,6 +230,7 @@ table.rank-table td.score-cell { font-weight: 600; color: #1a4d80; }
 .ftag-持续低效 { background: #e6e6e6; color: #777; }
 /* 标签筛选 chip（可点） */
 .tagfilter { cursor: pointer; border: 1px solid transparent; }
+.tagfilter.ftag[data-help] { cursor: pointer; }
 .tagfilter.on { outline: 2px solid #1a4d80; outline-offset: 1px; }
 .panel { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 5px; padding: 12px; }
 .panel h3 { font-size: 11px; color: #666; text-transform: uppercase;

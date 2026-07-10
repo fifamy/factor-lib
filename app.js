@@ -4515,7 +4515,7 @@ const RANK_COLS = [
   { key: "tags",      label: "标签", lcol: true, sortable: false,
     fmt: (_, r) => [r.env_tag, r.time_tag]
       .filter(t => t && t !== "—")
-      .map(t => `<span class="ftag ftag-${t}" title="${htmlAttr(tagHelpText(t))}">${htmlText(t)}</span>`)
+      .map(t => `<span class="ftag ftag-${t}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}">${htmlText(t)}</span>`)
       .join(" ") || "—",
     help: "辅助标签由市场环境表现和近12个月RankIC变化生成；悬停标签可查看触发口径。" },
   { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => v, help: "最新Top30持仓中权重靠前的三个行业，用于观察行业集中度。" },
@@ -4550,7 +4550,7 @@ function buildTagFilters() {
   if (_tagFilterBound) return;
   const box = document.getElementById("rank-tag-filters");
   box.innerHTML = [...ENV_TAGS, ...TIME_TAGS]
-    .map(t => `<span class="ftag ftag-${t} tagfilter" data-tag="${t}" title="${htmlAttr(tagHelpText(t))}">${t}</span>`).join(" ");
+    .map(t => `<span class="ftag ftag-${t} tagfilter" data-tag="${t}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}">${t}</span>`).join(" ");
   box.querySelectorAll(".tagfilter").forEach(el => {
     el.onclick = () => {
       const t = el.dataset.tag;
