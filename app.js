@@ -2013,6 +2013,11 @@ function weightedTurnover(currentWeights, previousWeights) {
   return diff * 0.5;
 }
 
+function roundCompositeScoreForRanking(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Number(n.toFixed(6)) : n;
+}
+
 function medianNumber(values) {
   const clean = (values || []).map(snapshotNumber).filter(v => v !== null).sort((a, b) => a - b);
   if (!clean.length) return null;
@@ -8629,7 +8634,7 @@ function backtestWeights(monthsArr, weights, N, conds) {
     }
     const scored = elig.map(s => {
       let c = 0; for (let i = 0; i < weights.length; i++) c += weights[i] * s.scores[i];
-      return { code: s.code, comp: c, ret: s.ret };
+      return { code: s.code, comp: roundCompositeScoreForRanking(c), ret: s.ret };
     });
     scored.sort((a, b) => b.comp - a.comp || String(a.code).localeCompare(String(b.code)));
     const picks = scored.slice(0, N);

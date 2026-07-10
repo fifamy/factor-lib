@@ -293,6 +293,48 @@ def test_optimal_weight_backtest_matches_compose_kpi_turnover_cost_and_tie_break
     assert math.isclose(result["optimizedAnnual"], result["composeAnnual"], rel_tol=0, abs_tol=1e-12)
 
 
+def test_optimal_weight_backtest_rounds_composite_score_like_compose_kpi_sql():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+    metrics = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
+    compose_backtest = _source_between(source, "function buildBacktestFromRows", "function industryNeutralPickRows")
+    optimizer_backtest = _source_between(source, "function backtestWeights", "async function optimizeWeights")
+
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0.002;",
+        helpers,
+        metrics,
+        compose_backtest,
+        optimizer_backtest,
+        "const composeRows = [",
+        "  { signal_dt: '2026-01', dt: '2026-02-28', stock_code: '000001.SZ', fwd_return: 0.10 },",
+        "  { signal_dt: '2026-02', dt: '2026-03-31', stock_code: '000001.SZ', fwd_return: 0.05 },",
+        "];",
+        "const monthsArr = [",
+        "  { stocks: [",
+        "    { code: '000002.SZ', scores: [1.00000042], ret: -0.20 },",
+        "    { code: '000001.SZ', scores: [1.00000041], ret: 0.10 },",
+        "  ] },",
+        "  { stocks: [",
+        "    { code: '000002.SZ', scores: [1.00000042], ret: -0.10 },",
+        "    { code: '000001.SZ', scores: [1.00000041], ret: 0.05 },",
+        "  ] },",
+        "];",
+        "const compose = buildBacktestFromRows(composeRows, 1);",
+        "const composeMetrics = computeMetrics(compose.retArr, compose.navArr);",
+        "const optimizedMetrics = backtestWeights(monthsArr, [1], 1, []);",
+        "console.log(JSON.stringify({",
+        "  composeNavEnd: composeMetrics.navEnd,",
+        "  optimizedNavEnd: optimizedMetrics.navEnd,",
+        "  composeAnnual: composeMetrics.annual,",
+        "  optimizedAnnual: optimizedMetrics.annual,",
+        "}));",
+    ])
+
+    assert math.isclose(result["optimizedNavEnd"], result["composeNavEnd"], rel_tol=0, abs_tol=1e-12)
+    assert math.isclose(result["optimizedAnnual"], result["composeAnnual"], rel_tol=0, abs_tol=1e-12)
+
+
 def test_validation_panel_explains_new_validation_metrics():
     source = APP_JS.read_text(encoding="utf-8")
 
