@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-10 10:12:45",
+  "generated_at": "2026-07-10 14:58:48",
   "factor_count": 148,
   "backtest_start_month": "2015-02",
   "backtest_end_month": "2026-05",
@@ -27,9 +27,9 @@
     "warning_level": "warning",
     "total_rows": 55191693,
     "quality_counts": {
-      "insufficient_sample": 423,
+      "ok": 54824435,
       "missing_input": 366835,
-      "ok": 54824435
+      "insufficient_sample": 423
     },
     "insufficient_sample_rows": 423,
     "affected_factors": 9,
