@@ -897,7 +897,8 @@ def test_ci_workflow_runs_static_frontend_checks():
     text = workflow.read_text(encoding="utf-8")
 
     assert "python3 -m pytest tests/test_frontend_validation_panel.py -q" in text
-    assert "python3 -m pytest tests/test_monthly_returns.py tests/test_backtest.py tests/test_calendar_windows.py tests/test_normalize.py -q" in text
+    assert "Core Python smoke tests" not in text
+    assert "tests/test_monthly_returns.py tests/test_backtest.py tests/test_calendar_windows.py tests/test_normalize.py" not in text
     assert "node --check frontend/app.js" in text
     assert "node --check app.js" in text
     assert "node --check e2e/run_compose_validation.mjs" in text

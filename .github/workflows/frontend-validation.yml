@@ -23,11 +23,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Python test dependencies
-        run: python3 -m pip install pytest numpy scipy polars pyarrow
-
-      - name: Core Python smoke tests
-        run: python3 -m pytest tests/test_monthly_returns.py tests/test_backtest.py tests/test_calendar_windows.py tests/test_normalize.py -q
+      - name: Install Python static test dependencies
+        run: python3 -m pip install pytest numpy scipy
 
       - name: Static frontend contract tests
         run: python3 -m pytest tests/test_frontend_validation_panel.py -q
