@@ -452,9 +452,43 @@ async function supabaseFetch(path, opts = {}) {
   }
   if (!res.ok) {
     const msg = payload?.message || payload?.error_description || payload?.error || text || `HTTP ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = res.status;
+    err.payload = payload;
+    err.body = text;
+    err.path = path;
+    throw err;
   }
   return payload;
+}
+
+function supabaseUserMessage(error, action = "操作") {
+  const status = Number(error?.status || 0);
+  const payload = error?.payload || {};
+  const code = String(payload?.code || "");
+  const raw = String(error?.message || error?.body || error || "");
+  const lower = raw.toLowerCase();
+  const permissionDenied = status === 401 || status === 403
+    || /\b(401|403)\b/.test(raw)
+    || code === "42501"
+    || lower.includes("permission denied")
+    || lower.includes("row-level security")
+    || lower.includes("rls");
+  if (permissionDenied) {
+    return `${action}失败：Supabase 权限不足（HTTP 401/403 或 RLS 策略拒绝）。请在 Supabase 控制台核对 supabase/schema.sql 是否已执行、管理员账号是否命中 is_combo_admin()，以及相关表的 RLS policy；这不是普通网络失败。`;
+  }
+  const missingTable = status === 404
+    || code === "42P01"
+    || raw.includes("schema cache")
+    || lower.includes("does not exist")
+    || lower.includes("could not find");
+  if (missingTable) {
+    return `${action}失败：Supabase 表或接口尚未初始化。请在 Supabase 控制台执行/核对 supabase/schema.sql 后重试。`;
+  }
+  if (error instanceof TypeError || raw.includes("Failed to fetch") || raw.includes("NetworkError")) {
+    return `${action}失败：无法连接 Supabase。请检查当前网络、Supabase 项目状态或浏览器跨域限制。`;
+  }
+  return `${action}失败：${raw || "Supabase 请求失败"}`;
 }
 
 async function supabaseSelect(table, query = "", accessToken = null) {
@@ -583,6 +617,7 @@ async function loadPublishedCombos() {
       })));
     }
   } catch (err) {
+    state.publishedComboErrors.push(supabaseUserMessage(err, "读取线上组合库"));
     console.warn("load remote published combos failed:", err);
   }
 
@@ -1287,24 +1322,6 @@ function positiveOnlyNote(meta) {
   return `<div class="method-note" style="margin-top:8px">
     <div><b>无效值处理</b>：该因子标记为 positive_only，原始值小于等于 0 时缺少可比较的经济含义，负值或零值不参与排序，raw_value 仍保留用于追溯。</div>
   </div>`;
-}
-
-function holdingAsOfDate(row) {
-  return row?.as_of_date || row?.dt || "—";
-}
-
-function holdingPoolDate(row) {
-  return row?.pool_date || row?.as_of_date || row?.dt || "—";
-}
-
-function latestHoldingScopeNote(rows, opts = {}) {
-  const validRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
-  const asOfs = [...new Set(validRows.map(holdingAsOfDate).filter(v => v && v !== "—"))].sort();
-  const poolDates = [...new Set(validRows.map(holdingPoolDate).filter(v => v && v !== "—"))].sort();
-  const asOfText = asOfs.length > 1 ? `${asOfs[0]} ~ ${asOfs[asOfs.length - 1]}` : (asOfs[0] || "—");
-  const poolText = poolDates.length > 1 ? `${poolDates[0]} ~ ${poolDates[poolDates.length - 1]}` : (poolDates[0] || "—");
-  const eventText = opts.isEvent ? "事件因子可能汇总多个公告/快报截面，表内每行的得分截面以 as_of_date 为准；" : "";
-  return `当前最新持仓展示：本表用于查看最新可持有/可交易股票池，不是历史回测持仓；仅保留当前 active、非 ST 股票。${eventText}as_of_date=${asOfText}，pool_date=${poolText}。历史回测股票池仍按每月末 Word 股票池和当期可交易状态执行，不按最新 active 过滤。`;
 }
 
 function renderFactorDetail(meta, snap = null) {
@@ -6035,7 +6052,7 @@ async function adminLogin() {
     renderAdminView();
     await loadAdminData();
   } catch (err) {
-    setAdminStatus(`登录失败：${err.message || err}`, true);
+    setAdminStatus(supabaseUserMessage(err, "登录"), true);
   }
 }
 
@@ -6053,7 +6070,7 @@ async function loadAdminRequests() {
     renderAdminRequests();
     setAdminStatus(`已加载 ${state.adminRequests.length} 条待审核申请`);
   } catch (err) {
-    setAdminStatus(`加载失败：${err.message || err}`, true);
+    setAdminStatus(supabaseUserMessage(err, "加载申请"), true);
   }
 }
 
@@ -6065,7 +6082,7 @@ async function loadAdminPublishedCombos() {
     renderAdminPublishedCombos();
   } catch (err) {
     const list = document.getElementById("admin-published-list");
-    if (list) list.innerHTML = `<div class="empty" style="color:#c14545">已发布组合加载失败：${htmlText(err.message || err)}</div>`;
+    if (list) list.innerHTML = `<div class="empty" style="color:#c14545">${htmlText(supabaseUserMessage(err, "加载已发布组合"))}</div>`;
   }
 }
 
@@ -6181,7 +6198,7 @@ async function approvePublishRequest(id) {
     renderComboLibrary();
     setAdminStatus("已同意并发布");
   } catch (err) {
-    setAdminStatus(`发布失败：${err.message || err}`, true);
+    setAdminStatus(supabaseUserMessage(err, "发布"), true);
   }
 }
 
@@ -6206,7 +6223,7 @@ async function approveDeleteRequest(req) {
     renderComboLibrary();
     setAdminStatus("已同意并删除");
   } catch (err) {
-    setAdminStatus(`删除失败：${err.message || err}`, true);
+    setAdminStatus(supabaseUserMessage(err, "删除"), true);
   }
 }
 
@@ -6222,7 +6239,7 @@ async function deletePublishedComboByAdmin(id, name) {
     renderComboLibrary();
     setAdminStatus("已删除已发布组合");
   } catch (err) {
-    setAdminStatus(`删除失败：${err.message || err}`, true);
+    setAdminStatus(supabaseUserMessage(err, "删除已发布组合"), true);
   }
 }
 
@@ -6239,7 +6256,7 @@ async function rejectPublishRequest(id) {
     await loadAdminRequests();
     setAdminStatus("已拒绝");
   } catch (err) {
-    setAdminStatus(`拒绝失败：${err.message || err}`, true);
+    setAdminStatus(supabaseUserMessage(err, "拒绝"), true);
   }
 }
 
@@ -6339,7 +6356,7 @@ async function submitPublishRequestFromButton(payload, btn) {
     alert("申请已提交，等待管理员审核。审核通过后会出现在已发布组合。");
   } catch (err) {
     console.error("submit publish request failed:", err);
-    alert(`提交失败：${err.message || err}`);
+    alert(supabaseUserMessage(err, "提交申请"));
     if (btn) btn.textContent = old;
   } finally {
     if (btn) {
@@ -6370,7 +6387,7 @@ async function submitDeleteRequestForPublished(id, btn) {
     alert("删除申请已提交，等待管理员审核。");
   } catch (err) {
     console.error("submit delete request failed:", err);
-    alert(`提交失败：${err.message || err}`);
+    alert(supabaseUserMessage(err, "提交删除申请"));
     if (btn) btn.textContent = old;
   } finally {
     if (btn) {

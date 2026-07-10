@@ -49,8 +49,10 @@ jobs:
       - name: JavaScript syntax checks
         run: |
           if [ -f frontend/app.js ]; then
+            node --check frontend/app_holding_scope.js
             node --check frontend/app.js
           else
+            node --check app_holding_scope.js
             node --check app.js
           fi
           node --check e2e/compose_validation.mjs

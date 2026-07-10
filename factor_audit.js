@@ -11,6 +11,7 @@ const PARAMETER_MISMATCH_TIP = "Word 参数/窗口/子口径未被系统完整�
 const DATA_HISTORY_TIP = "该因子有效数据起步晚，历史回测只覆盖 Wind 当前可用期；早期月份为空通常不是页面漏算。";
 const STATIC_INDUSTRY_TIP = "行业分层、行业中性组合和行业市值中性化当前使用静态申万行业，不是历史申万行业 PIT；补齐历史行业归属表前，相关分层归因只作为辅助复核。";
 const NEUTRALIZATION_SPARSE_TIP = "稀疏中性化质量提示：部分因子-月份可用于行业/市值中性化的有效样本不足 3 个，对应中性化分数为空；Neutral RankIC、回测和分层结论应降低权重，并结合 Raw 口径复核。";
+const DIRECTION_IC_FLIP_TIP = "实测 RankIC 的符号与登记的经济方向长期相反（|t|>2）。这不等同于程序错误，常见原因包括：因子经济方向登记反了、样本期内因子失效或出现反转、样本较短或市场/行业环境导致方向不稳定。建议先看 Raw/Neutral RankIC、样本月数和近期滚动结果，再决定是否调整方向配置。";
 const UNIVERSE_ALIGNED_TIP = "系统已按 Word 股票池/样本空间规则执行。";
 const UNIVERSE_PROFILE_TIP = "Word 未单列该因子时，系统按分类映射的 Word 公共股票池执行。";
 const ERROR_FLAGS = new Set(["nonfinite", "recon_mismatch", "recon_source_missing"]);
@@ -42,7 +43,7 @@ const FLAG_LABEL = {
   heavy_tail: ["厚尾", "存在极端值（稳健 z>50）。A股估值/成长/资金类因子天生厚尾，用前宜去极值；recon 一致即非计算错误"],
   outlier: ["量级异常", "|值|>100万（如比率分母接近 0 爆出大数、或资金流本就上亿）。recon 一致=真实极端值，非存储损坏"],
   nonfinite: ["非有限值", "存在 NaN/inf —— 几乎肯定计算有误（本工具的红灯目标，已全部修复）"],
-  direction_ic_flip: ["方向疑反", "实测 RankIC 的方向与你声明的 +/− 系统性相反（|t|>2）。要么方向标反，要么该因子近年失效/反转，值得复核"],
+  direction_ic_flip: ["方向疑反", DIRECTION_IC_FLIP_TIP],
   formula_mismatch: ["文档/系统不一致", FORMULA_MISMATCH_TIP],
   universe_mismatch: ["样本空间不一致", UNIVERSE_MISMATCH_TIP],
   parameter_mismatch: ["参数待补", PARAMETER_MISMATCH_TIP],
@@ -116,7 +117,12 @@ async function supabaseFetch(path, opts = {}) {
   }
   if (!res.ok) {
     const msg = payload?.message || payload?.error || text || `HTTP ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = res.status;
+    err.payload = payload;
+    err.body = text;
+    err.path = path;
+    throw err;
   }
   return payload || [];
 }
@@ -176,10 +182,22 @@ async function loadFactorReviews(code) {
 }
 function humanReviewError(error) {
   const raw = String(error?.message || error || "");
-  if (raw.includes("factor_reviews") && raw.includes("schema cache")) {
+  const status = Number(error?.status || 0);
+  const code = String(error?.payload?.code || "");
+  const lower = raw.toLowerCase();
+  const permissionDenied = status === 401 || status === 403
+    || /\b(401|403)\b/.test(raw)
+    || code === "42501"
+    || lower.includes("permission denied")
+    || lower.includes("row-level security")
+    || lower.includes("rls");
+  if (permissionDenied) {
+    return "复核库权限不足：Supabase 返回 HTTP 401/403 或 RLS 策略拒绝。请在 Supabase 控制台核对 supabase/schema.sql 是否已执行，以及 factor_reviews 的 RLS policy；这不是普通网络失败。";
+  }
+  if (status === 404 || code === "42P01" || (raw.includes("factor_reviews") && raw.includes("schema cache"))) {
     return "复核库尚未初始化：需要先在 Supabase 执行 supabase/schema.sql 中的 factor_reviews 建表 SQL。";
   }
-  if (raw.includes("Failed to fetch") || raw.includes("NetworkError")) {
+  if (error instanceof TypeError || raw.includes("Failed to fetch") || raw.includes("NetworkError")) {
     return "无法连接复核库，请确认当前网络可访问 Supabase。";
   }
   return raw || "无法连接复核库";

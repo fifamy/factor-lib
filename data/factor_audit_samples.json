@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-06 14:12:18",
+  "generated_at": "2026-07-10 16:58:28",
   "summary": {
     "word_factor_count": 112,
     "system_factor_count": 148,
@@ -7168,21 +7168,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "001337.SZ",
-        "stock_name": "四川黄金",
-        "raw_value": 89.46559201568185,
+        "stock_code": "301153.SZ",
+        "stock_name": "中科江南",
+        "raw_value": 88.93227101503118,
         "score": 0.0,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=89.4656，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=88.9323，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 89.46559201568185,
-            "display": "89.4656",
+            "value": 88.93227101503118,
+            "display": "88.9323",
             "unit": "",
             "note": "来自当前因子落地结果"
           },

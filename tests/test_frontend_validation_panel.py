@@ -11,6 +11,7 @@ from factor_lib.validation import summarize_return_series
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = ROOT / "frontend" if (ROOT / "frontend" / "app.js").exists() else ROOT
 APP_JS = FRONTEND_ROOT / "app.js"
+APP_HOLDING_SCOPE_JS = FRONTEND_ROOT / "app_holding_scope.js"
 STYLES_CSS = FRONTEND_ROOT / "styles.css"
 INDEX_HTML = FRONTEND_ROOT / "index.html"
 FRONTEND_DATA = FRONTEND_ROOT / "data"
@@ -459,17 +460,45 @@ def test_positive_only_factor_handling_is_visible_in_catalog_and_detail_copy():
 
 def test_latest_holdings_copy_distinguishes_display_pool_from_historical_backtest_pool():
     source = APP_JS.read_text(encoding="utf-8")
+    helper = APP_HOLDING_SCOPE_JS.read_text(encoding="utf-8")
+    index_html = INDEX_HTML.read_text(encoding="utf-8")
+    deploy_script_path = ROOT / "frontend" / "scripts" / "deploy_to_pages.sh"
     single_rows = _source_between(source, "function renderTopStocksRows", "async function renderNavChart")
     compose_rows = _source_between(source, "async function renderComposeStocks", "async function renderComposeBacktest")
 
-    assert "function latestHoldingScopeNote" in source
-    assert "当前最新持仓展示" in source
-    assert "不是历史回测持仓" in source
-    assert "历史回测股票池" in source
+    assert "function latestHoldingScopeNote" in helper
+    assert "function holdingAsOfDate" in helper
+    assert "function holdingPoolDate" in helper
+    assert "当前最新持仓展示" in helper
+    assert "不是历史回测持仓" in helper
+    assert "历史回测股票池" in helper
+    assert "app_holding_scope.js?v=" in index_html
+    assert index_html.index("app_holding_scope.js?v=") < index_html.index("app.js?v=")
+    if "DEPLOY_VERSION" in index_html:
+        assert "app_holding_scope.js?v=DEPLOY_VERSION" in index_html
+    if deploy_script_path.exists():
+        deploy_script = deploy_script_path.read_text(encoding="utf-8")
+        assert '"$SRC/app_holding_scope.js"' in deploy_script
+    assert "function latestHoldingScopeNote" not in source
     assert "as_of_date" in single_rows
     assert "pool_date" in single_rows
     assert "as_of_date" in compose_rows
     assert "pool_date" in compose_rows
+
+
+def test_supabase_permission_errors_are_separated_from_network_failures():
+    source = APP_JS.read_text(encoding="utf-8")
+    audit_js = (FRONTEND_ROOT / "factor_audit.js").read_text(encoding="utf-8")
+
+    for text in [source, audit_js]:
+        assert "401" in text
+        assert "403" in text
+        assert "RLS" in text
+        assert "supabase/schema.sql" in text
+        assert "不是普通网络失败" in text
+
+    assert "supabaseUserMessage" in source
+    assert "humanReviewError" in audit_js
 
 
 def test_validation_panel_explicitly_warns_short_samples():
