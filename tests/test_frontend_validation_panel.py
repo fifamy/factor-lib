@@ -1,7 +1,11 @@
 from pathlib import Path
 import json
+import math
+import subprocess
 
 import pytest
+
+from factor_lib.validation import summarize_return_series
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +27,28 @@ def _source_between(source: str, start: str, end: str) -> str:
     start_idx = source.index(start)
     end_idx = source.index(end, start_idx)
     return source[start_idx:end_idx]
+
+
+def _frontend_compute_metrics(rets: list[float]) -> dict:
+    source = APP_JS.read_text(encoding="utf-8")
+    body = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
+    script = "\n".join([
+        body,
+        f"const rets = {json.dumps(rets)};",
+        "const navs = [1];",
+        "for (const r of rets) navs.push(navs[navs.length - 1] * (1 + r));",
+        "console.log(JSON.stringify(computeMetrics(rets, navs)));",
+    ])
+    result = subprocess.run(["node", "-e", script], check=True, text=True, capture_output=True)
+    return json.loads(result.stdout)
+
+
+def _assert_optional_close(actual, expected, tol=1e-12):
+    if expected is None:
+        assert actual is None
+    else:
+        assert actual is not None
+        assert math.isclose(float(actual), float(expected), rel_tol=0, abs_tol=tol)
 
 
 def test_frontend_data_snapshots_keep_factor_tags():
@@ -84,9 +110,33 @@ def test_frontend_compute_metrics_uses_backend_sharpe_definition():
     source = APP_JS.read_text(encoding="utf-8")
     body = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
 
-    assert "const vol = std * Math.sqrt(12)" in body
-    assert "const sharpe = vol > 0 ? annual / vol : 0" in body
+    assert "const vol = std !== null && Number.isFinite(std) ? std * Math.sqrt(12) : null" in body
+    assert "const sharpe = vol !== null && Number.isFinite(vol) && vol > 0 ? annual / vol : null" in body
     assert "mean / std * Math.sqrt(12)" not in body
+    assert "annual / vol : 0" not in body
+
+
+def test_frontend_compute_metrics_matches_backend_validation_for_same_return_series():
+    rets = [0.01, -0.02, 0.035, 0.005, -0.01, 0.025]
+    frontend = _frontend_compute_metrics(rets)
+    backend = summarize_return_series(rets)
+
+    _assert_optional_close(frontend["annual"], backend["ann_return"])
+    _assert_optional_close(frontend["vol"], backend["ann_vol"])
+    _assert_optional_close(frontend["sharpe"], backend["sharpe"])
+    _assert_optional_close(frontend["mdd"], backend["max_drawdown"])
+    _assert_optional_close(frontend["winRate"], backend["month_win_rate"])
+
+
+def test_frontend_compute_metrics_keeps_zero_vol_sharpe_missing_like_backend():
+    rets = [0.01, 0.01, 0.01]
+    frontend = _frontend_compute_metrics(rets)
+    backend = summarize_return_series(rets)
+
+    _assert_optional_close(frontend["annual"], backend["ann_return"])
+    _assert_optional_close(frontend["vol"], backend["ann_vol"])
+    assert backend["sharpe"] is None
+    assert frontend["sharpe"] is None
 
 
 def test_compare_table_labels_rank_ic_mean_explicitly():
@@ -309,6 +359,17 @@ def test_validation_panel_explicitly_warns_short_samples():
     assert "建议降低结论权重" in source
     assert "validation-short-sample" in source
     assert ".validation-short-sample" in styles
+
+
+def test_validation_panel_warns_sparse_neutralization_quality():
+    source = APP_JS.read_text(encoding="utf-8")
+
+    assert "function neutralizationQualityWarnings" in source
+    assert "function renderNeutralizationQualityWarning" in source
+    assert "state.dataManifest?.neutralization_quality" in source
+    assert "insufficient_sample" in source
+    assert "中性化质量" in source
+    assert "有效样本不足" in source
 
 
 def test_validation_panel_renders_planned_visual_charts_and_extra_metrics():

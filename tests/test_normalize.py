@@ -303,6 +303,42 @@ def test_03b_neutralize_script_uses_sw1_and_market_cap(tmp_path):
     assert max(valid_scores) > min(valid_scores)
 
 
+def test_03b_neutralize_marks_sparse_sample_quality(tmp_path):
+    """有效中性化样本不足 3 个时，输出要显式标记质量，不能只留下空 score。"""
+    from datetime import date
+    raw = pl.DataFrame({
+        "trade_date": [date(2025, 1, 31)] * 2,
+        "stock_code": ["A", "B"],
+        "factor_code": ["MOM12_1"] * 2,
+        "raw_value": [10.0, 11.0],
+    })
+    desc = pl.DataFrame({
+        "stock_code": ["A", "B"],
+        "industry_sw1": ["银行", "医药"],
+        "market_cap": [100.0, 200.0],
+    })
+    raw_path = tmp_path / "factor_raw.parquet"
+    desc_path = tmp_path / "stock_descriptors.parquet"
+    out_path = tmp_path / "factor_score_neutral.parquet"
+    raw.write_parquet(raw_path)
+    desc.write_parquet(desc_path)
+
+    subprocess.run(
+        [sys.executable, "scripts/03b_neutralize.py",
+         "--raw", str(raw_path),
+         "--descriptors", str(desc_path),
+         "--out", str(out_path)],
+        check=True,
+    )
+
+    out = pl.read_parquet(out_path).sort("stock_code")
+    assert "neutralization_quality" in out.columns
+    assert "neutralization_valid_count" in out.columns
+    assert out["score"].null_count() == 2
+    assert out["neutralization_valid_count"].to_list() == [2, 2]
+    assert set(out["neutralization_quality"].to_list()) == {"insufficient_sample"}
+
+
 def test_03b_neutralize_uses_panel_month_end_market_cap_not_static_descriptor(tmp_path):
     """传入 panel 时，中性化应使用截面月末市值，而不是描述表里的静态市值。"""
     from datetime import date

@@ -1934,9 +1934,9 @@ function computeMetrics(rets, navs) {
   const totalRet = navs[navs.length - 1] / navs[0] - 1;
   const annual = Math.pow(1 + totalRet, 12 / n) - 1;
   const mean = rets.reduce((s, v) => s + v, 0) / n;
-  const std = Math.sqrt(rets.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1));
-  const vol = std * Math.sqrt(12);   // 年化波动率
-  const sharpe = vol > 0 ? annual / vol : 0;
+  const std = n >= 2 ? Math.sqrt(rets.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1)) : null;
+  const vol = std !== null && Number.isFinite(std) ? std * Math.sqrt(12) : null;   // 年化波动率
+  const sharpe = vol !== null && Number.isFinite(vol) && vol > 0 ? annual / vol : null;
   let peak = navs[0], mdd = 0;
   for (const v of navs) { if (v > peak) peak = v; const dd = v / peak - 1; if (dd < mdd) mdd = dd; }
   const winRate = rets.filter(r => r > 0).length / n;
@@ -2299,7 +2299,7 @@ function renderQuantileKpi(payload, idxs) {
       <td>${label}</td>
       <td>${pctText(m.annual)}</td>
       <td>${pctText(m.vol)}</td>
-      <td>${m.sharpe.toFixed(2)}</td>
+      <td>${numText(m.sharpe, 2)}</td>
       <td>${pctText(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
       <td>${m.navEnd.toFixed(2)}</td>
@@ -2579,6 +2579,34 @@ function renderValidationShortSampleWarning(warnings) {
 
 function renderValidationIndustryLimitation() {
   return `<div class="validation-short-sample"><b>行业口径</b><span>${STATIC_INDUSTRY_LIMITATION}</span></div>`;
+}
+
+function neutralizationQualityWarnings(snap) {
+  const mode = normalizeScoreMode(snap?.score_mode || state.singleScoreMode);
+  if (mode !== "neutral") return [];
+  const manifestQuality = state.dataManifest?.neutralization_quality || null;
+  const quality = snap?.neutralization_quality || manifestQuality;
+  if (!quality) return [];
+  if (quality.has_quality_column === false) {
+    return ["当前中性化快照尚未携带 neutralization_quality 字段，请重跑中性化与快照导出后再使用中性口径结论"];
+  }
+  const sparseRows = Number(quality.insufficient_sample_rows || 0);
+  const failedRows = Number(quality.regression_failed_rows || 0);
+  const warnings = [];
+  if (sparseRows > 0) {
+    const months = Number(quality.affected_factor_months || 0);
+    const scope = months > 0 ? `${numText(months, 0)} 个因子-月份` : "部分因子-月份";
+    warnings.push(`${scope}中性化有效样本不足 3 个，对应中性化分数为空`);
+  }
+  if (failedRows > 0) warnings.push(`存在 ${numText(failedRows, 0)} 条中性化回归失败记录`);
+  if (!warnings.length && quality.warning_level === "warning" && quality.warning) warnings.push(quality.warning);
+  return [...new Set(warnings)];
+}
+
+function renderNeutralizationQualityWarning(snap) {
+  const warnings = neutralizationQualityWarnings(snap);
+  if (!warnings.length) return "";
+  return `<div class="validation-short-sample"><b>中性化质量</b><span>${warnings.map(htmlText).join("；")}。稀疏截面下的 RankIC、回测和分层结论应降低权重，并结合原始口径复核。</span></div>`;
 }
 
 function renderValidationUnavailable(message) {
@@ -3005,6 +3033,7 @@ function renderValidationPanel(code, snap) {
   target.innerHTML = `
     ${renderValidationInterpretationNote()}
     ${renderValidationIndustryLimitation()}
+    ${renderNeutralizationQualityWarning(snap)}
     ${renderBenchmarkSelect()}
     ${renderValidationShortSampleWarning(shortSampleWarnings)}
     <div class="validation-grid">
@@ -3222,7 +3251,7 @@ async function renderKpiTable(code) {
       <td>top${n}</td>
       <td>${pct(m.annual)}</td>
       <td>${pct(m.vol)}</td>
-      <td>${m.sharpe.toFixed(2)}</td>
+      <td>${numText(m.sharpe, 2)}</td>
       <td>${pct(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
       <td>${ex300}</td>
@@ -3250,7 +3279,7 @@ async function renderKpiTable(code) {
         <td style="color:#888">${cnNames[idx]}</td>
         <td>${pct(m.annual)}</td>
         <td>${pct(m.vol)}</td>
-        <td>${m.sharpe.toFixed(2)}</td>
+        <td>${numText(m.sharpe, 2)}</td>
         <td>${pct(m.mdd)}</td>
         <td>${(m.winRate * 100).toFixed(0)}%</td>
         <td>—</td><td>—</td>
@@ -3290,7 +3319,7 @@ async function renderKpiTableFast(code, snap, scoreSnap = snap) {
       <td>top${n} · ${constraintModeLabel()}</td>
       <td>${pctText(m.annual)}</td>
       <td>${pctText(m.vol)}</td>
-      <td>${m.sharpe.toFixed(2)}</td>
+      <td>${numText(m.sharpe, 2)}</td>
       <td>${pctText(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
       <td>${bmMetrics.HS300 ? signedPctText(m.annual - bmMetrics.HS300.annual) : "—"}</td>
@@ -3306,7 +3335,7 @@ async function renderKpiTableFast(code, snap, scoreSnap = snap) {
       <td style="color:#888">${cnNames[idx]}</td>
       <td>${pctText(m.annual)}</td>
       <td>${pctText(m.vol)}</td>
-      <td>${m.sharpe.toFixed(2)}</td>
+      <td>${numText(m.sharpe, 2)}</td>
       <td>${pctText(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
       <td>—</td><td>—</td>
@@ -3348,7 +3377,7 @@ async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
       <td>top${n}${sideSuffix(side)} · ${constraintModeLabel()}</td>
       <td>${pctText(m.annual)}</td>
       <td>${pctText(m.vol)}</td>
-      <td>${m.sharpe.toFixed(2)}</td>
+      <td>${numText(m.sharpe, 2)}</td>
       <td>${pctText(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
       <td>${bmMetrics.HS300 ? signedPctText(m.annual - bmMetrics.HS300.annual) : "—"}</td>
@@ -3364,7 +3393,7 @@ async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
       <td style="color:#888">${cnNames[idx]}</td>
       <td>${pctText(m.annual)}</td>
       <td>${pctText(m.vol)}</td>
-      <td>${m.sharpe.toFixed(2)}</td>
+      <td>${numText(m.sharpe, 2)}</td>
       <td>${pctText(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
       <td>—</td><td>—</td>
@@ -3412,7 +3441,7 @@ async function renderNScan(code) {
     const m = computeMetrics(byN[n].rets, byN[n].navs);
     if (!m) return null;
     if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
-    if (state.scanMetric === "sharpe") return +m.sharpe.toFixed(3);
+    if (state.scanMetric === "sharpe") return Number.isFinite(Number(m.sharpe)) ? +Number(m.sharpe).toFixed(3) : null;
     if (state.scanMetric === "mdd") return +(m.mdd * 100).toFixed(2);
     return +(m.vol * 100).toFixed(2);   // 波动率（年化，%）
   });
@@ -3453,7 +3482,7 @@ async function renderNScanFast(code, snap) {
     const m = bt ? metricsFromReturns(sliceByIndexes(bt.ret, idxs)) : null;
     if (!m) return null;
     if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
-    if (state.scanMetric === "sharpe") return +m.sharpe.toFixed(3);
+    if (state.scanMetric === "sharpe") return Number.isFinite(Number(m.sharpe)) ? +Number(m.sharpe).toFixed(3) : null;
     if (state.scanMetric === "mdd") return +(m.mdd * 100).toFixed(2);
     return +(m.vol * 100).toFixed(2);
   });
@@ -3494,7 +3523,7 @@ async function renderNScanSide(code, side, snap = null) {
     const m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
     if (!m) return null;
     if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
-    if (state.scanMetric === "sharpe") return +m.sharpe.toFixed(3);
+    if (state.scanMetric === "sharpe") return Number.isFinite(Number(m.sharpe)) ? +Number(m.sharpe).toFixed(3) : null;
     if (state.scanMetric === "mdd") return +(m.mdd * 100).toFixed(2);
     return +(m.vol * 100).toFixed(2);
   });
@@ -6587,7 +6616,7 @@ async function renderComposeBacktest(renderSeq) {
   const bg = benchmarkMetrics(bmSnapForKpi, state.composeStart, state.composeEnd);
   const ex300 = bg.HS300 ? signed(m.annual - bg.HS300.annual) : "—";
   const ex800 = bg.CSI800 ? signed(m.annual - bg.CSI800.annual) : "—";
-  let krows = `<tr><td><b>合成组合</b></td><td>${pct(m.annual)}</td><td>${pct(m.vol)}</td><td>${m.sharpe.toFixed(2)}</td><td>${pct(m.mdd)}</td>
+  let krows = `<tr><td><b>合成组合</b></td><td>${pct(m.annual)}</td><td>${pct(m.vol)}</td><td>${numText(m.sharpe, 2)}</td><td>${pct(m.mdd)}</td>
       <td>${(m.winRate*100).toFixed(0)}%</td><td>${ex300}</td><td>${ex800}</td></tr>`;
   // 三基准行（绝对指标）
   {
@@ -6595,7 +6624,7 @@ async function renderComposeBacktest(renderSeq) {
     for (const idx of ["HS300", "CSI800", "CSI500"]) {
       const bm = bg[idx]; if (!bm) continue;
       krows += `<tr style="color:#888;border-top:2px solid #ddd">
-        <td style="color:#888">${cn[idx]}</td><td>${pct(bm.annual)}</td><td>${pct(bm.vol)}</td><td>${bm.sharpe.toFixed(2)}</td>
+        <td style="color:#888">${cn[idx]}</td><td>${pct(bm.annual)}</td><td>${pct(bm.vol)}</td><td>${numText(bm.sharpe, 2)}</td>
         <td>${pct(bm.mdd)}</td><td>${(bm.winRate*100).toFixed(0)}%</td><td>—</td><td>—</td></tr>`;
     }
   }
@@ -8684,7 +8713,7 @@ async function optimizeWeights() {
     const m = backtestWeights(monthsArr, w, state.composeN, conds);
     if (!m) continue;
     if (m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
-    if (m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
+    if (Number.isFinite(Number(m.sharpe)) && m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
     if (m.vol < best.vol.val) best.vol = { val: m.vol, w, m };
     if (m.mdd > best.mdd.val) best.mdd = { val: m.mdd, w, m };
   }
@@ -8701,7 +8730,7 @@ async function optimizeWeights() {
     rows += `<tr>
       <td>${label}</td>
       <td>${wstr(b.w)}</td>
-      <td>${pct(b.m.annual)}</td><td>${pct(b.m.vol)}</td><td>${b.m.sharpe.toFixed(2)}</td>
+      <td>${pct(b.m.annual)}</td><td>${pct(b.m.vol)}</td><td>${numText(b.m.sharpe, 2)}</td>
       <td>${pct(b.m.mdd)}</td>
       <td><button class="cpsn-btn cps-apply" data-ti="${ti}">应用</button></td>
     </tr>`;

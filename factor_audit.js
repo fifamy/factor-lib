@@ -10,6 +10,7 @@ const UNIVERSE_MISMATCH_TIP = "Word 文档股票池/样本空间规则与当前�
 const PARAMETER_MISMATCH_TIP = "Word 参数/窗口/子口径未被系统完整覆盖，需要判断是否补充实现或修订 Word 口径。";
 const DATA_HISTORY_TIP = "该因子有效数据起步晚，历史回测只覆盖 Wind 当前可用期；早期月份为空通常不是页面漏算。";
 const STATIC_INDUSTRY_TIP = "行业分层、行业中性组合和行业市值中性化当前使用静态申万行业，不是历史申万行业 PIT；补齐历史行业归属表前，相关分层归因只作为辅助复核。";
+const NEUTRALIZATION_SPARSE_TIP = "稀疏中性化质量提示：部分因子-月份可用于行业/市值中性化的有效样本不足 3 个，对应中性化分数为空；Neutral RankIC、回测和分层结论应降低权重，并结合 Raw 口径复核。";
 const UNIVERSE_ALIGNED_TIP = "系统已按 Word 股票池/样本空间规则执行。";
 const UNIVERSE_PROFILE_TIP = "Word 未单列该因子时，系统按分类映射的 Word 公共股票池执行。";
 const ERROR_FLAGS = new Set(["nonfinite", "recon_mismatch", "recon_source_missing"]);
@@ -45,6 +46,7 @@ const FLAG_LABEL = {
   formula_mismatch: ["文档/系统不一致", FORMULA_MISMATCH_TIP],
   universe_mismatch: ["样本空间不一致", UNIVERSE_MISMATCH_TIP],
   parameter_mismatch: ["参数待补", PARAMETER_MISMATCH_TIP],
+  neutralization_sparse: ["稀疏中性化", NEUTRALIZATION_SPARSE_TIP],
   recon_mismatch: ["对账不符", "独立重算 ≠ 系统存储值 —— 实现可能有 bug"],
   recon_source_missing: ["源缺失", "回查不到对应的 Wind 源数据"],
 };
@@ -577,6 +579,22 @@ function renderDataHistoryWarning(d) {
   if (!text) return "";
   return `<div class="fa-data-alert"><b>数据历史提示：</b>${esc(text)}</div>`;
 }
+function neutralizationQualityText(d) {
+  const q = d?.neutralization_quality || {};
+  const sparseRows = Number(q.insufficient_sample_rows || 0);
+  if (sparseRows <= 0) return "";
+  const months = Number(q.affected_factor_months || 0);
+  const monthText = months > 0 ? `${months} 个因子-月份` : "部分因子-月份";
+  const minValid = q.min_insufficient_valid_count !== null && q.min_insufficient_valid_count !== undefined
+    ? `，最小有效样本 ${q.min_insufficient_valid_count}`
+    : "";
+  return `${monthText}中性化有效样本不足 3 个${minValid}。${NEUTRALIZATION_SPARSE_TIP}`;
+}
+function renderNeutralizationQualityWarning(d) {
+  const text = neutralizationQualityText(d);
+  if (!text) return "";
+  return `<div class="fa-neutralization-alert"><b>中性化质量：</b>${esc(text)}</div>`;
+}
 function matchRow(f) {
   if (filter === "suspect" && f.health === "ok") return false;
   if (filter === "error" && f.health !== "error") return false;
@@ -600,9 +618,12 @@ function rowHtml(f) {
   const dataHistoryBadge = hasCoverageLateFlag(f)
     ? `<span class="fa-data-late" title="${esc(dataHistoryText(f))}">数据短</span>`
     : "";
+  const neutralizationBadge = f.neutralization_quality?.warning_level === "warning"
+    ? `<span class="fa-formula-mismatch" title="${esc(NEUTRALIZATION_SPARSE_TIP)}">中性化稀疏</span>`
+    : "";
   return `
     <tr class="fa-row lv-${f.health}" data-code="${f.code}">
-      <td><span class="fa-code">${esc(f.code)}</span><span class="fa-name">${esc(f.name_cn)}</span>${dataHistoryBadge}${f.doc_missing ? `<span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${f.formula_mismatch ? `<span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${f.universe_mismatch ? `<span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}${f.parameter_mismatch ? `<span class="fa-formula-mismatch" title="${esc(PARAMETER_MISMATCH_TIP)}">参数待补</span>` : ""}</td>
+      <td><span class="fa-code">${esc(f.code)}</span><span class="fa-name">${esc(f.name_cn)}</span>${dataHistoryBadge}${neutralizationBadge}${f.doc_missing ? `<span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${f.formula_mismatch ? `<span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${f.universe_mismatch ? `<span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}${f.parameter_mismatch ? `<span class="fa-formula-mismatch" title="${esc(PARAMETER_MISMATCH_TIP)}">参数待补</span>` : ""}</td>
       <td>${esc(f.l1)} / ${esc(f.l2)}</td>
       <td>${formulaStatusCell(f)}</td>
       <td>${universeStatusCell(f)}</td>
@@ -664,6 +685,7 @@ async function openDetail(code) {
     <h2 class="fa-detail-h">${esc(d.code)} · ${esc(d.name_cn)}</h2>
     <div class="fa-detail-sub">${esc(d.l1)} / ${esc(d.l2)} · 方向 ${dirCell(d.direction)} · 体检 ${badge(HEALTH_LABEL, d.health.level)}${d.doc_missing ? ` · <span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${d.formula_mismatch && d.formula_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${d.universe_mismatch && d.universe_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}${d.parameter_coverage && d.parameter_coverage.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(PARAMETER_MISMATCH_TIP)}">参数待补</span>` : ""}</div>
     ${renderDataHistoryWarning(d)}
+    ${renderNeutralizationQualityWarning(d)}
     <div class="fa-block"><h3>公式对照</h3>
       ${d.doc_missing ? `<div class="fa-doc-alert">Word 技术文档未单列该因子或未给公式；下方“系统实现/Wind 字段”可作为补文档依据。</div>` : ""}
       ${d.formula_mismatch && d.formula_mismatch.level === "warn" ? `<div class="fa-formula-alert"><b>文档/系统口径不一致：</b>${esc(d.formula_mismatch.reason || "")}${d.formula_mismatch.word_scope ? `<br>Word：${esc(d.formula_mismatch.word_scope)}` : ""}${d.formula_mismatch.system_scope ? `<br>系统：${esc(d.formula_mismatch.system_scope)}` : ""}</div>` : ""}
