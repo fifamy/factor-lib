@@ -169,7 +169,7 @@
           <h3>多因子合成</h3>
           <p style="color:#666;font-size:12px">从左侧点选因子（再点取消）。每个因子可设<b>权重</b>（参与合成打分）和可选的<b>过滤阈值</b>。
             选股逻辑：先用阈值条件筛掉不符合的股，再在剩下的里按合成得分选 top-N。<span id="cps-selected"></span></p>
-          <p style="color:#999;font-size:11px;margin-top:2px">过滤阈值为 z-score，留空=不过滤；≥1.0 约前 16%，≤-1.0 约后 16%。</p>
+          <p style="color:#999;font-size:11px;margin-top:2px">过滤阈值使用高斯秩标准化分数，留空=不过滤；≥1.0 约前 16%，≤-1.0 约后 16%。</p>
           <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span style="color:#666;font-size:11px">选股数：</span>
             <button class="cpsn-btn" data-n="10">10</button>
@@ -313,7 +313,7 @@
         <div class="panel">
           <h3>因子排行榜</h3>
           <p style="color:#666;font-size:12px">所有因子按<b>综合得分</b>排名。综合分 = 因子有效性(50%) + 实战业绩(50%)，
-            各分项指标在全因子截面标准化(z-score)后加权；方向已统一（数值越大越好）。</p>
+            各分项指标在全因子截面标准化后加权；方向已统一（数值越大越好）。</p>
           <p style="color:#999;font-size:11px;margin-top:2px">业绩口径：top-30 等权、月末调仓、0.2% 双边成本。
             有效性：RankIC 均值 + IC_IR（信号稳定性）。点击列头可改排序（如点“最大回撤”看最抗跌、点“年化”看最赚钱），勾选因子后可一键带入对比 / 合成。</p>
           <div class="rank-guide">
@@ -382,25 +382,34 @@
             <span id="rank-tag-filters"></span>
             <span id="rank-tag-clear" style="display:none;cursor:pointer;color:#c14545;font-size:11px;margin-left:4px">清除筛选</span>
           </div>
-          <details style="margin-top:6px">
-            <summary style="cursor:pointer;color:#1a4d80;font-size:11px">标签是怎么判定的？（点击展开口径）</summary>
-            <div style="color:#666;font-size:11px;line-height:1.7;margin-top:6px;padding:8px 10px;background:#f7f9fb;border:1px solid #e6ebf0;border-radius:4px">
-              <p style="margin:0 0 6px 0">每个因子贴 2 个标签：<b>市场环境</b>维度 + <b>时效</b>维度，均按 top-30 组合的全样本回测/IC 自动判定。</p>
-              <p style="margin:0 0 3px 0"><b>市场环境</b>（看在不同行情下相对其他因子的超额强弱）：先按沪深300<b>滚动 3 个月涨跌</b>把月份分为牛（&gt;+5%）/熊（&lt;-5%）/震荡；算因子在三种环境的<b>月均超额收益</b>（组合−沪深300），并在 46 个因子间各自标准化（z-score）；取最高者：</p>
-              <ul style="margin:0 0 6px 0;padding-left:18px">
-                <li><span class="ftag ftag-牛市进攻型">牛市进攻型</span> 牛市超额相对其他因子最突出</li>
-                <li><span class="ftag ftag-熊市防御型">熊市防御型</span> 熊市超额相对最突出（抗跌/逆势）</li>
-                <li><span class="ftag ftag-震荡占优型">震荡占优型</span> 震荡市超额相对最突出</li>
-                <li><span class="ftag ftag-全天候型">全天候型</span> 三种环境都不突出（z 均&lt;0.5），不挑行情</li>
-              </ul>
-              <p style="margin:0 0 3px 0"><b>时效</b>（看因子选股能力近期是否还在，用 RankIC）：比较<b>近 12 个月</b> RankIC 均值与<b>全样本</b> RankIC 均值之差（阈值 ±0.012）：</p>
-              <ul style="margin:0;padding-left:18px">
-                <li><span class="ftag ftag-长期稳定型">长期稳定型</span> 长期有效，近期没明显掉队</li>
-                <li><span class="ftag ftag-近期转强">近期转强</span> 近 12 月 RankIC 比全样本高 0.012 以上</li>
-                <li><span class="ftag ftag-近期转弱">近期转弱</span> 近 12 月 RankIC 比全样本低 0.012 以上，但仍高于低效阈值</li>
-                <li><span class="ftag ftag-近期失效">近期失效</span> 近 12 月 RankIC 比全样本低 0.012 以上，且已接近或低于 0</li>
-                <li><span class="ftag ftag-持续低效">持续低效</span> 全样本与近期 RankIC 都接近 0（基本无选股能力）</li>
-              </ul>
+          <details class="rank-explainer">
+            <summary>标签与风险提示说明</summary>
+            <div class="rank-explainer-body">
+              <div class="rank-explainer-section">
+                <b>市场环境标签</b>
+                <p>按沪深300滚动3个月涨跌划分市场环境：上涨超过5%为牛市、下跌超过5%为熊市，其余为震荡。再比较因子Top30组合在三类环境中的月均超额收益相对强弱；若三类环境都不突出，则标为“全天候型”。</p>
+                <div class="rank-explainer-tags">
+                  <span class="ftag ftag-牛市进攻型" title="牛市阶段月均超额收益相对更突出。">牛市进攻型</span>
+                  <span class="ftag ftag-熊市防御型" title="熊市阶段月均超额收益相对更突出。">熊市防御型</span>
+                  <span class="ftag ftag-震荡占优型" title="震荡阶段月均超额收益相对更突出。">震荡占优型</span>
+                  <span class="ftag ftag-全天候型" title="三类环境差异不明显，不代表无风险。">全天候型</span>
+                </div>
+              </div>
+              <div class="rank-explainer-section">
+                <b>时效标签</b>
+                <p>用近12个月RankIC均值与全样本RankIC均值比较，阈值为±0.012；全样本与近期RankIC都低于约1%时，优先标记为低效或失效。该标签只说明近期相对变化，不等同于买卖建议。</p>
+                <div class="rank-explainer-tags">
+                  <span class="ftag ftag-长期稳定型" title="近12个月RankIC与全样本差异不大，且全样本不属于低效。">长期稳定型</span>
+                  <span class="ftag ftag-近期转强" title="近12个月RankIC比全样本高0.012以上。">近期转强</span>
+                  <span class="ftag ftag-近期转弱" title="近12个月RankIC比全样本低0.012以上，但近期仍高于低效阈值。">近期转弱</span>
+                  <span class="ftag ftag-近期失效" title="近12个月RankIC明显低于全样本，且接近或低于低效阈值。">近期失效</span>
+                  <span class="ftag ftag-持续低效" title="全样本与近12个月RankIC都接近0。">持续低效</span>
+                </div>
+              </div>
+              <div class="rank-explainer-section">
+                <b>复核提示</b>
+                <p>“需复核”通常来自方向与历史RankIC符号相反、覆盖率不足、样本月数不足、极端重尾、参数敏感或口径不匹配。出现这些提示时，应先查看单因子检验、因子核对页和分层结果，再决定是否纳入组合。</p>
+              </div>
             </div>
           </details>
           <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">

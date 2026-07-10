@@ -4513,8 +4513,11 @@ const RANK_COLS = [
   { key: "medCap",    label: "中位市值(亿)", fmt: v => v === null ? "—" : Math.round(v).toLocaleString(), help: "最新Top30持仓的中位市值，用于判断因子偏大盘或小盘。" },
   { key: "capStyle",  label: "市值风格", lcol: true, fmt: v => v, help: "按最新Top30持仓市值分布归纳的风格标签。" },
   { key: "tags",      label: "标签", lcol: true, sortable: false,
-    fmt: (_, r) => `<span class="ftag ftag-${r.env_tag}">${r.env_tag}</span> <span class="ftag ftag-${r.time_tag}">${r.time_tag}</span>`,
-    help: "按市场环境和近12个月RankIC变化自动生成的辅助标签。" },
+    fmt: (_, r) => [r.env_tag, r.time_tag]
+      .filter(t => t && t !== "—")
+      .map(t => `<span class="ftag ftag-${t}" title="${htmlAttr(tagHelpText(t))}">${htmlText(t)}</span>`)
+      .join(" ") || "—",
+    help: "辅助标签由市场环境表现和近12个月RankIC变化生成；悬停标签可查看触发口径。" },
   { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => v, help: "最新Top30持仓中权重靠前的三个行业，用于观察行业集中度。" },
 ];
 
@@ -4525,6 +4528,21 @@ let _rankRenderSeq = 0;
 
 const ENV_TAGS = ["牛市进攻型", "熊市防御型", "全天候型", "震荡占优型"];
 const TIME_TAGS = ["长期稳定型", "近期转强", "近期转弱", "近期失效", "持续低效"];
+const TAG_HELP = {
+  "牛市进攻型": "沪深300滚动3个月涨幅超过5%的月份中，Top30月均超额收益相对更突出。",
+  "熊市防御型": "沪深300滚动3个月跌幅超过5%的月份中，Top30月均超额收益相对更突出。",
+  "震荡占优型": "沪深300滚动3个月涨跌在±5%以内的月份中，Top30月均超额收益相对更突出。",
+  "全天候型": "牛市、熊市、震荡三类环境中的相对优势都不突出；不代表无风险。",
+  "长期稳定型": "近12个月RankIC与全样本RankIC差异不超过±0.012，且全样本不属于低效。",
+  "近期转强": "近12个月RankIC均值比全样本RankIC均值高0.012以上。",
+  "近期转弱": "近12个月RankIC均值比全样本RankIC均值低0.012以上，但近期RankIC仍高于低效阈值。",
+  "近期失效": "近12个月RankIC均值明显低于全样本，且近期RankIC已接近或低于低效阈值。",
+  "持续低效": "全样本与近12个月RankIC都接近0，历史排序信息较弱。"
+};
+
+function tagHelpText(tag) {
+  return TAG_HELP[tag] || "辅助标签仅用于快速筛选，需结合RankIC、IC_IR、收益、回撤、换手和样本月数复核。";
+}
 
 // 构建标签筛选 chip（点击切换；多选为「与」关系）。绑定一次。
 let _tagFilterBound = false;
@@ -4532,7 +4550,7 @@ function buildTagFilters() {
   if (_tagFilterBound) return;
   const box = document.getElementById("rank-tag-filters");
   box.innerHTML = [...ENV_TAGS, ...TIME_TAGS]
-    .map(t => `<span class="ftag ftag-${t} tagfilter" data-tag="${t}">${t}</span>`).join(" ");
+    .map(t => `<span class="ftag ftag-${t} tagfilter" data-tag="${t}" title="${htmlAttr(tagHelpText(t))}">${t}</span>`).join(" ");
   box.querySelectorAll(".tagfilter").forEach(el => {
     el.onclick = () => {
       const t = el.dataset.tag;

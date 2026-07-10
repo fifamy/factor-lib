@@ -178,8 +178,16 @@ table.rank-table td.score-cell { font-weight: 600; color: #1a4d80; }
 .rank-guide-item { background: #fff; border: 1px solid #e7edf3; border-radius: 5px; padding: 8px 9px; }
 .rank-guide-item b { display: block; color: #1a4d80; margin-bottom: 4px; }
 .rank-guide-note { color: #6b7280; margin-top: 8px; }
+.rank-explainer { margin-top: 8px; color: #4b5563; font-size: 11px; }
+.rank-explainer summary { cursor: pointer; color: #1a4d80; font-weight: 700; width: fit-content; }
+.rank-explainer-body { margin-top: 6px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 9px 10px; background: #f7f9fb; border: 1px solid #e1e6ec; border-radius: 5px; line-height: 1.65; }
+.rank-explainer-section { background: #fff; border: 1px solid #e7edf3; border-radius: 5px; padding: 8px 9px; }
+.rank-explainer-section b { display: block; color: #1a4d80; margin-bottom: 4px; }
+.rank-explainer-section p { margin: 0; }
+.rank-explainer-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
 /* 因子标签 chip */
 .ftag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; line-height: 1.5; white-space: nowrap; }
+.ftag[title] { cursor: help; }
 .ftag-牛市进攻型 { background: #fde2e1; color: #c0392b; }
 .ftag-熊市防御型 { background: #dde8f5; color: #1a4d80; }
 .ftag-全天候型 { background: #ddf0e0; color: #2e7d4f; }
@@ -315,6 +323,7 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
   .validation-grid { grid-template-columns: 1fr; }
   .combo-validation-grid { grid-template-columns: 1fr; }
   .rank-guide-grid { grid-template-columns: 1fr; }
+  .rank-explainer-body { grid-template-columns: 1fr; }
   .guide-grid { grid-template-columns: 1fr; }
   .combo-crowding-grid { grid-template-columns: 1fr; }
   .combo-parameter-grid { grid-template-columns: 1fr; }
