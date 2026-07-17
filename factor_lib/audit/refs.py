@@ -121,10 +121,20 @@ def _mom12_1(win, ctx):
     log_ret = np.diff(np.log(recent))      # 252 个
     window = 252 - 21                      # 231
     window_ret = log_ret[:window]          # [t-252, t-22]
-    k = np.arange(window)
+    v = float(np.sum(window_ret))
+    return v, [f"窗口[t-252,t-22] 等权累计对数收益 = {v:.6f}"]
+
+
+@_ref("RSTR252")
+def _rstr252(win, ctx):
+    p = _adjclose(win)
+    if len(p) < 253:
+        return None, []
+    window_ret = np.diff(np.log(p[-253:]))[:231]
+    k = np.arange(231)
     w = 0.5 ** (k / 126)
     w = w / w.sum()
-    v = float(np.sum(window_ret * w[::-1]))  # 越近权重越大
+    v = float(np.sum(window_ret * w[::-1]))
     return v, [f"窗口[t-252,t-22] 半衰期126加权累计对数收益 = {v:.6f}"]
 
 
@@ -160,9 +170,9 @@ def _maxdd1y(win, ctx):
     if len(p) < 252:
         return None, []
     s = p[-252:]
-    dd = s / np.maximum.accumulate(s) - 1.0
-    v = float(dd.min())
-    return v, [f"min(P/cummax(P)-1, 252) = {v:.6f}"]
+    dd = 1.0 - s / np.maximum.accumulate(s)
+    v = float(dd.max())
+    return v, [f"max(1-P/cummax(P), 252) = {v:.6f}"]
 
 
 @_ref("RETSKEW")
@@ -220,10 +230,12 @@ def _volume20(win, ctx):
     if win.height < 20:
         return None, []
     w = win.tail(20)
-    a = w["amount"].to_numpy().astype(float)
-    c = w["adj_close"].to_numpy().astype(float)
-    v = float((a / c).mean())
-    return v, [f"mean(amount/adj_close,20) = {v:.6f}"]
+    volume = w["volume"].to_numpy().astype(float)
+    volume = volume[np.isfinite(volume) & (volume > 0)]
+    if len(volume) < 15:
+        return None, []
+    v = float(volume.mean())
+    return v, [f"mean(S_DQ_VOLUME,20) = {v:.6f}"]
 
 
 @_ref("TURN20")
@@ -255,16 +267,16 @@ def _stom(win, ctx):
 # ---------- 流动性·扩充 (market_extra) ----------
 @_ref("AMTVOL")
 def _amtvol(win, ctx):
-    """近60日成交额变异系数 std/mean (ddof=1)。"""
-    h = _market_extra_hist(win, 60, ctx)
-    if h.height < 40:
+    """近20日成交额变异系数std/mean (ddof=1)。"""
+    h = _market_extra_hist(win, 20, ctx)
+    if h.height < 15:
         return None, []
     a = h["amount"].to_numpy().astype(float)
     mu = a.mean()
     if mu <= 0:
         return None, []
     v = float(np.std(a, ddof=1) / mu)
-    return v, [f"std(amount,60)/mean(amount,60) = {v:.6f}"]
+    return v, [f"std(amount,20)/mean(amount,20) = {v:.6f}"]
 
 
 @_ref("TURNVOL")
@@ -290,53 +302,55 @@ def _turnpctl(win, ctx):
 
 @_ref("PVCORR")
 def _pvcorr(win, ctx):
-    """近60日 日对数收益 与 成交额 的相关系数。
-
-    生产用 _hist(60)：ret 对齐到这 60 天（首日 ret 用窗口外缓冲日算），amount 同 60 天。
-    取 win=61 → r=diff(log(P)) 长 60，对齐 amount[1:]（同样 60 天）。
-    """
+    """近60日日对数收益与实际成交量对数变化的相关系数。"""
     if win.height < 61:
         return None, []
     w = win.tail(61)
     p = w["adj_close"].to_numpy().astype(float)
-    a = w["amount"].to_numpy().astype(float)
-    r = np.diff(np.log(p))   # 60 个，对齐 a[1:]
-    a = a[1:]
-    if np.std(r) == 0 or np.std(a) == 0:
+    volume = w["volume"].to_numpy().astype(float)
+    log_price = np.full_like(p, np.nan)
+    log_volume = np.full_like(volume, np.nan)
+    np.log(p, out=log_price, where=np.isfinite(p) & (p > 0))
+    np.log(volume, out=log_volume, where=np.isfinite(volume) & (volume > 0))
+    r = np.diff(log_price)
+    volume_change = np.diff(log_volume)
+    valid = np.isfinite(r) & np.isfinite(volume_change)
+    r = r[valid]
+    volume_change = volume_change[valid]
+    if len(r) < 40 or np.std(r) == 0 or np.std(volume_change) == 0:
         return None, []
-    v = float(np.corrcoef(r, a)[0, 1])
-    return v, [f"corr(日对数收益, 成交额, 60) = {v:.6f}"]
+    v = float(np.corrcoef(r, volume_change)[0, 1])
+    return v, [f"corr(日对数收益, 成交量对数变化, 60) = {v:.6f}"]
 
 
 @_ref("UPVOLRATIO")
 def _upvolratio(win, ctx):
-    """近60日上涨日成交额占比：上涨日(r>0)成交额 / 全部成交额。"""
-    if win.height < 61:
+    """近20日上涨日成交额占比：上涨日(r>0)成交额/全部成交额。"""
+    if win.height < 21:
         return None, []
-    w = win.tail(61)
+    w = win.tail(21)
     p = w["adj_close"].to_numpy().astype(float)
     a = w["amount"].to_numpy().astype(float)
-    r = np.diff(np.log(p))   # 60 个，对齐 a[1:]
+    r = np.diff(np.log(p))
     a = a[1:]
     tot = a.sum()
     if tot <= 0:
         return None, []
     v = float(a[r > 0].sum() / tot)
-    return v, [f"上涨日成交额占比(60d) = {v:.6f}"]
+    return v, [f"上涨日成交额占比(20d) = {v:.6f}"]
 
 
 @_ref("ABTURN")
 def _abturn(win, ctx):
-    """异常换手率：近5日均换手 / 近60日均换手 − 1。"""
+    """异常换手率：当日换手率相对近60日的Z分数。"""
     if win.height < 60:
         return None, []
     t = _turnover(win.tail(60))
-    t5 = t[-5:].mean()
-    t60 = t.mean()
-    if t60 <= 0:
+    sd = np.std(t, ddof=1)
+    if not np.isfinite(sd) or sd <= 0:
         return None, []
-    v = float(t5 / t60 - 1.0)
-    return v, [f"mean(turnover,5)/mean(turnover,60)-1 = {v:.6f}"]
+    v = float((t[-1] - np.mean(t)) / sd)
+    return v, [f"(turnover_t-mean(turnover,60))/std(turnover,60) = {v:.6f}"]
 
 
 @_ref("HIGHMOMTURN")
@@ -373,15 +387,57 @@ def _highmomturn(win, ctx):
 # ---------- 均值回复 (market_extra) ----------
 @_ref("PRICEZ")
 def _pricez(win, ctx):
-    """价格 Zscore：(P_t − mean(P,60)) / std(P,60), ddof=1。"""
-    if win.height < 60:
+    """价格Zscore：(P_t-mean(P,20))/std(P,20), ddof=1。"""
+    if win.height < 20:
         return None, []
-    p = win.tail(60)["adj_close"].to_numpy().astype(float)
+    p = win.tail(20)["adj_close"].to_numpy().astype(float)
     sd = np.std(p, ddof=1)
     if sd == 0:
         return None, []
     v = float((p[-1] - p.mean()) / sd)
-    return v, [f"(P_t - mean(P,60)) / std(P,60) = {v:.6f}"]
+    return v, [f"(P_t-mean(P,20))/std(P,20) = {v:.6f}"]
+
+
+@_ref("AROON")
+def _aroon(win, ctx):
+    if win.height < 25:
+        return None, []
+    w = win.tail(25)
+    high = w["high"].to_numpy().astype(float)
+    low = w["low"].to_numpy().astype(float)
+    if not np.isfinite(high).all() or not np.isfinite(low).all():
+        return None, []
+    up = (int(np.argmax(high)) + 1) * 4.0
+    down = (int(np.argmin(low)) + 1) * 4.0
+    v = float(up - down)
+    return v, [f"AroonUp(25)-AroonDown(25) = {v:.6f}"]
+
+
+@_ref("MFLOW20")
+def _mflow20(win, ctx):
+    if win.height < 20:
+        return None, []
+    w = win.tail(20)
+    close = w["close"].to_numpy().astype(float)
+    high = w["high"].to_numpy().astype(float)
+    low = w["low"].to_numpy().astype(float)
+    volume = w["volume"].to_numpy().astype(float)
+    if not all(np.isfinite(x).all() for x in [close, high, low, volume]):
+        return None, []
+    v = float(np.sum(((close + high + low) / 3.0) * volume * 100.0))
+    return v, [f"sum(typical_price*volume*100,20) = {v:.6f}"]
+
+
+@_ref("RVI")
+def _rvi(win, ctx):
+    if win.height < 1:
+        return None, []
+    row = win.tail(1).row(0, named=True)
+    values = [row.get(c) for c in ["open", "high", "low", "close"]]
+    if any(v is None or not np.isfinite(v) for v in values) or row["high"] <= row["low"]:
+        return None, []
+    v = float((row["close"] - row["open"]) / (row["high"] - row["low"]))
+    return v, [f"(close-open)/(high-low) = {v:.6f}"]
 
 
 @_ref("MA20BIAS")

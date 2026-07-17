@@ -1,0 +1,700 @@
+{
+  "version": 1,
+  "generated_at": "2026-07-15 10:39:30+0800",
+  "summary": {
+    "target_count": 35,
+    "dictionary_missing_count": 0,
+    "local_available_count": 25,
+    "download_count": 10,
+    "blocking_download_count": 3,
+    "optional_download_count": 7
+  },
+  "targets": [
+    {
+      "factor_codes": [
+        "BETA",
+        "RELRET60"
+      ],
+      "table_name": "AIndexEODPrices",
+      "field_name": "S_DQ_CLOSE",
+      "purpose": "复算全A或指定宽基指数收益作为候选市场基准",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/index_prices_ext.parquet",
+      "local_field": "S_DQ_CLOSE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "收盘价(元)",
+      "dictionary_description": "该证券在当日交易结束时的最后一笔成交价格；若无成交，则以前一笔价格为准。回购的量纲为%，指数无量纲。",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "ARRATIO"
+      ],
+      "table_name": "AShareBalanceSheet",
+      "field_name": "ACCT_RCV",
+      "purpose": "按应收账款与应收票据分项构造应收款项",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/balance_statement_ext.parquet",
+      "local_field": "ACCT_RCV",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "应收账款(元)",
+      "dictionary_description": "因销售活动或提供劳务而形成的债权；指企业在正常的经营过程中因销售商品、产品、提供劳务等业务，应向购买单位收取的款项，包括应由购买单位或接受劳务单位负担的税金、代购买方垫付的各种运杂费等；",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "ARRATIO"
+      ],
+      "table_name": "AShareBalanceSheet",
+      "field_name": "NOTES_RCV",
+      "purpose": "按应收账款与应收票据分项构造应收款项",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/balance_statement_ext.parquet",
+      "local_field": "NOTES_RCV",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "应收票据(元)",
+      "dictionary_description": "一般指的是一年以内（含一年）的短期应收取的票据；指由付款人或收款人签发、由付款人承兑、到期无条件付款的一种书面凭证；",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "ARRATIO"
+      ],
+      "table_name": "AShareBalanceSheet",
+      "field_name": "ACCOUNTS_RECEIVABLE_BILL",
+      "purpose": "下载应收票据及应收账款合计字段，与现有分项求和独立对账",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/balance_statement_ext.parquet",
+      "local_field": "ACCOUNTS_RECEIVABLE_BILL",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "应收票据及应收账款(元)",
+      "dictionary_description": "应收票据与应收账款合计；反映资产负债表日以摊余成本计量的、企业因销售商品、提供服务等经营活动应收取的款项，以及收到的商业汇票，包括银行承兑汇票和商业承兑汇票该项目应根据“应收票据”和“应收账款”科目的期末余额，减去“坏账准备”科目中相关坏账准备期末余额后的金额填列；",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "CFOGROWTH"
+      ],
+      "table_name": "PITFinancialFactor",
+      "field_name": "S_DFA_TTMGROWRATE_CFOTT",
+      "purpose": "当前PIT现金流同比因子原值",
+      "requirement": "ready",
+      "local_path": "资料/pit_financial.csv",
+      "local_field": "S_DFA_TTMGROWRATE_CFOTT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "增长率-经营活动产生的现金流量净额（TTM)(%)",
+      "dictionary_description": "(本期CFO(TTM)-上年同期CFO(TTM))/ABS(上年同期CFO(TTM))*100",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "CFOGROWTH"
+      ],
+      "table_name": "AShareCashFlow",
+      "field_name": "NET_CASH_FLOWS_OPER_ACT",
+      "purpose": "使用现金流量表累计原值构造TTM并自行计算同比，与Wind PIT增速对账",
+      "requirement": "blocking",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/cashflow_statement_ext.parquet",
+      "local_field": "NET_CASH_FLOWS_OPER_ACT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "经营活动产生的现金流量净额(元)",
+      "dictionary_description": "与经营活动相关的现金流量的净增加或减少的金额；是指企业与经营活动有关的现金流入金额减去现金流出净额；",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "DIVGROWTH",
+        "DIVPAYOUT",
+        "DIVSTREAK"
+      ],
+      "table_name": "AShareDividend",
+      "field_name": "TOT_CASH_DVD",
+      "purpose": "计算年度现金分红增长、分红率和连续分红年数",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/dividend_ext.parquet",
+      "local_field": "TOT_CASH_DVD",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "现金分红总额(元)",
+      "dictionary_description": "上市公司分红公告披露的不含其他方式（比如股份回购）的现金分红总额，含税",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "FWDPE"
+      ],
+      "table_name": "AShareConsensusRollingData",
+      "field_name": "EST_PE",
+      "purpose": "使用FTTM一致预期PE，对应人工建议s_val_estpe",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_42_missing_processed/parquet/consensus_rolling_ext.parquet",
+      "local_field": "EST_PE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "市盈率(倍)",
+      "dictionary_description": "当日收盘价*预测基准股本综合值/一致预测净利润（若当日未非工作日，未有收盘价，则为空",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "GOODWILLRATIO"
+      ],
+      "table_name": "AShareBalanceSheet",
+      "field_name": "GOODWILL",
+      "purpose": "计算商誉占总资产比例",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/balance_statement_ext.parquet",
+      "local_field": "GOODWILL",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "商誉(元)",
+      "dictionary_description": "企业在同等条件下，等获得高于正常投资报酬率所形成的价值；指企业在同等条件下，能获得高于正常投资报酬率所形成的价值；",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "IMPAIRRISK"
+      ],
+      "table_name": "PITFinancialFactor",
+      "field_name": "S_DFA_IMPAIRTOGR_TTM",
+      "purpose": "使用PIT资产减值损失占营业收入比",
+      "requirement": "ready",
+      "local_path": "资料/pit_financial.csv",
+      "local_field": "S_DFA_IMPAIRTOGR_TTM",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "资产减值损失/营业总收入(TTM)(%)",
+      "dictionary_description": "资产减值损失占营业总收入的比重，反映企业资产减值损失的整体情况(TTM)",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "LEVERAGE"
+      ],
+      "table_name": "PITFinancialFactor",
+      "field_name": "S_DFA_DEBTTOASSET",
+      "purpose": "使用PIT资产负债率",
+      "requirement": "ready",
+      "local_path": "资料/pit_financial.csv",
+      "local_field": "S_DFA_DEBTTOASSET",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "资产负债率(MRQ)(%)",
+      "dictionary_description": "截止指定日已披露的最新报告期数据",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "OPGROWTH"
+      ],
+      "table_name": "PITFinancialFactor",
+      "field_name": "S_DFA_TTMGROWRATE_OP",
+      "purpose": "当前PIT营业利润同比因子原值",
+      "requirement": "ready",
+      "local_path": "资料/pit_financial.csv",
+      "local_field": "S_DFA_TTMGROWRATE_OP",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "增长率-营业利润(TTM)(%)",
+      "dictionary_description": "(本期营业利润(TTM)-上年同期营业利润(TTM))/ABS(上年同期营业利润(TTM))*100",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "OPGROWTH"
+      ],
+      "table_name": "PITFinancialFactor",
+      "field_name": "S_DFA_OP_TTM",
+      "purpose": "下载PIT营业利润TTM原值后自行计算同比，与Wind已算增速对账",
+      "requirement": "blocking",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/pit_financial_ext.parquet",
+      "local_field": "S_DFA_OP_TTM",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "营业利润(TTM)(元)",
+      "dictionary_description": "前推12个月营业利润",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "RDEXPRATIOCHG"
+      ],
+      "table_name": "AShareFinancialIndicator",
+      "field_name": "RD_EXPENSE",
+      "purpose": "构造研发费用TTM占营业收入比的同比变化",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_42_missing_processed/parquet/financial_indicator_ext.parquet",
+      "local_field": "RD_EXPENSE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "研发费用(元)",
+      "dictionary_description": "企业研究与开发某项目所支付的费用；研发费用是指研究与开发某项目所支付的费用；",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "BUYBACKRATIO"
+      ],
+      "table_name": "AshareStockRepo",
+      "field_name": "AMT",
+      "purpose": "构造人工建议的区间回购金额除以流通市值候选口径",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/buyback_ext.parquet",
+      "local_field": "AMT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "回购金额(元)",
+      "dictionary_description": "实施证券回购所支付的金额；回购预计使用总金额；截止日实际回购使用的总金额；",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "BUYBACKRATIO"
+      ],
+      "table_name": "AshareStockRepo",
+      "field_name": "TOTAL_SHARE_RATIO",
+      "purpose": "当前回购股数占总股本比例口径",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/buyback_ext.parquet",
+      "local_field": "TOTAL_SHARE_RATIO",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "回购股数占总股本比例(%)",
+      "dictionary_description": "实施证券回购所涉及的股份数量占本公司总股本的比例；预计回购股份总数占当前上市公司总股本的比例；截止日实际回购总数量占当前上市公司总股本的比例；",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "BUYBACKRATIO"
+      ],
+      "table_name": "AshareStockRepo",
+      "field_name": "EXP_AMOUNTMIN",
+      "purpose": "识别仅披露预案但尚未实施的预计回购金额下限",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/buyback_ext.parquet",
+      "local_field": "EXP_AMOUNTMIN",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "预计回购金额下限(元)",
+      "dictionary_description": "预计本次事件回购所使用金额的最小值",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "BUYBACKRATIO"
+      ],
+      "table_name": "AshareStockRepo",
+      "field_name": "EXP_AMOUNTMAX",
+      "purpose": "识别仅披露预案但尚未实施的预计回购金额上限",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/buyback_ext.parquet",
+      "local_field": "EXP_AMOUNTMAX",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "预计回购金额上限(元)",
+      "dictionary_description": "预计本次事件回购所使用金额的最大值",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "EXECHOLDERCHG",
+        "MAJORHOLDERCHG"
+      ],
+      "table_name": "AShareMjrHolderTrade",
+      "field_name": "AVG_PRICE",
+      "purpose": "将增减持数量转为交易金额，对应人工提到的增减持价格",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/holder_trade_ext.parquet",
+      "local_field": "AVG_PRICE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "平均价格(元)",
+      "dictionary_description": "记录持有人增减持的平均价格",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "EXECHOLDERCHG",
+        "MAJORHOLDERCHG"
+      ],
+      "table_name": "AShareMjrHolderTrade",
+      "field_name": "TRANSACT_QUANTITY",
+      "purpose": "构造增减持交易金额",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/holder_trade_ext.parquet",
+      "local_field": "TRANSACT_QUANTITY",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "变动数量(股/张)",
+      "dictionary_description": "记录持有人增减持变动的数量",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "FINRESTATEMENT"
+      ],
+      "table_name": "AShareAccountingChange",
+      "field_name": "S_CHANGE_ITEMCODE",
+      "purpose": "识别前期差错更正和追溯调整事件",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/accounting_change_ext.parquet",
+      "local_field": "S_CHANGE_ITEMCODE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "变更项目代码",
+      "dictionary_description": "可关联AShareTypeCode获取代码对应名称",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "INCENTIVESIZE"
+      ],
+      "table_name": "AShareIncDescription",
+      "field_name": "INC_NUMBERS_RATE",
+      "purpose": "当前股权激励数量占总股本比例口径",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/equity_incentive_ext.parquet",
+      "local_field": "INC_NUMBERS_RATE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "激励数量占当前总股本比例(%)",
+      "dictionary_description": "上市公司在股权激励授予的股票/期权总量占总股本的百分比",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "INCENTIVESIZE"
+      ],
+      "table_name": "AShareIncQuantityDetails",
+      "field_name": "S_INC_RATIO_TO_TOTALSHARES",
+      "purpose": "用激励对象明细的占总股本比例对账计划层比例",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/equity_incentive_detail_ext.parquet",
+      "local_field": "S_INC_RATIO_TO_TOTALSHARES",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "占本次授予时公司总股本比例",
+      "dictionary_description": "%",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "PUNISHAMT"
+      ],
+      "table_name": "AShareIllegality",
+      "field_name": "AMOUNT",
+      "purpose": "计算区间违规处罚金额，对应人工建议s_cac_illegalityamoun",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/risk_illegality_ext.parquet",
+      "local_field": "AMOUNT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "处罚金额(元)",
+      "dictionary_description": "",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "PUNISHAMT"
+      ],
+      "table_name": "AShareIllegality",
+      "field_name": "ILLEG_TYPE_CODE",
+      "purpose": "区分违规事件类型",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/risk_illegality_ext.parquet",
+      "local_field": "ILLEG_TYPE_CODE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "违规类型代码",
+      "dictionary_description": "违规行为的类别代码，包括业绩预测结果不准确或不及时、信息披露虚假或严重误导性陈述、未依法履行其他职责、未及时披露公司重大事项、未按时披露定期报告",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "PUNISHAMT"
+      ],
+      "table_name": "AShareIllegality",
+      "field_name": "IS_FINALPUNISHMENT",
+      "purpose": "只统计最终处罚，避免预处罚与最终处罚重复",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/risk_illegality_ext.parquet",
+      "local_field": "IS_FINALPUNISHMENT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "是否最终处罚",
+      "dictionary_description": "1或空是被最终处罚，0是未被最终处罚",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "PUNISHAMT"
+      ],
+      "table_name": "AShareIllegality",
+      "field_name": "VIOLATION_ID",
+      "purpose": "按违规事件ID去除多主体重复记录",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/risk_illegality_ext.parquet",
+      "local_field": "VIOLATION_ID",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "违规事件ID",
+      "dictionary_description": "用来关联同一违规事件下的不同违规主体，一个事件有一个违规事件ID，唯一且不重复，违规事件ID的格式为“YYMMDD+英文字母(AC)+顺序号”",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "RISKINVESTCNT"
+      ],
+      "table_name": "AShareRegInv",
+      "field_name": "STR_ANNDATE",
+      "purpose": "统计窗口内立案调查开始公告",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/risk_investigation_ext.parquet",
+      "local_field": "STR_ANNDATE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "开始公告日期",
+      "dictionary_description": "",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "UNLOCKMVRATIO",
+        "UNLOCKPRESS"
+      ],
+      "table_name": "AShareCompRestricted",
+      "field_name": "S_INFO_LISTDATE",
+      "purpose": "确定未来窗口内的实际解禁日期",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/unlock_ext.parquet",
+      "local_field": "S_INFO_LISTDATE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "可流通日期",
+      "dictionary_description": "本次发行的股票可以上市进行买卖流通的日期",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "UNLOCKMVRATIO",
+        "UNLOCKPRESS"
+      ],
+      "table_name": "AShareCompRestricted",
+      "field_name": "S_SHARE_LST",
+      "purpose": "计算未来窗口解禁股份数量",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/unlock_ext.parquet",
+      "local_field": "S_SHARE_LST",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "可流通数量(股)",
+      "dictionary_description": "只适用于股票，默认等于获配数量，当获配股份在可流通前发生送转股事件时，等于送转股后的股数，在获配股份流通后不再维护",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "UNLOCKMVRATIO",
+        "UNLOCKPRESS"
+      ],
+      "table_name": "AShareCompRestricted",
+      "field_name": "ANN_DT",
+      "purpose": "确保只使用月末前已公告的未来解禁计划，防止未来信息泄漏",
+      "requirement": "blocking",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/unlock_ext.parquet",
+      "local_field": "ANN_DT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "公告日期",
+      "dictionary_description": "公告发布日期",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "UNLOCKMVRATIO"
+      ],
+      "table_name": "AShareFreeFloat",
+      "field_name": "S_SHARE_FREESHARES",
+      "purpose": "解禁数量除以当时点自由流通股本",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/free_float_ext.parquet",
+      "local_field": "S_SHARE_FREESHARES",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "自由流通股本(万股)",
+      "dictionary_description": "经流通股本扣除包括股东持有等其他应扣除股份后得到的股份数目；剔除不流通股份，以及由于战略持股形式或其他原始导致的基本不流通的股份，剩余的股份数；",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "REV1M"
+      ],
+      "table_name": "AShareEODPrices",
+      "field_name": "S_DQ_OPEN",
+      "purpose": "新增隔夜反转和日内反转候选因子",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/price_ext.parquet",
+      "local_field": "S_DQ_OPEN",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "开盘价(元)",
+      "dictionary_description": "是当日股票交易价格的第一个价格，如果当日集合竞价没有成交，就以上一日的收盘价为当日的开盘价；当前基金在交易所当天的开盘价；交易当天的开盘成交价格，回购的量纲为%，指数无量纲；",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "REPORTSURPRISE"
+      ],
+      "table_name": "AShareEODPrices",
+      "field_name": "S_DQ_CLOSE",
+      "purpose": "计算财报公告后价格反应作为独立后事件信号",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/price_ext.parquet",
+      "local_field": "S_DQ_CLOSE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "收盘价(元)",
+      "dictionary_description": "当日股票交易价格的最后一个价格，如果收盘集中竞价没有价格，就以上一笔价格为当日收盘价格；当前基金在交易所当天的收盘价；交易当天的收盘成交价格，回购的量纲为%，指数无量纲；",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "REPORTSURPRISE"
+      ],
+      "table_name": "AShareConsensusRollingData",
+      "field_name": "NET_PROFIT",
+      "purpose": "计算财报前后分析师预期修正作为独立后事件信号",
+      "requirement": "ready",
+      "local_path": "资料/word_only_factor_data_42_missing_processed/parquet/consensus_rolling_ext.parquet",
+      "local_field": "NET_PROFIT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "净利润(万元)",
+      "dictionary_description": "取综合值周期时间范围内（180），同一报告期同一机构只取最新预测净利润EST_NET_PROFIT，若最新预测净利润为空，取预测净利润（换算）S_EST_NPCAL，取综合值计算标记（中国A股盈利预测明细）为1，算数平均得到",
+      "local_status": "available"
+    }
+  ],
+  "download_list": [
+    {
+      "factor_codes": [
+        "ARRATIO"
+      ],
+      "table_name": "AShareBalanceSheet",
+      "field_name": "ACCOUNTS_RECEIVABLE_BILL",
+      "purpose": "下载应收票据及应收账款合计字段，与现有分项求和独立对账",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/balance_statement_ext.parquet",
+      "local_field": "ACCOUNTS_RECEIVABLE_BILL",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "应收票据及应收账款(元)",
+      "dictionary_description": "应收票据与应收账款合计；反映资产负债表日以摊余成本计量的、企业因销售商品、提供服务等经营活动应收取的款项，以及收到的商业汇票，包括银行承兑汇票和商业承兑汇票该项目应根据“应收票据”和“应收账款”科目的期末余额，减去“坏账准备”科目中相关坏账准备期末余额后的金额填列；",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "CFOGROWTH"
+      ],
+      "table_name": "AShareCashFlow",
+      "field_name": "NET_CASH_FLOWS_OPER_ACT",
+      "purpose": "使用现金流量表累计原值构造TTM并自行计算同比，与Wind PIT增速对账",
+      "requirement": "blocking",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/cashflow_statement_ext.parquet",
+      "local_field": "NET_CASH_FLOWS_OPER_ACT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "经营活动产生的现金流量净额(元)",
+      "dictionary_description": "与经营活动相关的现金流量的净增加或减少的金额；是指企业与经营活动有关的现金流入金额减去现金流出净额；",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "OPGROWTH"
+      ],
+      "table_name": "PITFinancialFactor",
+      "field_name": "S_DFA_OP_TTM",
+      "purpose": "下载PIT营业利润TTM原值后自行计算同比，与Wind已算增速对账",
+      "requirement": "blocking",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/pit_financial_ext.parquet",
+      "local_field": "S_DFA_OP_TTM",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "营业利润(TTM)(元)",
+      "dictionary_description": "前推12个月营业利润",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "BUYBACKRATIO"
+      ],
+      "table_name": "AshareStockRepo",
+      "field_name": "EXP_AMOUNTMIN",
+      "purpose": "识别仅披露预案但尚未实施的预计回购金额下限",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/buyback_ext.parquet",
+      "local_field": "EXP_AMOUNTMIN",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "预计回购金额下限(元)",
+      "dictionary_description": "预计本次事件回购所使用金额的最小值",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "BUYBACKRATIO"
+      ],
+      "table_name": "AshareStockRepo",
+      "field_name": "EXP_AMOUNTMAX",
+      "purpose": "识别仅披露预案但尚未实施的预计回购金额上限",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/buyback_ext.parquet",
+      "local_field": "EXP_AMOUNTMAX",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "预计回购金额上限(元)",
+      "dictionary_description": "预计本次事件回购所使用金额的最大值",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "INCENTIVESIZE"
+      ],
+      "table_name": "AShareIncQuantityDetails",
+      "field_name": "S_INC_RATIO_TO_TOTALSHARES",
+      "purpose": "用激励对象明细的占总股本比例对账计划层比例",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/equity_incentive_detail_ext.parquet",
+      "local_field": "S_INC_RATIO_TO_TOTALSHARES",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "占本次授予时公司总股本比例",
+      "dictionary_description": "%",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "PUNISHAMT"
+      ],
+      "table_name": "AShareIllegality",
+      "field_name": "ILLEG_TYPE_CODE",
+      "purpose": "区分违规事件类型",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/risk_illegality_ext.parquet",
+      "local_field": "ILLEG_TYPE_CODE",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "违规类型代码",
+      "dictionary_description": "违规行为的类别代码，包括业绩预测结果不准确或不及时、信息披露虚假或严重误导性陈述、未依法履行其他职责、未及时披露公司重大事项、未按时披露定期报告",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "PUNISHAMT"
+      ],
+      "table_name": "AShareIllegality",
+      "field_name": "IS_FINALPUNISHMENT",
+      "purpose": "只统计最终处罚，避免预处罚与最终处罚重复",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/risk_illegality_ext.parquet",
+      "local_field": "IS_FINALPUNISHMENT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "是否最终处罚",
+      "dictionary_description": "1或空是被最终处罚，0是未被最终处罚",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "PUNISHAMT"
+      ],
+      "table_name": "AShareIllegality",
+      "field_name": "VIOLATION_ID",
+      "purpose": "按违规事件ID去除多主体重复记录",
+      "requirement": "optional",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/risk_illegality_ext.parquet",
+      "local_field": "VIOLATION_ID",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "违规事件ID",
+      "dictionary_description": "用来关联同一违规事件下的不同违规主体，一个事件有一个违规事件ID，唯一且不重复，违规事件ID的格式为“YYMMDD+英文字母(AC)+顺序号”",
+      "local_status": "missing"
+    },
+    {
+      "factor_codes": [
+        "UNLOCKMVRATIO",
+        "UNLOCKPRESS"
+      ],
+      "table_name": "AShareCompRestricted",
+      "field_name": "ANN_DT",
+      "purpose": "确保只使用月末前已公告的未来解禁计划，防止未来信息泄漏",
+      "requirement": "blocking",
+      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/unlock_ext.parquet",
+      "local_field": "ANN_DT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "公告日期",
+      "dictionary_description": "公告发布日期",
+      "local_status": "missing"
+    }
+  ]
+}

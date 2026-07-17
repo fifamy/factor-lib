@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>因子核对 · 因子库 v1.1.0</title>
+  <title>因子核对 · 因子库 v1.4.0</title>
   <link rel="stylesheet" href="vendor/katex.min.css">
-  <link rel="stylesheet" href="factor_audit.css?v=20260710171709">
+  <link rel="stylesheet" href="factor_audit.css?v=20260717112003">
 </head>
 <body>
   <header class="fa-header">
@@ -30,6 +30,11 @@
       <button data-filter="review_in_progress">进行中</button>
       <button data-filter="review_issue">有问题</button>
       <button data-filter="review_passed">通过</button>
+      <button data-filter="resolution_fixed">已修改</button>
+      <button data-filter="resolution_pending_technical">待技术</button>
+      <button data-filter="resolution_pending_data">待数据</button>
+      <button data-filter="resolution_pending_research">待研究</button>
+      <button data-filter="resolution_not_planned">已评估保留</button>
     </div>
     <input id="fa-search" type="search" placeholder="搜索 代码/名称/分类…">
     <label class="fa-reviewer-box">我是谁
@@ -44,7 +49,7 @@
   <main class="fa-main">
     <table id="fa-table" class="fa-table">
       <thead><tr>
-        <th>因子</th><th>分类</th><th>计算公式</th><th>样本空间</th><th>参数覆盖</th><th>复核状态</th><th class="fa-help" title="覆盖率 = 该因子有值的(股票×月末)格 ÷ 同期 Word 股票池。&#10;· 低于100%：多为事件因子(业绩快报)、数据起步晚、或需长历史窗口导致的正常缺失。&#10;· 高于100%：说明实际计算样本超出 Word 股票池，需要复核。&#10;判断『算得对不对』请看右侧『对账』列；覆盖率只反映因子铺得多广。">覆盖率 ⓘ</th><th>分布</th>
+        <th>因子</th><th>分类</th><th>计算公式</th><th>样本空间</th><th>参数覆盖</th><th>复核状态</th><th>处理状态</th><th class="fa-help" title="覆盖率 = 该因子有值的(股票×月末)格 ÷ 同期 Word 股票池。&#10;· 低于100%：多为事件因子(业绩快报)、数据起步晚、或需长历史窗口导致的正常缺失。&#10;· 高于100%：说明实际计算样本超出 Word 股票池，需要复核。&#10;判断『算得对不对』请看右侧『对账』列；覆盖率只反映因子铺得多广。">覆盖率 ⓘ</th><th>分布</th>
         <th>方向</th><th>对账</th><th>体检</th>
       </tr></thead>
       <tbody id="fa-tbody"></tbody>
@@ -55,6 +60,60 @@
         <button id="fa-export-reviews" class="fa-export-btn" type="button">导出 CSV</button>
       </div>
       <div id="fa-review-progress" class="fa-dashboard-card"></div>
+      <section class="fa-resolution-dashboard" aria-labelledby="fa-resolution-heading">
+        <div class="fa-resolution-dashboard-head">
+          <h3 id="fa-resolution-heading">本轮问题处理</h3>
+          <div id="fa-resolution-summary" class="fa-resolution-summary"></div>
+        </div>
+        <div class="fa-resolution-columns">
+          <div><h4>已修改</h4><div id="fa-resolution-fixed-list" class="fa-review-list"></div></div>
+          <div><h4>待完成</h4><div id="fa-resolution-open-list" class="fa-review-list"></div></div>
+          <div><h4>已评估保留现状</h4><div id="fa-resolution-retained-list" class="fa-review-list"></div></div>
+        </div>
+      </section>
+      <section class="fa-retained-review-audit" aria-labelledby="fa-retained-review-heading">
+        <div class="fa-retained-review-head">
+          <div>
+            <h3 id="fa-retained-review-heading">原55项人工问题复核明细</h3>
+            <span id="fa-retained-review-count" class="fa-retained-review-count"></span>
+          </div>
+          <input id="fa-retained-search" type="search" placeholder="筛选这55个因子…">
+        </div>
+        <div class="fa-retained-table-wrap">
+          <table class="fa-retained-table">
+            <thead><tr>
+              <th scope="col">当前状态</th>
+              <th scope="col">因子</th>
+              <th scope="col">人工发现问题</th>
+              <th scope="col">人工修改意见</th>
+              <th scope="col">核验结论与原因</th>
+              <th scope="col">处理与核心证据</th>
+            </tr></thead>
+            <tbody id="fa-retained-review-list"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="fa-retained-review-audit fa-variable-download-audit" aria-labelledby="fa-variable-download-heading">
+        <div class="fa-retained-review-head">
+          <div>
+            <h3 id="fa-variable-download-heading">候选变量下载清单</h3>
+            <span id="fa-variable-download-count" class="fa-retained-review-count"></span>
+          </div>
+        </div>
+        <div class="fa-retained-table-wrap">
+          <table class="fa-retained-table fa-variable-table">
+            <thead><tr>
+              <th scope="col">优先级</th>
+              <th scope="col">影响因子</th>
+              <th scope="col">Wind表</th>
+              <th scope="col">字段</th>
+              <th scope="col">字段含义</th>
+              <th scope="col">下载后处理</th>
+            </tr></thead>
+            <tbody id="fa-variable-download-list"></tbody>
+          </table>
+        </div>
+      </section>
       <div class="fa-dashboard-grid">
         <div class="fa-dashboard-card">
           <h3>按复核人</h3>
@@ -78,6 +137,6 @@
     </div>
   </div>
   <script src="vendor/katex.min.js"></script>
-  <script src="factor_audit.js?v=20260710171709"></script>
+  <script src="factor_audit.js?v=20260717112003"></script>
 </body>
 </html>

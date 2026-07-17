@@ -25,7 +25,7 @@ _DEFS = [
      "EP = TTM净利润 / 总市值（PE 的倒数）；越高越便宜。"),
     ("PE_DED",    "公司内生信息", "估值", -1, "扣非市盈率", "daily_valuation", "S_DFA_PETTM_DEDUCTED",
      "扣除非经常性损益后的 PE(TTM)；剔除一次性损益的估值。"),
-    ("EV2EBITDA", "公司内生信息", "估值", -1, "EV/EBITDA", "daily_valuation", "S_DFA_MVTOEBITDA",
+    ("EV2EBITDA", "公司内生信息", "估值", -1, "总市值/EBITDA", "daily_valuation", "S_DFA_MVTOEBITDA",
      "总市值 / EBITDA(TTM)；适合跨资本结构比较。"),
     # ---- 1.2 盈利能力类 ----
     ("ROE",       "公司内生信息", "盈利能力", 1, "净资产收益率", "pit_financial", "S_DFA_ROE_TTM",
@@ -64,13 +64,13 @@ _DEFS = [
     ("OCF2OI",    "公司内生信息", "盈利质量", 1, "现金流经营收益比", "pit_financial", "S_DFA_OCFTOOPERATEINCOME_TTM",
      "经营活动现金流净额 / 经营活动净收益；经营收益的现金支撑。"),
     # ---- 1.3 盈利质量（补充） ----
-    ("ACCRUAL",   "公司内生信息", "盈利质量", -1, "应计利润比", "pit_financial", "S_DFA_ACCA",
-     "现金流资产比(应计)=(经营现金流-净利润)×2/平均总资产；应计越高质量越差，故负向。"),
+    ("ACCRUAL",   "公司内生信息", "盈利质量", 1, "现金流资产比（负应计）", "pit_financial", "S_DFA_ACCA",
+     "现金流资产比=(经营现金流-净利润)×2/平均总资产；数值越高，盈利现金含量越好。"),
     ("IMPAIRRISK","公司内生信息", "财务稳健", -1, "减值风险", "pit_financial", "S_DFA_IMPAIRTOGR_TTM",
      "资产减值损失 / 营业总收入(TTM)；越高减值风险越大，故负向。"),
     # ---- 1.4 成长（补充） ----
-    ("GMGROWTH",  "公司内生信息", "成长", 1, "毛利率同比", "pit_financial", "S_DFA_TTMGROWRATE_GM",
-     "销售毛利率(TTM)同比变化。"),
+    ("GMGROWTH",  "公司内生信息", "成长", 1, "毛利率同比改善（百分点）", "pit_financial", "S_DFA_GROSSPROFITMARGIN_TTM",
+     "销售毛利率(TTM)相对12个月前同月的百分点变化。"),
     ("DEDNPGROWTH","公司内生信息", "成长", 1, "扣非净利同比", "financial_indicator", "S_FA_YOYNETPROFIT_DEDUCTED",
      "扣非归母净利润同比增速；剔除一次性损益的真实成长。"),
     ("EQGROWTH",  "公司内生信息", "成长", 1, "净资产增长率", "financial_indicator", "S_FA_YOYEQUITY",
@@ -119,12 +119,18 @@ _WIND_TABLE = {
 # 价格/盈利类估值比率：分母为负（亏损/负净资产/负现金流/负EBITDA）时，比率没有"便宜"含义，
 # 03_normalize 会把原始值 ≤0 置为缺失，避免亏损股被当成"超低估值"选进 top。
 _POSITIVE_ONLY = {"PE", "PB", "PS", "PE_DED", "EV2EBITDA", "PCF"}
+_TRANSFORMS = {"GMGROWTH": "yoy_diff_12m"}
 
 for code, l1, l2, direction, name_cn, sfile, sfield, desc in _DEFS:
     register_external(
         code=code, l1=l1, l2=l2, direction=direction, name_cn=name_cn,
         source_file=sfile, source_field=sfield, description=desc,
-        formula=f"{name_cn} = {_WIND_TABLE[sfile]}.{sfield}（Wind 已算好，月末截面取值）",
+        formula=(
+            "GMGROWTH = S_DFA_GROSSPROFITMARGIN_TTM_t - S_DFA_GROSSPROFITMARGIN_TTM_{t-12个月}"
+            if code == "GMGROWTH"
+            else f"{name_cn} = {_WIND_TABLE[sfile]}.{sfield}（Wind已算好，月末截面取值）"
+        ),
         wind_source=f"{_WIND_TABLE[sfile]}.{sfield}",
         positive_only=code in _POSITIVE_ONLY,
+        transform=_TRANSFORMS.get(code, "level"),
     )

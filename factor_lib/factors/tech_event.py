@@ -1,9 +1,9 @@
 """技术扩充 + 业绩快报事件类因子（本批新接入的 4 个 Wind CSV）。
 
-原始值来自 资料/download_more_factors.py 下载的 4 个 CSV，由 02f_load_more_factors.py 取值：
+大部分原始值来自资料/download_more_factors.py下载的Wind CSV，由02f_load_more_factors.py取值：
   revtech.csv   —— 收益风险技术（RevenueTechnicalFactor，TRADE_DT 月末直取）
   turntech.csv  —— 换手量价技术（TurnoverTechnicalFactor，TRADE_DT 月末直取）
-  mktderiv.csv  —— 市场衍生（MarketDerivativeFactor，趋势/资金/偏度，TRADE_DT 月末直取）
+  mktderiv.csv  —— 市场衍生（仅保留股价偏度月末直取；AROON/MFLOW20/RVI由日行情回算）
   profitexpress.csv —— 业绩快报（AShareProfitExpress，已 PIT as-of 对齐月末）→ 事件驱动
 
 取值方式（transform）：
@@ -15,7 +15,11 @@
 """
 from __future__ import annotations
 
-from factor_lib.registry import register_external
+from datetime import date
+
+import polars as pl
+
+from factor_lib.registry import factor, register_external
 
 # (code, l1, l2, direction, name_cn, source_file, source_field, transform, description)
 _DEFS = [
@@ -38,19 +42,8 @@ _DEFS = [
     ("TURNVOL20", "市场交易信息", "量价技术", -1, "换手率波动(20D)", "turntech", "S_TECH_TURNOVERRATEVOL20", "level",
      "换手率相对波动率；换手不稳定=交易结构不稳，故负向。"),
     # ============ mktderiv：市场衍生（市场交易信息·趋势资金）============
-    # 注：mktderiv（MarketDerivativeFactor）这 4 个 Wind 字段仅自 2022-10 起有全市场覆盖，
-    #     之前月份近乎空（单股），故有效历史约 3 年、IC 样本偏少、IC_IR 噪声较大。
-    ("MFLOW20",  "市场交易信息", "趋势资金", -1, "资金流量(20D)", "mktderiv", "S_TECH_MONEYFLOW20", "level",
-     "近20日资金流量指标；A股实测近期资金大幅流入者后续收益偏低（追高反转），按 RankIC 取负向。"
-     "（Wind 该表自 2022-10 起才有全市场覆盖，有效历史约 3 年。）"),
-    ("AROON",    "市场交易信息", "趋势资金", -1, "阿隆趋势", "mktderiv", "S_TECH_AROON", "level",
-     "Aroon 趋势指标；实测上行趋势强者后续收益偏低（动量反转），按 RankIC 取负向。"
-     "（Wind 该表自 2022-10 起才有全市场覆盖，有效历史约 3 年。）"),
     ("PSKEW",    "市场交易信息", "趋势资金", -1, "股价偏度", "mktderiv", "S_TECH_SKEWNESS", "level",
      "股价收益偏度；正偏=彩票偏好，历史上对应未来低收益，故负向。"
-     "（Wind 该表自 2022-10 起才有全市场覆盖，有效历史约 3 年。）"),
-    ("RVI",      "市场交易信息", "趋势资金", 1, "相对离散指数RVI", "mktderiv", "S_TECH_RVI", "level",
-     "相对离散指数（Relative Vigor Index）；动能向上越强越好。"
      "（Wind 该表自 2022-10 起才有全市场覆盖，有效历史约 3 年。）"),
     # ============ profitexpress：业绩快报（公司内生信息·业绩快报(事件)，首次出现）============
     ("EXPDEDNP", "公司内生信息", "业绩快报(事件)", 1, "快报扣非净利同比", "profitexpress", "S_FA_YOYNETPROFIT_DEDUCTED", "event_first",
@@ -78,4 +71,85 @@ for code, l1, l2, direction, name_cn, sfile, sfield, transform, desc in _DEFS:
         source_file=sfile, source_field=sfield, description=desc, transform=transform,
         formula=f"{name_cn} = {_WIND_TABLE[sfile]}.{sfield}（{_TRANSFORM_DESC[transform]}）",
         wind_source=f"{_WIND_TABLE[sfile]}.{sfield}",
+    )
+
+
+def _recent(panel: pl.DataFrame, asof: date, window: int) -> pl.DataFrame:
+    return (
+        panel.filter(pl.col("trade_date") <= asof)
+        .sort(["stock_code", "trade_date"])
+        .with_columns(
+            pl.col("trade_date").rank("ordinal", descending=True).over("stock_code").alias("_rk")
+        )
+        .filter(pl.col("_rk") <= window)
+    )
+
+
+@factor(
+    code="AROON",
+    l1="市场交易信息",
+    l2="趋势资金",
+    direction=-1,
+    name_cn="阿隆趋势",
+    formula="AROON = AroonUp(25)-AroonDown(25)",
+    wind_source="AShareEODPrices.S_DQ_HIGH; S_DQ_LOW",
+    description="25日阿隆上行指标减阿隆下行指标；越高代表上行趋势越强，按历史RankIC取负向。",
+)
+def aroon(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
+    h = _recent(panel, asof, 25).drop_nulls(["high", "low"])
+    out = (
+        h.group_by("stock_code")
+        .agg([
+            ((pl.col("high").arg_max() + 1) * 4.0).alias("up"),
+            ((pl.col("low").arg_min() + 1) * 4.0).alias("down"),
+            pl.len().alias("n"),
+        ])
+        .filter(pl.col("n") == 25)
+        .with_columns((pl.col("up") - pl.col("down")).alias("value"))
+    )
+    return out.select(["stock_code", "value"])
+
+
+@factor(
+    code="MFLOW20",
+    l1="市场交易信息",
+    l2="趋势资金",
+    direction=-1,
+    name_cn="资金流量(20D)",
+    formula="MFLOW20 = sum(((S_DQ_CLOSE+S_DQ_HIGH+S_DQ_LOW)/3)*S_DQ_VOLUME*100,20)",
+    wind_source="AShareEODPrices.S_DQ_CLOSE; S_DQ_HIGH; S_DQ_LOW; S_DQ_VOLUME",
+    description="近20日典型价格乘实际成交量的资金流量合计；数值越高规模和近期资金流入越大，方向负。",
+)
+def mflow20(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
+    h = _recent(panel, asof, 20).drop_nulls(["close", "high", "low", "volume"])
+    out = (
+        h.filter(pl.col("volume") >= 0)
+        .with_columns(
+            (((pl.col("close") + pl.col("high") + pl.col("low")) / 3.0) * pl.col("volume") * 100.0)
+            .alias("money_flow")
+        )
+        .group_by("stock_code")
+        .agg([pl.col("money_flow").sum().alias("value"), pl.len().alias("n")])
+        .filter(pl.col("n") == 20)
+    )
+    return out.select(["stock_code", "value"])
+
+
+@factor(
+    code="RVI",
+    l1="市场交易信息",
+    l2="趋势资金",
+    direction=1,
+    name_cn="相对离散指数RVI",
+    formula="RVI = (S_DQ_CLOSE-S_DQ_OPEN)/(S_DQ_HIGH-S_DQ_LOW)",
+    wind_source="AShareEODPrices.S_DQ_OPEN; S_DQ_HIGH; S_DQ_LOW; S_DQ_CLOSE",
+    description="当日实体相对高低价振幅的比例；越高表示收盘相对开盘更强，方向正。",
+)
+def rvi(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
+    h = _recent(panel, asof, 1).drop_nulls(["open", "high", "low", "close"])
+    return (
+        h.filter(pl.col("high") > pl.col("low"))
+        .with_columns(((pl.col("close") - pl.col("open")) / (pl.col("high") - pl.col("low"))).alias("value"))
+        .select(["stock_code", "value"])
+        .filter(pl.col("value").is_finite())
     )

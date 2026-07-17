@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-10 16:00:36",
-  "factor_count": 148,
+  "generated_at": "2026-07-16 17:09:21",
+  "factor_count": 149,
   "backtest_start_month": "2015-02",
   "backtest_end_month": "2026-05",
   "return_end_date": "2026-05-29",
@@ -29,19 +29,19 @@
     "source": "data/factor_score_neutral.parquet",
     "has_quality_column": true,
     "warning_level": "warning",
-    "total_rows": 55191693,
+    "total_rows": 56339033,
     "quality_counts": {
-      "ok": 54824435,
-      "missing_input": 366835,
-      "insufficient_sample": 423
+      "ok": 55955316,
+      "missing_input": 383570,
+      "insufficient_sample": 147
     },
-    "insufficient_sample_rows": 423,
-    "affected_factors": 9,
-    "affected_factor_months": 409,
+    "insufficient_sample_rows": 147,
+    "affected_factors": 6,
+    "affected_factor_months": 133,
     "min_insufficient_valid_count": 1,
-    "missing_input_rows": 366835,
+    "missing_input_rows": 383570,
     "regression_failed_rows": 0,
-    "warning": "中性化质量提示：9 个因子、409 个因子-月份存在有效样本不足 3 个，相关中性化分数为空；对应 RankIC、回测和分层结果应降低结论权重。"
+    "warning": "中性化质量提示：6 个因子、133 个因子-月份存在有效样本不足 3 个，相关中性化分数为空；对应 RankIC、回测和分层结果应降低结论权重。"
   },
   "industry_classification_source": "static_stock_descriptors",
   "industry_classification_limitation": "行业分层、行业中性组合和行业市值中性化当前使用静态申万行业，不是历史申万行业 PIT；补齐历史行业归属表前，相关分层归因只作为辅助复核。",

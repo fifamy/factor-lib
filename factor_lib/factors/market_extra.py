@@ -1,8 +1,8 @@
 """市场交易信息类·扩充因子（对应技术文档 2.1~2.8，用本地 price.csv 字段可算的部分）。
 
 全部向量化（polars 按 stock_code 分组算，避免逐股 Python 循环拖慢 02 流水线）。
-输入 panel 列：stock_code, trade_date, adj_close, amount, free_shares, total_shares,
-              market_cap, is_suspended。
+输入 panel 列：stock_code, trade_date, adj_close, amount, volume, open, high, low, close,
+              free_shares, total_shares, market_cap, is_suspended。
 每个 @factor 函数返回 DataFrame(stock_code, value)，value 为该因子在 asof 截面的原始值。
 
 口径要点：
@@ -33,9 +33,21 @@ def _window(panel: pl.DataFrame, asof: date, lookback: int) -> pl.DataFrame:
     lo = asof - timedelta(days=cal_days)
     df = (panel.filter((pl.col("trade_date") <= asof) & (pl.col("trade_date") >= lo))
                .sort(["stock_code", "trade_date"]))
-    return df.with_columns(
+    exprs = [
         (pl.col("adj_close") / pl.col("adj_close").shift(1).over("stock_code"))
-            .log().alias("ret"))
+        .log()
+        .alias("ret")
+    ]
+    if "volume" in df.columns:
+        exprs.append(
+            pl.when(pl.col("volume") > 0)
+            .then(pl.col("volume").log())
+            .otherwise(None)
+            .diff()
+            .over("stock_code")
+            .alias("volume_log_change")
+        )
+    return df.with_columns(exprs)
 
 
 def _hist(panel: pl.DataFrame, asof: date, lookback: int) -> pl.DataFrame:
@@ -96,17 +108,17 @@ def mom20(panel, asof):
 # ============================== 2.2 均值回复类 ==============================
 
 @factor(code="PRICEZ", l1="市场交易信息", l2="均值回复", direction=-1,
-        formula="PRICEZ = (S_DQ_ADJCLOSE_t - mean(S_DQ_ADJCLOSE, 60)) / std(S_DQ_ADJCLOSE, 60)",
+        formula="PRICEZ = (S_DQ_ADJCLOSE_t - mean(S_DQ_ADJCLOSE, 20)) / std(S_DQ_ADJCLOSE, 20)",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
-        description="价格 Zscore：(现价 − 近 60 日均价) / 近 60 日价格标准差；越高越偏离均值，方向负（回复）。")
+        description="价格Zscore：(现价−近20日均价)/近20日价格标准差；越高越偏离均值，方向负（回复）。")
 def pricez(panel, asof):
-    h = _hist(panel, asof, 60)
+    h = _hist(panel, asof, 20)
     out = (h.group_by("stock_code")
             .agg([pl.col("adj_close").last().alias("p"),
                   pl.col("adj_close").mean().alias("mu"),
                   pl.col("adj_close").std().alias("sd"),
                   pl.len().alias("n")])
-            .filter((pl.col("n") >= 40) & (pl.col("sd") > 0))
+            .filter((pl.col("n") >= 15) & (pl.col("sd") > 0))
             .with_columns(((pl.col("p") - pl.col("mu")) / pl.col("sd")).alias("value")))
     return out.select(["stock_code", "value"])
 
@@ -158,17 +170,17 @@ def downvol(panel, asof):
     return out.select(["stock_code", "value"])
 
 
-@factor(code="MAXDD1Y", l1="市场交易信息", l2="波动", direction=1,
-        formula="MAXDD1Y = min(S_DQ_ADJCLOSE_d / cummax(S_DQ_ADJCLOSE_d, 252) - 1)",
+@factor(code="MAXDD1Y", l1="市场交易信息", l2="波动", direction=-1,
+        formula="MAXDD1Y = max(1 - S_DQ_ADJCLOSE_d / cummax(S_DQ_ADJCLOSE_d, 252))",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
-        description="近 252 日最大回撤（按复权价，负数）；越接近 0 回撤越浅，方向正。")
+        description="近252日最大回撤幅度（按复权价，非负数）；数值越小回撤越浅，方向负。")
 def maxdd1y(panel, asof):
     h = _hist(panel, asof, 252).sort(["stock_code", "trade_date"])
-    # 累计最高价 → 回撤 = price/cummax − 1，取最小
+    # 累计最高价 → 回撤幅度 = 1-price/cummax，取最大
     h = h.with_columns(pl.col("adj_close").cum_max().over("stock_code").alias("peak"))
-    h = h.with_columns((pl.col("adj_close") / pl.col("peak") - 1).alias("dd"))
+    h = h.with_columns((1.0 - pl.col("adj_close") / pl.col("peak")).alias("dd"))
     out = (h.group_by("stock_code")
-            .agg([pl.col("dd").min().alias("value"), pl.len().alias("n")])
+            .agg([pl.col("dd").max().alias("value"), pl.len().alias("n")])
             .filter(pl.col("n") >= 60))
     return out.select(["stock_code", "value"])
 
@@ -198,15 +210,15 @@ def retkurt(panel, asof):
 
 
 @factor(code="BIGDOWN", l1="市场交易信息", l2="波动", direction=-1,
-        formula="BIGDOWN = count(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}) < -0.05, 60) / count(valid return, 60)",
+        formula="BIGDOWN = count(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}) < -0.05, 60) / 60",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
         description="近 60 日大跌天数：单日跌幅 > 5% 的天数占比；越高越脆弱，方向负。")
 def bigdown(panel, asof):
     h = _hist(panel, asof, 60)
     out = (h.group_by("stock_code")
             .agg([(pl.col("ret") < -0.05).sum().alias("big"), pl.col("ret").count().alias("n")])
-            .filter(pl.col("n") >= 40)
-            .with_columns((pl.col("big") / pl.col("n")).alias("value")))
+            .filter(pl.col("n") == 60)
+            .with_columns((pl.col("big") / 60.0).alias("value")))
     return out.select(["stock_code", "value"])
 
 
@@ -228,15 +240,14 @@ def amount20(panel, asof):
 
 @factor(code="VOLUME20", l1="市场交易信息", l2="流动性", direction=1,
         name_cn="近20日日均成交量",
-        formula="mean(S_DQ_AMOUNT / S_DQ_ADJCLOSE, 20)，作为成交量近似值。",
-        wind_source="AShareEODPrices.S_DQ_AMOUNT; AShareEODPrices.S_DQ_ADJCLOSE",
-        description="近 20 日日均成交量近似值：成交额 / 复权收盘价；按 Word v2 流动性口径方向为正。")
+        formula="mean(S_DQ_VOLUME, 20)",
+        wind_source="AShareEODPrices.S_DQ_VOLUME",
+        description="近20日日均实际成交量；不再用成交额除以复权价格近似，按Word v2流动性口径方向为正。")
 def volume20(panel, asof):
     h = _hist(panel, asof, 20)
-    out = (h.filter((pl.col("adj_close") > 0) & pl.col("amount").is_not_null())
-            .with_columns((pl.col("amount") / pl.col("adj_close")).alias("volume_proxy"))
+    out = (h.filter((pl.col("volume") > 0) & pl.col("volume").is_finite())
             .group_by("stock_code")
-            .agg([pl.col("volume_proxy").mean().alias("value"), pl.len().alias("n")])
+            .agg([pl.col("volume").mean().alias("value"), pl.len().alias("n")])
             .filter(pl.col("n") >= 15))
     return out.select(["stock_code", "value"])
 
@@ -257,15 +268,15 @@ def turn20(panel, asof):
 
 
 @factor(code="AMTVOL", l1="市场交易信息", l2="流动性", direction=-1,
-        formula="AMTVOL = std(S_DQ_AMOUNT, 60) / mean(S_DQ_AMOUNT, 60)",
+        formula="AMTVOL = std(S_DQ_AMOUNT, 20) / mean(S_DQ_AMOUNT, 20)",
         wind_source="AShareEODPrices.S_DQ_AMOUNT",
-        description="近 60 日成交额波动率：日成交额的变异系数（std/mean）；越不稳定越负向。")
+        description="近20日成交额波动率：日成交额的变异系数（std/mean）；越不稳定越负向。")
 def amtvol(panel, asof):
-    h = _hist(panel, asof, 60)
+    h = _hist(panel, asof, 20)
     out = (h.group_by("stock_code")
             .agg([pl.col("amount").mean().alias("mu"), pl.col("amount").std().alias("sd"),
                   pl.len().alias("n")])
-            .filter((pl.col("n") >= 40) & (pl.col("mu") > 0))
+            .filter((pl.col("n") >= 15) & (pl.col("mu") > 0))
             .with_columns((pl.col("sd") / pl.col("mu")).alias("value")))
     return out.select(["stock_code", "value"])
 
@@ -308,27 +319,29 @@ def turnpctl(panel, asof):
 # ============================== 2.7 价量配合类 ==============================
 
 @factor(code="PVCORR", l1="市场交易信息", l2="价量", direction=-1,
-        formula="PVCORR = corr(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), S_DQ_AMOUNT_d, 60)",
-        wind_source="AShareEODPrices.S_DQ_ADJCLOSE; AShareEODPrices.S_DQ_AMOUNT",
-        description="近 60 日收益率与成交额的相关性；高正相关=追涨放量（拥挤），方向负。")
+        formula="PVCORR = corr(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), ln(S_DQ_VOLUME_d / S_DQ_VOLUME_{d-1}), 60)",
+        wind_source="AShareEODPrices.S_DQ_ADJCLOSE; AShareEODPrices.S_DQ_VOLUME",
+        description="近60日收益率与实际成交量对数变化的相关性；高正相关表示追涨放量，方向负。")
 def pvcorr(panel, asof):
-    h = _hist(panel, asof, 60).filter(pl.col("ret").is_not_null())
+    h = _hist(panel, asof, 60).filter(
+        pl.col("ret").is_not_null() & pl.col("volume_log_change").is_not_null()
+    )
     out = (h.group_by("stock_code")
-            .agg([pl.corr("ret", "amount").alias("value"), pl.len().alias("n")])
+            .agg([pl.corr("ret", "volume_log_change").alias("value"), pl.len().alias("n")])
             .filter((pl.col("n") >= 40) & pl.col("value").is_finite()))
     return out.select(["stock_code", "value"])
 
 
 @factor(code="UPVOLRATIO", l1="市场交易信息", l2="价量", direction=-1,
-        formula="UPVOLRATIO = sum(S_DQ_AMOUNT_d | ret_d > 0, 60) / sum(S_DQ_AMOUNT_d, 60)，ret_d=ln(S_DQ_ADJCLOSE_d/S_DQ_ADJCLOSE_{d-1})",
+        formula="UPVOLRATIO = sum(S_DQ_AMOUNT_d | ret_d > 0, 20) / sum(S_DQ_AMOUNT_d, 20)，ret_d=ln(S_DQ_ADJCLOSE_d/S_DQ_ADJCLOSE_{d-1})",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE; AShareEODPrices.S_DQ_AMOUNT",
-        description="近 60 日上涨日成交额占比：上涨日成交额 / 总成交额；过高=放量追涨，方向负。")
+        description="近20日上涨日成交额占比：上涨日成交额/总成交额；过高表示放量追涨，方向负。")
 def upvolratio(panel, asof):
-    h = _hist(panel, asof, 60).filter(pl.col("ret").is_not_null())
+    h = _hist(panel, asof, 20).filter(pl.col("ret").is_not_null())
     out = (h.group_by("stock_code")
             .agg([pl.col("amount").filter(pl.col("ret") > 0).sum().alias("up"),
                   pl.col("amount").sum().alias("tot"), pl.len().alias("n")])
-            .filter((pl.col("n") >= 40) & (pl.col("tot") > 0))
+            .filter((pl.col("n") >= 15) & (pl.col("tot") > 0))
             .with_columns((pl.col("up") / pl.col("tot")).alias("value")))
     return out.select(["stock_code", "value"])
 
@@ -336,20 +349,22 @@ def upvolratio(panel, asof):
 # ============================== 2.8 拥挤度类 ==============================
 
 @factor(code="ABTURN", l1="市场交易信息", l2="拥挤度", direction=-1,
-        formula="ABTURN = mean(TURN, 5) / mean(TURN, 60) - 1，TURN = S_DQ_AMOUNT / S_DQ_MV / 10",
+        formula="ABTURN = (TURN_t - mean(TURN, 60)) / std(TURN, 60)，TURN = S_DQ_AMOUNT / S_DQ_MV / 10",
         wind_source="AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
-        description="异常换手率：近 5 日均换手 / 近 60 日均换手 − 1；骤升=短期拥挤，方向负。")
+        description="异常换手率：当日换手率相对近60日均值的Z分数；数值越高越拥挤，方向负。")
 def abturn(panel, asof):
     df = _window(panel, asof, 60).with_columns(_turnover_col())
     df = df.with_columns(
         pl.col("trade_date").rank("ordinal", descending=True).over("stock_code").alias("_rk"))
-    t5 = (df.filter(pl.col("_rk") <= 5).group_by("stock_code")
-            .agg(pl.col("turnover").mean().alias("t5")))
     t60 = (df.filter(pl.col("_rk") <= 60).group_by("stock_code")
-             .agg([pl.col("turnover").mean().alias("t60"), pl.len().alias("n")]))
-    out = (t5.join(t60, on="stock_code")
-             .filter((pl.col("n") >= 40) & (pl.col("t60") > 0))
-             .with_columns((pl.col("t5") / pl.col("t60") - 1).alias("value"))
+             .agg([
+                 pl.col("turnover").last().alias("current"),
+                 pl.col("turnover").mean().alias("mu"),
+                 pl.col("turnover").std().alias("sd"),
+                 pl.col("turnover").count().alias("n"),
+             ]))
+    out = (t60.filter((pl.col("n") >= 40) & (pl.col("sd") > 0))
+             .with_columns(((pl.col("current") - pl.col("mu")) / pl.col("sd")).alias("value"))
              .filter(pl.col("value").is_finite()))
     return out.select(["stock_code", "value"])
 

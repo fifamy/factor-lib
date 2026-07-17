@@ -78,6 +78,20 @@ def recheck_external(code: str, meta: dict, factor_raw: pl.DataFrame, src_dir: s
         else:
             ref_expr = pl.when(pl.col("_prev") > 0).then(pl.col(field) / pl.col("_prev") - 1).otherwise(None)
         ref_df = s.with_columns(ref_expr.alias("ref")).select(["stock_code", "trade_date", "ref"])
+    elif transform == "yoy_diff_12m":
+        s = src.with_columns(
+            (pl.col("trade_date").dt.year() * 12 + pl.col("trade_date").dt.month()).alias("_month_id")
+        )
+        lag = s.select([
+            "stock_code",
+            (pl.col("_month_id") + 12).alias("_month_id"),
+            pl.col(field).alias("_lag12"),
+        ])
+        ref_df = (
+            s.join(lag, on=["stock_code", "_month_id"], how="left")
+            .with_columns((pl.col(field) - pl.col("_lag12")).alias("ref"))
+            .select(["stock_code", "trade_date", "ref"])
+        )
     elif transform == "event_first":
         s = src.filter(pl.col("EXPRESS_AGE").cast(pl.Float64, strict=False).is_not_null())
         s = s.with_columns(

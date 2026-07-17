@@ -1,0 +1,2129 @@
+{
+  "version": 1,
+  "generated_at": "2026-07-16 17:11:45+0800",
+  "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
+  "resolution_updated_at": "2026-07-15",
+  "summary": {
+    "manual_review_record_count": 148,
+    "manual_issue_factor_count": 81,
+    "cohort_factor_count": 55,
+    "retained_issue_factor_count": 51,
+    "reclassified_fixed_count": 1,
+    "reclassified_pending_count": 3,
+    "status_counts": {
+      "not_planned": 51,
+      "fixed": 1,
+      "pending_data": 3
+    },
+    "missing_problem_count": 3,
+    "missing_suggestion_count": 10
+  },
+  "factors": [
+    {
+      "factor_code": "ARRATIO",
+      "name_cn": "应收账款占收入比例",
+      "l1": "公司内生信息",
+      "l2": "运营效率类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "计算的字段查询不到"
+      ],
+      "manual_suggestion": [
+        "应收账款合计=应收账款+应收票据\n应收票据及应收账款：s_stm07_bs(Wind代码,W49434732,报告期,报表类型)，具体的字段需确认"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:46:50.650577+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "BETA",
+      "name_cn": "历史 Beta",
+      "l1": "市场交易信息",
+      "l2": "beta风险类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "市场基准指数一般就是市值加权，无需自行构建。"
+      ],
+      "manual_suggestion": [
+        "使用全A指数、上证指数、深证成指或者对应行业的行业指数即可。"
+      ],
+      "manual_system_versions": [
+        "2026-07-03 16:17:11"
+      ],
+      "manual_updated_at": "2026-07-10T06:23:08.167548+00:00",
+      "decision_titles": [
+        "Beta保留全A市值加权市场组合基准"
+      ],
+      "verification_assessment": [
+        "CAPM中的Beta相对于市场组合定义；系统用全市场滞后市值加权组合近似市场组合，方法与理论定义一致。改用单一宽基指数是可选代理，不是对现实现的纠错。"
+      ],
+      "reason_not_changed": [
+        "当前基准覆盖全A且权重规则可复现，任意选择单一指数会引入指数样本和编制规则差异。"
+      ],
+      "decision_action": [
+        "保留252日OLS Beta及全A滞后市值加权市场收益，在名称或详情中持续披露基准；不改为上证指数、深证成指或行业指数。"
+      ],
+      "evidence": [
+        "Sharpe (1964), DOI:10.1111/j.1540-6261.1964.tb02865.x",
+        "系统市场收益使用t-1市值权重",
+        "人工复核承认市场基准通常为市值加权"
+      ],
+      "decision_issue_ids": [
+        "definition-beta-market-proxy"
+      ]
+    },
+    {
+      "factor_code": "BUYBACKRATIO",
+      "name_cn": "回购金额占流通市值比",
+      "l1": "事件驱动信息",
+      "l2": "股东行为类",
+      "resolution_status": "fixed",
+      "manual_problem": [
+        "查询不到该字段"
+      ],
+      "manual_suggestion": [
+        "可以选择区间回购金额/流通市值计算\n区间回购金额：s_cac_repoamt"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:05:32.248373+00:00",
+      "decision_titles": [
+        "回购比例需比较股数占比与回购金额除以流通市值"
+      ],
+      "verification_assessment": [
+        "人工建议的回购金额占流通市值口径可由本地AshareStockRepo.AMT、EVENT_ID、ANN_DT和月末S_DQ_MV完整构造。旧股数占比与新金额占比在150710条共同样本上的秩相关为0.783567，不是等价口径。"
+      ],
+      "reason_not_changed": [
+        "已完成修改，无待处理原因。"
+      ],
+      "decision_action": [
+        "改为近365日内按EVENT_ID去重、取月末前最新已公告AMT后求和，再除以月末流通市值S_DQ_MV；AMT按元、S_DQ_MV按万元统一单位。"
+      ],
+      "evidence": [
+        "buyback_ext共有65290行、15338个EVENT_ID，63900行AMT非空",
+        "新口径150710条，旧口径152647条，共同样本150710条",
+        "新旧共同样本秩相关0.783567且150710条数值全部变化"
+      ],
+      "decision_issue_ids": [
+        "definition-buybackratio-amount-candidate"
+      ]
+    },
+    {
+      "factor_code": "CAPEXGROWTH",
+      "name_cn": "CAPEX增速",
+      "l1": "公司内生信息",
+      "l2": "成长类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段不准确"
+      ],
+      "manual_suggestion": [
+        "资本开支字段，s_stm07_cs，累计值，暂无TTM，增速=资本开支（t）/资本开支（t-1）-1"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:11:51.192157+00:00",
+      "decision_titles": [
+        "资本开支增长保留TTM同季同比口径"
+      ],
+      "verification_assessment": [
+        "当前直接使用现金流量表购建长期资产支付现金的累计值构造TTM，再与上年同季TTM比较，既保留人工指出的累计源字段，又消除一季报、半年报和三季报累计期长不同造成的季节性。"
+      ],
+      "reason_not_changed": [
+        "人工建议的累计值是源数据形态，不是必须放弃TTM的理由；直接累计同比会受报告期长度影响，现实现更适合连续月度研究。"
+      ],
+      "decision_action": [
+        "保留CAPEX_TTM/lag_same_quarter(CAPEX_TTM,1年)-1，不改为跨不同报告期直接比较累计值；继续按公告日PIT进入月末截面。"
+      ],
+      "evidence": [
+        "Wind字典CASH_PAY_ACQ_CONST_FIOLTA为购建固定资产、无形资产和其他长期资产支付现金",
+        "当前_annual_ttm_from_cumulative实现",
+        "Titman、Wei、Xie (2004), DOI:10.1017/S0022109000003173"
+      ],
+      "decision_issue_ids": [
+        "definition-financial-methods"
+      ]
+    },
+    {
+      "factor_code": "CFOGROWTH",
+      "name_cn": "现金流同比",
+      "l1": "公司内生信息",
+      "l2": "成长类",
+      "resolution_status": "pending_data",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "经营活动现金流-s_stm07_cs(Wind代码,W45349083,报告期,报表类型)"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:15:16.542457+00:00",
+      "decision_titles": [
+        "现金流和营业利润增速缺原值独立对账字段"
+      ],
+      "verification_assessment": [
+        "当前两个因子使用Wind PIT已计算增速。人工建议从原值自行构造TTM并计算同比，数据字典分别定位到AShareCashFlow.NET_CASH_FLOWS_OPER_ACT和PITFinancialFactor.S_DFA_OP_TTM，但两字段未在本地文件中。"
+      ],
+      "reason_not_changed": [
+        "独立复算所需原值字段未下载，现阶段不能宣称人工建议已完成验证。"
+      ],
+      "decision_action": [
+        "下载NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM，按公告日PIT构造TTM和同比，与S_DFA_TTMGROWRATE_CFOTT、S_DFA_TTMGROWRATE_OP对账后再确定是否替换。"
+      ],
+      "evidence": [
+        "Wind字典定位AShareCashFlow.NET_CASH_FLOWS_OPER_ACT",
+        "Wind字典定位PITFinancialFactor.S_DFA_OP_TTM",
+        "本地cashflow_statement_ext和pit_financial_ext均缺对应字段"
+      ],
+      "decision_issue_ids": [
+        "data-financial-raw-validation-fields"
+      ]
+    },
+    {
+      "factor_code": "DIVGROWTH",
+      "name_cn": "分红增长率",
+      "l1": "公司内生信息",
+      "l2": "分红回报类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该字段"
+      ],
+      "manual_suggestion": [
+        "年度现金分红总额：s_div_aualaccmdiv"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:33:34.999965+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "DIVPAYOUT",
+      "name_cn": "分红率",
+      "l1": "公司内生信息",
+      "l2": "分红回报类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该字段"
+      ],
+      "manual_suggestion": [
+        "年度现金分红比例：s_div_payoutratio，=年度累计现金分红总额/归母公司股东的净利润"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:35:38.575917+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "DIVSTREAK",
+      "name_cn": "连续分红年数",
+      "l1": "公司内生信息",
+      "l2": "分红回报类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到对应字段"
+      ],
+      "manual_suggestion": [
+        "计算年度现金分红总额，s_div_aualaccmdiv>0的年数"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:36:57.906749+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "EP",
+      "name_cn": "收益市值比",
+      "l1": "公司内生信息",
+      "l2": "估值类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该字段"
+      ],
+      "manual_suggestion": [
+        "收益市值比=归母净利润/市值=1/pe,是否和pe重复，考虑剔除"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:39:04.18968+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions"
+      ]
+    },
+    {
+      "factor_code": "EXECHOLDERCHG",
+      "name_cn": "高管增持/减持",
+      "l1": "事件驱动信息",
+      "l2": "股东行为类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该指标"
+      ],
+      "manual_suggestion": [
+        "wind有管理层增持价格，大股东增持价格，减持价格等指标，可以考虑替换。但是该指标的有效性需要再商议"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:08:31.419602+00:00",
+      "decision_titles": [
+        "6个事件因子的人工候选字段已在本地明细表中"
+      ],
+      "verification_assessment": [
+        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+      ],
+      "reason_not_changed": [
+        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+      ],
+      "decision_action": [
+        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+      ],
+      "evidence": [
+        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
+        "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "risk_illegality_ext已有AMOUNT",
+        "risk_investigation_ext已有STR_ANNDATE"
+      ],
+      "decision_issue_ids": [
+        "field-event-tables-valid"
+      ]
+    },
+    {
+      "factor_code": "EXPDEDNP",
+      "name_cn": "快报扣非净利同比",
+      "l1": "事件驱动信息",
+      "l2": "业绩事件类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段不正确"
+      ],
+      "manual_suggestion": [
+        "快报扣非净利润：s_performanceexpress_npdedtoshareholder\n但是不建议用这个指标，和原本的分析师预期，以及财报数据重复，且不是所有公司都会发布快报"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:13:21.201737+00:00",
+      "decision_titles": [
+        "业绩快报、预告和财报意外因子作为事件信号保留"
+      ],
+      "verification_assessment": [
+        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。快报、业绩预告和正式财报分别代表不同披露阶段，事件稀疏不构成字段错误。"
+      ],
+      "reason_not_changed": [
+        "公告后价格反应和分析师修正是后事件市场反应信号，不能替代公告内容意外；删除会丢失披露阶段信息。"
+      ],
+      "decision_action": [
+        "保留六个事件因子和首次披露月PIT处理；页面继续显示快报因子约5.7%的低覆盖。PROFITNOTICEBEAT和REPORTSURPRISE保留实际或公司指引相对一致预期的定义，不改用公告后价格反应。"
+      ],
+      "evidence": [
+        "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
+        "Ball、Brown (1968), DOI:10.2307/2490232",
+        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+      ],
+      "decision_issue_ids": [
+        "definition-event-validity"
+      ]
+    },
+    {
+      "factor_code": "EXPOP",
+      "name_cn": "快报营业利润同比",
+      "l1": "事件驱动信息",
+      "l2": "业绩事件类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段不正确"
+      ],
+      "manual_suggestion": [
+        "业绩快报营业利润：s_performanceexpress_perfexprofit；与上一年营业利润一起计算同比"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:16:25.5852+00:00",
+      "decision_titles": [
+        "业绩快报、预告和财报意外因子作为事件信号保留"
+      ],
+      "verification_assessment": [
+        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。快报、业绩预告和正式财报分别代表不同披露阶段，事件稀疏不构成字段错误。"
+      ],
+      "reason_not_changed": [
+        "公告后价格反应和分析师修正是后事件市场反应信号，不能替代公告内容意外；删除会丢失披露阶段信息。"
+      ],
+      "decision_action": [
+        "保留六个事件因子和首次披露月PIT处理；页面继续显示快报因子约5.7%的低覆盖。PROFITNOTICEBEAT和REPORTSURPRISE保留实际或公司指引相对一致预期的定义，不改用公告后价格反应。"
+      ],
+      "evidence": [
+        "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
+        "Ball、Brown (1968), DOI:10.2307/2490232",
+        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+      ],
+      "decision_issue_ids": [
+        "definition-event-validity"
+      ]
+    },
+    {
+      "factor_code": "EXPROE",
+      "name_cn": "快报摊薄ROE",
+      "l1": "事件驱动信息",
+      "l2": "业绩事件类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段不正确"
+      ],
+      "manual_suggestion": [
+        "业绩快报ROE：s_performanceexpress_perfexroediluted"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:27:20.413751+00:00",
+      "decision_titles": [
+        "业绩快报、预告和财报意外因子作为事件信号保留"
+      ],
+      "verification_assessment": [
+        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。快报、业绩预告和正式财报分别代表不同披露阶段，事件稀疏不构成字段错误。"
+      ],
+      "reason_not_changed": [
+        "公告后价格反应和分析师修正是后事件市场反应信号，不能替代公告内容意外；删除会丢失披露阶段信息。"
+      ],
+      "decision_action": [
+        "保留六个事件因子和首次披露月PIT处理；页面继续显示快报因子约5.7%的低覆盖。PROFITNOTICEBEAT和REPORTSURPRISE保留实际或公司指引相对一致预期的定义，不改用公告后价格反应。"
+      ],
+      "evidence": [
+        "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
+        "Ball、Brown (1968), DOI:10.2307/2490232",
+        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+      ],
+      "decision_issue_ids": [
+        "definition-event-validity"
+      ]
+    },
+    {
+      "factor_code": "EXPSALES",
+      "name_cn": "快报营收同比",
+      "l1": "事件驱动信息",
+      "l2": "业绩事件类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段不正确"
+      ],
+      "manual_suggestion": [
+        "业绩快报：s_performanceexpress_perfexincome"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:47:37.624884+00:00",
+      "decision_titles": [
+        "业绩快报、预告和财报意外因子作为事件信号保留"
+      ],
+      "verification_assessment": [
+        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。快报、业绩预告和正式财报分别代表不同披露阶段，事件稀疏不构成字段错误。"
+      ],
+      "reason_not_changed": [
+        "公告后价格反应和分析师修正是后事件市场反应信号，不能替代公告内容意外；删除会丢失披露阶段信息。"
+      ],
+      "decision_action": [
+        "保留六个事件因子和首次披露月PIT处理；页面继续显示快报因子约5.7%的低覆盖。PROFITNOTICEBEAT和REPORTSURPRISE保留实际或公司指引相对一致预期的定义，不改用公告后价格反应。"
+      ],
+      "evidence": [
+        "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
+        "Ball、Brown (1968), DOI:10.2307/2490232",
+        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+      ],
+      "decision_issue_ids": [
+        "definition-event-validity"
+      ]
+    },
+    {
+      "factor_code": "FINRESTATEMENT",
+      "name_cn": "财务重述",
+      "l1": "事件驱动信息",
+      "l2": "风险事件类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该指标"
+      ],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:50:21.896462+00:00",
+      "decision_titles": [
+        "6个事件因子的人工候选字段已在本地明细表中"
+      ],
+      "verification_assessment": [
+        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+      ],
+      "reason_not_changed": [
+        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+      ],
+      "decision_action": [
+        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+      ],
+      "evidence": [
+        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
+        "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "risk_illegality_ext已有AMOUNT",
+        "risk_investigation_ext已有STR_ANNDATE"
+      ],
+      "decision_issue_ids": [
+        "field-event-tables-valid"
+      ]
+    },
+    {
+      "factor_code": "FWDPE",
+      "name_cn": "Forward PE",
+      "l1": "公司内生信息",
+      "l2": "估值类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "预测PE：s_val_estpe"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:19:17.372881+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "GLVR60",
+      "name_cn": "收益损失方差比(60D)",
+      "l1": "市场交易信息",
+      "l2": "波动风险类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "与下行波动率指标重复。"
+      ],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-25T02:50:48.257549+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions"
+      ]
+    },
+    {
+      "factor_code": "GOODWILLRATIO",
+      "name_cn": "商誉占比",
+      "l1": "公司内生信息",
+      "l2": "财务稳健类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "wind查询不到AShareBalanceSheet.GOODWILL字段，其商誉字段为s_stm07_bs"
+      ],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-23T07:06:22.175338+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "GROSSMGN",
+      "name_cn": "毛利率",
+      "l1": "公司内生信息",
+      "l2": "盈利能力类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "S_FA_GROSSPROFITMARGIN_TTM"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:36:38.159058+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "HOLDERCONC",
+      "name_cn": "户均持股(集中度)",
+      "l1": "投资者行为信息",
+      "l2": "筹码结构类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "与人均持股变化因子逻辑一致。"
+      ],
+      "manual_suggestion": [
+        "按(FREE_SHARES_TODAY / latest(S_HOLDER_NUM))计算即可。"
+      ],
+      "manual_system_versions": [
+        "2026-07-03 16:17:11"
+      ],
+      "manual_updated_at": "2026-07-10T06:27:49.413041+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions"
+      ]
+    },
+    {
+      "factor_code": "HOLDERCONCCHG",
+      "name_cn": "筹码集中度变化",
+      "l1": "投资者行为信息",
+      "l2": "筹码结构类",
+      "resolution_status": "not_planned",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-07-03 16:17:11"
+      ],
+      "manual_updated_at": "2026-07-10T06:29:05.034751+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留",
+        "高相关因子全部保留但组合层禁止重复计权"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。",
+        "多组原始得分绝对相关超过0.95，其中ESTEARNREV/NPFCST1M完全相同，MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明字段错误。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。",
+        "按不删除决定保留全部因子；组合构建时每个高相关组最多选择一个代表因子，或先做组内等权后再给组级权重。方向相反组禁止以相同正权重同时加入。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义",
+        "MOM60/RELRET60 0.99999997",
+        "ESTEARNREV/NPFCST1M 1.0",
+        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
+        "STOM/TURN20 0.999489",
+        "AMOUNT20/MFLOW20 0.999869",
+        "DEBT2EQ/EQMULT 0.999975",
+        "PLACEMENTSIZE/REFINPRESS -0.999520",
+        "MOM20/REV1M -0.965232"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions",
+        "redundancy-high-correlation"
+      ]
+    },
+    {
+      "factor_code": "IMPAIRRISK",
+      "name_cn": "减值风险",
+      "l1": "公司内生信息",
+      "l2": "财务稳健类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到PITFinancialFactor（PIT，无未来函数）.S_DFA_IMPAIRTOGR_TTM\nwind有资产减值损失占营业收入比：s_fa_impairtogr_ttm2"
+      ],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-23T07:10:56.323298+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "INCENTIVESIZE",
+      "name_cn": "激励规模",
+      "l1": "事件驱动信息",
+      "l2": "资本运作类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该指标"
+      ],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:59:39.308352+00:00",
+      "decision_titles": [
+        "6个事件因子的人工候选字段已在本地明细表中"
+      ],
+      "verification_assessment": [
+        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+      ],
+      "reason_not_changed": [
+        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+      ],
+      "decision_action": [
+        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+      ],
+      "evidence": [
+        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
+        "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "risk_illegality_ext已有AMOUNT",
+        "risk_investigation_ext已有STR_ANNDATE"
+      ],
+      "decision_issue_ids": [
+        "field-event-tables-valid"
+      ]
+    },
+    {
+      "factor_code": "KURT60",
+      "name_cn": "收益峰度(60D)",
+      "l1": "市场交易信息",
+      "l2": "波动风险类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "与RETKURT重复。"
+      ],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-25T02:44:06.84914+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions"
+      ]
+    },
+    {
+      "factor_code": "LEVERAGE",
+      "name_cn": "资产负债率",
+      "l1": "公司内生信息",
+      "l2": "财务稳健类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "wind字段有误"
+      ],
+      "manual_suggestion": [
+        "s_fa_debttoassets"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:04:53.382567+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射",
+        "高相关因子全部保留但组合层禁止重复计权"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。",
+        "多组原始得分绝对相关超过0.95，其中ESTEARNREV/NPFCST1M完全相同，MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明字段错误。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。",
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。",
+        "按不删除决定保留全部因子；组合构建时每个高相关组最多选择一个代表因子，或先做组内等权后再给组级权重。方向相反组禁止以相同正权重同时加入。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "MOM60/RELRET60 0.99999997",
+        "ESTEARNREV/NPFCST1M 1.0",
+        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
+        "STOM/TURN20 0.999489",
+        "AMOUNT20/MFLOW20 0.999869",
+        "DEBT2EQ/EQMULT 0.999975",
+        "PLACEMENTSIZE/REFINPRESS -0.999520",
+        "MOM20/REV1M -0.965232"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid",
+        "redundancy-high-correlation"
+      ]
+    },
+    {
+      "factor_code": "LNMV",
+      "name_cn": "对数市值",
+      "l1": "公司内生信息",
+      "l2": "估值类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到对应字段"
+      ],
+      "manual_suggestion": [
+        "总市值字段：s_val_ev，计算取对数"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:21:47.801569+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "MAINFLOW",
+      "name_cn": "主力净流入强度",
+      "l1": "投资者行为信息",
+      "l2": "资金流类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "没有MAINFORCE_NET_RATIO指标。"
+      ],
+      "manual_suggestion": [
+        "可以自行定义主力为机构+大户，计算方式为（机构买入金额+大户买入金额）/当日总买入金额。"
+      ],
+      "manual_system_versions": [
+        "2026-07-03 16:17:11"
+      ],
+      "manual_updated_at": "2026-07-10T06:44:04.285918+00:00",
+      "decision_titles": [
+        "主力净流入为本地合成字段而非Wind原生列"
+      ],
+      "verification_assessment": [
+        "MAINFORCE_NET_RATIO由机构和大户买卖额在下载脚本中合成，虽然不是Wind原生字段，但计算路径明确且符合净流入含义。"
+      ],
+      "reason_not_changed": [
+        "当前实现比只使用买入金额的建议更符合净流入定义。"
+      ],
+      "decision_action": [
+        "在公式来源中明确标注本地合成，避免被误解为Wind原生字段。"
+      ],
+      "evidence": [
+        "download_investor_factors.py计算NET_BIG/TOT_AMT",
+        "系统描述为近20日主力净流入强度"
+      ],
+      "decision_issue_ids": [
+        "definition-mainflow-synthetic"
+      ]
+    },
+    {
+      "factor_code": "MAJORHOLDERCHG",
+      "name_cn": "大股东增持/减持",
+      "l1": "事件驱动信息",
+      "l2": "股东行为类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该指标"
+      ],
+      "manual_suggestion": [
+        "同高管减持，wind有大股东增持减持价格指标"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:11:37.922194+00:00",
+      "decision_titles": [
+        "6个事件因子的人工候选字段已在本地明细表中"
+      ],
+      "verification_assessment": [
+        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+      ],
+      "reason_not_changed": [
+        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+      ],
+      "decision_action": [
+        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+      ],
+      "evidence": [
+        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
+        "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "risk_illegality_ext已有AMOUNT",
+        "risk_investigation_ext已有STR_ANNDATE"
+      ],
+      "decision_issue_ids": [
+        "field-event-tables-valid"
+      ]
+    },
+    {
+      "factor_code": "MOM60",
+      "name_cn": "60日动量",
+      "l1": "市场交易信息",
+      "l2": "收益趋势类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "该因子本意为中期超额动量，不仅是简单的中期动量。"
+      ],
+      "manual_suggestion": [
+        "与RELRETIND重复，不保留。"
+      ],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-25T03:42:58.341248+00:00",
+      "decision_titles": [
+        "60日绝对动量与相对收益因子分别保留",
+        "高相关因子全部保留但组合层禁止重复计权"
+      ],
+      "verification_assessment": [
+        "MOM60名称和公式均表达60日绝对累计收益；市场相对收益由RELRET60、行业相对收益由RELRETIND表达。人工将其视为相对强弱属于名称理解差异。",
+        "多组原始得分绝对相关超过0.95，其中ESTEARNREV/NPFCST1M完全相同，MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明字段错误。"
+      ],
+      "reason_not_changed": [
+        "当前名称没有声称超额收益，且项目已有独立相对收益因子。",
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "保留MOM60绝对动量，不删除；组合中不得与几乎等价的RELRET60同时赋予完整权重。",
+        "按不删除决定保留全部因子；组合构建时每个高相关组最多选择一个代表因子，或先做组内等权后再给组级权重。方向相反组禁止以相同正权重同时加入。"
+      ],
+      "evidence": [
+        "MOM60公式为60日日对数收益之和",
+        "Jegadeesh、Titman (1993)支持中期过去收益信号",
+        "MOM60与RELRET60得分相关0.99999997",
+        "MOM60/RELRET60 0.99999997",
+        "ESTEARNREV/NPFCST1M 1.0",
+        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
+        "STOM/TURN20 0.999489",
+        "AMOUNT20/MFLOW20 0.999869",
+        "DEBT2EQ/EQMULT 0.999975",
+        "PLACEMENTSIZE/REFINPRESS -0.999520",
+        "MOM20/REV1M -0.965232"
+      ],
+      "decision_issue_ids": [
+        "definition-mom60-absolute-return",
+        "redundancy-high-correlation"
+      ]
+    },
+    {
+      "factor_code": "NETMGN",
+      "name_cn": "净利率",
+      "l1": "公司内生信息",
+      "l2": "盈利能力类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "S_FA_NETPROFITMARGIN_TTM"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:37:55.090072+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "NPFCST3M",
+      "name_cn": "净利预期上修(3M)",
+      "l1": "投资者行为信息",
+      "l2": "分析师预期类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "3个月和1个月未必有足够的差异。"
+      ],
+      "manual_suggestion": [
+        "剔除该因子。"
+      ],
+      "manual_system_versions": [
+        "2026-07-03 16:17:11"
+      ],
+      "manual_updated_at": "2026-07-10T06:36:05.318974+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions"
+      ]
+    },
+    {
+      "factor_code": "NPGROWTH",
+      "name_cn": "净利润同比",
+      "l1": "公司内生信息",
+      "l2": "成长类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "wind字段检索不到"
+      ],
+      "manual_suggestion": [
+        "使用归母净利润TTM原始值自行计算同比。归母净利润TTM字段：s_fa_netprofit_ttm"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:20:05.168512+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "OCF2OI",
+      "name_cn": "现金流经营收益比",
+      "l1": "公司内生信息",
+      "l2": "盈利质量类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "s_fa_ocftooperateincome_ttm2"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:42:57.743309+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "OCF2OR",
+      "name_cn": "现金流收入比",
+      "l1": "公司内生信息",
+      "l2": "盈利质量类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "S_FA_OCFTOOR_TTM"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:43:25.393309+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "OPGROWTH",
+      "name_cn": "营业利润同比",
+      "l1": "公司内生信息",
+      "l2": "成长类",
+      "resolution_status": "pending_data",
+      "manual_problem": [
+        "查询不到字段"
+      ],
+      "manual_suggestion": [
+        "营业利润TTM字段：s_fa_op_ttm2(Wind代码,报告期)，获取原值后计算同比"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:27:41.216504+00:00",
+      "decision_titles": [
+        "现金流和营业利润增速缺原值独立对账字段"
+      ],
+      "verification_assessment": [
+        "当前两个因子使用Wind PIT已计算增速。人工建议从原值自行构造TTM并计算同比，数据字典分别定位到AShareCashFlow.NET_CASH_FLOWS_OPER_ACT和PITFinancialFactor.S_DFA_OP_TTM，但两字段未在本地文件中。"
+      ],
+      "reason_not_changed": [
+        "独立复算所需原值字段未下载，现阶段不能宣称人工建议已完成验证。"
+      ],
+      "decision_action": [
+        "下载NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM，按公告日PIT构造TTM和同比，与S_DFA_TTMGROWRATE_CFOTT、S_DFA_TTMGROWRATE_OP对账后再确定是否替换。"
+      ],
+      "evidence": [
+        "Wind字典定位AShareCashFlow.NET_CASH_FLOWS_OPER_ACT",
+        "Wind字典定位PITFinancialFactor.S_DFA_OP_TTM",
+        "本地cashflow_statement_ext和pit_financial_ext均缺对应字段"
+      ],
+      "decision_issue_ids": [
+        "data-financial-raw-validation-fields"
+      ]
+    },
+    {
+      "factor_code": "OPMGN",
+      "name_cn": "营业利润率",
+      "l1": "公司内生信息",
+      "l2": "盈利能力类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "S_FA_OPTOOR_TTM"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:38:35.083891+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "ORCAGR3Y",
+      "name_cn": "营业收入3年复合增速",
+      "l1": "公司内生信息",
+      "l2": "成长类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "营业总收入字段：s_fa_gr_ttm2"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:28:30.664829+00:00",
+      "decision_titles": [
+        "营业收入与营业总收入字段层级已确认",
+        "营业总收入与营业收入增速高度相关但保留"
+      ],
+      "verification_assessment": [
+        "财政部一般企业利润表列报项目为营业收入，当前ORCAGR3Y使用S_DFA_OR_TTM与名称一致；S_DFA_GR_TTM表示营业总收入，已由GRCAGR3Y单独使用。人工提出的字段查询困难不构成当前字段错误。",
+        "两因子得分高度相关，原始序列相关系数为0.987947且96.3309%的共同观测完全相同，但营业总收入与营业收入在部分行业和报表项目中并非同一概念。"
+      ],
+      "reason_not_changed": [
+        "两字段均已在本地PIT数据中验证可用，互换会造成命名不符，并使ORCAGR3Y重复使用GRCAGR3Y的数据口径。",
+        "语义差异真实存在，高相关不足以证明其中一个字段错误；本轮明确保留而不再等待去留研究。"
+      ],
+      "decision_action": [
+        "ORCAGR3Y继续使用S_DFA_OR_TTM计算营业收入3年复合增速；GRCAGR3Y继续使用S_DFA_GR_TTM计算营业总收入3年复合增速，两个因子均保留并明确全称。",
+        "按用户不删除的决定保留两个因子，页面继续提示高相关；组合构建时避免同时赋予完整权重。"
+      ],
+      "evidence": [
+        "财政部一般企业利润表格式列示营业收入",
+        "本地pit_financial.csv同时存在S_DFA_OR_TTM和S_DFA_GR_TTM",
+        "两序列完全相同比例96.3309%，但并非处处相同",
+        "S_DFA_GR_TTM与S_DFA_OR_TTM本地共同样本367772条",
+        "原始序列相关系数0.987947",
+        "用户决定不删除因子"
+      ],
+      "decision_issue_ids": [
+        "definition-orcagr3y-revenue-scope",
+        "redundancy-revenue-cagr-retained"
+      ]
+    },
+    {
+      "factor_code": "PE_DED",
+      "name_cn": "扣非市盈率",
+      "l1": "公司内生信息",
+      "l2": "估值类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该字段"
+      ],
+      "manual_suggestion": [
+        "已经有PB,pe等指标，可以考虑删除"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:27:46.32589+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions"
+      ]
+    },
+    {
+      "factor_code": "PROFITNOTICEBEAT",
+      "name_cn": "预告超预期",
+      "l1": "事件驱动信息",
+      "l2": "业绩事件类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "指标有效性需要再考虑"
+      ],
+      "manual_suggestion": [
+        "1，发业绩预告的公司本身是小部分；2，和分析师上调下调预期的指标有重合"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:55:46.739571+00:00",
+      "decision_titles": [
+        "业绩快报、预告和财报意外因子作为事件信号保留"
+      ],
+      "verification_assessment": [
+        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。快报、业绩预告和正式财报分别代表不同披露阶段，事件稀疏不构成字段错误。"
+      ],
+      "reason_not_changed": [
+        "公告后价格反应和分析师修正是后事件市场反应信号，不能替代公告内容意外；删除会丢失披露阶段信息。"
+      ],
+      "decision_action": [
+        "保留六个事件因子和首次披露月PIT处理；页面继续显示快报因子约5.7%的低覆盖。PROFITNOTICEBEAT和REPORTSURPRISE保留实际或公司指引相对一致预期的定义，不改用公告后价格反应。"
+      ],
+      "evidence": [
+        "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
+        "Ball、Brown (1968), DOI:10.2307/2490232",
+        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+      ],
+      "decision_issue_ids": [
+        "definition-event-validity"
+      ]
+    },
+    {
+      "factor_code": "PSKEW",
+      "name_cn": "股价偏度",
+      "l1": "市场交易信息",
+      "l2": "波动风险类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "风险指标计算统一使用收益率计算，不用股价计算。"
+      ],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-25T02:48:07.631715+00:00",
+      "decision_titles": [
+        "股价偏度与收益偏度作为两个因子分别保留"
+      ],
+      "verification_assessment": [
+        "Wind字段S_TECH_SKEWNESS是20日收盘价三阶矩，当前名称股价偏度与字段一致；收益率偏度属于崩盘风险研究中的另一种度量，系统已有RETSKEW表达。"
+      ],
+      "reason_not_changed": [
+        "两个因子的输入变量、窗口和经济含义不同，当前名称没有误导，人工建议已经由RETSKEW覆盖。"
+      ],
+      "decision_action": [
+        "保留PSKEW作为股价水平偏度，保留RETSKEW作为收益率偏度；组合构建时按含义选择，不用RETSKEW覆盖PSKEW。"
+      ],
+      "evidence": [
+        "Wind字典定义S_TECH_SKEWNESS为20日收盘价三阶矩",
+        "系统RETSKEW使用252日日收益偏度",
+        "Chen、Hong、Stein (2001), DOI:10.1016/S0304-405X(01)00066-6"
+      ],
+      "decision_issue_ids": [
+        "definition-price-skew"
+      ]
+    },
+    {
+      "factor_code": "PUNISHAMT",
+      "name_cn": "处罚公告金额",
+      "l1": "事件驱动信息",
+      "l2": "风险事件类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该字段"
+      ],
+      "manual_suggestion": [
+        "区间违规处罚金额：s_cac_illegalityamoun"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:52:14.831577+00:00",
+      "decision_titles": [
+        "6个事件因子的人工候选字段已在本地明细表中"
+      ],
+      "verification_assessment": [
+        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+      ],
+      "reason_not_changed": [
+        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+      ],
+      "decision_action": [
+        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+      ],
+      "evidence": [
+        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
+        "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "risk_illegality_ext已有AMOUNT",
+        "risk_investigation_ext已有STR_ANNDATE"
+      ],
+      "decision_issue_ids": [
+        "field-event-tables-valid"
+      ]
+    },
+    {
+      "factor_code": "RDEXPRATIOCHG",
+      "name_cn": "△研发费用占比",
+      "l1": "公司内生信息",
+      "l2": "成长类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该字段"
+      ],
+      "manual_suggestion": [
+        "研发费用占营业收入比字段：s_stmnote_rdexp_costtosales"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T06:30:31.532985+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "RELRET60",
+      "name_cn": "相对市场收益",
+      "l1": "市场交易信息",
+      "l2": "收益趋势类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "全市场中位数代表性不强。"
+      ],
+      "manual_suggestion": [
+        "基准选取全A指数。"
+      ],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-25T03:42:06.949191+00:00",
+      "decision_titles": [
+        "相对市场收益保留全市场中位收益基准",
+        "高相关因子全部保留但组合层禁止重复计权"
+      ],
+      "verification_assessment": [
+        "同一截面内从每只股票60日收益减去任一共同市场基准，只增加共同常数，不改变截面排序。改用全A指数不会形成新的选股信号。",
+        "多组原始得分绝对相关超过0.95，其中ESTEARNREV/NPFCST1M完全相同，MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明字段错误。"
+      ],
+      "reason_not_changed": [
+        "更换共同基准不会改变截面因子得分，重算没有研究增量。",
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "保留当前中位收益基准并明确其仅用于展示相对值；组合选择时与MOM60视为同一信号，不重复计权。",
+        "按不删除决定保留全部因子；组合构建时每个高相关组最多选择一个代表因子，或先做组内等权后再给组级权重。方向相反组禁止以相同正权重同时加入。"
+      ],
+      "evidence": [
+        "MOM60与RELRET60得分相关0.99999997",
+        "共同基准减法的截面秩不变",
+        "人工建议仅更换为全A指数",
+        "MOM60/RELRET60 0.99999997",
+        "ESTEARNREV/NPFCST1M 1.0",
+        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
+        "STOM/TURN20 0.999489",
+        "AMOUNT20/MFLOW20 0.999869",
+        "DEBT2EQ/EQMULT 0.999975",
+        "PLACEMENTSIZE/REFINPRESS -0.999520",
+        "MOM20/REV1M -0.965232"
+      ],
+      "decision_issue_ids": [
+        "definition-relret60-common-benchmark",
+        "redundancy-high-correlation"
+      ]
+    },
+    {
+      "factor_code": "REPORTSURPRISE",
+      "name_cn": "财报超/低预期",
+      "l1": "事件驱动信息",
+      "l2": "业绩事件类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "分析师预期数据本身比较偏高，可以考虑使用发财报后，股价是否上涨表示，以及财报前后，分析师预期的上调下调情况"
+      ],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T09:56:55.003882+00:00",
+      "decision_titles": [
+        "业绩快报、预告和财报意外因子作为事件信号保留"
+      ],
+      "verification_assessment": [
+        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。快报、业绩预告和正式财报分别代表不同披露阶段，事件稀疏不构成字段错误。"
+      ],
+      "reason_not_changed": [
+        "公告后价格反应和分析师修正是后事件市场反应信号，不能替代公告内容意外；删除会丢失披露阶段信息。"
+      ],
+      "decision_action": [
+        "保留六个事件因子和首次披露月PIT处理；页面继续显示快报因子约5.7%的低覆盖。PROFITNOTICEBEAT和REPORTSURPRISE保留实际或公司指引相对一致预期的定义，不改用公告后价格反应。"
+      ],
+      "evidence": [
+        "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
+        "Ball、Brown (1968), DOI:10.2307/2490232",
+        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+      ],
+      "decision_issue_ids": [
+        "definition-event-validity"
+      ]
+    },
+    {
+      "factor_code": "REV1M",
+      "name_cn": "短期反转",
+      "l1": "市场交易信息",
+      "l2": "收益趋势类",
+      "resolution_status": "not_planned",
+      "manual_problem": [],
+      "manual_suggestion": [
+        "保留word口径计算方法，补充隔夜反转、日内反转。"
+      ],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-25T03:46:03.465358+00:00",
+      "decision_titles": [
+        "21日短期反转保留，隔夜和日内反转另设因子",
+        "高相关因子全部保留但组合层禁止重复计权"
+      ],
+      "verification_assessment": [
+        "REV1M使用21日累计收益并以负方向表达短期反转，名称和公式一致；隔夜反转和日内反转需要开盘价拆分，属于两个独立信号。",
+        "多组原始得分绝对相关超过0.95，其中ESTEARNREV/NPFCST1M完全相同，MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明字段错误。"
+      ],
+      "reason_not_changed": [
+        "人工建议是扩充因子集合，不证明现有21日反转计算错误。",
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "保留REV1M；后续如研究隔夜或日内反转，分别新增OVERNIGHTREV和INTRADAYREV，不覆盖REV1M。",
+        "按不删除决定保留全部因子；组合构建时每个高相关组最多选择一个代表因子，或先做组内等权后再给组级权重。方向相反组禁止以相同正权重同时加入。"
+      ],
+      "evidence": [
+        "REV1M公式ln(P_t/P_{t-21})且direction=-1",
+        "人工复核建议保留Word口径并补充两个子因子",
+        "REV1M与REV5D得分相关0.425563",
+        "MOM60/RELRET60 0.99999997",
+        "ESTEARNREV/NPFCST1M 1.0",
+        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
+        "STOM/TURN20 0.999489",
+        "AMOUNT20/MFLOW20 0.999869",
+        "DEBT2EQ/EQMULT 0.999975",
+        "PLACEMENTSIZE/REFINPRESS -0.999520",
+        "MOM20/REV1M -0.965232"
+      ],
+      "decision_issue_ids": [
+        "definition-rev1m-components",
+        "redundancy-high-correlation"
+      ]
+    },
+    {
+      "factor_code": "REV5D",
+      "name_cn": "5日反转",
+      "l1": "市场交易信息",
+      "l2": "收益趋势类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "与短期反转因子重复。"
+      ],
+      "manual_suggestion": [
+        "因子不保留。"
+      ],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-25T03:46:38.749626+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions"
+      ]
+    },
+    {
+      "factor_code": "RISKINVESTCNT",
+      "name_cn": "被立案",
+      "l1": "事件驱动信息",
+      "l2": "风险事件类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "查询不到该指标"
+      ],
+      "manual_suggestion": [],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:52:53.863969+00:00",
+      "decision_titles": [
+        "6个事件因子的人工候选字段已在本地明细表中"
+      ],
+      "verification_assessment": [
+        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+      ],
+      "reason_not_changed": [
+        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+      ],
+      "decision_action": [
+        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+      ],
+      "evidence": [
+        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
+        "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "risk_illegality_ext已有AMOUNT",
+        "risk_investigation_ext已有STR_ANNDATE"
+      ],
+      "decision_issue_ids": [
+        "field-event-tables-valid"
+      ]
+    },
+    {
+      "factor_code": "ROA",
+      "name_cn": "总资产收益率",
+      "l1": "公司内生信息",
+      "l2": "盈利能力类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "s_fa_roa2_ttm2"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:39:26.650697+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "ROE",
+      "name_cn": "净资产收益率",
+      "l1": "公司内生信息",
+      "l2": "盈利能力类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "s_fa_roe_ttm2"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:39:57.362698+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "ROEVOL",
+      "name_cn": "ROE波动率",
+      "l1": "公司内生信息",
+      "l2": "盈利质量类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "计算缺失"
+      ],
+      "manual_suggestion": [
+        "s_fa_roe_ttm2，原值计算波动率"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:44:13.049889+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "ROIC",
+      "name_cn": "投入资本回报率",
+      "l1": "公司内生信息",
+      "l2": "盈利能力类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "字段查询不到"
+      ],
+      "manual_suggestion": [
+        "S_FA_ROIC_TTM"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T07:40:24.080591+00:00",
+      "decision_titles": [
+        "人工候选财务字段已完成字典与本地数据映射"
+      ],
+      "verification_assessment": [
+        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+      ],
+      "reason_not_changed": [
+        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+      ],
+      "decision_action": [
+        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+      ],
+      "evidence": [
+        "候选变量映射35项均命中Wind数据字典",
+        "其中25项已在本地数据中",
+        "FWDPE已使用AShareConsensusRollingData.EST_PE",
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+      ],
+      "decision_issue_ids": [
+        "field-pit-financial-valid"
+      ]
+    },
+    {
+      "factor_code": "SUSPENDDAYS",
+      "name_cn": "停牌天数",
+      "l1": "市场交易信息",
+      "l2": "交易约束类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "停牌股票不在选股范围内。"
+      ],
+      "manual_suggestion": [
+        "因子不保留。"
+      ],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-25T03:03:42.283369+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions"
+      ]
+    },
+    {
+      "factor_code": "TURNPCTL",
+      "name_cn": "换手率历史分位",
+      "l1": "市场交易信息",
+      "l2": "拥挤度类",
+      "resolution_status": "not_planned",
+      "manual_problem": [],
+      "manual_suggestion": [
+        "可结合使用，先计算每只个股过去120日时序换手率分位数，再计算所有股票的截面分位。"
+      ],
+      "manual_system_versions": [
+        "2026-07-03 16:17:11"
+      ],
+      "manual_updated_at": "2026-07-10T06:20:47.079321+00:00",
+      "decision_titles": [
+        "换手率历史分位已在标准化阶段完成两阶段排序"
+      ],
+      "verification_assessment": [
+        "原始因子先计算每只股票最新换手率在自身120日内的时序分位，标准化阶段再做月度截面高斯秩转换，已经实现人工建议的时序后截面两阶段处理。"
+      ],
+      "reason_not_changed": [
+        "重复截面排序不会增加信息，只会改变中间展示量纲。"
+      ],
+      "decision_action": [
+        "保留当前TURNPCTL原始值和标准化流程，不在原始计算层重复做第二次截面分位。"
+      ],
+      "evidence": [
+        "TURNPCTL原始公式rank_pct(TURN_t,120)",
+        "标准化阶段按月截面高斯秩转换",
+        "人工复核建议时序分位后再做截面分位"
+      ],
+      "decision_issue_ids": [
+        "definition-turnpctl-two-stage"
+      ]
+    },
+    {
+      "factor_code": "TURNVOL20",
+      "name_cn": "换手率波动(20D)",
+      "l1": "市场交易信息",
+      "l2": "流动性类",
+      "resolution_status": "not_planned",
+      "manual_problem": [
+        "TURNVOL已有60日窗口，无需增加20日窗口。"
+      ],
+      "manual_suggestion": [
+        "因子不保留。"
+      ],
+      "manual_system_versions": [
+        "2026-06-23 13:28:18"
+      ],
+      "manual_updated_at": "2026-06-25T03:19:25.014272+00:00",
+      "decision_titles": [
+        "人工提出删除的十个因子全部保留"
+      ],
+      "verification_assessment": [
+        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子。"
+      ],
+      "decision_action": [
+        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+      ],
+      "evidence": [
+        "17组原始得分与中性得分相关性复核",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
+        "不同窗口和不同盈利口径具有独立含义"
+      ],
+      "decision_issue_ids": [
+        "redundancy-review-decisions"
+      ]
+    },
+    {
+      "factor_code": "UNLOCKMVRATIO",
+      "name_cn": "解禁市值/流通市值",
+      "l1": "事件驱动信息",
+      "l2": "供给冲击类",
+      "resolution_status": "pending_data",
+      "manual_problem": [
+        "查询不到该字段"
+      ],
+      "manual_suggestion": [
+        "目前wind能查询到的有解禁数量，解禁日期\n可以考虑解禁规模=解禁日收盘价*解禁数量\n解禁日期=s_share_rtd_unlockingdate\n解禁数量=s_share_tradable_current\n自由流通市值=share_freesharesmv"
+      ],
+      "manual_system_versions": [
+        "2026-07-01 10:26:29"
+      ],
+      "manual_updated_at": "2026-07-02T08:00:18.236141+00:00",
+      "decision_titles": [
+        "解禁类因子缺公告日过滤"
+      ],
+      "verification_assessment": [
+        "当前unlock_ext有可流通日期和解禁数量，但缺AShareCompRestricted.ANN_DT。现公式直接统计未来90日解禁计划，无法验证该计划在当时月末是否已经公告，存在未来信息泄漏风险。"
+      ],
+      "reason_not_changed": [
+        "本地解禁表缺ANN_DT，不能完成PIT过滤；取得字段前两个因子均不应标为已评估保留。"
+      ],
+      "decision_action": [
+        "重新下载AShareCompRestricted.ANN_DT；构造每个月末截面时只保留ANN_DT<=trade_date且S_INFO_LISTDATE位于未来90日的记录，然后重算UNLOCKMVRATIO和UNLOCKPRESS及全部下游结果。"
+      ],
+      "evidence": [
+        "Wind字典AShareCompRestricted包含ANN_DT",
+        "unlock_ext.parquet有18,504,271行但不含ANN_DT",
+        "missing_fields.parquet明确记录ANN_DT候选字段未下载"
+      ],
+      "decision_issue_ids": [
+        "data-unlock-announcement-date"
+      ]
+    }
+  ]
+}

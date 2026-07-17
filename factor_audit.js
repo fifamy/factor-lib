@@ -27,6 +27,14 @@ const REVIEW_STATUS_LABEL = {
   passed: ["通过", "rs-pass", "已有复核记录，且未发现问题"],
   unavailable: ["—", "rs-offline", "无法连接复核库，仅离线查看因子数据"],
 };
+const RESOLUTION_STATUS_LABEL = {
+  none: ["—", "rsv-none", "本轮人工复核未登记需要处理的问题"],
+  fixed: ["已修改", "rsv-fixed", "本轮已完成代码或口径修改"],
+  pending_technical: ["待技术", "rsv-technical", "需要补充计算、对账或数据处理逻辑"],
+  pending_data: ["待数据", "rsv-data", "缺少可靠数据源，暂时无法完成修改"],
+  pending_research: ["待研究", "rsv-research", "需要研究人员确认定义、参数或去留"],
+  not_planned: ["已评估保留", "rsv-not-planned", "已完成评估；现有证据支持保留原实现，详情记录了依据和使用约束"],
+};
 const VERDICT_LABEL = {
   pass: "通过",
   issue: "有问题",
@@ -98,6 +106,11 @@ let reviewRecords = [];
 let reviewAgg = {};
 let reviewLoadError = "";
 let auditGeneratedAt = "";
+let retainedReviewReport = { summary: {}, factors: [] };
+let retainedReviewReportError = "";
+let retainedReportQuery = "";
+let variableDownloadPlan = { summary: {}, download_list: [] };
+let variableDownloadPlanError = "";
 
 function supabaseHeaders(extra = {}) {
   return {
@@ -176,6 +189,12 @@ async function loadAllReviews() {
   const cols = "id,factor_code,reviewer_name,category,formula_verdict,universe_verdict,overall_verdict,problem,suggestion,system_version,created_at,updated_at";
   return supabaseSelect(REVIEW_TABLE, `?select=${cols}&order=updated_at.desc`);
 }
+async function loadRetainedReviewReport() {
+  return await (await fetch(`data/factor_retained_review_report.json?v=${Date.now()}`)).json();
+}
+async function loadVariableDownloadPlan() {
+  return await (await fetch(`data/factor_variable_download_plan.json?v=${Date.now()}`)).json();
+}
 async function loadFactorReviews(code) {
   const cols = "id,factor_code,reviewer_name,category,formula_verdict,universe_verdict,overall_verdict,problem,suggestion,system_version,created_at,updated_at";
   return supabaseSelect(REVIEW_TABLE, `?select=${cols}&factor_code=eq.${encodeURIComponent(code)}&order=updated_at.desc`);
@@ -237,6 +256,11 @@ function formatTime(s) {
   if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleString("zh-CN", { hour12: false });
 }
+function isReviewStale(review) {
+  const reviewedVersion = String(review?.system_version || "").trim();
+  const currentVersion = String(auditGeneratedAt || "").trim();
+  return Boolean(reviewedVersion && currentVersion && reviewedVersion !== currentVersion);
+}
 function setReviewerName(name) {
   reviewerName = String(name || "").trim();
   try { localStorage.setItem(REVIEWER_STORAGE_KEY, reviewerName); }
@@ -284,16 +308,19 @@ function reviewBadge(value, labels) {
 function renderReviewRecords(records) {
   const rows = (records || []).slice().sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
   if (!rows.length) return `<div class="fa-empty">暂无复核记录</div>`;
-  return rows.map(r => `
+  return rows.map(r => {
+    const stale = isReviewStale(r);
+    return `
     <div class="fa-review-record">
       <div class="fa-review-record-head">
         <b>${esc(r.reviewer_name || "未命名")}</b>
         <span>${reviewBadge(r.formula_verdict, VERDICT_LABEL)} ${reviewBadge(r.universe_verdict, VERDICT_LABEL)} ${reviewBadge(r.overall_verdict, OVERALL_LABEL)}</span>
       </div>
-      <div class="fa-review-record-time">${esc(formatTime(r.updated_at || r.created_at))}</div>
+      <div class="fa-review-record-time">${esc(formatTime(r.updated_at || r.created_at))}${r.system_version ? ` · 版本 ${esc(r.system_version)}` : ""}${stale ? ` <span class="fa-review-stale" title="当前审计数据生成于 ${esc(auditGeneratedAt)}">基于旧版本</span>` : ""}</div>
       ${r.problem ? `<div class="fa-review-text"><b>问题：</b>${esc(r.problem)}</div>` : ""}
       ${r.suggestion ? `<div class="fa-review-text"><b>建议：</b>${esc(r.suggestion)}</div>` : ""}
-    </div>`).join("");
+    </div>`;
+  }).join("");
 }
 function renderReviewPanelHtml(factor, records, errorText) {
   const name = currentReviewerName();
@@ -505,6 +532,123 @@ function renderReviewDashboard() {
   dashboard.querySelectorAll("[data-code]").forEach(btn =>
     btn.addEventListener("click", () => openDetail(btn.dataset.code)));
 }
+function resolutionLabel(status) {
+  return RESOLUTION_STATUS_LABEL[status] || RESOLUTION_STATUS_LABEL.none;
+}
+function renderResolutionDashboard() {
+  const summaryEl = document.getElementById("fa-resolution-summary");
+  const fixedEl = document.getElementById("fa-resolution-fixed-list");
+  const openEl = document.getElementById("fa-resolution-open-list");
+  const retainedEl = document.getElementById("fa-resolution-retained-list");
+  if (!summaryEl || !fixedEl || !openEl || !retainedEl || !ALL.length) return;
+
+  const tracked = ALL.filter(f => (f.resolution_status || "none") !== "none");
+  const fixed = tracked.filter(f => f.resolution_status === "fixed");
+  const retained = tracked.filter(f => f.resolution_status === "not_planned");
+  const open = tracked.filter(f => !["fixed", "not_planned"].includes(f.resolution_status));
+  const counts = {};
+  tracked.forEach(f => { counts[f.resolution_status] = (counts[f.resolution_status] || 0) + 1; });
+  summaryEl.innerHTML = ["fixed", "pending_technical", "pending_data", "pending_research", "not_planned"]
+    .filter(status => counts[status])
+    .map(status => {
+      const [label, cls] = resolutionLabel(status);
+      return `<span class="fa-resolution-status ${cls}">${esc(label)} ${counts[status]}</span>`;
+    }).join("");
+
+  const row = f => {
+    const [label, cls] = resolutionLabel(f.resolution_status);
+    const title = (f.resolution_titles || []).join("；") || "查看处理记录";
+    const action = (f.resolution_actions || []).filter(Boolean).join("；");
+    const reasons = (f.resolution_reasons || []).filter(Boolean).join("；");
+    const note = f.resolution_status === "not_planned" && reasons
+      ? `保留原因：${reasons}`
+      : action;
+    return `<button type="button" class="fa-review-list-row" data-code="${esc(f.code)}">
+      <b>${esc(f.code)} · ${esc(f.name_cn)} <span class="fa-resolution-status ${cls}">${esc(label)}</span></b>
+      <span>${esc(title)}${note ? `<br>${esc(note)}` : ""}</span>
+    </button>`;
+  };
+  fixedEl.innerHTML = fixed.map(row).join("") || `<div class="fa-empty">暂无已修改项</div>`;
+  openEl.innerHTML = open.map(row).join("") || `<div class="fa-empty">暂无待完成项</div>`;
+  retainedEl.innerHTML = retained.map(row).join("") || `<div class="fa-empty">暂无保留现状项</div>`;
+  document.querySelectorAll(".fa-resolution-dashboard [data-code]").forEach(btn =>
+    btn.addEventListener("click", () => openDetail(btn.dataset.code)));
+  renderRetainedReviewReport();
+}
+function retainedReportLines(items, emptyText = "未填写") {
+  const rows = (items || []).filter(Boolean);
+  if (!rows.length) return `<span class="fa-retained-missing">${esc(emptyText)}</span>`;
+  return rows.map(text => `<p>${esc(text)}</p>`).join("");
+}
+function renderRetainedReviewReport() {
+  const root = document.getElementById("fa-retained-review-list");
+  const countEl = document.getElementById("fa-retained-review-count");
+  if (!root || !countEl) return;
+  if (retainedReviewReportError) {
+    countEl.textContent = "明细数据加载失败";
+    root.innerHTML = `<tr><td colspan="6" class="fa-empty">${esc(retainedReviewReportError)}</td></tr>`;
+    return;
+  }
+  const allRows = retainedReviewReport.factors || [];
+  const normalizedQuery = retainedReportQuery.trim().toLowerCase();
+  const rows = normalizedQuery ? allRows.filter(row => {
+    const text = [
+      row.factor_code, row.name_cn, row.l1, row.l2,
+      ...(row.manual_problem || []), ...(row.manual_suggestion || []),
+      ...(row.verification_assessment || []), ...(row.reason_not_changed || []),
+      ...(row.decision_action || []), ...(row.evidence || []),
+    ].join(" ").toLowerCase();
+    return text.includes(normalizedQuery);
+  }) : allRows;
+  const summary = retainedReviewReport.summary || {};
+  const scope = normalizedQuery ? `${rows.length}/${allRows.length}项` : `${allRows.length}项`;
+  countEl.textContent = `${scope}：保留${summary.retained_issue_factor_count || 0} · 已修改${summary.reclassified_fixed_count || 0} · 转待处理${summary.reclassified_pending_count || 0}`;
+  root.innerHTML = rows.map(row => `
+    <tr>
+      <td>${resolutionStatusCell({ resolution_status: row.resolution_status })}</td>
+      <td>
+        <button type="button" class="fa-retained-factor-link" data-code="${esc(row.factor_code)}">
+          <b>${esc(row.factor_code)}</b>
+          <span>${esc(row.name_cn)}</span>
+        </button>
+        <small>${esc(row.l1)} / ${esc(row.l2)}</small>
+      </td>
+      <td>${retainedReportLines(row.manual_problem)}</td>
+      <td>${retainedReportLines(row.manual_suggestion)}</td>
+      <td>
+        <strong>核验结论</strong>${retainedReportLines(row.verification_assessment, "未记录")}
+        <strong>${row.resolution_status === "not_planned" ? "不修改理由" : row.resolution_status === "fixed" ? "完成状态" : "尚未完成原因"}</strong>${retainedReportLines(row.reason_not_changed, "未记录")}
+      </td>
+      <td>
+        <strong>处理与使用约束</strong>${retainedReportLines(row.decision_action, "未记录")}
+        <strong>核心证据</strong>${retainedReportLines(row.evidence, "未记录")}
+      </td>
+    </tr>`).join("") || `<tr><td colspan="6" class="fa-empty">无匹配因子</td></tr>`;
+  root.querySelectorAll("[data-code]").forEach(btn =>
+    btn.addEventListener("click", () => openDetail(btn.dataset.code)));
+}
+function renderVariableDownloadPlan() {
+  const root = document.getElementById("fa-variable-download-list");
+  const countEl = document.getElementById("fa-variable-download-count");
+  if (!root || !countEl) return;
+  if (variableDownloadPlanError) {
+    countEl.textContent = "下载清单加载失败";
+    root.innerHTML = `<tr><td colspan="6" class="fa-empty">${esc(variableDownloadPlanError)}</td></tr>`;
+    return;
+  }
+  const summary = variableDownloadPlan.summary || {};
+  const rows = variableDownloadPlan.download_list || [];
+  countEl.textContent = `需下载${summary.download_count || rows.length}项：阻断${summary.blocking_download_count || 0} · 建议同批${summary.optional_download_count || 0} · 已有${summary.local_available_count || 0}项`;
+  root.innerHTML = rows.map(row => `
+    <tr>
+      <td><span class="fa-variable-priority ${row.requirement === "blocking" ? "blocking" : "optional"}">${row.requirement === "blocking" ? "必须下载" : "建议同批"}</span></td>
+      <td class="fa-mono">${esc((row.factor_codes || []).join("、"))}</td>
+      <td class="fa-mono">${esc(row.table_name)}</td>
+      <td class="fa-mono">${esc(row.field_name)}</td>
+      <td>${esc(row.dictionary_field_cn || "字典未提供中文名")}</td>
+      <td>${esc(row.purpose)}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="fa-empty">当前没有缺失候选变量</td></tr>`;
+}
 function csvCell(value) {
   const s = String(value === null || value === undefined ? "" : value);
   return `"${s.replace(/"/g, '""')}"`;
@@ -532,6 +676,7 @@ function setView(view) {
   document.getElementById("fa-table").classList.toggle("hidden", currentView !== "list");
   document.getElementById("fa-dashboard").classList.toggle("hidden", currentView !== "dashboard");
   renderReviewDashboard();
+  renderResolutionDashboard();
 }
 
 function spark(hist) {
@@ -571,6 +716,35 @@ function reviewStatusCell(f) {
   const count = reviewAgg[f.code]?.records?.length || 0;
   const label = count ? `${text} · ${count}` : text;
   return `<span class="fa-review-status ${cls}" title="${esc(tip)}">${esc(label)}</span>`;
+}
+function resolutionStatusCell(f) {
+  const status = f.resolution_status || "none";
+  const [text, cls, tip] = resolutionLabel(status);
+  const count = Number(f.resolution_issue_count || 0);
+  const label = count > 1 ? `${text} · ${count}` : text;
+  return `<span class="fa-resolution-status ${cls}" title="${esc(tip)}">${esc(label)}</span>`;
+}
+function renderResolutionBlock(resolution) {
+  const issues = resolution?.issues || [];
+  if (!issues.length) return "";
+  return `
+    <div class="fa-block fa-resolution-block"><h3>问题处理记录</h3>
+      ${issues.map(issue => {
+        const [label, cls] = resolutionLabel(issue.status);
+        const evidence = (issue.evidence || []).filter(Boolean);
+        const files = (issue.changed_files || []).filter(Boolean);
+        const actionLabel = issue.status === "fixed" ? "已采取操作" : (issue.status === "not_planned" ? "处理结论" : "拟处理方式");
+        const reasonLabel = issue.status === "not_planned" ? "保留原因" : "尚未完成原因";
+        return `<article class="fa-resolution-issue">
+          <div class="fa-resolution-issue-head"><b>${esc(issue.title || issue.issue_id)}</b><span class="fa-resolution-status ${cls}">${esc(label)}</span></div>
+          <p><b>分析结论：</b>${esc(issue.assessment || "—")}</p>
+          ${issue.action ? `<p><b>${actionLabel}：</b>${esc(issue.action)}</p>` : ""}
+          ${issue.reason_not_changed ? `<p><b>${reasonLabel}：</b>${esc(issue.reason_not_changed)}</p>` : ""}
+          ${evidence.length ? `<p><b>核心证据：</b>${evidence.map(esc).join("；")}</p>` : ""}
+          ${files.length ? `<p><b>已改文件：</b><span class="fa-mono">${files.map(esc).join("；")}</span></p>` : ""}
+        </article>`;
+      }).join("")}
+    </div>`;
 }
 function renderParamList(items) {
   const rows = (items || []).filter(Boolean);
@@ -626,8 +800,12 @@ function matchRow(f) {
     const normalized = status === "pass" ? "passed" : status;
     if (reviewStatusForFactor(f.code) !== normalized) return false;
   }
+  if (filter.indexOf("resolution_") === 0) {
+    const status = filter.replace("resolution_", "");
+    if ((f.resolution_status || "none") !== status) return false;
+  }
   if (query) {
-    const hay = `${f.code} ${f.name_cn} ${f.l1} ${f.l2}`.toLowerCase();
+    const hay = `${f.code} ${f.name_cn} ${f.l1} ${f.l2} ${(f.resolution_titles || []).join(" ")}`.toLowerCase();
     if (!hay.includes(query)) return false;
   }
   return true;
@@ -647,6 +825,7 @@ function rowHtml(f) {
       <td>${universeStatusCell(f)}</td>
       <td>${parameterStatusCell(f)}</td>
       <td>${reviewStatusCell(f)}</td>
+      <td>${resolutionStatusCell(f)}</td>
       <td class="fa-help" title="真实覆盖 ${(Math.max(Number(f.coverage) || 0, 0) * 100).toFixed(0)}%${f.coverage > 1.001 ? '（含超出 Word 股票池样本）' : ''}">${pct(f.coverage).toFixed(0)}%</td>
       <td>${spark(f.hist)}</td>
       <td>${dirCell(f.direction)}</td>
@@ -666,20 +845,24 @@ function render() {
     if (cat !== curCat) {
       curCat = cat;
       const warn = rows.filter(x => `${x.l1} › ${x.l2}` === cat && x.health !== "ok").length;
-      html += `<tr class="fa-group"><td colspan="11">${esc(f.l1)} <span class="fa-group-sub">› ${esc(f.l2)}</span>` +
+      html += `<tr class="fa-group"><td colspan="12">${esc(f.l1)} <span class="fa-group-sub">› ${esc(f.l2)}</span>` +
         `<span class="fa-group-n">${catCount[cat]} 个${warn ? ` · ${warn} 可疑` : ""}</span></td></tr>`;
     }
     html += rowHtml(f);
   }
-  document.getElementById("fa-tbody").innerHTML = html || `<tr><td colspan="11" style="padding:16px;color:#8a94a6">无匹配因子</td></tr>`;
+  document.getElementById("fa-tbody").innerHTML = html || `<tr><td colspan="12" style="padding:16px;color:#8a94a6">无匹配因子</td></tr>`;
   const reviewed = ALL.filter(f => reviewStatusForFactor(f.code) !== "unreviewed" && reviewStatusForFactor(f.code) !== "unavailable").length;
   const issue = ALL.filter(f => reviewStatusForFactor(f.code) === "issue").length;
   const reviewText = reviewLoadError ? "复核库离线" : `已复核 ${reviewed} · 有问题 ${issue}`;
+  const fixed = ALL.filter(f => f.resolution_status === "fixed").length;
+  const pendingCompletion = ALL.filter(f => ["pending_technical", "pending_data", "pending_research"].includes(f.resolution_status)).length;
+  const retainedCount = ALL.filter(f => f.resolution_status === "not_planned").length;
   document.getElementById("fa-stat").textContent =
-    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · 数据起步晚 ${ALL.filter(hasCoverageLateFlag).length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length} · 样本空间不一致 ${ALL.filter(f => f.universe_mismatch).length} · 参数待补 ${ALL.filter(f => f.parameter_mismatch).length} · ${reviewText}`;
+    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · 数据起步晚 ${ALL.filter(hasCoverageLateFlag).length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length} · 样本空间不一致 ${ALL.filter(f => f.universe_mismatch).length} · 参数待补 ${ALL.filter(f => f.parameter_mismatch).length} · 已修改 ${fixed} · 待完成 ${pendingCompletion} · 已评估保留 ${retainedCount} · ${reviewText}`;
   document.querySelectorAll(".fa-row").forEach(tr =>
     tr.addEventListener("click", () => openDetail(tr.dataset.code)));
   renderReviewDashboard();
+  renderResolutionDashboard();
 }
 async function openDetail(code) {
   const drawer = document.getElementById("fa-drawer");
@@ -704,6 +887,7 @@ async function openDetail(code) {
     <div class="fa-detail-sub">${esc(d.l1)} / ${esc(d.l2)} · 方向 ${dirCell(d.direction)} · 体检 ${badge(HEALTH_LABEL, d.health.level)}${d.doc_missing ? ` · <span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${d.formula_mismatch && d.formula_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${d.universe_mismatch && d.universe_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}${d.parameter_coverage && d.parameter_coverage.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(PARAMETER_MISMATCH_TIP)}">参数待补</span>` : ""}</div>
     ${renderDataHistoryWarning(d)}
     ${renderNeutralizationQualityWarning(d)}
+    ${renderResolutionBlock(d.resolution)}
     <div class="fa-block"><h3>公式对照</h3>
       ${d.doc_missing ? `<div class="fa-doc-alert">Word 技术文档未单列该因子或未给公式；下方“系统实现/Wind 字段”可作为补文档依据。</div>` : ""}
       ${d.formula_mismatch && d.formula_mismatch.level === "warn" ? `<div class="fa-formula-alert"><b>文档/系统口径不一致：</b>${esc(d.formula_mismatch.reason || "")}${d.formula_mismatch.word_scope ? `<br>Word：${esc(d.formula_mismatch.word_scope)}` : ""}${d.formula_mismatch.system_scope ? `<br>系统：${esc(d.formula_mismatch.system_scope)}` : ""}</div>` : ""}
@@ -793,6 +977,10 @@ document.getElementById("fa-search").addEventListener("input", e => {
   query = e.target.value.trim().toLowerCase();
   render();
 });
+document.getElementById("fa-retained-search").addEventListener("input", e => {
+  retainedReportQuery = e.target.value;
+  renderRetainedReviewReport();
+});
 document.getElementById("fa-export-reviews").addEventListener("click", exportReviewsCsv);
 (async function init() {
   initReviewerIdentity();
@@ -801,6 +989,17 @@ document.getElementById("fa-export-reviews").addEventListener("click", exportRev
     const idx = await (await fetch(`data/factor_audit/index.json?v=${Date.now()}`)).json();
     auditGeneratedAt = idx.generated_at || "";
     ALL = idx.factors;
+    try {
+      retainedReviewReport = await loadRetainedReviewReport();
+    } catch (reportError) {
+      retainedReviewReportError = `保留因子明细加载失败：${reportError.message || reportError}`;
+    }
+    try {
+      variableDownloadPlan = await loadVariableDownloadPlan();
+    } catch (planError) {
+      variableDownloadPlanError = `候选变量下载清单加载失败：${planError.message || planError}`;
+    }
+    renderVariableDownloadPlan();
     render();
     await refreshAllReviews();
     render();

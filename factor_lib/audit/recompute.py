@@ -20,11 +20,12 @@ REL_TOL_BY_CODE = {
 
 # 各计算因子参考实现所需价格窗口长度（与 refs.py / tests/test_audit_refs.py 一致）
 WIN_N = {
-    "REV1M": 22, "REV5D": 6, "MOM20": 21, "MOM60": 61, "MOM12_1": 253, "DASTD": 252,
+    "REV1M": 22, "REV5D": 6, "MOM20": 21, "MOM60": 61, "MOM12_1": 253, "RSTR252": 253, "DASTD": 252,
     "DOWNVOL": 520, "MAXDD1Y": 252, "RETSKEW": 520, "RETKURT": 520, "BIGDOWN": 61,
-    "AMOUNT20": 20, "VOLUME20": 20, "TURN20": 20, "STOM": 21, "AMTVOL": 180,
-    "TURNVOL": 60, "TURNPCTL": 120, "PVCORR": 61, "UPVOLRATIO": 61, "PRICEZ": 60,
-    "MA20BIAS": 20, "HLPOS": 60, "ABTURN": 61, "HIGHMOMTURN": 61, "BETA": 253, "DOWNBETA": 253,
+    "AMOUNT20": 20, "VOLUME20": 20, "TURN20": 20, "STOM": 21, "AMTVOL": 20,
+    "TURNVOL": 60, "TURNPCTL": 120, "PVCORR": 61, "UPVOLRATIO": 21, "PRICEZ": 20,
+    "MA20BIAS": 20, "HLPOS": 60, "ABTURN": 60, "HIGHMOMTURN": 61, "BETA": 253, "DOWNBETA": 253,
+    "AROON": 25, "MFLOW20": 20, "RVI": 1,
 }
 DEFAULT_WIN = 260
 DERIVED_CODES = {"GRCAGR3Y", "PBPCTL", "RELRET60", "RELPEIND", "RELPBIND", "RELRETIND"}
@@ -160,10 +161,12 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
     elif code in {"INTDEBTRATIO", "GOODWILLRATIO", "ARRATIO"}:
         balance = _read_word_v2_parquet(src, "balance_statement_ext", [
             "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "TOT_ASSETS", "ST_BORROW",
-            "NON_CUR_LIAB_DUE_WITHIN_1Y", "LT_BORROW", "BONDS_PAYABLE", "LEASE_LIAB",
+            "NON_CUR_LIAB_DUE_WITHIN_1Y", "LT_BORROW", "BONDS_PAYABLE", "LEASE_LIAB", "INT_PAYABLE",
             "GOODWILL", "ACCT_RCV", "NOTES_RCV",
         ], stocks)
-        pit = _read_word_v2_parquet(src, "pit_financial_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_DFA_OR_TTM"], stocks)
+        pit = _read_word_v2_parquet(src, "pit_financial_ext", [
+            "S_INFO_WINDCODE", "TRADE_DT", "S_DFA_OR_TTM", "S_DFA_TOTLIAB",
+        ], stocks)
         out = mod.build_balance_quality_factors(balance, pit, keep_dates)
     elif code in {"DIVPAYOUT", "DIVSTREAK", "DIVGROWTH"}:
         dividend = _read_word_v2_parquet(src, "dividend_ext", [
@@ -221,9 +224,15 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             "S_INFO_WINDCODE", "RATING_DT", "S_WRATING_UPGRADE", "S_WRATING_DOWNGRADE",
             "S_WRATING_INSTNUM", "S_EST_PRICE",
         ], stocks)
+        panel = ctx.get("_price_panel")
+        trading_dates = (
+            panel.get_column("trade_date").unique().sort().to_list()
+            if isinstance(panel, pl.DataFrame) and "trade_date" in panel.columns
+            else []
+        )
         parts = [
             mod.build_ratingchg(ratings, keep_dates),
-            mod.build_analystcover(ratings, keep_dates),
+            mod.build_analystcover(ratings, keep_dates, trading_dates),
             mod.build_targetpricechg(ratings, keep_dates),
         ]
         out = pl.concat([p for p in parts if not p.is_empty()], how="vertical") if any(not p.is_empty() for p in parts) else out
@@ -235,8 +244,9 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         participants = _read_word_v2_parquet(src, "survey_participant_ext", ["EVENT_ID", "S_INSTITUTIONCODE"], None)
         out = mod.build_surveyinstcnt(survey, participants, keep_dates)
     elif code == "BUYBACKRATIO":
-        buyback = _read_word_v2_parquet(src, "buyback_ext", ["S_INFO_WINDCODE", "ANN_DT", "TOTAL_SHARE_RATIO"], stocks)
-        out = mod.build_buybackratio(buyback, keep_dates)
+        buyback = _read_word_v2_parquet(src, "buyback_ext", ["S_INFO_WINDCODE", "EVENT_ID", "ANN_DT", "AMT"], stocks)
+        price = _read_word_v2_parquet(src, "price_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_DQ_MV"], stocks)
+        out = mod.build_buybackratio(buyback, price, keep_dates)
     elif code == "PLACEDISCOUNT":
         placement = _read_word_v2_parquet(src, "placement_ext", ["S_INFO_WINDCODE", "ANN_DT", "S_FELLOW_DISCNTRATIO"], stocks)
         out = mod.build_placediscount(placement, keep_dates)
@@ -248,7 +258,7 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         out = mod.build_placement_size(placement, valuation, keep_dates)
     elif code == "MERGERSIZE":
         merger_event = _read_word_v2_parquet(src, "merger_event_ext", [
-            "EVENT_ID", "ANN_DATE", "TRADE_VALUE", "CASH_PAYMENT", "EVALUE_VALUE",
+            "EVENT_ID", "ANN_DATE", "TRADE_VALUE", "CASH_PAYMENT", "EVALUE_VALUE", "CRNCY_CODE",
         ], None)
         merger_participant = _read_word_v2_parquet(src, "merger_participant_ext", ["EVENT_ID", "S_INFO_WINDCODE"], stocks)
         valuation = _read_word_v2_parquet(src, "valuation_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_VAL_MV_ARD"], stocks)
@@ -624,6 +634,7 @@ def reconcile(code: str, meta: dict, factor_raw: pl.DataFrame, panel: pl.DataFra
               ctx: dict, src_dir: str = "资料", k: int = SAMPLE_K,
               panel_index: dict | None = None) -> dict:
     if meta.get("source_file") == "word_v2":
+        ctx.setdefault("_price_panel", panel)
         return word_v2_recon(code, factor_raw, ctx, src_dir, k)
     if meta.get("transform") == "derived" or code in DERIVED_CODES:
         return derived_recon(code, factor_raw, panel, ctx, src_dir, k)
