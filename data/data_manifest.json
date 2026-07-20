@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16 17:09:21",
+  "generated_at": "2026-07-20 09:46:33",
   "factor_count": 149,
   "backtest_start_month": "2015-02",
   "backtest_end_month": "2026-05",
@@ -29,11 +29,11 @@
     "source": "data/factor_score_neutral.parquet",
     "has_quality_column": true,
     "warning_level": "warning",
-    "total_rows": 56339033,
+    "total_rows": 56268237,
     "quality_counts": {
-      "ok": 55955316,
-      "missing_input": 383570,
-      "insufficient_sample": 147
+      "ok": 55884520,
+      "insufficient_sample": 147,
+      "missing_input": 383570
     },
     "insufficient_sample_rows": 147,
     "affected_factors": 6,

@@ -84,9 +84,9 @@ def rev5d(panel, asof):
 
 
 @factor(code="MOM60", l1="市场交易信息", l2="动量", direction=1,
-        formula="MOM60 = sum_{d=t-59..t} ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1})",
+        formula="MOM60 = sum(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), 最长60个交易日)，至少40个价格观测",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
-        description="近 60 个交易日（约 3 个月）累计对数收益，中期动量。")
+        description="最长60个交易日（约3个月）累计对数收益；上市历史不足60日时按可得窗口计算，但至少需要40个价格观测。")
 def mom60(panel, asof):
     h = _hist(panel, asof, 60)
     out = (h.group_by("stock_code")
@@ -139,9 +139,9 @@ def ma20bias(panel, asof):
 
 
 @factor(code="HLPOS", l1="市场交易信息", l2="均值回复", direction=-1,
-        formula="HLPOS = (S_DQ_ADJCLOSE_t - min(S_DQ_ADJCLOSE, 60)) / (max(S_DQ_ADJCLOSE, 60) - min(S_DQ_ADJCLOSE, 60))",
+        formula="HLPOS = (S_DQ_ADJCLOSE_t - min(S_DQ_ADJCLOSE, 最长60日)) / (max(S_DQ_ADJCLOSE, 最长60日) - min(S_DQ_ADJCLOSE, 最长60日))，至少40日",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
-        description="近 60 日高低点位置：(现价 − 60 日最低) / (60 日最高 − 60 日最低)，0~1；越接近高点越负向（回复）。")
+        description="最长60日高低点位置，至少需要40个价格观测；结果为0~1，越接近高点越负向（回复）。")
 def hlpos(panel, asof):
     h = _hist(panel, asof, 60)
     out = (h.group_by("stock_code")
@@ -173,7 +173,7 @@ def downvol(panel, asof):
 @factor(code="MAXDD1Y", l1="市场交易信息", l2="波动", direction=-1,
         formula="MAXDD1Y = max(1 - S_DQ_ADJCLOSE_d / cummax(S_DQ_ADJCLOSE_d, 252))",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
-        description="近252日最大回撤幅度（按复权价，非负数）；数值越小回撤越浅，方向负。")
+        description="近252日最大回撤幅度（按复权价，非负数）；必须取得完整252日价格，数值越小回撤越浅，方向负。")
 def maxdd1y(panel, asof):
     h = _hist(panel, asof, 252).sort(["stock_code", "trade_date"])
     # 累计最高价 → 回撤幅度 = 1-price/cummax，取最大
@@ -181,7 +181,7 @@ def maxdd1y(panel, asof):
     h = h.with_columns((1.0 - pl.col("adj_close") / pl.col("peak")).alias("dd"))
     out = (h.group_by("stock_code")
             .agg([pl.col("dd").max().alias("value"), pl.len().alias("n")])
-            .filter(pl.col("n") >= 60))
+            .filter(pl.col("n") == 252))
     return out.select(["stock_code", "value"])
 
 
@@ -298,9 +298,9 @@ def turnvol(panel, asof):
 
 @factor(code="TURNPCTL", l1="市场交易信息", l2="流动性", direction=-1,
         name_cn="换手率历史分位",
-        formula="rank_pct(TURN_t, 120)，TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
+        formula="rank_pct(TURN_t, 最长120日)，至少60个有效换手日；TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
         wind_source="AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
-        description="最新日换手率在近 120 个交易日内的历史分位；换手越处高位越拥挤，方向负。")
+        description="最新日换手率在最长120个交易日内的历史分位，至少需要60个有效换手日；换手越处高位越拥挤，方向负。")
 def turnpctl(panel, asof):
     h = _hist(panel, asof, 120).with_columns(_turnover_col())
     h = h.filter(pl.col("turnover").is_not_null())
@@ -349,9 +349,9 @@ def upvolratio(panel, asof):
 # ============================== 2.8 拥挤度类 ==============================
 
 @factor(code="ABTURN", l1="市场交易信息", l2="拥挤度", direction=-1,
-        formula="ABTURN = (TURN_t - mean(TURN, 60)) / std(TURN, 60)，TURN = S_DQ_AMOUNT / S_DQ_MV / 10",
+        formula="ABTURN = (TURN_t - mean(TURN, 最长60日)) / std(TURN, 最长60日)，至少40个有效换手日；TURN = S_DQ_AMOUNT / S_DQ_MV / 10",
         wind_source="AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
-        description="异常换手率：当日换手率相对近60日均值的Z分数；数值越高越拥挤，方向负。")
+        description="异常换手率：当日换手率相对最长60日历史的Z分数，至少需要40个有效换手日；数值越高越拥挤，方向负。")
 def abturn(panel, asof):
     df = _window(panel, asof, 60).with_columns(_turnover_col())
     df = df.with_columns(

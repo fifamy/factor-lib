@@ -26,7 +26,7 @@ _DEFS = [
     ("PE_DED",    "公司内生信息", "估值", -1, "扣非市盈率", "daily_valuation", "S_DFA_PETTM_DEDUCTED",
      "扣除非经常性损益后的 PE(TTM)；剔除一次性损益的估值。"),
     ("EV2EBITDA", "公司内生信息", "估值", -1, "总市值/EBITDA", "daily_valuation", "S_DFA_MVTOEBITDA",
-     "总市值 / EBITDA(TTM)；适合跨资本结构比较。"),
+     "总市值 / EBITDA(TTM)；仅反映股权市值相对经营收益的估值，不等同于企业价值倍数。"),
     # ---- 1.2 盈利能力类 ----
     ("ROE",       "公司内生信息", "盈利能力", 1, "净资产收益率", "pit_financial", "S_DFA_ROE_TTM",
      "ROE = TTM归母净利润 / 平均归母净资产；股东资本回报。"),
@@ -65,7 +65,7 @@ _DEFS = [
      "经营活动现金流净额 / 经营活动净收益；经营收益的现金支撑。"),
     # ---- 1.3 盈利质量（补充） ----
     ("ACCRUAL",   "公司内生信息", "盈利质量", 1, "现金流资产比（负应计）", "pit_financial", "S_DFA_ACCA",
-     "现金流资产比=(经营现金流-净利润)×2/平均总资产；数值越高，盈利现金含量越好。"),
+     "现金流资产比=(经营现金流-净利润)/平均总资产×100%；数值越高，盈利现金含量越好。"),
     ("IMPAIRRISK","公司内生信息", "财务稳健", -1, "减值风险", "pit_financial", "S_DFA_IMPAIRTOGR_TTM",
      "资产减值损失 / 营业总收入(TTM)；越高减值风险越大，故负向。"),
     # ---- 1.4 成长（补充） ----
@@ -128,6 +128,8 @@ for code, l1, l2, direction, name_cn, sfile, sfield, desc in _DEFS:
         formula=(
             "GMGROWTH = S_DFA_GROSSPROFITMARGIN_TTM_t - S_DFA_GROSSPROFITMARGIN_TTM_{t-12个月}"
             if code == "GMGROWTH"
+            else "ACCRUAL = S_DFA_ACCA = (经营现金流TTM - 净利润TTM) / 平均总资产 × 100%"
+            if code == "ACCRUAL"
             else f"{name_cn} = {_WIND_TABLE[sfile]}.{sfield}（Wind已算好，月末截面取值）"
         ),
         wind_source=f"{_WIND_TABLE[sfile]}.{sfield}",

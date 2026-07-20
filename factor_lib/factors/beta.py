@@ -83,7 +83,9 @@ def _get_or_build_market_returns(panel: pl.DataFrame) -> pl.DataFrame:
     l1="市场交易信息",
     l2="Beta",
     direction=1,
-    description="过去 252 个交易日个股对 cap-weighted 市场组合的回归 Beta。"
+    formula="BETA = cov(r_i, r_mkt) / var(r_mkt)，最长252个交易日，至少200个有效日收益；r_mkt使用全A滞后市值加权组合。",
+    wind_source="AShareEODPrices.S_DQ_ADJCLOSE; AShareEODDerivativeIndicator.S_DQ_MV",
+    description="个股对全A滞后市值加权市场组合的回归Beta；最长使用252个交易日，至少需要200个有效日收益。"
 )
 def beta(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
     market = _get_or_build_market_returns(panel).filter(pl.col("trade_date") <= asof)
@@ -131,9 +133,9 @@ def beta(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
     l2="Beta",
     direction=-1,
     name_cn="下行beta",
-    formula="DOWNBETA = cov(r_i, r_mkt | r_mkt<0) / var(r_mkt | r_mkt<0)，过去252个交易日。",
+    formula="DOWNBETA = cov(r_i, r_mkt | r_mkt<0) / var(r_mkt | r_mkt<0)，最长252个交易日；至少200个有效日收益且至少20个市场下跌日。",
     wind_source="AShareEODPrices.S_DQ_ADJCLOSE; AShareEODDerivativeIndicator.S_DQ_MV",
-    description="过去 252 个交易日中，仅使用市场组合下跌日估计个股对市场下跌的敏感度；越高代表弱市风险暴露越高。"
+    description="最长252个交易日中仅使用市场组合下跌日估计个股对市场下跌的敏感度；至少需要200个有效日收益和20个市场下跌日，越高代表弱市风险暴露越高。"
 )
 def downbeta(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
     market = _get_or_build_market_returns(panel).filter(pl.col("trade_date") <= asof)

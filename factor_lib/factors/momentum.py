@@ -24,7 +24,7 @@ def _half_life_weights(window: int, half_life: int) -> np.ndarray:
     l2="动量",
     direction=1,
     name_cn="动量12-1",
-    formula="MOM12_1 = sum(ln(P_d/P_{d-1}), d=t-252..t-22)",
+    formula="MOM12_1 = ln(P_{t-21}/P_{t-252})，即剔除最近21个日收益后的231个日对数收益等权累计",
     wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
     description="过去252个交易日剔除最近21个交易日后的231个日对数收益等权累计。",
 )
@@ -68,7 +68,7 @@ def mom12_1(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
     l2="动量",
     direction=1,
     name_cn="半衰期相对强弱（252日）",
-    formula="RSTR252 = sum(w_d * ln(P_d/P_{d-1}), d=t-252..t-22)，半衰期126日",
+    formula="RSTR252 = sum(w_d * ln(P_d/P_{d-1}), d=t-251..t-21)，半衰期126日",
     wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
     description="保留原MOM12_1序列：剔除最近21日后的231个日对数收益按126日半衰期加权。",
 )

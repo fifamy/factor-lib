@@ -253,8 +253,8 @@ _DEFS = [
     (
         "BUYBACKRATIO", "事件驱动信息", "回购增减持", 1, "回购金额占流通市值比",
         "word_v2", "BUYBACKRATIO", "window_sum",
-        "近365日各回购事件最新已公告金额合计占月末流通市值比例；比例越高，回购支持越强。",
-        "BUYBACKRATIO = sum(每个EVENT_ID月末前最新AMT, 近365日公告) / 月末S_DQ_MV；AMT为元，S_DQ_MV为万元。",
+        "近365日各回购事件最新有效已公告金额合计占月末流通市值比例；比例越高，回购支持越强。",
+        "BUYBACKRATIO = sum(每个EVENT_ID月末前最新正AMT, 近365日公告) / (月末S_DQ_MV * 10000)，0<=value<=5；AMT为元，S_DQ_MV为万元。",
         "AshareStockRepo.EVENT_ID; AMT; ANN_DT; AShareEODDerivativeIndicator.S_DQ_MV",
         False,
     ),
@@ -277,9 +277,9 @@ _DEFS = [
     (
         "MERGERSIZE", "事件驱动信息", "资本运作", 1, "并购规模",
         "word_v2", "MERGERSIZE", "window_ratio",
-        "近 365 日并购交易对价占月末总市值比例；并购规模越大，资本运作强度越高。",
-        "MERGERSIZE = sum(coalesce(TRADE_VALUE, CASH_PAYMENT+EVALUE_VALUE) * 10000, 近365日，CRNCY_CODE='CNY') / S_VAL_MV_ARD。",
-        "MergerEvent.TRADE_VALUE; CASH_PAYMENT; EVALUE_VALUE; CRNCY_CODE; MergerParticipant.S_INFO_WINDCODE; AShareValuationIndicator.S_VAL_MV_ARD",
+        "近365日人民币并购交易对价占月末总市值比例；仅归属收购方，金额按当前快照的最新披露日生效。",
+        "MERGERSIZE = sum(coalesce(TRADE_VALUE if >0, CASH_PAYMENT if >0) * 10000, 近365日，CRNCY_CODE='CNY'，PARTY_ROLE_CODE=325001000) / S_VAL_MV_ARD，0<=value<=20；事件日=coalesce(UPDATE_DATE, ANN_DATE)。",
+        "MergerEvent.TRADE_VALUE; CASH_PAYMENT; CRNCY_CODE; UPDATE_DATE; ANN_DATE; MergerParticipant.S_INFO_WINDCODE; PARTY_ROLE_CODE; AShareValuationIndicator.S_VAL_MV_ARD",
         False,
     ),
     (

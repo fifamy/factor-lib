@@ -15,7 +15,9 @@ MIN_STOM_OBS = 15
     l1="市场交易信息",
     l2="流动性",
     direction=-1,
-    description="过去 21 个交易日换手率之和的对数。换手率 = 成交额 / S_DQ_MV。"
+    formula="STOM = ln(sum(TURN_d, 最长21个交易日))，至少15个有效换手日；TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
+    wind_source="AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
+    description="最长21个交易日换手率之和的对数，至少需要15个有效换手日。"
 )
 def stom(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
     df = (

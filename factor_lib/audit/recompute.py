@@ -258,9 +258,14 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         out = mod.build_placement_size(placement, valuation, keep_dates)
     elif code == "MERGERSIZE":
         merger_event = _read_word_v2_parquet(src, "merger_event_ext", [
-            "EVENT_ID", "ANN_DATE", "TRADE_VALUE", "CASH_PAYMENT", "EVALUE_VALUE", "CRNCY_CODE",
+            "EVENT_ID", "ANN_DATE", "UPDATE_DATE", "TRADE_VALUE", "CASH_PAYMENT", "EVALUE_VALUE", "CRNCY_CODE",
         ], None)
-        merger_participant = _read_word_v2_parquet(src, "merger_participant_ext", ["EVENT_ID", "S_INFO_WINDCODE"], stocks)
+        merger_participant = _read_word_v2_parquet(
+            src,
+            "merger_participant_ext",
+            ["EVENT_ID", "S_INFO_WINDCODE", "PARTY_ROLE_CODE"],
+            stocks,
+        )
         valuation = _read_word_v2_parquet(src, "valuation_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_VAL_MV_ARD"], stocks)
         out = mod.build_merger_size(merger_event, merger_participant, valuation, keep_dates)
     elif code == "INCENTIVESIZE":
@@ -340,6 +345,7 @@ def numpy_recon(code: str, factor_raw: pl.DataFrame, panel: pl.DataFrame, ctx: d
                 panel_index: dict | None = None) -> dict:
     rel_tol = REL_TOL_BY_CODE.get(code, REL_TOL)
     base = {"status": "no_ref", "method": "numpy_recompute", "n_checked": 0, "n_match": 0,
+            "n_stored_only": 0, "n_ref_only": 0,
             "max_abs_diff": 0.0, "tol": rel_tol, "mismatches": []}
     fn = REF_IMPLS.get(code)
     if fn is None:
@@ -351,7 +357,7 @@ def numpy_recon(code: str, factor_raw: pl.DataFrame, panel: pl.DataFrame, ctx: d
         (r["stock_code"], r["trade_date"]): r["raw_value"]
         for r in factor_slice.select(["stock_code", "trade_date", "raw_value"]).to_dicts()
     }
-    n_check = n_match = 0
+    n_check = n_match = n_stored_only = 0
     max_diff = 0.0
     mism = []
     for stock, asof in units:
@@ -362,6 +368,11 @@ def numpy_recon(code: str, factor_raw: pl.DataFrame, panel: pl.DataFrame, ctx: d
         ref_ctx = {**ctx, "_asof": asof, "_factor_raw": factor_raw}
         ref, _ = fn(win, ref_ctx)
         if ref is None:
+            n_check += 1
+            n_stored_only += 1
+            if len(mism) < 5:
+                mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
+                             "ref": None, "stored": stored, "abs_diff": None})
             continue
         n_check += 1
         if _close(ref, stored, rel_tol=rel_tol):
@@ -372,7 +383,8 @@ def numpy_recon(code: str, factor_raw: pl.DataFrame, panel: pl.DataFrame, ctx: d
             if len(mism) < 5:
                 mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
                              "ref": ref, "stored": stored, "abs_diff": d})
-    base.update(n_checked=n_check, n_match=n_match, max_abs_diff=max_diff, mismatches=mism)
+    base.update(n_checked=n_check, n_match=n_match, n_stored_only=n_stored_only,
+                max_abs_diff=max_diff, mismatches=mism)
     if n_check == 0:
         base["status"] = "na"
     elif n_match == n_check:
@@ -539,6 +551,7 @@ def derived_reference_table(code: str, factor_raw: pl.DataFrame, panel: pl.DataF
 def derived_recon(code: str, factor_raw: pl.DataFrame, panel: pl.DataFrame,
                   ctx: dict, src_dir: str, k: int) -> dict:
     base = {"status": "no_ref", "method": "derived_recompute", "n_checked": 0, "n_match": 0,
+            "n_stored_only": 0, "n_ref_only": 0,
             "max_abs_diff": 0.0, "tol": REL_TOL, "mismatches": []}
     ref_df = derived_reference_table(code, factor_raw, panel, ctx, src_dir)
     if ref_df.is_empty():
@@ -554,15 +567,21 @@ def derived_recon(code: str, factor_raw: pl.DataFrame, panel: pl.DataFrame,
         (r["stock_code"], r["trade_date"]): r["raw_value"]
         for r in ref_df.select(["stock_code", "trade_date", "raw_value"]).to_dicts()
     }
-    n_check = n_match = 0
+    n_check = n_match = n_stored_only = 0
     max_diff = 0.0
     mism = []
     for stock, asof in units:
         stored_v = stored.get((stock, asof))
         ref_v = ref.get((stock, asof))
-        if stored_v is None or ref_v is None:
+        if stored_v is None:
             continue
         n_check += 1
+        if ref_v is None:
+            n_stored_only += 1
+            if len(mism) < 5:
+                mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
+                             "ref": None, "stored": stored_v, "abs_diff": None})
+            continue
         if _close(ref_v, stored_v):
             n_match += 1
         else:
@@ -571,7 +590,8 @@ def derived_recon(code: str, factor_raw: pl.DataFrame, panel: pl.DataFrame,
             if len(mism) < 5:
                 mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
                              "ref": ref_v, "stored": stored_v, "abs_diff": d})
-    base.update(n_checked=n_check, n_match=n_match, max_abs_diff=max_diff, mismatches=mism)
+    base.update(n_checked=n_check, n_match=n_match, n_stored_only=n_stored_only,
+                max_abs_diff=max_diff, mismatches=mism)
     if n_check == 0:
         base["status"] = "na"
     elif n_match == n_check:
@@ -583,6 +603,7 @@ def derived_recon(code: str, factor_raw: pl.DataFrame, panel: pl.DataFrame,
 
 def word_v2_recon(code: str, factor_raw: pl.DataFrame, ctx: dict, src_dir: str, k: int) -> dict:
     base = {"status": "no_ref", "method": "word_v2_source_recompute", "n_checked": 0, "n_match": 0,
+            "n_stored_only": 0, "n_ref_only": 0,
             "max_abs_diff": 0.0, "tol": REL_TOL, "mismatches": []}
     units = sample_units(factor_raw, code, k=k)
     ref_df = _word_v2_reference_code(code, factor_raw, ctx, src_dir, units)
@@ -598,7 +619,7 @@ def word_v2_recon(code: str, factor_raw: pl.DataFrame, ctx: dict, src_dir: str, 
         (r["stock_code"], r["trade_date"]): r["raw_value"]
         for r in ref_df.select(["stock_code", "trade_date", "raw_value"]).to_dicts()
     }
-    n_check = n_match = 0
+    n_check = n_match = n_stored_only = 0
     max_diff = 0.0
     mism = []
     for stock, asof in units:
@@ -607,6 +628,8 @@ def word_v2_recon(code: str, factor_raw: pl.DataFrame, ctx: dict, src_dir: str, 
         if stored_v is None:
             continue
         n_check += 1
+        if ref_v is None:
+            n_stored_only += 1
         if _close(ref_v, stored_v):
             n_match += 1
         else:
@@ -620,7 +643,8 @@ def word_v2_recon(code: str, factor_raw: pl.DataFrame, ctx: dict, src_dir: str, 
                 if len(mism) < 5:
                     mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
                                  "ref": ref_v, "stored": stored_v, "abs_diff": d})
-    base.update(n_checked=n_check, n_match=n_match, max_abs_diff=max_diff, mismatches=mism)
+    base.update(n_checked=n_check, n_match=n_match, n_stored_only=n_stored_only,
+                max_abs_diff=max_diff, mismatches=mism)
     if n_check == 0:
         base["status"] = "na"
     elif n_match == n_check:

@@ -917,7 +917,7 @@ async function openDetail(code) {
     <div class="fa-block"><h3>对账（抽样 ${recon.n_checked || 0} 个单元）</h3>
       <p>方式 ${recon.method === "numpy_recompute" ? "独立 numpy 重算" : "回查 Wind 源字段"} ·
       结果 <span class="${reconOk ? "fa-recon-ok" : "fa-recon-bad"}">${(RECON_LABEL[recon.status] || ["—"])[0]}</span> ·
-      一致 ${recon.n_match || 0}/${recon.n_checked || 0} · 最大绝对差 ${fmt(recon.max_abs_diff)}</p>
+      一致 ${recon.n_match || 0}/${recon.n_checked || 0} · 生产多值 ${recon.n_stored_only || 0} · 参考多值 ${recon.n_ref_only || 0} · 最大绝对差 ${fmt(recon.max_abs_diff)}</p>
       ${(recon.mismatches || []).length ? `<table class="fa-kv">
         <tr><td>股票</td><td>重算 / 存储 / 差</td></tr>
         ${recon.mismatches.map(m => `<tr><td>${esc(m.stock_code)} @ ${esc(m.trade_date)}</td>

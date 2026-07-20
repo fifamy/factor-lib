@@ -105,11 +105,12 @@ def _mom20(win, ctx):
 
 @_ref("MOM60")
 def _mom60(win, ctx):
-    p = _adjclose(win)
-    if len(p) < 61:
+    h = _market_extra_hist(win, 60, ctx)
+    if h.height < 40:
         return None, []
-    v = float(np.diff(np.log(p[-61:])).sum())
-    return v, [f"近60日对数收益之和 = {v:.6f}"]
+    r = h["ret"].drop_nulls().to_numpy().astype(float)
+    v = float(r.sum())
+    return v, [f"近60日对数收益之和（至少40个价格观测） = {v:.6f}"]
 
 
 @_ref("MOM12_1")
@@ -249,13 +250,13 @@ def _turn20(win, ctx):
 
 @_ref("STOM")
 def _stom(win, ctx):
-    if win.height < 21:
+    if win.height < 15:
         return None, []
     t = _turnover(win.tail(21))
     # STOM 取对数(Σturnover)，单个 nan/非正值会污染整段求和，故严格过滤；
     # TURN20 用 np.nanmean 可容忍 nan，无需此过滤。
     t = t[(t > 0) & np.isfinite(t)]
-    if len(t) == 0:
+    if len(t) < 15:
         return None, []
     s = float(np.sum(t))
     if s <= 0:
@@ -292,12 +293,15 @@ def _turnvol(win, ctx):
 @_ref("TURNPCTL")
 def _turnpctl(win, ctx):
     """末日换手率在近120日内的历史分位 = (turnover<=末日).sum()/n。"""
-    if win.height < 120:
+    if win.height < 60:
         return None, []
     t = _turnover(win.tail(120))
+    t = t[np.isfinite(t)]
+    if len(t) < 60:
+        return None, []
     last = t[-1]
     v = float((t <= last).sum() / len(t))
-    return v, [f"换手率历史分位(120d) = {v:.6f}"]
+    return v, [f"换手率历史分位(最长120d、至少60d) = {v:.6f}"]
 
 
 @_ref("PVCORR")
@@ -343,14 +347,20 @@ def _upvolratio(win, ctx):
 @_ref("ABTURN")
 def _abturn(win, ctx):
     """异常换手率：当日换手率相对近60日的Z分数。"""
-    if win.height < 60:
+    h = _market_extra_hist(win, 60, ctx)
+    if h.height < 40:
         return None, []
-    t = _turnover(win.tail(60))
+    t_raw = _turnover(h)
+    if len(t_raw) == 0 or not np.isfinite(t_raw[-1]):
+        return None, []
+    t = t_raw[np.isfinite(t_raw)]
+    if len(t) < 40:
+        return None, []
     sd = np.std(t, ddof=1)
     if not np.isfinite(sd) or sd <= 0:
         return None, []
     v = float((t[-1] - np.mean(t)) / sd)
-    return v, [f"(turnover_t-mean(turnover,60))/std(turnover,60) = {v:.6f}"]
+    return v, [f"(turnover_t-mean(turnover,最长60))/std(turnover,最长60)，至少40日 = {v:.6f}"]
 
 
 @_ref("HIGHMOMTURN")
@@ -456,15 +466,16 @@ def _ma20bias(win, ctx):
 @_ref("HLPOS")
 def _hlpos(win, ctx):
     """近60日高低点位置：(P_t − min(P,60)) / (max(P,60) − min(P,60))。"""
-    if win.height < 60:
+    h = _market_extra_hist(win, 60, ctx)
+    if h.height < 40:
         return None, []
-    p = win.tail(60)["adj_close"].to_numpy().astype(float)
+    p = h["adj_close"].to_numpy().astype(float)
     lo = p.min()
     hi = p.max()
     if hi <= lo:
         return None, []
     v = float((p[-1] - lo) / (hi - lo))
-    return v, [f"(P_t - min(P,60)) / (max-min,60) = {v:.6f}"]
+    return v, [f"(P_t - min(P,最长60)) / (max-min,最长60)，至少40日 = {v:.6f}"]
 
 
 # ---------- Beta ----------
@@ -486,12 +497,12 @@ def build_market_returns_ref(panel: pl.DataFrame) -> pl.DataFrame:
 @_ref("BETA")
 def _beta(win, ctx):
     mkt = ctx.get("market_returns")
-    if mkt is None or win.height < 253:
+    if mkt is None or win.height < 201:
         return None, []
     w = win.with_columns(
         (pl.col("adj_close") / pl.col("adj_close").shift(1)).log().alias("lr")
     ).join(mkt, on="trade_date", how="left").drop_nulls(["lr", "market_return"])
-    if w.height < 252:
+    if w.height < 200:
         return None, []
     rec = w.tail(252)
     y = rec["lr"].to_numpy()
@@ -500,18 +511,18 @@ def _beta(win, ctx):
     if var == 0:
         return None, []
     v = float(np.cov(y, x, ddof=1)[0, 1] / var)
-    return v, [f"cov(r_i,r_mkt)/var(r_mkt),252 = {v:.6f}"]
+    return v, [f"cov(r_i,r_mkt)/var(r_mkt)，最长252日、至少200日 = {v:.6f}"]
 
 
 @_ref("DOWNBETA")
 def _downbeta(win, ctx):
     mkt = ctx.get("market_returns")
-    if mkt is None or win.height < 253:
+    if mkt is None or win.height < 201:
         return None, []
     w = win.with_columns(
         (pl.col("adj_close") / pl.col("adj_close").shift(1)).log().alias("lr")
     ).join(mkt, on="trade_date", how="left").drop_nulls(["lr", "market_return"])
-    if w.height < 252:
+    if w.height < 200:
         return None, []
     rec = w.tail(252).filter(pl.col("market_return") < 0)
     if rec.height < 20:

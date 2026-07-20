@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-17 11:11:30",
+  "generated_at": "2026-07-20 10:29:48",
   "summary": {
     "word_factor_count": 112,
     "system_factor_count": 149,
@@ -2330,29 +2330,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "300329.SZ",
-        "stock_name": "海伦钢琴",
-        "raw_value": 0.31646989467403164,
-        "score": -0.0,
+        "stock_code": "600211.SH",
+        "stock_name": "西藏药业",
+        "raw_value": 0.3162006392277086,
+        "score": 0.00027057732137493023,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.316470，方向处理后的 score=-0.000000。",
+          "系统输出 raw_value=0.316201，方向处理后的 score=0.000271。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.31646989467403164,
-            "display": "0.316470",
+            "value": 0.3162006392277086,
+            "display": "0.316201",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.0,
-            "display": "-0.000000",
+            "value": 0.00027057732137493023,
+            "display": "0.000271",
             "unit": "",
             "note": "用于排序和组合构建"
           }
