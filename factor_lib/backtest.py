@@ -89,13 +89,18 @@ def _nav_from_weighted_holdings(
     )
 
     months = sorted(holdings["trade_date"].unique().to_list())
+    holdings_by_month = {
+        (key[0] if isinstance(key, tuple) else key): part
+        for key, part in holdings.partition_by("trade_date", as_dict=True).items()
+    }
     prev: dict[str, float] = {}
     turnovers = []
     for m in months:
-        curr = {
-            r["stock_code"]: float(r["weight"])
-            for r in holdings.filter(pl.col("trade_date") == m).iter_rows(named=True)
-        }
+        month_holdings = holdings_by_month[m]
+        curr = dict(zip(
+            month_holdings["stock_code"].to_list(),
+            (float(v) for v in month_holdings["weight"].to_list()),
+        ))
         if not prev:
             t = 1.0
             trading_cost = cost_per_side * t

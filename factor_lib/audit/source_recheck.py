@@ -6,7 +6,7 @@ from pathlib import Path
 import polars as pl
 
 from factor_lib.monthly_lag import with_strict_month_lag
-from factor_lib.audit.sampling import sample_units
+from factor_lib.audit.sampling import sample_missing_units, sample_units
 
 # 股票代码列名：valuation 用 STOCK_CODE，其余用 S_INFO_WINDCODE
 _CODE_COL = {"valuation": "STOCK_CODE"}
@@ -45,13 +45,21 @@ def _close(ref, stored) -> bool:
     return abs(ref - stored) <= ABS_TOL + REL_TOL * abs(stored)
 
 
-def recheck_external(code: str, meta: dict, factor_raw: pl.DataFrame, src_dir: str = "资料", k: int = 200) -> dict:
+def recheck_external(
+    code: str,
+    meta: dict,
+    factor_raw: pl.DataFrame,
+    src_dir: str = "资料",
+    k: int = 200,
+    candidate_units: pl.DataFrame | None = None,
+) -> dict:
     field = meta["source_field"]
     sfile = meta["source_file"]
     transform = meta.get("transform", "level")
     extra = ["EXPRESS_AGE"] if transform == "event_first" else []
     src = _read_source(sfile, [field] + extra, src_dir)
     base = {"status": "na", "method": "source_recheck", "n_checked": 0, "n_match": 0,
+            "n_stored_only": 0, "n_ref_only": 0,
             "max_abs_diff": 0.0, "tol": REL_TOL, "mismatches": []}
     if src.is_empty() or field not in src.columns:
         base["status"] = "source_missing"
@@ -104,54 +112,63 @@ def recheck_external(code: str, meta: dict, factor_raw: pl.DataFrame, src_dir: s
     else:
         return base
 
-    units = sample_units(factor_raw, code, k=k)
+    ref_df = (
+        ref_df.filter(pl.col("ref").is_not_null() & pl.col("ref").is_finite())
+        .unique(subset=["stock_code", "trade_date"], keep="last")
+    )
+    factor_slice = factor_raw.filter(pl.col("factor_code") == code)
+    units = sample_units(factor_slice, code, k=k)
+    ref_candidates = ref_df.select(["stock_code", "trade_date"])
+    if candidate_units is not None and not candidate_units.is_empty():
+        ref_candidates = ref_candidates.join(
+            candidate_units.select(["stock_code", "trade_date"]).unique(),
+            on=["stock_code", "trade_date"],
+            how="inner",
+        )
+    units.extend(sample_missing_units(ref_candidates, factor_slice, k=k))
+    units = list(dict.fromkeys(units))
     if not units:
         base["status"] = "source_missing"
         return base
-    unit_df = pl.DataFrame(
-        {
-            "stock_code": [stock for stock, _ in units],
-            "trade_date": [asof for _, asof in units],
-        },
-        schema={"stock_code": pl.Utf8, "trade_date": pl.Date},
-    )
-    ref_df = (
-        ref_df.filter(pl.col("ref").is_not_null() & pl.col("ref").is_finite())
-        .join(unit_df, on=["stock_code", "trade_date"], how="inner")
-        .select(["stock_code", "trade_date", "ref"])
-    )
-    stored_df = (
-        factor_raw.filter(pl.col("factor_code") == code)
-        .join(unit_df, on=["stock_code", "trade_date"], how="inner")
-        .select(["stock_code", "trade_date", "raw_value"])
-    )
-    checked = stored_df.join(ref_df, on=["stock_code", "trade_date"], how="left")
-    n_check = n_match = 0
+    stored = {
+        (r["stock_code"], r["trade_date"]): r["raw_value"]
+        for r in factor_slice.select(["stock_code", "trade_date", "raw_value"]).to_dicts()
+    }
+    ref = {
+        (r["stock_code"], r["trade_date"]): r["ref"]
+        for r in ref_df.select(["stock_code", "trade_date", "ref"]).to_dicts()
+    }
+    n_check = n_match = n_stored_only = n_ref_only = 0
     max_diff = 0.0
     mism = []
-    for row in checked.to_dicts():
-        stock = row["stock_code"]
-        asof = row["trade_date"]
-        stored = row["raw_value"]
-        if stored is None:
+    for stock, asof in units:
+        stored_v = stored.get((stock, asof))
+        ref_v = ref.get((stock, asof))
+        if stored_v is None and ref_v is None:
             continue
-        ref = row.get("ref")
         n_check += 1
-        if _close(ref, stored):
+        if stored_v is None:
+            n_ref_only += 1
+            if len(mism) < 5:
+                mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
+                             "ref": ref_v, "stored": None, "abs_diff": None})
+            continue
+        if ref_v is None:
+            n_stored_only += 1
+            if len(mism) < 5:
+                mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
+                             "ref": None, "stored": stored_v, "abs_diff": None})
+            continue
+        if _close(ref_v, stored_v):
             n_match += 1
         else:
-            if ref is None:
-                # 源中找不到该 (stock,date)：记为不符但不当作数值差
-                if len(mism) < 5:
-                    mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
-                                 "ref": None, "stored": stored, "abs_diff": None})
-            else:
-                d = abs(ref - stored)
-                max_diff = max(max_diff, d)
-                if len(mism) < 5:
-                    mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
-                                 "ref": ref, "stored": stored, "abs_diff": d})
-    base.update(n_checked=n_check, n_match=n_match, max_abs_diff=max_diff, mismatches=mism)
+            d = abs(ref_v - stored_v)
+            max_diff = max(max_diff, d)
+            if len(mism) < 5:
+                mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
+                             "ref": ref_v, "stored": stored_v, "abs_diff": d})
+    base.update(n_checked=n_check, n_match=n_match, n_stored_only=n_stored_only,
+                n_ref_only=n_ref_only, max_abs_diff=max_diff, mismatches=mism)
     if n_check == 0:
         base["status"] = "source_missing"
     elif n_match == n_check:

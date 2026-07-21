@@ -6,6 +6,26 @@ from datetime import date
 import polars as pl
 
 
+UNIT_COLUMNS = ["stock_code", "trade_date"]
+
+
+def _sample_unit_frame(units: pl.DataFrame, k: int) -> list[tuple[str, date]]:
+    """对候选键确定性等距抽样，优先覆盖较新的截面。"""
+    if units.is_empty() or k <= 0:
+        return []
+    sub = (
+        units.select(UNIT_COLUMNS)
+        .drop_nulls()
+        .unique()
+        .sort(UNIT_COLUMNS[::-1], descending=[True, False])
+    )
+    n = sub.height
+    if n > k:
+        step = n / k
+        sub = sub[[int(i * step) for i in range(k)]]
+    return [(r["stock_code"], r["trade_date"]) for r in sub.to_dicts()]
+
+
 def price_window_upto(panel: pl.DataFrame, stock_code: str, asof: date, n: int,
                       panel_index: dict | None = None) -> pl.DataFrame:
     """取某股截至 asof（含）的最后 n 个交易日，按日期升序。
@@ -32,20 +52,34 @@ def sample_units(factor_raw: pl.DataFrame, code: str, k: int = 200) -> list[tupl
     """
     sub = (
         factor_raw.filter((pl.col("factor_code") == code) & pl.col("raw_value").is_not_null())
-        .select(["stock_code", "trade_date"])
-        .unique()
-        .sort(["trade_date", "stock_code"], descending=[True, False])
+        .select(UNIT_COLUMNS)
     )
-    n = sub.height
-    if n == 0:
+    return _sample_unit_frame(sub, k)
+
+
+def sample_missing_units(
+    candidate_units: pl.DataFrame | None,
+    stored_rows: pl.DataFrame,
+    k: int = 200,
+) -> list[tuple[str, date]]:
+    """从合格样本池抽取生产端没有非空值的键，用于发现 ``ref_only``。
+
+    ``candidate_units`` 应是该因子对应 Word 样本空间的月末股票键，而不是完整
+    日频价格面板；这样参考实现不会把本就不应进入生产因子的股票误报为单边样本。
+    """
+    if candidate_units is None or candidate_units.is_empty():
         return []
-    if n <= k:
-        rows = sub
-    else:
-        step = n / k
-        idx = [int(i * step) for i in range(k)]
-        rows = sub[idx]
-    return [(r["stock_code"], r["trade_date"]) for r in rows.to_dicts()]
+    stored_keys = (
+        stored_rows.filter(pl.col("raw_value").is_not_null())
+        .select(UNIT_COLUMNS)
+        .unique()
+    )
+    missing = (
+        candidate_units.select(UNIT_COLUMNS)
+        .unique()
+        .join(stored_keys, on=UNIT_COLUMNS, how="anti")
+    )
+    return _sample_unit_frame(missing, k)
 
 
 def representative_unit(factor_raw: pl.DataFrame, code: str) -> tuple[str, date] | None:

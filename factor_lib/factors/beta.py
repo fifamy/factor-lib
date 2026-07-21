@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 import numpy as np
 import polars as pl
 
@@ -48,7 +48,6 @@ def build_market_returns(panel: pl.DataFrame) -> pl.DataFrame:
 
 
 _MARKET_RETURNS_CACHE = None
-MAX_BETA_CALENDAR_DAYS = 400
 MIN_BETA_OBS = 200
 MAX_STALE_DAYS = 10
 
@@ -104,7 +103,6 @@ def beta(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
     results = []
     for code, sub in df.group_by("stock_code"):
         sub_sorted = sub.sort("trade_date").drop_nulls(subset=["log_ret", "market_return"])
-        sub_sorted = sub_sorted.filter(pl.col("trade_date") >= asof - timedelta(days=MAX_BETA_CALENDAR_DAYS))
         if (
             sub_sorted.is_empty()
             or (asof - sub_sorted["trade_date"].max()).days > MAX_STALE_DAYS
@@ -113,6 +111,9 @@ def beta(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
             results.append({"stock_code": code[0], "value": None})
             continue
         recent = sub_sorted.tail(252)
+        if len(recent) < MIN_BETA_OBS:
+            results.append({"stock_code": code[0], "value": None})
+            continue
         y = recent["log_ret"].to_numpy()
         x = recent["market_return"].to_numpy()
 
@@ -153,7 +154,6 @@ def downbeta(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
     results = []
     for code, sub in df.group_by("stock_code"):
         sub_sorted = sub.sort("trade_date").drop_nulls(subset=["log_ret", "market_return"])
-        sub_sorted = sub_sorted.filter(pl.col("trade_date") >= asof - timedelta(days=MAX_BETA_CALENDAR_DAYS))
         if (
             sub_sorted.is_empty()
             or (asof - sub_sorted["trade_date"].max()).days > MAX_STALE_DAYS
@@ -161,7 +161,11 @@ def downbeta(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
         ):
             results.append({"stock_code": code[0], "value": None})
             continue
-        recent = sub_sorted.tail(252).filter(pl.col("market_return") < 0)
+        recent_all = sub_sorted.tail(252)
+        if len(recent_all) < MIN_BETA_OBS:
+            results.append({"stock_code": code[0], "value": None})
+            continue
+        recent = recent_all.filter(pl.col("market_return") < 0)
         if len(recent) < 20:
             results.append({"stock_code": code[0], "value": None})
             continue

@@ -248,6 +248,28 @@ def test_industry_neutral_script_initial_position_charges_single_side_cost():
     assert abs(row["port_ret"] - 0.098) < 1e-12
 
 
+def test_industry_neutral_script_batch_holdings_match_single_topn_reference():
+    """按行业有序列表切片的批量实现，应与逐个 Top-N 参考实现一致。"""
+    module = load_industry_neutral_backtest_script()
+    score = pl.DataFrame({
+        "trade_date": [date(2025, 1, 31)] * 7 + [date(2025, 2, 28)] * 7,
+        "stock_code": ["A1", "A2", "A3", "B1", "B2", "C1", "C2"] * 2,
+        "score": [9.0, 7.0, 1.0, 8.0, 2.0, 6.0, 5.0, 1.0, 8.0, 9.0, 2.0, 7.0, 6.0, 5.0],
+        "industry_sw1": ["行业A", "行业A", "行业A", "行业B", "行业B", "行业C", "行业C"] * 2,
+        "industry_weight": [3 / 7, 3 / 7, 3 / 7, 2 / 7, 2 / 7, 2 / 7, 2 / 7] * 2,
+    })
+
+    batch = module.build_industry_neutral_holdings_all_topn(score, [2, 3, 5, 8])
+    for top_n in [2, 3, 5, 8]:
+        got = (
+            batch.filter(pl.col("top_n") == top_n)
+            .drop("top_n")
+            .sort(["trade_date", "stock_code"])
+        )
+        expected = build_industry_neutral_holdings(score, top_n).sort(["trade_date", "stock_code"])
+        assert_frame_equal(got, expected, check_row_order=True, check_column_order=True)
+
+
 def test_backtest_keeps_signal_date_and_return_date():
     """回测结果应同时保留信号日和收益结束日，方便页面按收益落地月展示。"""
     score = pl.DataFrame({

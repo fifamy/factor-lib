@@ -33,19 +33,20 @@ def _turnover(win: pl.DataFrame) -> np.ndarray:
 
 
 def _market_extra_hist(win: pl.DataFrame, lookback: int, ctx: dict | None = None) -> pl.DataFrame:
-    """复刻 market_extra._hist：先按日历缓冲窗口裁剪，再取最近 lookback 个交易日。
-
-    对停牌或交易稀疏股票，直接取最近 N 个交易日会跨出生产计算的日历窗口，
-    导致核对工具误报 mismatch。这里保留生产里的日历下界逻辑。
-    """
+    """复刻 market_extra._hist：按真实交易观测计算变化，再取最近 lookback 行。"""
     if win.is_empty():
         return win
-    asof = (ctx or {}).get("_asof") or win["trade_date"][-1]
-    lo = asof - timedelta(days=int(lookback / 0.66) + 60)
     return (
-        win.filter(pl.col("trade_date") >= lo)
-        .sort("trade_date")
-        .with_columns((pl.col("adj_close") / pl.col("adj_close").shift(1)).log().alias("ret"))
+        win.sort("trade_date")
+        .with_columns([
+            (pl.col("adj_close") / pl.col("adj_close").shift(1)).log().alias("ret"),
+            pl.when(pl.col("volume") > 0)
+            .then(pl.col("volume").log())
+            .otherwise(None)
+            .diff()
+            .alias("volume_log_change")
+            if "volume" in win.columns else pl.lit(None).alias("volume_log_change"),
+        ])
         .tail(lookback)
     )
 
@@ -108,9 +109,12 @@ def _mom60(win, ctx):
     h = _market_extra_hist(win, 60, ctx)
     if h.height < 40:
         return None, []
-    r = h["ret"].drop_nulls().to_numpy().astype(float)
+    r = h["ret"].to_numpy().astype(float)
+    r = r[np.isfinite(r)]
+    if len(r) == 0:
+        return None, []
     v = float(r.sum())
-    return v, [f"近60日对数收益之和（至少40个价格观测） = {v:.6f}"]
+    return v, [f"最长60日对数收益之和（{h.height}个价格观测） = {v:.6f}"]
 
 
 @_ref("MOM12_1")
@@ -123,7 +127,7 @@ def _mom12_1(win, ctx):
     window = 252 - 21                      # 231
     window_ret = log_ret[:window]          # [t-252, t-22]
     v = float(np.sum(window_ret))
-    return v, [f"窗口[t-252,t-22] 等权累计对数收益 = {v:.6f}"]
+    return v, [f"收益日d=t-251..t-21，价格端点P_{{t-252}}至P_{{t-21}}，等权累计对数收益 = {v:.6f}"]
 
 
 @_ref("RSTR252")
@@ -136,7 +140,7 @@ def _rstr252(win, ctx):
     w = 0.5 ** (k / 126)
     w = w / w.sum()
     v = float(np.sum(window_ret * w[::-1]))
-    return v, [f"窗口[t-252,t-22] 半衰期126加权累计对数收益 = {v:.6f}"]
+    return v, [f"收益日d=t-251..t-21，价格端点P_{{t-252}}至P_{{t-21}}，半衰期126加权累计对数收益 = {v:.6f}"]
 
 
 # ---------- 波动 volatility ----------
@@ -250,11 +254,11 @@ def _turn20(win, ctx):
 
 @_ref("STOM")
 def _stom(win, ctx):
-    if win.height < 15:
+    if win.is_empty():
         return None, []
-    t = _turnover(win.tail(21))
-    # STOM 取对数(Σturnover)，单个 nan/非正值会污染整段求和，故严格过滤；
-    # TURN20 用 np.nanmean 可容忍 nan，无需此过滤。
+    asof = ctx.get("_asof") or win["trade_date"][-1]
+    recent = win.filter(pl.col("trade_date") >= asof - timedelta(days=45)).tail(21)
+    t = _turnover(recent)
     t = t[(t > 0) & np.isfinite(t)]
     if len(t) < 15:
         return None, []
@@ -262,7 +266,7 @@ def _stom(win, ctx):
     if s <= 0:
         return None, []
     v = float(math.log(s))
-    return v, [f"ln(Σturnover,21d={s:.6f}) = {v:.6f}"]
+    return v, [f"ln(Σturnover,最长21日={s:.6f})，有效换手日={len(t)} = {v:.6f}"]
 
 
 # ---------- 流动性·扩充 (market_extra) ----------
@@ -293,38 +297,30 @@ def _turnvol(win, ctx):
 @_ref("TURNPCTL")
 def _turnpctl(win, ctx):
     """末日换手率在近120日内的历史分位 = (turnover<=末日).sum()/n。"""
-    if win.height < 60:
-        return None, []
     t = _turnover(win.tail(120))
     t = t[np.isfinite(t)]
     if len(t) < 60:
         return None, []
     last = t[-1]
     v = float((t <= last).sum() / len(t))
-    return v, [f"换手率历史分位(最长120d、至少60d) = {v:.6f}"]
+    return v, [f"换手率历史分位(120d) = {v:.6f}"]
 
 
 @_ref("PVCORR")
 def _pvcorr(win, ctx):
     """近60日日对数收益与实际成交量对数变化的相关系数。"""
-    if win.height < 61:
+    if win.height < 41:
         return None, []
-    w = win.tail(61)
-    p = w["adj_close"].to_numpy().astype(float)
-    volume = w["volume"].to_numpy().astype(float)
-    log_price = np.full_like(p, np.nan)
-    log_volume = np.full_like(volume, np.nan)
-    np.log(p, out=log_price, where=np.isfinite(p) & (p > 0))
-    np.log(volume, out=log_volume, where=np.isfinite(volume) & (volume > 0))
-    r = np.diff(log_price)
-    volume_change = np.diff(log_volume)
+    h = _market_extra_hist(win, 60, ctx)
+    r = h["ret"].to_numpy().astype(float)
+    volume_change = h["volume_log_change"].to_numpy().astype(float)
     valid = np.isfinite(r) & np.isfinite(volume_change)
     r = r[valid]
     volume_change = volume_change[valid]
     if len(r) < 40 or np.std(r) == 0 or np.std(volume_change) == 0:
         return None, []
     v = float(np.corrcoef(r, volume_change)[0, 1])
-    return v, [f"corr(日对数收益, 成交量对数变化, 60) = {v:.6f}"]
+    return v, [f"corr(日对数收益, 成交量对数变化, 最长60日)，共同有效观测={len(r)} = {v:.6f}"]
 
 
 @_ref("UPVOLRATIO")
@@ -347,20 +343,20 @@ def _upvolratio(win, ctx):
 @_ref("ABTURN")
 def _abturn(win, ctx):
     """异常换手率：当日换手率相对近60日的Z分数。"""
-    h = _market_extra_hist(win, 60, ctx)
-    if h.height < 40:
+    if win.is_empty():
         return None, []
-    t_raw = _turnover(h)
-    if len(t_raw) == 0 or not np.isfinite(t_raw[-1]):
+    t = _turnover(win.tail(60))
+    current = t[-1]
+    if not np.isfinite(current):
         return None, []
-    t = t_raw[np.isfinite(t_raw)]
-    if len(t) < 40:
+    valid = t[np.isfinite(t)]
+    if len(valid) < 40:
         return None, []
-    sd = np.std(t, ddof=1)
+    sd = np.std(valid, ddof=1)
     if not np.isfinite(sd) or sd <= 0:
         return None, []
-    v = float((t[-1] - np.mean(t)) / sd)
-    return v, [f"(turnover_t-mean(turnover,最长60))/std(turnover,最长60)，至少40日 = {v:.6f}"]
+    v = float((current - np.mean(valid)) / sd)
+    return v, [f"(turnover_t-mean(turnover,最长60日))/std(turnover,最长60日)，有效换手日={len(valid)} = {v:.6f}"]
 
 
 @_ref("HIGHMOMTURN")
@@ -466,16 +462,15 @@ def _ma20bias(win, ctx):
 @_ref("HLPOS")
 def _hlpos(win, ctx):
     """近60日高低点位置：(P_t − min(P,60)) / (max(P,60) − min(P,60))。"""
-    h = _market_extra_hist(win, 60, ctx)
-    if h.height < 40:
+    if win.height < 40:
         return None, []
-    p = h["adj_close"].to_numpy().astype(float)
+    p = win.tail(60)["adj_close"].to_numpy().astype(float)
     lo = p.min()
     hi = p.max()
     if hi <= lo:
         return None, []
     v = float((p[-1] - lo) / (hi - lo))
-    return v, [f"(P_t - min(P,最长60)) / (max-min,最长60)，至少40日 = {v:.6f}"]
+    return v, [f"(P_t - min(P,60)) / (max-min,60) = {v:.6f}"]
 
 
 # ---------- Beta ----------
@@ -497,12 +492,13 @@ def build_market_returns_ref(panel: pl.DataFrame) -> pl.DataFrame:
 @_ref("BETA")
 def _beta(win, ctx):
     mkt = ctx.get("market_returns")
-    if mkt is None or win.height < 201:
+    if mkt is None or win.is_empty():
         return None, []
     w = win.with_columns(
         (pl.col("adj_close") / pl.col("adj_close").shift(1)).log().alias("lr")
     ).join(mkt, on="trade_date", how="left").drop_nulls(["lr", "market_return"])
-    if w.height < 200:
+    asof = ctx.get("_asof") or win["trade_date"][-1]
+    if w.height < 200 or (asof - w["trade_date"].max()).days > 10:
         return None, []
     rec = w.tail(252)
     y = rec["lr"].to_numpy()
@@ -511,20 +507,24 @@ def _beta(win, ctx):
     if var == 0:
         return None, []
     v = float(np.cov(y, x, ddof=1)[0, 1] / var)
-    return v, [f"cov(r_i,r_mkt)/var(r_mkt)，最长252日、至少200日 = {v:.6f}"]
+    return v, [f"cov(r_i,r_mkt)/var(r_mkt)，最长252日、至少200日（实际{rec.height}日） = {v:.6f}"]
 
 
 @_ref("DOWNBETA")
 def _downbeta(win, ctx):
     mkt = ctx.get("market_returns")
-    if mkt is None or win.height < 201:
+    if mkt is None or win.is_empty():
         return None, []
     w = win.with_columns(
         (pl.col("adj_close") / pl.col("adj_close").shift(1)).log().alias("lr")
     ).join(mkt, on="trade_date", how="left").drop_nulls(["lr", "market_return"])
-    if w.height < 200:
+    asof = ctx.get("_asof") or win["trade_date"][-1]
+    if w.height < 200 or (asof - w["trade_date"].max()).days > 10:
         return None, []
-    rec = w.tail(252).filter(pl.col("market_return") < 0)
+    recent_all = w.tail(252)
+    if recent_all.height < 200:
+        return None, []
+    rec = recent_all.filter(pl.col("market_return") < 0)
     if rec.height < 20:
         return None, []
     y = rec["lr"].to_numpy()
@@ -533,4 +533,4 @@ def _downbeta(win, ctx):
     if var == 0:
         return None, []
     v = float(np.cov(y, x, ddof=1)[0, 1] / var)
-    return v, [f"cov(r_i,r_mkt | r_mkt<0)/var(r_mkt | r_mkt<0) = {v:.6f}"]
+    return v, [f"cov(r_i,r_mkt | r_mkt<0)/var(r_mkt | r_mkt<0)，最长252日、至少200日且下跌日{rec.height} = {v:.6f}"]

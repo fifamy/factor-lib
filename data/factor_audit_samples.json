@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "generated_at": "2026-07-20 10:29:48",
+  "generated_at": "2026-07-21 14:14:52",
   "summary": {
     "word_factor_count": 112,
     "system_factor_count": 149,
-    "matched_count": 58,
-    "word_only_count": 54,
-    "system_extra_count": 67,
-    "computed_count": 125,
-    "pending_data_count": 54,
+    "matched_count": 63,
+    "word_only_count": 49,
+    "system_extra_count": 86,
+    "computed_count": 149,
+    "pending_data_count": 49,
     "metadata_gap_count": 0
   },
   "factors": [
@@ -27,7 +27,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "市盈率PE = AShareValuationIndicator.S_VAL_PE_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "市盈率PE = AShareValuationIndicator.S_VAL_PE_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareValuationIndicator.S_VAL_PE_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -110,45 +110,56 @@
     },
     {
       "id": "1.1.3",
-      "status": "word_only",
-      "support_status": "pending_data",
+      "status": "matched",
+      "support_status": "computed",
       "word_number": "1.1.3",
       "word_name": "Forward PE",
       "word_level0": "公司内生信息",
       "word_level1": "估值类",
       "word_direction": "负向（数值越低，预期估值越便宜）",
       "word_formula": "Forward PE =总市值/未来12个月一致预期归母净利润。（注：该指标仅针对存在wind一致预期的公司）",
-      "system_code": "",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：Forward PE =总市值/未来12个月一致预期归母净利润。（注：该指标仅针对存在wind一致预期的公司）",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
+      "system_code": "FWDPE",
+      "system_name_cn": "Forward PE",
+      "system_l1": "公司内生信息",
+      "system_l2": "估值类",
+      "system_direction": "负向",
+      "system_formula": "FWDPE = AShareConsensusRollingData.EST_PE，ROLLING_TYPE='FTTM'，EST_PE>0。",
+      "system_wind_source": "AShareConsensusRollingData.EST_PE; ROLLING_TYPE; TRADE_DT",
+      "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word 方向与系统方向文本不完全一致，需要人工确认。"
       ],
-      "required_data": [
-        "Wind 一致预期字段",
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
+        "trade_date": "2026-05-29",
+        "stock_code": "688591.SH",
+        "stock_name": "泰凌微",
+        "raw_value": 24.8242,
+        "score": 0.0005013256759256267,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=24.8242，方向处理后的 score=0.000501。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
-        "inputs": []
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 24.8242,
+            "display": "24.8242",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0005013256759256267,
+            "display": "0.000501",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
       }
     },
     {
@@ -166,7 +177,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "市净率PB = AShareValuationIndicator.S_VAL_PB_LF（Wind 已算好，月末截面取值）",
+      "system_formula": "市净率PB = AShareValuationIndicator.S_VAL_PB_LF（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareValuationIndicator.S_VAL_PB_LF",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -274,7 +285,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "市销率PS = AShareValuationIndicator.S_VAL_PS_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "市销率PS = AShareValuationIndicator.S_VAL_PS_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareValuationIndicator.S_VAL_PS_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -324,11 +335,11 @@
       "word_direction": "负向（数值越低，企业价值估值越便宜）",
       "word_formula": "EV/EBITDA =企业价值/ TTM EBITDA。其中企业价值（EV）采用当日口径统计，保证全市场个股统计标准统一，企业价值（EV）=总市值+有息负债-货币资金及等价物。EBITDA采用TTM滚动求和口径，规避季报季节性波动。具体计算规则为当前已披露财报最新四个季度EBITDA滚动求和，动态滚动更新。当个股TTM EBITDA≤0时，EV/EBITDA标记为无效值，不参与后续运算。",
       "system_code": "EV2EBITDA",
-      "system_name_cn": "EV/EBITDA",
+      "system_name_cn": "总市值/EBITDA",
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "EV/EBITDA = DailyValuationFactor.S_DFA_MVTOEBITDA（Wind 已算好，月末截面取值）",
+      "system_formula": "EV/EBITDA = DailyValuationFactor.S_DFA_MVTOEBITDA（Wind已算好，月末截面取值）",
       "system_wind_source": "DailyValuationFactor.S_DFA_MVTOEBITDA",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -369,56 +380,44 @@
     },
     {
       "id": "1.1.8",
-      "status": "matched",
-      "support_status": "computed",
+      "status": "word_only",
+      "support_status": "pending_data",
       "word_number": "1.1.8",
       "word_name": "EV/EBIT",
       "word_level0": "公司内生信息",
       "word_level1": "估值类",
       "word_direction": "负向（数值越低，经营利润估值越便宜）",
       "word_formula": "EV/EBIT =企业价值/ TTM EBIT。其中企业价值（EV）采用当日口径统计，企业价值EV=总市值+有息负债-货币资金及等价物，保证全市场个股统计标准统一。当日总市值采用个股当日收盘总市值（总股本×当日收盘价），非流通市值计入统计，严格沿用全市值口径。有息负债、货币资金及等价物取自当期最新已披露财报数据。EBIT采用TTM滚动求和口径，规避季报季节性波动。具体计算规则为当前已披露财报最新四个季度EBIT滚动求和，动态滚动更新。当个股TTM EBIT≤0、EV为负或关键数据缺失时，EV/EBIT标记为无效值，不参与后续运算。EBIT必要时可使用wind计算好的数据。",
-      "system_code": "EV2EBIT",
-      "system_name_cn": "EV/EBIT",
-      "system_l1": "公司内生信息",
-      "system_l2": "估值类",
-      "system_direction": "负向",
-      "system_formula": "EV2EBIT = AShareValuationIndicator.S_VAL_EV / PITFinancialFactor.S_DFA_EBIT_TTM；EBIT<=0 置缺失。",
-      "system_wind_source": "AShareValuationIndicator.S_VAL_EV; PITFinancialFactor.S_DFA_EBIT_TTM",
-      "catalog_v2_status": "computed",
+      "system_code": "",
+      "system_name_cn": "",
+      "system_l1": "",
+      "system_l2": "",
+      "system_direction": "",
+      "system_formula": "系统暂未生成 score；Word 理论口径为：EV/EBIT =企业价值/ TTM EBIT。其中企业价值（EV）采用当日口径统计，企业价值EV=总市值+有息负债-货币资金及等价物，保证全市场个股统计标准统一。当日总市值采用个股当日收盘总市值（总股本×当日收盘价），非流通市值计入统计，严格沿用全市值口径。有息负债、货币资金及等价物取自当期最新已披露财报数据。EBIT采用TTM滚动求和口径，规避季报季节性波动。具体计算规则为当前已披露财报最新四个季度EBIT滚动求和，动态滚动更新。当个股TTM EBIT≤0、EV为负或关键数据缺失时，EV/EBIT标记为无效值，不参与后续运算。EBIT必要时可使用wind计算好的数据。",
+      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word 方向与系统方向文本不完全一致，需要人工确认。"
+        "Word v2 已定义，但系统当前没有生成 score。",
+        "当前没有可展示的股票样本。",
+        "落地依赖仍需补充数据源或字段映射。"
       ],
-      "required_data": [],
+      "required_data": [
+        "字段映射",
+        "历史截面样本",
+        "因子计算脚本",
+        "前端导出分片"
+      ],
       "sample": {
-        "trade_date": "2026-05-29",
-        "stock_code": "301119.SZ",
-        "stock_name": "正强股份",
-        "raw_value": 36.53202831240587,
-        "score": -0.0,
+        "trade_date": "",
+        "stock_code": "",
+        "stock_name": "",
+        "raw_value": null,
+        "score": null,
         "steps": [
-          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=36.5320，方向处理后的 score=-0.000000。",
-          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
         ],
-        "inputs": [
-          {
-            "field": "raw_value",
-            "label": "系统原始因子值 raw_value",
-            "value": 36.53202831240587,
-            "display": "36.5320",
-            "unit": "",
-            "note": "来自当前因子落地结果"
-          },
-          {
-            "field": "score",
-            "label": "方向处理后标准化分数 score",
-            "value": -0.0,
-            "display": "-0.000000",
-            "unit": "",
-            "note": "用于排序和组合构建"
-          }
-        ]
+        "inputs": []
       }
     },
     {
@@ -436,7 +435,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "盈利能力类",
       "system_direction": "正向",
-      "system_formula": "净资产收益率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_ROE_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "净资产收益率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_ROE_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_ROE_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -490,7 +489,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "盈利能力类",
       "system_direction": "正向",
-      "system_formula": "总资产收益率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_ROA1_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "总资产收益率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_ROA1_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_ROA1_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -544,7 +543,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "盈利能力类",
       "system_direction": "正向",
-      "system_formula": "投入资本回报率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_ROIC_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "投入资本回报率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_ROIC_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_ROIC_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -598,7 +597,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "盈利能力类",
       "system_direction": "正向",
-      "system_formula": "毛利率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_GROSSPROFITMARGIN_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "毛利率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_GROSSPROFITMARGIN_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_GROSSPROFITMARGIN_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -652,7 +651,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "盈利能力类",
       "system_direction": "正向",
-      "system_formula": "净利率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_NETPROFITMARGIN_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "净利率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_NETPROFITMARGIN_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_NETPROFITMARGIN_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -706,7 +705,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "盈利能力类",
       "system_direction": "正向",
-      "system_formula": "营业利润率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_OPTOOR_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "营业利润率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_OPTOOR_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_OPTOOR_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -760,7 +759,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "盈利质量类",
       "system_direction": "正向",
-      "system_formula": "现金流收入比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_OCFTOOR_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "现金流收入比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_OCFTOOR_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_OCFTOOR_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -868,7 +867,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "成长类",
       "system_direction": "正向",
-      "system_formula": "营业收入同比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOY_OR（Wind 已算好，月末截面取值）",
+      "system_formula": "营业收入同比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOY_OR（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOY_OR",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -909,56 +908,44 @@
     },
     {
       "id": "1.4.2",
-      "status": "matched",
-      "support_status": "computed",
+      "status": "word_only",
+      "support_status": "pending_data",
       "word_number": "1.4.2",
       "word_name": "营收复合增速",
       "word_level0": "公司内生信息",
       "word_level1": "成长类",
       "word_direction": "正向（数值越高，长期收入成长越强）",
       "word_formula": "营收复合增速= (期末营业收入/期初营业收入)^(1/N)–1,N可取1、2、3等参数。营业收入一般采用TMM口径。",
-      "system_code": "ORCAGR3Y",
-      "system_name_cn": "营收复合增速",
-      "system_l1": "公司内生信息",
-      "system_l2": "成长类",
-      "system_direction": "正向",
-      "system_formula": "ORCAGR3Y = (S_DFA_OR_TTM / lag36(S_DFA_OR_TTM))^(1/3)-1；当前值和滞后值均需为正。",
-      "system_wind_source": "PITFinancialFactor.S_DFA_OR_TTM",
-      "catalog_v2_status": "computed",
+      "system_code": "",
+      "system_name_cn": "",
+      "system_l1": "",
+      "system_l2": "",
+      "system_direction": "",
+      "system_formula": "系统暂未生成 score；Word 理论口径为：营收复合增速= (期末营业收入/期初营业收入)^(1/N)–1,N可取1、2、3等参数。营业收入一般采用TMM口径。",
+      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word 方向与系统方向文本不完全一致，需要人工确认。"
+        "Word v2 已定义，但系统当前没有生成 score。",
+        "当前没有可展示的股票样本。",
+        "落地依赖仍需补充数据源或字段映射。"
       ],
-      "required_data": [],
+      "required_data": [
+        "字段映射",
+        "历史截面样本",
+        "因子计算脚本",
+        "前端导出分片"
+      ],
       "sample": {
-        "trade_date": "2026-05-29",
-        "stock_code": "601929.SH",
-        "stock_name": "吉视传媒",
-        "raw_value": 0.029350289979615196,
-        "score": 0.0,
+        "trade_date": "",
+        "stock_code": "",
+        "stock_name": "",
+        "raw_value": null,
+        "score": null,
         "steps": [
-          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.029350，方向处理后的 score=0.000000。",
-          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
         ],
-        "inputs": [
-          {
-            "field": "raw_value",
-            "label": "系统原始因子值 raw_value",
-            "value": 0.029350289979615196,
-            "display": "0.029350",
-            "unit": "",
-            "note": "来自当前因子落地结果"
-          },
-          {
-            "field": "score",
-            "label": "方向处理后标准化分数 score",
-            "value": 0.0,
-            "display": "0.000000",
-            "unit": "",
-            "note": "用于排序和组合构建"
-          }
-        ]
+        "inputs": []
       }
     },
     {
@@ -976,7 +963,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "成长类",
       "system_direction": "正向",
-      "system_formula": "净利润同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_NETPROFIT（Wind 已算好，月末截面取值）",
+      "system_formula": "净利润同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_NETPROFIT（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_NETPROFIT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1030,7 +1017,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "成长类",
       "system_direction": "正向",
-      "system_formula": "扣非净利同比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYNETPROFIT_DEDUCTED（Wind 已算好，月末截面取值）",
+      "system_formula": "扣非净利同比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYNETPROFIT_DEDUCTED（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYNETPROFIT_DEDUCTED",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1071,86 +1058,110 @@
     },
     {
       "id": "1.4.5",
-      "status": "word_only",
-      "support_status": "pending_data",
+      "status": "matched",
+      "support_status": "computed",
       "word_number": "1.4.5",
       "word_name": "CAPEX增速",
       "word_level0": "公司内生信息",
       "word_level1": "成长类",
       "word_direction": "正向（数值越高，基本面、资金或事件信号越强）",
       "word_formula": "CAPEX增速=本期CAPEX/上一期CAPEX- 1,数据采用TTM口径，必要时可计算N年复合增速。",
-      "system_code": "",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：CAPEX增速=本期CAPEX/上一期CAPEX- 1,数据采用TTM口径，必要时可计算N年复合增速。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
+      "system_code": "CAPEXGROWTH",
+      "system_name_cn": "CAPEX增速",
+      "system_l1": "公司内生信息",
+      "system_l2": "成长类",
+      "system_direction": "正向",
+      "system_formula": "CAPEXGROWTH = CAPEX_TTM / lag_same_quarter(CAPEX_TTM, 1年) - 1。",
+      "system_wind_source": "AShareCashFlow.CASH_PAY_ACQ_CONST_FIOLTA; ANN_DT; REPORT_PERIOD",
+      "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word 方向与系统方向文本不完全一致，需要人工确认。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
+        "trade_date": "2026-05-29",
+        "stock_code": "600050.SH",
+        "stock_name": "中国联通",
+        "raw_value": -0.07779258720736149,
+        "score": 0.0002554655831529758,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=-0.077793，方向处理后的 score=0.000255。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
-        "inputs": []
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": -0.07779258720736149,
+            "display": "-0.077793",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0002554655831529758,
+            "display": "0.000255",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
       }
     },
     {
       "id": "1.4.6",
-      "status": "word_only",
-      "support_status": "pending_data",
+      "status": "matched",
+      "support_status": "computed",
       "word_number": "1.4.6",
       "word_name": "△研发费用占比",
       "word_level0": "公司内生信息",
       "word_level1": "成长类",
       "word_direction": "正向（数值越高，反应企业的研发投入意愿高）",
       "word_formula": "△研发费用占比=本期研发/营业收入-基期研发费用/营业收入，口径均使用TTM。",
-      "system_code": "",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：△研发费用占比=本期研发/营业收入-基期研发费用/营业收入，口径均使用TTM。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
+      "system_code": "RDEXPRATIOCHG",
+      "system_name_cn": "△研发费用占比",
+      "system_l1": "公司内生信息",
+      "system_l2": "成长类",
+      "system_direction": "正向",
+      "system_formula": "RDEXPRATIOCHG = RD_EXPENSE_TTM / OPER_REV_TTM - lag_same_quarter(RD_EXPENSE_TTM / OPER_REV_TTM, 1年)。",
+      "system_wind_source": "AShareANNFinancialIndicator.RD_EXPENSE; AShareIncome.TOT_OPER_REV; OPER_REV; ANN_DT; REPORT_PERIOD",
+      "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word 方向与系统方向文本不完全一致，需要人工确认。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
+        "trade_date": "2026-05-29",
+        "stock_code": "002234.SZ",
+        "stock_name": "民和股份",
+        "raw_value": -0.00035389781787876183,
+        "score": 0.0,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=-0.000354，方向处理后的 score=0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
-        "inputs": []
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": -0.00035389781787876183,
+            "display": "-0.000354",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0,
+            "display": "0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
       }
     },
     {
@@ -1168,7 +1179,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "负向",
-      "system_formula": "资产负债率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_DEBTTOASSET（Wind 已算好，月末截面取值）",
+      "system_formula": "资产负债率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_DEBTTOASSET（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_DEBTTOASSET",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1209,56 +1220,44 @@
     },
     {
       "id": "1.5.2",
-      "status": "matched",
-      "support_status": "computed",
+      "status": "word_only",
+      "support_status": "pending_data",
       "word_number": "1.5.2",
       "word_name": "有息负债率",
       "word_level0": "公司内生信息",
       "word_level1": "财务稳健类",
       "word_direction": "负向（数值越高，利息负担和再融资压力越高）",
       "word_formula": "有息负债率=有息负债/总资产。其中总资产取自当期最新披露财报期末账面数据；有息负债为企业所有付息类债务合计，具体包含：短期借款、一年内到期的非流动负债、长期借款、应付债券、租赁负债，剔除应付账款、应付票据、应付职工薪酬等无息经营性负债。",
-      "system_code": "INTDEBTRATIO",
-      "system_name_cn": "有息负债率",
-      "system_l1": "公司内生信息",
-      "system_l2": "财务稳健类",
-      "system_direction": "负向",
-      "system_formula": "INTDEBTRATIO = (ST_BORROW + NON_CUR_LIAB_DUE_WITHIN_1Y + LT_BORROW + BONDS_PAYABLE + LEASE_LIAB) / TOT_ASSETS，取月末前最新公告财报。",
-      "system_wind_source": "AShareBalanceSheet.ST_BORROW; NON_CUR_LIAB_DUE_WITHIN_1Y; LT_BORROW; BONDS_PAYABLE; LEASE_LIAB; TOT_ASSETS; ANN_DT",
-      "catalog_v2_status": "computed",
+      "system_code": "",
+      "system_name_cn": "",
+      "system_l1": "",
+      "system_l2": "",
+      "system_direction": "",
+      "system_formula": "系统暂未生成 score；Word 理论口径为：有息负债率=有息负债/总资产。其中总资产取自当期最新披露财报期末账面数据；有息负债为企业所有付息类债务合计，具体包含：短期借款、一年内到期的非流动负债、长期借款、应付债券、租赁负债，剔除应付账款、应付票据、应付职工薪酬等无息经营性负债。",
+      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word 方向与系统方向文本不完全一致，需要人工确认。"
+        "Word v2 已定义，但系统当前没有生成 score。",
+        "当前没有可展示的股票样本。",
+        "落地依赖仍需补充数据源或字段映射。"
       ],
-      "required_data": [],
+      "required_data": [
+        "字段映射",
+        "历史截面样本",
+        "因子计算脚本",
+        "前端导出分片"
+      ],
       "sample": {
-        "trade_date": "2026-05-29",
-        "stock_code": "605377.SH",
-        "stock_name": "华旺科技",
-        "raw_value": 0.3321932647560829,
-        "score": 0.00026143390729916135,
+        "trade_date": "",
+        "stock_code": "",
+        "stock_name": "",
+        "raw_value": null,
+        "score": null,
         "steps": [
-          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.332193，方向处理后的 score=0.000261。",
-          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
         ],
-        "inputs": [
-          {
-            "field": "raw_value",
-            "label": "系统原始因子值 raw_value",
-            "value": 0.3321932647560829,
-            "display": "0.332193",
-            "unit": "",
-            "note": "来自当前因子落地结果"
-          },
-          {
-            "field": "score",
-            "label": "方向处理后标准化分数 score",
-            "value": 0.00026143390729916135,
-            "display": "0.000261",
-            "unit": "",
-            "note": "用于排序和组合构建"
-          }
-        ]
+        "inputs": []
       }
     },
     {
@@ -1276,7 +1275,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "正向",
-      "system_formula": "流动比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CURRENT（Wind 已算好，月末截面取值）",
+      "system_formula": "流动比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CURRENT（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CURRENT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1330,7 +1329,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "正向",
-      "system_formula": "速动比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_QUICK（Wind 已算好，月末截面取值）",
+      "system_formula": "速动比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_QUICK（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_QUICK",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1384,7 +1383,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "正向",
-      "system_formula": "利息保障倍数 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_EBITTOINTEREST（Wind 已算好，月末截面取值）",
+      "system_formula": "利息保障倍数 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_EBITTOINTEREST（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_EBITTOINTEREST",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1492,7 +1491,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "运营效率类",
       "system_direction": "正向",
-      "system_formula": "总资产周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ASSETSTURN（Wind 已算好，月末截面取值）",
+      "system_formula": "总资产周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ASSETSTURN（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ASSETSTURN",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1546,7 +1545,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "运营效率类",
       "system_direction": "正向",
-      "system_formula": "存货周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_INVTURN（Wind 已算好，月末截面取值）",
+      "system_formula": "存货周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_INVTURN（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_INVTURN",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1600,7 +1599,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "运营效率类",
       "system_direction": "正向",
-      "system_formula": "应收账款周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ARTURN（Wind 已算好，月末截面取值）",
+      "system_formula": "应收账款周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ARTURN（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ARTURN",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1708,7 +1707,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "分红回报类",
       "system_direction": "正向",
-      "system_formula": "股息率 = AShareValuationIndicator.S_VAL_DIVIDENDYIELD2（Wind 已算好，月末截面取值）",
+      "system_formula": "股息率 = AShareValuationIndicator.S_VAL_DIVIDENDYIELD2（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareValuationIndicator.S_VAL_DIVIDENDYIELD2",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1749,128 +1748,164 @@
     },
     {
       "id": "1.7.2",
-      "status": "word_only",
-      "support_status": "pending_data",
+      "status": "matched",
+      "support_status": "computed",
       "word_number": "1.7.2",
       "word_name": "分红率",
       "word_level0": "公司内生信息",
       "word_level1": "分红回报类",
       "word_direction": "正向（数值越高，利润分配意愿越强；过高需关注可持续性）",
       "word_formula": "分红率=TTM现金分红总额/TTM归母净利润。其中现金分红总额、归母净利润均采用TTM滚动求和口径，取截至截面日最新四个季度数据滚动求和，规避单季度财报季节性波动，数据随最新财报披露动态更新。",
-      "system_code": "",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：分红率=TTM现金分红总额/TTM归母净利润。其中现金分红总额、归母净利润均采用TTM滚动求和口径，取截至截面日最新四个季度数据滚动求和，规避单季度财报季节性波动，数据随最新财报披露动态更新。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
+      "system_code": "DIVPAYOUT",
+      "system_name_cn": "分红率",
+      "system_l1": "公司内生信息",
+      "system_l2": "分红回报类",
+      "system_direction": "正向",
+      "system_formula": "DIVPAYOUT = latest(年度现金分红总额) / S_DFA_NETPROFIT_TTM；净利润<=0 置缺失。",
+      "system_wind_source": "AShareDividend.TOT_CASH_DVD; OTHER_TOT_CASH_DVD; PITFinancialFactor.S_DFA_NETPROFIT_TTM",
+      "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word 方向与系统方向文本不完全一致，需要人工确认。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
+        "trade_date": "2026-05-29",
+        "stock_code": "603759.SH",
+        "stock_name": "海天股份",
+        "raw_value": 0.40613363102102085,
+        "score": 0.0,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.406134，方向处理后的 score=0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
-        "inputs": []
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.40613363102102085,
+            "display": "0.406134",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0,
+            "display": "0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
       }
     },
     {
       "id": "1.7.3",
-      "status": "word_only",
-      "support_status": "pending_data",
+      "status": "matched",
+      "support_status": "computed",
       "word_number": "1.7.3",
       "word_name": "连续分红年数",
       "word_level0": "公司内生信息",
       "word_level1": "分红回报类",
       "word_direction": "正向（数值越高，基本面、资金或事件信号越强）",
       "word_formula": "连续分红年数=统计截面日之前企业无间断实施现金分红的累计年度数量，采用历年财报分红记录统计口径，数据随年度财报披露动态更新",
-      "system_code": "",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：连续分红年数=统计截面日之前企业无间断实施现金分红的累计年度数量，采用历年财报分红记录统计口径，数据随年度财报披露动态更新",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
+      "system_code": "DIVSTREAK",
+      "system_name_cn": "连续分红年数",
+      "system_l1": "公司内生信息",
+      "system_l2": "分红回报类",
+      "system_direction": "正向",
+      "system_formula": "DIVSTREAK = 连续年度现金分红总额>0 的年数，按公告可得日 as-of 取最新。",
+      "system_wind_source": "AShareDividend.TOT_CASH_DVD; REPORT_PERIOD; ANN_DT",
+      "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word 方向与系统方向文本不完全一致，需要人工确认。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
+        "trade_date": "2026-05-29",
+        "stock_code": "301102.SZ",
+        "stock_name": "兆讯传媒",
+        "raw_value": 5.0,
+        "score": 0.006287570545045652,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=5.0000，方向处理后的 score=0.006288。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
-        "inputs": []
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 5.0,
+            "display": "5.0000",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.006287570545045652,
+            "display": "0.006288",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
       }
     },
     {
       "id": "1.7.4",
-      "status": "word_only",
-      "support_status": "pending_data",
+      "status": "matched",
+      "support_status": "computed",
       "word_number": "1.7.4",
       "word_name": "分红增长率",
       "word_level0": "公司内生信息",
       "word_level1": "分红回报类",
       "word_direction": "正向（数值越高，基本面、资金或事件信号越强）",
       "word_formula": "分红增长率=本期分红/基期分红-1。本期和基期分红采用向前滚动12个月的数据，确保数据剔除季节性波动。",
-      "system_code": "",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：分红增长率=本期分红/基期分红-1。本期和基期分红采用向前滚动12个月的数据，确保数据剔除季节性波动。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
+      "system_code": "DIVGROWTH",
+      "system_name_cn": "分红增长率",
+      "system_l1": "公司内生信息",
+      "system_l2": "分红回报类",
+      "system_direction": "正向",
+      "system_formula": "DIVGROWTH = 年度现金分红总额 / 上一年度现金分红总额 - 1；上一年度<=0 置缺失。",
+      "system_wind_source": "AShareDividend.TOT_CASH_DVD; REPORT_PERIOD; ANN_DT",
+      "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word 方向与系统方向文本不完全一致，需要人工确认。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
+        "trade_date": "2026-05-29",
+        "stock_code": "600037.SH",
+        "stock_name": "歌华有线",
+        "raw_value": 0.0,
+        "score": -0.028921932645791806,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=-0.028922。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
-        "inputs": []
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.0,
+            "display": "0.000000",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": -0.028921932645791806,
+            "display": "-0.028922",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
       }
     },
     {
@@ -1884,12 +1919,12 @@
       "word_direction": "正向（数值越高，趋势信号越强）",
       "word_formula": "动量因子的基础计算方式是计算股票在过去一段时间内的累计收益率。 （1）基础价格动量： （2）剔除近期收益的中期动量： 其中，为股票i在t日的复权收盘价，为股票i在t-N日的复权收盘价，N为回看起点，K为跳过最近收益的窗口长度。",
       "system_code": "MOM12_1",
-      "system_name_cn": "动量 12-1",
+      "system_name_cn": "动量12-1",
       "system_l1": "市场交易信息",
       "system_l2": "收益趋势类",
       "system_direction": "正向",
-      "system_formula": "MOM12_1 = Σ_{k=21}^{252} w_k · ln(P_{t-k+1} / P_{t-k})\n其中 P 为复权收盘价，w_k 为半衰期 126 个交易日的指数权重（越近权重越大），窗口取 [t-252, t-22]（剔除最近 21 个交易日以避开短期反转）。",
-      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE（复权收盘价）",
+      "system_formula": "MOM12_1 = sum(ln(P_d/P_{d-1}), d=t-252..t-22)",
+      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -2050,7 +2085,7 @@
       "system_l1": "市场交易信息",
       "system_l2": "均值回复类",
       "system_direction": "负向",
-      "system_formula": "PRICEZ = (S_DQ_ADJCLOSE_t - mean(S_DQ_ADJCLOSE, 60)) / std(S_DQ_ADJCLOSE, 60)",
+      "system_formula": "PRICEZ = (S_DQ_ADJCLOSE_t - mean(S_DQ_ADJCLOSE, 20)) / std(S_DQ_ADJCLOSE, 20)",
       "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -2319,8 +2354,8 @@
       "system_name_cn": "近一年最大回撤",
       "system_l1": "市场交易信息",
       "system_l2": "波动风险类",
-      "system_direction": "正向",
-      "system_formula": "MAXDD1Y = min(S_DQ_ADJCLOSE_d / cummax(S_DQ_ADJCLOSE_d, 252) - 1)",
+      "system_direction": "负向",
+      "system_formula": "MAXDD1Y = max(1 - S_DQ_ADJCLOSE_d / cummax(S_DQ_ADJCLOSE_d, 252))",
       "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -2482,7 +2517,7 @@
       "system_l1": "市场交易信息",
       "system_l2": "波动风险类",
       "system_direction": "负向",
-      "system_formula": "BIGDOWN = count(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}) < -0.05, 60) / count(valid return, 60)",
+      "system_formula": "BIGDOWN = count(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}) < -0.05, 60) / 60",
       "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -2537,7 +2572,7 @@
       "system_l2": "beta风险类",
       "system_direction": "正向",
       "system_formula": "BETA = cov(r_i, r_mkt) / var(r_mkt)，过去 252 个交易日 OLS 回归斜率\nr_i 为个股日对数收益；r_mkt 为全市场 cap-weighted 组合日收益，权重 w_j(t-1) = 市值_j(t-1) / Σ市值。",
-      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE（复权收盘价）、AShareEODDerivativeIndicator.S_DQ_MV（总市值，用于市值加权）",
+      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE（复权收盘价）、AShareEODDerivativeIndicator.S_DQ_MV（流通市值，用于市值加权）",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -2619,44 +2654,56 @@
     },
     {
       "id": "2.4.3",
-      "status": "word_only",
-      "support_status": "pending_data",
+      "status": "matched",
+      "support_status": "computed",
       "word_number": "2.4.3",
       "word_name": "下行beta",
       "word_level0": "市场交易信息",
       "word_level1": "beta风险类",
       "word_direction": "负向（数值越高，说明股票在市场下跌阶段对市场风险更敏感，可能在弱市中出现更大跌幅。）",
       "word_formula": "其中，c是市场下跌阈值，常见的口径是c=0，即只使用市场指数日收益率为负的交易日计算beta。",
-      "system_code": "",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，c是市场下跌阈值，常见的口径是c=0，即只使用市场指数日收益率为负的交易日计算beta。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
+      "system_code": "DOWNBETA",
+      "system_name_cn": "下行beta",
+      "system_l1": "市场交易信息",
+      "system_l2": "beta风险类",
+      "system_direction": "负向",
+      "system_formula": "DOWNBETA = cov(r_i, r_mkt | r_mkt<0) / var(r_mkt | r_mkt<0)，过去252个交易日。",
+      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE; AShareEODDerivativeIndicator.S_DQ_MV",
+      "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word 方向与系统方向文本不完全一致，需要人工确认。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
+        "trade_date": "2026-05-29",
+        "stock_code": "002265.SZ",
+        "stock_name": "建设工业",
+        "raw_value": 1.2159069573633292,
+        "score": -0.0,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=1.2159，方向处理后的 score=-0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
-        "inputs": []
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 1.2159069573633292,
+            "display": "1.2159",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": -0.0,
+            "display": "-0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
       }
     },
     {
@@ -2827,8 +2874,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "流动性类",
       "system_direction": "负向",
-      "system_formula": "TURN20 = mean(TURN, 20)，TURN = S_DQ_AMOUNT / (S_DQ_MV * FREE_SHARES / TOT_SHARES) / 10",
-      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV; AShareDescription.FREE_SHARES; AShareDescription.TOT_SHARES",
+      "system_formula": "TURN20 = mean(TURN, 20)，TURN = S_DQ_AMOUNT / S_DQ_MV / 10",
+      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
       "catalog_v2_status": "computed",
       "detail_url": "data/factor_audit_details/TURN20.json",
       "warnings": [
@@ -2946,7 +2993,7 @@
       "system_l1": "市场交易信息",
       "system_l2": "流动性类",
       "system_direction": "负向",
-      "system_formula": "AMTVOL = std(S_DQ_AMOUNT, 60) / mean(S_DQ_AMOUNT, 60)",
+      "system_formula": "AMTVOL = std(S_DQ_AMOUNT, 20) / mean(S_DQ_AMOUNT, 20)",
       "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -3000,8 +3047,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "流动性类",
       "system_direction": "负向",
-      "system_formula": "TURNVOL = std(TURN, 60)，TURN = S_DQ_AMOUNT / (S_DQ_MV * FREE_SHARES / TOT_SHARES) / 10",
-      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV; AShareDescription.FREE_SHARES; AShareDescription.TOT_SHARES",
+      "system_formula": "TURNVOL = std(TURN, 60)，TURN = S_DQ_AMOUNT / S_DQ_MV / 10",
+      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -3313,8 +3360,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "价量配合类",
       "system_direction": "负向",
-      "system_formula": "PVCORR = corr(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), S_DQ_AMOUNT_d, 60)",
-      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE; AShareEODPrices.S_DQ_AMOUNT",
+      "system_formula": "PVCORR = corr(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), ln(S_DQ_VOLUME_d / S_DQ_VOLUME_{d-1}), 60)",
+      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE; AShareEODPrices.S_DQ_VOLUME",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -3367,7 +3414,7 @@
       "system_l1": "市场交易信息",
       "system_l2": "价量配合类",
       "system_direction": "负向",
-      "system_formula": "UPVOLRATIO = sum(S_DQ_AMOUNT_d | ret_d > 0, 60) / sum(S_DQ_AMOUNT_d, 60)，ret_d=ln(S_DQ_ADJCLOSE_d/S_DQ_ADJCLOSE_{d-1})",
+      "system_formula": "UPVOLRATIO = sum(S_DQ_AMOUNT_d | ret_d > 0, 20) / sum(S_DQ_AMOUNT_d, 20)，ret_d=ln(S_DQ_ADJCLOSE_d/S_DQ_ADJCLOSE_{d-1})",
       "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE; AShareEODPrices.S_DQ_AMOUNT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -3463,8 +3510,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "拥挤度类",
       "system_direction": "负向",
-      "system_formula": "ABTURN = mean(TURN, 5) / mean(TURN, 60) - 1，TURN = S_DQ_AMOUNT / (S_DQ_MV * FREE_SHARES / TOT_SHARES) / 10",
-      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV; AShareDescription.FREE_SHARES; AShareDescription.TOT_SHARES",
+      "system_formula": "ABTURN = (TURN_t - mean(TURN, 60)) / std(TURN, 60)，TURN = S_DQ_AMOUNT / S_DQ_MV / 10",
+      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -3517,8 +3564,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "拥挤度类",
       "system_direction": "负向",
-      "system_formula": "rank_pct(TURN_t, 120)，TURN = S_DQ_AMOUNT / (S_DQ_MV * FREE_SHARES / TOT_SHARES) / 10。",
-      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV; AShareDescription.FREE_SHARES; AShareDescription.TOT_SHARES",
+      "system_formula": "rank_pct(TURN_t, 120)，TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
+      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
       "catalog_v2_status": "computed",
       "detail_url": "data/factor_audit_details/TURNPCTL.json",
       "warnings": [
@@ -5355,44 +5402,56 @@
     },
     {
       "id": "4.4.5",
-      "status": "word_only",
-      "support_status": "pending_data",
+      "status": "matched",
+      "support_status": "computed",
       "word_number": "4.4.5",
       "word_name": "财务重述",
       "word_level0": "事件驱动信息",
       "word_level1": "风险事件类",
       "word_direction": "负向（数值越高，风险、压力或估值约束越强）",
       "word_formula": "财务重述采用事件量化赋值口径，统计观察窗口内公司财务报告重述次数与调整幅度，根据重述严重程度梯度赋值。",
-      "system_code": "",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：财务重述采用事件量化赋值口径，统计观察窗口内公司财务报告重述次数与调整幅度，根据重述严重程度梯度赋值。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
+      "system_code": "FINRESTATEMENT",
+      "system_name_cn": "财务重述",
+      "system_l1": "事件驱动信息",
+      "system_l2": "风险事件类",
+      "system_direction": "负向",
+      "system_formula": "FINRESTATEMENT = count(S_CHANGE_ITEMCODE in 前期差错/追溯调整, 近365日公告)。",
+      "system_wind_source": "AShareAccountingChange.S_CHANGE_ITEMCODE; ANN_DATE; CompanySecurityMap.S_INFO_WINDCODE",
+      "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word 方向与系统方向文本不完全一致，需要人工确认。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
+        "trade_date": "2026-05-29",
+        "stock_code": "300271.SZ",
+        "stock_name": "华宇软件",
+        "raw_value": 1.0,
+        "score": 0.1669577219538654,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=1.0000，方向处理后的 score=0.166958。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
-        "inputs": []
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 1.0,
+            "display": "1.0000",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.1669577219538654,
+            "display": "0.166958",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
       }
     },
     {
@@ -5480,11 +5539,11 @@
       "word_direction": "",
       "word_formula": "",
       "system_code": "ACCRUAL",
-      "system_name_cn": "应计利润比",
+      "system_name_cn": "现金流资产比（负应计）",
       "system_l1": "公司内生信息",
       "system_l2": "盈利质量类",
-      "system_direction": "负向",
-      "system_formula": "应计利润比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_ACCA（Wind 已算好，月末截面取值）",
+      "system_direction": "正向",
+      "system_formula": "现金流资产比（负应计） = PITFinancialFactor（PIT，无未来函数）.S_DFA_ACCA（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_ACCA",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -5534,11 +5593,11 @@
       "word_direction": "",
       "word_formula": "",
       "system_code": "ANALYSTCOVER",
-      "system_name_cn": "分析师覆盖",
+      "system_name_cn": "近20日评级机构覆盖数",
       "system_l1": "投资者行为信息",
       "system_l2": "关注度类",
       "system_direction": "正向",
-      "system_formula": "ANALYSTCOVER = latest(S_WRATING_INSTNUM) as of month-end。",
+      "system_formula": "ANALYSTCOVER = latest(S_WRATING_INSTNUM, 过去20个交易日)。",
       "system_wind_source": "AShareStockRatingConsus.S_WRATING_INSTNUM; RATING_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -5592,8 +5651,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "收益趋势类",
       "system_direction": "负向",
-      "system_formula": "阿隆趋势 = MarketDerivativeFactor.S_TECH_AROON（当月值）",
-      "system_wind_source": "MarketDerivativeFactor.S_TECH_AROON",
+      "system_formula": "AROON = AroonUp(25)-AroonDown(25)",
+      "system_wind_source": "AShareEODPrices.S_DQ_HIGH; S_DQ_LOW",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -5642,7 +5701,7 @@
       "word_direction": "",
       "word_formula": "",
       "system_code": "BUYBACKRATIO",
-      "system_name_cn": "回购比例",
+      "system_name_cn": "回购金额占流通市值比",
       "system_l1": "事件驱动信息",
       "system_l2": "股东行为类",
       "system_direction": "正向",
@@ -5700,7 +5759,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "正向",
-      "system_formula": "保守速动比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CASHRATIO（Wind 已算好，月末截面取值）",
+      "system_formula": "保守速动比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CASHRATIO（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CASHRATIO",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -5754,7 +5813,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "运营效率类",
       "system_direction": "正向",
-      "system_formula": "流动资产周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CATURN（Wind 已算好，月末截面取值）",
+      "system_formula": "流动资产周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CATURN（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_CATURN",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -5808,7 +5867,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "成长类",
       "system_direction": "正向",
-      "system_formula": "现金流同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_CFOTT（Wind 已算好，月末截面取值）",
+      "system_formula": "现金流同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_CFOTT（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_CFOTT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -5862,7 +5921,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "负向",
-      "system_formula": "产权比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_DEBTTOEQUITY（Wind 已算好，月末截面取值）",
+      "system_formula": "产权比率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_DEBTTOEQUITY（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_DEBTTOEQUITY",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -5916,7 +5975,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "正向",
-      "system_formula": "收益市值比 = DailyValuationFactor.S_DFA_PROFITTOMV（Wind 已算好，月末截面取值）",
+      "system_formula": "收益市值比 = DailyValuationFactor.S_DFA_PROFITTOMV（Wind已算好，月末截面取值）",
       "system_wind_source": "DailyValuationFactor.S_DFA_PROFITTOMV",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -6024,7 +6083,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "成长类",
       "system_direction": "正向",
-      "system_formula": "净资产增长率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYEQUITY（Wind 已算好，月末截面取值）",
+      "system_formula": "净资产增长率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYEQUITY（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYEQUITY",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -6078,7 +6137,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "负向",
-      "system_formula": "权益乘数 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ASSETSTOEQUITY（Wind 已算好，月末截面取值）",
+      "system_formula": "权益乘数 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ASSETSTOEQUITY（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_ASSETSTOEQUITY",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -6111,6 +6170,168 @@
             "label": "方向处理后标准化分数 score",
             "value": 0.0002555697697713736,
             "display": "0.000256",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ESTEARNREV",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "ESTEARNREV",
+      "system_name_cn": "盈利预测调整幅度",
+      "system_l1": "投资者行为信息",
+      "system_l2": "分析师预期类",
+      "system_direction": "正向",
+      "system_formula": "ESTEARNREV = ConsensusExpectationFactor.S_WEST_NETPROFIT_FTM_1M。",
+      "system_wind_source": "ConsensusExpectationFactor.S_WEST_NETPROFIT_FTM_1M; TRADE_DT",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "300938.SZ",
+        "stock_name": "信测标准",
+        "raw_value": 0.000113,
+        "score": -0.0016088763517491283,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.000113，方向处理后的 score=-0.001609。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.000113,
+            "display": "0.000113",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": -0.0016088763517491283,
+            "display": "-0.001609",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "EV2EBIT",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "EV2EBIT",
+      "system_name_cn": "总市值/EBIT",
+      "system_l1": "公司内生信息",
+      "system_l2": "估值类",
+      "system_direction": "负向",
+      "system_formula": "EV2EBIT = AShareValuationIndicator.S_VAL_EV / PITFinancialFactor.S_DFA_EBIT_TTM；EBIT<=0 置缺失。",
+      "system_wind_source": "AShareValuationIndicator.S_VAL_EV; PITFinancialFactor.S_DFA_EBIT_TTM",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "301119.SZ",
+        "stock_name": "正强股份",
+        "raw_value": 36.53202831240587,
+        "score": -0.0,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=36.5320，方向处理后的 score=-0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 36.53202831240587,
+            "display": "36.5320",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": -0.0,
+            "display": "-0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "EXECHOLDERCHG",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "EXECHOLDERCHG",
+      "system_name_cn": "高管增持/减持",
+      "system_l1": "事件驱动信息",
+      "system_l2": "股东行为类",
+      "system_direction": "正向",
+      "system_formula": "EXECHOLDERCHG = sum(sign(TRANSACT_TYPE) * TRANSACT_QUANTITY * AVG_PRICE, 近365日，HOLDER_TYPE=3) / S_VAL_MV_ARD。",
+      "system_wind_source": "AShareMjrHolderTrade.HOLDER_TYPE; TRANSACT_TYPE; TRANSACT_QUANTITY; AVG_PRICE; AShareValuationIndicator.S_VAL_MV_ARD",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "603701.SH",
+        "stock_name": "德宏股份",
+        "raw_value": -0.000745340800998303,
+        "score": 0.0013390112305954368,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=-0.000745，方向处理后的 score=0.001339。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": -0.000745340800998303,
+            "display": "-0.000745",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0013390112305954368,
+            "display": "0.001339",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -6348,7 +6569,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "运营效率类",
       "system_direction": "正向",
-      "system_formula": "固定资产周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_FATURN（Wind 已算好，月末截面取值）",
+      "system_formula": "固定资产周转率 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_FATURN（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_FATURN",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -6560,12 +6781,12 @@
       "word_direction": "",
       "word_formula": "",
       "system_code": "GMGROWTH",
-      "system_name_cn": "毛利率同比",
+      "system_name_cn": "毛利率同比改善（百分点）",
       "system_l1": "公司内生信息",
       "system_l2": "成长类",
       "system_direction": "正向",
-      "system_formula": "毛利率同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_GM（Wind 已算好，月末截面取值）",
-      "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_GM",
+      "system_formula": "GMGROWTH = S_DFA_GROSSPROFITMARGIN_TTM_t - S_DFA_GROSSPROFITMARGIN_TTM_{t-12个月}",
+      "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_GROSSPROFITMARGIN_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -6651,6 +6872,114 @@
             "label": "方向处理后标准化分数 score",
             "value": 0.0002712801196293108,
             "display": "0.000271",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "HIGHMOMTURN",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "HIGHMOMTURN",
+      "system_name_cn": "高动量+高换手",
+      "system_l1": "市场交易信息",
+      "system_l2": "拥挤度类",
+      "system_direction": "负向",
+      "system_formula": "HIGHMOMTURN = pct_rank(MOM60) * pct_rank(TURN20)，按月末截面计算。",
+      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE; AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "605158.SH",
+        "stock_name": "华达新材",
+        "raw_value": 0.19335160687008404,
+        "score": -0.0,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.193352，方向处理后的 score=-0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.19335160687008404,
+            "display": "0.193352",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": -0.0,
+            "display": "-0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "HOLDERAVGCHG",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "HOLDERAVGCHG",
+      "system_name_cn": "人均持股变化",
+      "system_l1": "投资者行为信息",
+      "system_l2": "筹码结构类",
+      "system_direction": "正向",
+      "system_formula": "HOLDERAVGCHG = (FREE_SHARES_TODAY / latest(S_HOLDER_NUM)) / lag1(...) - 1。",
+      "system_wind_source": "AShareHolderNumber.S_HOLDER_NUM; AShareEODPrices.FREE_SHARES_TODAY",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "600710.SH",
+        "stock_name": "苏美达",
+        "raw_value": 0.0,
+        "score": -0.13847502115922214,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=-0.138475。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.0,
+            "display": "0.000000",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": -0.13847502115922214,
+            "display": "-0.138475",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -6834,7 +7163,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "负向",
-      "system_formula": "减值风险 = PITFinancialFactor（PIT，无未来函数）.S_DFA_IMPAIRTOGR_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "减值风险 = PITFinancialFactor（PIT，无未来函数）.S_DFA_IMPAIRTOGR_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_IMPAIRTOGR_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -6928,6 +7257,114 @@
       }
     },
     {
+      "id": "INSTHOLD",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "INSTHOLD",
+      "system_name_cn": "机构持仓比例",
+      "system_l1": "投资者行为信息",
+      "system_l2": "筹码结构类",
+      "system_direction": "正向",
+      "system_formula": "INSTHOLD = sum(S_HOLDER_PCT)，按股票、报告期汇总机构持仓，月末取最新公告报告期。",
+      "system_wind_source": "AShareinstHolderDerData.S_HOLDER_PCT; REPORT_PERIOD; ANN_DATE",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "300598.SZ",
+        "stock_name": "诚迈科技",
+        "raw_value": 32.517903000000004,
+        "score": 0.0,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=32.5179，方向处理后的 score=0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 32.517903000000004,
+            "display": "32.5179",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0,
+            "display": "0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INTDEBTRATIO",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "INTDEBTRATIO",
+      "system_name_cn": "有息负债占负债比",
+      "system_l1": "公司内生信息",
+      "system_l2": "财务稳健类",
+      "system_direction": "负向",
+      "system_formula": "INTDEBTRATIO = (ST_BORROW + NON_CUR_LIAB_DUE_WITHIN_1Y + LT_BORROW + BONDS_PAYABLE + LEASE_LIAB + INT_PAYABLE) / S_DFA_TOTLIAB。",
+      "system_wind_source": "AShareBalanceSheet.ST_BORROW; NON_CUR_LIAB_DUE_WITHIN_1Y; LT_BORROW; BONDS_PAYABLE; LEASE_LIAB; INT_PAYABLE; PITFinancialFactor.S_DFA_TOTLIAB; ANN_DT",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "605377.SH",
+        "stock_name": "华旺科技",
+        "raw_value": 0.3321932647560829,
+        "score": 0.00026143390729916135,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.332193，方向处理后的 score=0.000261。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.3321932647560829,
+            "display": "0.332193",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.00026143390729916135,
+            "display": "0.000261",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
       "id": "KURT60",
       "status": "system_extra",
       "support_status": "computed",
@@ -6996,7 +7433,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "对数市值 = DailyValuationFactor.S_DFA_LNMV（Wind 已算好，月末截面取值）",
+      "system_formula": "对数市值 = DailyValuationFactor.S_DFA_LNMV（Wind已算好，月末截面取值）",
       "system_wind_source": "DailyValuationFactor.S_DFA_LNMV",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -7090,6 +7527,60 @@
       }
     },
     {
+      "id": "MAJORHOLDERCHG",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "MAJORHOLDERCHG",
+      "system_name_cn": "大股东增持/减持",
+      "system_l1": "事件驱动信息",
+      "system_l2": "股东行为类",
+      "system_direction": "正向",
+      "system_formula": "MAJORHOLDERCHG = sum(sign(TRANSACT_TYPE) * TRANSACT_QUANTITY * AVG_PRICE, 近365日) / S_VAL_MV_ARD。",
+      "system_wind_source": "AShareMjrHolderTrade.HOLDER_TYPE; TRANSACT_TYPE; TRANSACT_QUANTITY; AVG_PRICE; AShareValuationIndicator.S_VAL_MV_ARD",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "688314.SH",
+        "stock_name": "康拓医疗",
+        "raw_value": -0.00553483030938693,
+        "score": 0.0,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=-0.005535，方向处理后的 score=0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": -0.00553483030938693,
+            "display": "-0.005535",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0,
+            "display": "0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
       "id": "MARGINBALCHG",
       "status": "system_extra",
       "support_status": "computed",
@@ -7158,7 +7649,7 @@
       "system_l1": "投资者行为信息",
       "system_l2": "资金流类",
       "system_direction": "正向",
-      "system_formula": "MARGINBUYRATIO = sum(S_MARGIN_PURCHWITHBORROWMONEY, 近60日) / sum(S_DQ_AMOUNT, 近60日)。",
+      "system_formula": "MARGINBUYRATIO = sum(S_MARGIN_PURCHWITHBORROWMONEY[元], 近60日) / (sum(S_DQ_AMOUNT[千元], 近60日) × 1000)。",
       "system_wind_source": "AShareMarginTrade.S_MARGIN_PURCHWITHBORROWMONEY; AShareEODPrices.S_DQ_AMOUNT; TRADE_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -7198,6 +7689,60 @@
       }
     },
     {
+      "id": "MERGERSIZE",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "MERGERSIZE",
+      "system_name_cn": "并购规模",
+      "system_l1": "事件驱动信息",
+      "system_l2": "资本运作类",
+      "system_direction": "正向",
+      "system_formula": "MERGERSIZE = sum(coalesce(TRADE_VALUE, CASH_PAYMENT+EVALUE_VALUE), 近365日) / S_VAL_MV_ARD。",
+      "system_wind_source": "MergerEvent.TRADE_VALUE; CASH_PAYMENT; EVALUE_VALUE; MergerParticipant.S_INFO_WINDCODE; AShareValuationIndicator.S_VAL_MV_ARD",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "301456.SZ",
+        "stock_name": "盘古智能",
+        "raw_value": 0.014836509364413827,
+        "score": 0.0,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.014837，方向处理后的 score=0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.014836509364413827,
+            "display": "0.014837",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0,
+            "display": "0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
       "id": "MFLOW20",
       "status": "system_extra",
       "support_status": "computed",
@@ -7212,8 +7757,8 @@
       "system_l1": "投资者行为信息",
       "system_l2": "资金流类",
       "system_direction": "负向",
-      "system_formula": "资金流量(20D) = MarketDerivativeFactor.S_TECH_MONEYFLOW20（当月值）",
-      "system_wind_source": "MarketDerivativeFactor.S_TECH_MONEYFLOW20",
+      "system_formula": "MFLOW20 = sum(((S_DQ_CLOSE+S_DQ_HIGH+S_DQ_LOW)/3)*S_DQ_VOLUME*100,20)",
+      "system_wind_source": "AShareEODPrices.S_DQ_CLOSE; S_DQ_HIGH; S_DQ_LOW; S_DQ_VOLUME",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -7353,6 +7898,60 @@
             "label": "方向处理后标准化分数 score",
             "value": -0.11308299707525608,
             "display": "-0.113083",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NBNETBUY",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "NBNETBUY",
+      "system_name_cn": "北向净买入",
+      "system_l1": "投资者行为信息",
+      "system_l2": "资金流类",
+      "system_direction": "正向",
+      "system_formula": "NBNETBUY = S_QUANTITY - lag1(S_QUANTITY)，按个股月末序列计算。",
+      "system_wind_source": "SHSCChannelholdings.S_QUANTITY; TRADE_DT",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2024-07-31",
+        "stock_code": "603989.SH",
+        "stock_name": "艾华集团",
+        "raw_value": 21044.0,
+        "score": 0.0,
+        "steps": [
+          "选取最新截面 2024-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=21,044.00，方向处理后的 score=0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 21044.0,
+            "display": "21,044.00",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0,
+            "display": "0.000000",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -7536,7 +8135,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "正向",
-      "system_formula": "现金流负债比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_OCFTODEBT（Wind 已算好，月末截面取值）",
+      "system_formula": "现金流负债比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_OCFTODEBT（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_OCFTODEBT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -7590,7 +8189,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "盈利质量类",
       "system_direction": "正向",
-      "system_formula": "现金流经营收益比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_OCFTOOPERATEINCOME_TTM（Wind 已算好，月末截面取值）",
+      "system_formula": "现金流经营收益比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_OCFTOOPERATEINCOME_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_OCFTOOPERATEINCOME_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -7644,7 +8243,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "成长类",
       "system_direction": "正向",
-      "system_formula": "营业利润同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_OP（Wind 已算好，月末截面取值）",
+      "system_formula": "营业利润同比 = PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_OP（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_TTMGROWRATE_OP",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -7684,6 +8283,60 @@
       }
     },
     {
+      "id": "ORCAGR3Y",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "ORCAGR3Y",
+      "system_name_cn": "营业收入3年复合增速",
+      "system_l1": "公司内生信息",
+      "system_l2": "成长类",
+      "system_direction": "正向",
+      "system_formula": "ORCAGR3Y = (S_DFA_OR_TTM / lag36(S_DFA_OR_TTM))^(1/3)-1；当前值和滞后值均需为正。",
+      "system_wind_source": "PITFinancialFactor.S_DFA_OR_TTM",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "601929.SH",
+        "stock_name": "吉视传媒",
+        "raw_value": 0.029350289979615196,
+        "score": 0.0,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.029350，方向处理后的 score=0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.029350289979615196,
+            "display": "0.029350",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0,
+            "display": "0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
       "id": "PCF",
       "status": "system_extra",
       "support_status": "computed",
@@ -7698,7 +8351,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "市现率PCF = AShareValuationIndicator.S_VAL_PCF_OCFTTM（Wind 已算好，月末截面取值）",
+      "system_formula": "市现率PCF = AShareValuationIndicator.S_VAL_PCF_OCFTTM（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareValuationIndicator.S_VAL_PCF_OCFTTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -7806,7 +8459,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "扣非市盈率 = DailyValuationFactor.S_DFA_PETTM_DEDUCTED（Wind 已算好，月末截面取值）",
+      "system_formula": "扣非市盈率 = DailyValuationFactor.S_DFA_PETTM_DEDUCTED（Wind已算好，月末截面取值）",
       "system_wind_source": "DailyValuationFactor.S_DFA_PETTM_DEDUCTED",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -7893,6 +8546,114 @@
             "label": "方向处理后标准化分数 score",
             "value": -0.0,
             "display": "-0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "PLACEMENTSIZE",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "PLACEMENTSIZE",
+      "system_name_cn": "定增规模",
+      "system_l1": "事件驱动信息",
+      "system_l2": "资本运作类",
+      "system_direction": "正向",
+      "system_formula": "PLACEMENTSIZE = sum(coalesce(S_FELLOW_COLLECTION, EXP_COLLECTION), 近365日) / S_VAL_MV_ARD。",
+      "system_wind_source": "ASharePlacement.S_FELLOW_COLLECTION; EXP_COLLECTION; AShareValuationIndicator.S_VAL_MV_ARD",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "001896.SZ",
+        "stock_name": "豫能控股",
+        "raw_value": 0.08007353834580225,
+        "score": 0.002014975860800981,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.080074，方向处理后的 score=0.002015。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.08007353834580225,
+            "display": "0.080074",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.002014975860800981,
+            "display": "0.002015",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "PROFITNOTICEBEAT",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "PROFITNOTICEBEAT",
+      "system_name_cn": "预告超预期",
+      "system_l1": "事件驱动信息",
+      "system_l2": "业绩事件类",
+      "system_direction": "正向",
+      "system_formula": "PROFITNOTICEBEAT = 业绩预告净利润中值 / latest(FY1一致预测净利润，缺失时用FTTM) - 1。",
+      "system_wind_source": "AShareProfitNotice.S_PROFITNOTICE_NETPROFITMIN/MAX; AShareConsensusRollingData.NET_PROFIT",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "002139.SZ",
+        "stock_name": "拓邦股份",
+        "raw_value": -0.4499761720378864,
+        "score": 0.00031411382404141755,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=-0.449976，方向处理后的 score=0.000314。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": -0.4499761720378864,
+            "display": "-0.449976",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.00031411382404141755,
+            "display": "0.000314",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -8001,6 +8762,60 @@
             "label": "方向处理后标准化分数 score",
             "value": 0.17278643508120523,
             "display": "0.172786",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "REFINPRESS",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "REFINPRESS",
+      "system_name_cn": "再融资压力",
+      "system_l1": "事件驱动信息",
+      "system_l2": "供给冲击类",
+      "system_direction": "负向",
+      "system_formula": "REFINPRESS = (sum(定增募集资金)+sum(配股募集资金), 近365日) / S_VAL_MV_ARD。",
+      "system_wind_source": "ASharePlacement.S_FELLOW_COLLECTION; AShareRightIssue.S_RIGHTSISSUE_NETCOLLECTION; AShareValuationIndicator.S_VAL_MV_ARD",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "001896.SZ",
+        "stock_name": "豫能控股",
+        "raw_value": 0.08007353834580225,
+        "score": -0.0,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.080074，方向处理后的 score=-0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.08007353834580225,
+            "display": "0.080074",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": -0.0,
+            "display": "-0.000000",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -8224,6 +9039,60 @@
       }
     },
     {
+      "id": "REPORTSURPRISE",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "REPORTSURPRISE",
+      "system_name_cn": "财报超/低预期",
+      "system_l1": "事件驱动信息",
+      "system_l2": "业绩事件类",
+      "system_direction": "正向",
+      "system_formula": "REPORTSURPRISE = 年报NET_PROFIT_EXCL_MIN_INT_INC / latest(FY1一致预测净利润，缺失时用FTTM) - 1。",
+      "system_wind_source": "AShareIncome.NET_PROFIT_EXCL_MIN_INT_INC; AShareConsensusRollingData.NET_PROFIT",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "002345.SZ",
+        "stock_name": "潮宏基",
+        "raw_value": -0.6190422274300298,
+        "score": 0.0002764257065013609,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=-0.619042，方向处理后的 score=0.000276。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": -0.6190422274300298,
+            "display": "-0.619042",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0002764257065013609,
+            "display": "0.000276",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
       "id": "REV5D",
       "status": "system_extra",
       "support_status": "computed",
@@ -8346,7 +9215,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "成长类",
       "system_direction": "正向",
-      "system_formula": "ROE同比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYROE（Wind 已算好，月末截面取值）",
+      "system_formula": "ROE同比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYROE（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_YOYROE",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -8386,6 +9255,60 @@
       }
     },
     {
+      "id": "RSTR252",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "RSTR252",
+      "system_name_cn": "半衰期相对强弱（252日）",
+      "system_l1": "市场交易信息",
+      "system_l2": "收益趋势类",
+      "system_direction": "正向",
+      "system_formula": "RSTR252 = sum(w_d * ln(P_d/P_{d-1}), d=t-252..t-22)，半衰期126日",
+      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "600520.SH",
+        "stock_name": "三佳科技",
+        "raw_value": 0.0005040476027003305,
+        "score": 0.0,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.000504，方向处理后的 score=0.000000。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.0005040476027003305,
+            "display": "0.000504",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0,
+            "display": "0.000000",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
       "id": "RVI",
       "status": "system_extra",
       "support_status": "computed",
@@ -8400,8 +9323,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "收益趋势类",
       "system_direction": "正向",
-      "system_formula": "相对离散指数RVI = MarketDerivativeFactor.S_TECH_RVI（当月值）",
-      "system_wind_source": "MarketDerivativeFactor.S_TECH_RVI",
+      "system_formula": "RVI = (S_DQ_CLOSE-S_DQ_OPEN)/(S_DQ_HIGH-S_DQ_LOW)",
+      "system_wind_source": "AShareEODPrices.S_DQ_OPEN; S_DQ_HIGH; S_DQ_LOW; S_DQ_CLOSE",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -8508,8 +9431,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "流动性类",
       "system_direction": "负向",
-      "system_formula": "STOM = ln( Σ_{过去 21 个交易日} turnover_d )\nturnover_d = 成交额 / 流通市值，流通市值 = 总市值 × (自由流通股本 / 总股本)。剔除停牌日（成交额=0）。",
-      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT（成交额）、AShareEODDerivativeIndicator.S_DQ_MV（总市值）、FREE_SHARES_TODAY（自由流通股本）、TOT_SHR_TODAY（总股本）",
+      "system_formula": "STOM = ln( Σ_{过去 21 个交易日} turnover_d )\nturnover_d = S_DQ_AMOUNT / S_DQ_MV / 10；本地 S_DQ_MV 实测为流通市值。剔除停牌日（成交额=0）。",
+      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT（成交额）、AShareEODDerivativeIndicator.S_DQ_MV（流通市值）",
       "catalog_v2_status": "computed",
       "detail_url": "data/factor_audit_details/STOM.json",
       "warnings": [
@@ -8744,7 +9667,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "财务稳健类",
       "system_direction": "正向",
-      "system_formula": "有形资产占比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_TANGIBLEASSETSTOASSETS（Wind 已算好，月末截面取值）",
+      "system_formula": "有形资产占比 = AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_TANGIBLEASSETSTOASSETS（Wind已算好，月末截面取值）",
       "system_wind_source": "AShareFinancialIndicator（按 ANN_DT PIT as-of 对齐月末）.S_FA_TANGIBLEASSETSTOASSETS",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -8831,6 +9754,60 @@
             "label": "方向处理后标准化分数 score",
             "value": 0.13045638723374345,
             "display": "0.130456",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "TOP10HOLD",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "TOP10HOLD",
+      "system_name_cn": "持仓集中度",
+      "system_l1": "投资者行为信息",
+      "system_l2": "筹码结构类",
+      "system_direction": "正向",
+      "system_formula": "TOP10HOLD = sum(S_HOLDER_PCT)，按股票、公告日和报告期汇总前十大股东，月末取最新公告报告期。",
+      "system_wind_source": "AShareInsideHolder.S_HOLDER_PCT; REPORT_PERIOD; ANN_DT",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "300651.SZ",
+        "stock_name": "金陵体育",
+        "raw_value": 54.04,
+        "score": 0.00026854813635738607,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=54.0400，方向处理后的 score=0.000269。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 54.04,
+            "display": "54.0400",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.00026854813635738607,
+            "display": "0.000269",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -9000,6 +9977,114 @@
       }
     },
     {
+      "id": "UNLOCKMVRATIO",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "UNLOCKMVRATIO",
+      "system_name_cn": "解禁市值/流通市值",
+      "system_l1": "事件驱动信息",
+      "system_l2": "供给冲击类",
+      "system_direction": "负向",
+      "system_formula": "UNLOCKMVRATIO = sum(S_SHARE_LST, 未来90日) / FREE_SHARES_TODAY。",
+      "system_wind_source": "AShareCompRestricted.S_SHARE_LST; AShareEODPrices.FREE_SHARES_TODAY",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "300013.SZ",
+        "stock_name": "新宁物流",
+        "raw_value": 0.2745155214397275,
+        "score": 0.006460427090764302,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=0.274516，方向处理后的 score=0.006460。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 0.2745155214397275,
+            "display": "0.274516",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.006460427090764302,
+            "display": "0.006460",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
+      "id": "UNLOCKPRESS",
+      "status": "system_extra",
+      "support_status": "computed",
+      "word_number": "",
+      "word_name": "",
+      "word_level0": "",
+      "word_level1": "",
+      "word_direction": "",
+      "word_formula": "",
+      "system_code": "UNLOCKPRESS",
+      "system_name_cn": "解禁压力",
+      "system_l1": "投资者行为信息",
+      "system_l2": "筹码结构类",
+      "system_direction": "负向",
+      "system_formula": "UNLOCKPRESS = sum(S_SHARE_RATIO, 未来90日)。",
+      "system_wind_source": "AShareCompRestricted.S_INFO_LISTDATE; S_SHARE_RATIO",
+      "catalog_v2_status": "computed",
+      "detail_url": "",
+      "warnings": [
+        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
+      ],
+      "required_data": [],
+      "sample": {
+        "trade_date": "2026-05-29",
+        "stock_code": "600299.SH",
+        "stock_name": "安迪苏",
+        "raw_value": 12.919200000000002,
+        "score": 0.0075501568965554745,
+        "steps": [
+          "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=12.9192，方向处理后的 score=0.007550。",
+          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
+        ],
+        "inputs": [
+          {
+            "field": "raw_value",
+            "label": "系统原始因子值 raw_value",
+            "value": 12.919200000000002,
+            "display": "12.9192",
+            "unit": "",
+            "note": "来自当前因子落地结果"
+          },
+          {
+            "field": "score",
+            "label": "方向处理后标准化分数 score",
+            "value": 0.0075501568965554745,
+            "display": "0.007550",
+            "unit": "",
+            "note": "用于排序和组合构建"
+          }
+        ]
+      }
+    },
+    {
       "id": "VOL1M60",
       "status": "system_extra",
       "support_status": "computed",
@@ -9068,8 +10153,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "流动性类",
       "system_direction": "正向",
-      "system_formula": "mean(S_DQ_AMOUNT / S_DQ_ADJCLOSE, 20)，作为成交量近似值。",
-      "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODPrices.S_DQ_ADJCLOSE",
+      "system_formula": "mean(S_DQ_VOLUME, 20)",
+      "system_wind_source": "AShareEODPrices.S_DQ_VOLUME",
       "catalog_v2_status": "computed",
       "detail_url": "data/factor_audit_details/VOLUME20.json",
       "warnings": [

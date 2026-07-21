@@ -29,7 +29,7 @@ def _half_life_weights(window: int, half_life: int) -> np.ndarray:
     description="过去252个交易日剔除最近21个交易日后的231个日对数收益等权累计。",
 )
 def mom12_1(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
-    """MOM12_1: 等权累计对数收益，窗口[t-252,t-22]。
+    """MOM12_1: 等权累计收益日 d=t-251..t-21，价格端点 P_{t-252} 至 P_{t-21}。
 
     参数：
         panel: 长面板 (stock_code, trade_date, adj_close, ...)
@@ -51,10 +51,10 @@ def mom12_1(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
         if len(prices) < 253:
             results.append({"stock_code": code[0], "value": None})
             continue
-        # 253 个价格点对应 252 个交易日收益；剔除最近 21 个收益，留下 [t-252, t-22]。
+        # 253 个价格点对应 252 个日收益；剔除最近21个收益，留下 d=t-251..t-21。
         recent_253 = prices[-253:]
         log_ret = np.diff(np.log(recent_253))
-        # 取 [t-252, t-22]：前 231 个 log_ret
+        # 前231个log_ret的价格端点是P_{t-252}至P_{t-21}。
         window_ret = log_ret[:window]
         value = float(np.sum(window_ret))
         results.append({"stock_code": code[0], "value": value})

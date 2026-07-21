@@ -22,6 +22,11 @@ from factor_lib.registry import factor
 from datetime import timedelta
 
 
+_WINDOW_CACHE_PANEL = None
+_WINDOW_CACHE_ASOF = None
+_WINDOW_CACHE: dict[int, pl.DataFrame] = {}
+
+
 def _window(panel: pl.DataFrame, asof: date, lookback: int) -> pl.DataFrame:
     """先按【日期下界】裁剪到 asof 往前足够覆盖 lookback 个交易日的窗口，再算收益。
 
@@ -29,10 +34,44 @@ def _window(panel: pl.DataFrame, asof: date, lookback: int) -> pl.DataFrame:
     再对全量做 .over('stock_code') 排名会极慢。这里先用日历日下界把行数砍到约 lookback×股票数，
     交易日按 ~0.7 个/日历日折算，多留 60 天缓冲。
     """
+    global _WINDOW_CACHE_PANEL, _WINDOW_CACHE_ASOF, _WINDOW_CACHE
+    if _WINDOW_CACHE_PANEL is panel and _WINDOW_CACHE_ASOF == asof and lookback in _WINDOW_CACHE:
+        return _WINDOW_CACHE[lookback]
+    if _WINDOW_CACHE_PANEL is not panel or _WINDOW_CACHE_ASOF != asof:
+        _WINDOW_CACHE_PANEL = panel
+        _WINDOW_CACHE_ASOF = asof
+        _WINDOW_CACHE = {}
+
     cal_days = int(lookback / 0.66) + 60
     lo = asof - timedelta(days=cal_days)
     df = (panel.filter((pl.col("trade_date") <= asof) & (pl.col("trade_date") >= lo))
                .sort(["stock_code", "trade_date"]))
+
+    # 日历窗口只是性能优化，不能改变“最近N个交易日”的定义。长期停牌后复牌的股票
+    # 可能在快速窗口里不足N+1行；只对这些股票回到完整历史补足所需交易日。
+    counts = df.group_by("stock_code").agg(pl.len().alias("_n"))
+    sparse_codes = counts.filter(pl.col("_n") < lookback + 1)["stock_code"]
+    if not sparse_codes.is_empty():
+        sparse_code_list = sparse_codes.to_list()
+        recovered = (
+            panel.filter(
+                (pl.col("trade_date") <= asof)
+                & pl.col("stock_code").is_in(sparse_code_list)
+            )
+            .sort(["stock_code", "trade_date"])
+            .with_columns(
+                pl.col("trade_date")
+                .rank("ordinal", descending=True)
+                .over("stock_code")
+                .alias("_recover_rank")
+            )
+            .filter(pl.col("_recover_rank") <= lookback + 1)
+            .drop("_recover_rank")
+        )
+        df = pl.concat(
+            [df.filter(~pl.col("stock_code").is_in(sparse_code_list)), recovered],
+            how="vertical",
+        ).sort(["stock_code", "trade_date"])
     exprs = [
         (pl.col("adj_close") / pl.col("adj_close").shift(1).over("stock_code"))
         .log()
@@ -47,7 +86,9 @@ def _window(panel: pl.DataFrame, asof: date, lookback: int) -> pl.DataFrame:
             .over("stock_code")
             .alias("volume_log_change")
         )
-    return df.with_columns(exprs)
+    out = df.with_columns(exprs)
+    _WINDOW_CACHE[lookback] = out
+    return out
 
 
 def _hist(panel: pl.DataFrame, asof: date, lookback: int) -> pl.DataFrame:
@@ -319,9 +360,9 @@ def turnpctl(panel, asof):
 # ============================== 2.7 价量配合类 ==============================
 
 @factor(code="PVCORR", l1="市场交易信息", l2="价量", direction=-1,
-        formula="PVCORR = corr(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), ln(S_DQ_VOLUME_d / S_DQ_VOLUME_{d-1}), 60)",
+        formula="PVCORR = corr(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), ln(S_DQ_VOLUME_d / S_DQ_VOLUME_{d-1}), 最长60日)，至少40个有效收益与成交量变化",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE; AShareEODPrices.S_DQ_VOLUME",
-        description="近60日收益率与实际成交量对数变化的相关性；高正相关表示追涨放量，方向负。")
+        description="最长60日收益率与实际成交量对数变化的相关性，至少需要40个共同有效观测；高正相关表示追涨放量，方向负。")
 def pvcorr(panel, asof):
     h = _hist(panel, asof, 60).filter(
         pl.col("ret").is_not_null() & pl.col("volume_log_change").is_not_null()

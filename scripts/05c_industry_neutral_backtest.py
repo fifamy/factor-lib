@@ -91,8 +91,14 @@ def build_industry_neutral_holdings_all_topn(score: pl.DataFrame, top_ns: list[i
         ])
         .with_columns([
             pl.col("_base_quota").sum().over(["trade_date", "top_n"]).alias("_base_sum"),
-            pl.col("_frac_quota").rank("ordinal", descending=True).over(["trade_date", "top_n"]).alias("_frac_rank"),
         ])
+        .sort(
+            ["trade_date", "top_n", "_frac_quota", "industry_sw1"],
+            descending=[False, False, True, False],
+        )
+        .with_columns(
+            pl.col("industry_sw1").cum_count().over(["trade_date", "top_n"]).alias("_frac_rank")
+        )
         .with_columns(
             (
                 pl.col("_base_quota")
@@ -102,23 +108,32 @@ def build_industry_neutral_holdings_all_topn(score: pl.DataFrame, top_ns: list[i
         .filter(pl.col("quota") > 0)
         .select(["trade_date", "industry_sw1", "top_n", "target_weight", "quota"])
     )
+    # Do not join every ranked stock to all 100 Top-N quota rows.  That
+    # intermediate is roughly ``ranked.height * len(top_ns)`` even though only
+    # the first ``quota`` stocks of each industry are ultimately retained.
+    # Group the already sorted stock codes into an ordered list, then slice the
+    # list by each quota.  This expands only the final holdings and preserves
+    # the exact ranking/quota semantics of the former implementation.
+    ranked_lists = (
+        ranked.group_by(["trade_date", "industry_sw1"], maintain_order=True)
+        .agg(pl.col("stock_code").alias("_ranked_stocks"))
+    )
     selected = (
-        ranked.join(targets_n, on=["trade_date", "industry_sw1"], how="inner")
-        .filter(pl.col("industry_rank") <= pl.col("quota"))
+        targets_n.join(ranked_lists, on=["trade_date", "industry_sw1"], how="inner")
+        .with_columns(
+            pl.col("_ranked_stocks").list.slice(0, pl.col("quota")).alias("_selected_stocks")
+        )
+        .with_columns(pl.col("_selected_stocks").list.len().alias("selected_count"))
+        .filter(pl.col("selected_count") > 0)
+        .explode("_selected_stocks", empty_as_null=True)
+        .rename({"_selected_stocks": "stock_code"})
     )
     if selected.is_empty():
         return empty_holdings()
 
-    counts = (
-        selected.group_by(["trade_date", "top_n", "industry_sw1"])
-        .agg([
-            pl.len().alias("selected_count"),
-            pl.col("target_weight").max().alias("target_weight"),
-        ])
-    )
     holdings = (
-        selected.join(counts, on=["trade_date", "top_n", "industry_sw1"], how="inner", suffix="_industry")
-        .with_columns((pl.col("target_weight_industry") / pl.col("selected_count")).alias("_weight"))
+        selected
+        .with_columns((pl.col("target_weight") / pl.col("selected_count")).alias("_weight"))
         .with_columns((pl.col("_weight") / pl.col("_weight").sum().over(["trade_date", "top_n"])).alias("weight"))
         .select(["trade_date", "top_n", "stock_code", "weight", "industry_sw1"])
         .sort(["top_n", "trade_date", "weight", "stock_code"], descending=[False, False, True, False])
@@ -236,16 +251,20 @@ def main(
 
     all_nav = []
     all_holdings = []
-    for code in score_all["factor_code"].unique().sort():
-        score_one = (
-            score_all.filter(pl.col("factor_code") == code)
-            .drop_nulls("score")
-            .select(["trade_date", "stock_code", "score"])
+    score_by_factor = {
+        (key[0] if isinstance(key, tuple) else key): part
+        for key, part in score_all.partition_by("factor_code", as_dict=True).items()
+    }
+    eligible_by_factor = {
+        (key[0] if isinstance(key, tuple) else key): part
+        for key, part in eligible_with_industry_all.partition_by("factor_code", as_dict=True).items()
+    }
+    for code in sorted(score_by_factor):
+        score_one = score_by_factor[code].drop_nulls("score").select(
+            ["trade_date", "stock_code", "score"]
         )
-        eligible_with_industry = (
-            eligible_with_industry_all
-            .filter(pl.col("factor_code") == code)
-            .select(["trade_date", "stock_code", "industry_sw1"])
+        eligible_with_industry = eligible_by_factor[code].select(
+            ["trade_date", "stock_code", "industry_sw1"]
         )
         score_one = add_industry_targets(score_one, eligible_with_industry)
         if score_one.is_empty():
