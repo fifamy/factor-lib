@@ -3,6 +3,12 @@ const RECON_LABEL = {
   match: ["✓一致", "b-ok"], mismatch: ["✗重算不符", "b-error"],
   no_ref: ["—未对账", "b-warn"], source_missing: ["✗源缺失", "b-error"], na: ["—", "b-warn"],
 };
+const RECON_METHOD_LABEL = {
+  numpy_recompute: "独立 numpy 重算",
+  derived_recompute: "派生因子独立重算",
+  word_v2_source_recompute: "Word v2 源数据重算",
+  source_recheck: "回查 Wind 源字段",
+};
 const HEALTH_LABEL = { ok: ["●正常", "b-ok"], warn: ["●可疑", "b-warn"], error: ["●有误", "b-error"] };
 const DOC_MISSING_TIP = "Word 技术文档未单列该因子或未给公式，属于系统新增/待补文档项。";
 const FORMULA_MISMATCH_TIP = "Word 文档公式与当前系统实现的计算口径不一致，需要决定按 Word 改系统，或反向修订 Word。";
@@ -879,6 +885,8 @@ async function openDetail(code) {
   const s = d.sample || {};
   const recon = d.recon || {};
   const reconOk = recon.status === "match";
+  const storedOnly = Number(recon.n_stored_only) || 0;
+  const refOnly = Number(recon.n_ref_only) || 0;
   const sampleLine = (s.recomputed !== null && s.recomputed !== undefined)
     ? `重算 ${fmt(s.recomputed)} vs 存储 ${fmt(s.stored)} → <span class="${s.match ? "fa-recon-ok" : "fa-recon-bad"}">${s.match ? "✓一致" : "✗不符"}</span>`
     : `存储值 ${fmt(s.stored)}（外部源类，见对账）`;
@@ -915,9 +923,12 @@ async function openDetail(code) {
       ${(s.steps || []).length ? `<div class="fa-steps">${s.steps.map(esc).join("<br>")}</div>` : ""}
       <p class="fa-mono" style="margin-top:8px">${sampleLine}</p></div>
     <div class="fa-block"><h3>对账（抽样 ${recon.n_checked || 0} 个单元）</h3>
-      <p>方式 ${recon.method === "numpy_recompute" ? "独立 numpy 重算" : "回查 Wind 源字段"} ·
+      <p>方式 ${esc(RECON_METHOD_LABEL[recon.method] || recon.method || "—")} ·
       结果 <span class="${reconOk ? "fa-recon-ok" : "fa-recon-bad"}">${(RECON_LABEL[recon.status] || ["—"])[0]}</span> ·
-      一致 ${recon.n_match || 0}/${recon.n_checked || 0} · 最大绝对差 ${fmt(recon.max_abs_diff)}</p>
+      一致 ${recon.n_match || 0}/${recon.n_checked || 0} ·
+      <span class="${storedOnly === 0 ? "fa-recon-ok" : "fa-recon-bad"}">抽样仅生产有值 ${storedOnly}</span> ·
+      <span class="${refOnly === 0 ? "fa-recon-ok" : "fa-recon-bad"}">抽样仅参考有值 ${refOnly}</span> ·
+      最大绝对差 ${fmt(recon.max_abs_diff)}</p>
       ${(recon.mismatches || []).length ? `<table class="fa-kv">
         <tr><td>股票</td><td>重算 / 存储 / 差</td></tr>
         ${recon.mismatches.map(m => `<tr><td>${esc(m.stock_code)} @ ${esc(m.trade_date)}</td>

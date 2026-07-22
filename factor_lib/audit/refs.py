@@ -125,7 +125,7 @@ def _mom12_1(win, ctx):
     recent = p[-253:]
     log_ret = np.diff(np.log(recent))      # 252 个
     window = 252 - 21                      # 231
-    window_ret = log_ret[:window]          # [t-252, t-22]
+    window_ret = log_ret[:window]          # 收益日 d=t-251..t-21
     v = float(np.sum(window_ret))
     return v, [f"收益日d=t-251..t-21，价格端点P_{{t-252}}至P_{{t-21}}，等权累计对数收益 = {v:.6f}"]
 

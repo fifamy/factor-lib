@@ -254,7 +254,7 @@ _DEFS = [
         "BUYBACKRATIO", "事件驱动信息", "回购增减持", 1, "回购金额占流通市值比",
         "word_v2", "BUYBACKRATIO", "window_sum",
         "近365日各回购事件最新已公告金额合计占月末流通市值比例；比例越高，回购支持越强。",
-        "BUYBACKRATIO = sum(每个EVENT_ID月末前最新AMT, 近365日公告) / 月末S_DQ_MV；AMT为元，S_DQ_MV为万元。",
+        "BUYBACKRATIO = sum(每个EVENT_ID月末前最新正AMT, 近365日公告) / (月末S_DQ_MV × 10000)，0≤value≤5；AMT为元，S_DQ_MV为万元。",
         "AshareStockRepo.EVENT_ID; AMT; ANN_DT; AShareEODDerivativeIndicator.S_DQ_MV",
         False,
     ),
