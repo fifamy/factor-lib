@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-22 10:59:02+0800",
+  "generated_at": "2026-07-22 11:49:41+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
   "resolution_updated_at": "2026-07-22",
   "summary": {
@@ -344,7 +344,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -639,7 +639,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -750,7 +750,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -785,8 +785,8 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。",
-        "按不删除决定保留全部历史序列。NPFCST1M作为S_WEST_NETPROFIT_FTM_1M的主因子，ESTEARNREV作为兼容别名，研究组合不得同时计权；其他高相关组应择一或先组内等权再配置组级权重。主站当前只提供相关性软提示，尚未执行强制拦截，报告不得写成系统已经保证。"
+        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。",
+        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -903,7 +903,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -944,7 +944,7 @@
       ],
       "decision_action": [
         "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。",
-        "按不删除决定保留全部历史序列。NPFCST1M作为S_WEST_NETPROFIT_FTM_1M的主因子，ESTEARNREV作为兼容别名，研究组合不得同时计权；其他高相关组应择一或先组内等权再配置组级权重。主站当前只提供相关性软提示，尚未执行强制拦截，报告不得写成系统已经保证。"
+        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
@@ -1105,7 +1105,7 @@
       ],
       "decision_action": [
         "保留MOM60绝对动量，不删除；组合中不得与几乎等价的RELRET60同时赋予完整权重。",
-        "按不删除决定保留全部历史序列。NPFCST1M作为S_WEST_NETPROFIT_FTM_1M的主因子，ESTEARNREV作为兼容别名，研究组合不得同时计权；其他高相关组应择一或先组内等权再配置组级权重。主站当前只提供相关性软提示，尚未执行强制拦截，报告不得写成系统已经保证。"
+        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
       ],
       "evidence": [
         "MOM60公式为60日日对数收益之和",
@@ -1189,7 +1189,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -1459,7 +1459,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -1650,7 +1650,7 @@
       ],
       "decision_action": [
         "保留当前中位收益基准并明确其仅用于展示相对值；组合选择时与MOM60视为同一信号，不重复计权。",
-        "按不删除决定保留全部历史序列。NPFCST1M作为S_WEST_NETPROFIT_FTM_1M的主因子，ESTEARNREV作为兼容别名，研究组合不得同时计权；其他高相关组应择一或先组内等权再配置组级权重。主站当前只提供相关性软提示，尚未执行强制拦截，报告不得写成系统已经保证。"
+        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
       ],
       "evidence": [
         "MOM60与RELRET60得分相关0.99999997",
@@ -1734,7 +1734,7 @@
       ],
       "decision_action": [
         "保留REV1M；后续如研究隔夜或日内反转，分别新增OVERNIGHTREV和INTRADAYREV，不覆盖REV1M。",
-        "按不删除决定保留全部历史序列。NPFCST1M作为S_WEST_NETPROFIT_FTM_1M的主因子，ESTEARNREV作为兼容别名，研究组合不得同时计权；其他高相关组应择一或先组内等权再配置组级权重。主站当前只提供相关性软提示，尚未执行强制拦截，报告不得写成系统已经保证。"
+        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
       ],
       "evidence": [
         "REV1M公式ln(P_t/P_{t-21})且direction=-1",
@@ -1780,7 +1780,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -2077,7 +2077,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",

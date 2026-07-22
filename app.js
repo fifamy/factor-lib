@@ -135,6 +135,79 @@ async function loadCatalog() {
   state.catalog = await res.json();
 }
 
+const FACTOR_USAGE_STATUS_LABELS = {
+  standard: "标准",
+  limited_update: "更新频率受限",
+  historical_only: "仅历史研究",
+  pending_pit_data: "待PIT数据",
+  incomplete_input: "输入字段不完整",
+  black_box: "外部黑盒字段",
+  pending_reconciliation: "待独立对账",
+  supplementary_event: "事件辅助信号",
+  pending_manual_review: "待人工复核",
+};
+
+function factorUsageMeta(code) {
+  return state.catalog.find(item => item.code === code) || {};
+}
+
+function factorUsageStatusLabel(meta) {
+  return FACTOR_USAGE_STATUS_LABELS[meta?.usage_status] || meta?.usage_status || "标准";
+}
+
+function factorUsageBadgeText(meta) {
+  if (meta?.combo_policy === "block") return "限";
+  if (meta?.usage_status === "pending_manual_review") return "核";
+  if (meta?.usage_status === "pending_reconciliation") return "研";
+  if (meta?.usage_status === "supplementary_event") return "辅";
+  return "慎";
+}
+
+function factorUsageNoticeHtml(meta) {
+  if (!meta || (!meta.usage_note && meta.combo_policy === "allow")) return "";
+  const policy = meta.combo_policy === "block" ? "新组合禁用" : (meta.combo_policy === "warn" ? "组合使用需复核" : "可正常使用");
+  const level = meta.combo_policy === "block" ? "block" : "warn";
+  const dataEnd = meta.data_end_date ? `；可用数据截止 ${htmlText(meta.data_end_date)}` : "";
+  return `<div class="factor-usage-note ${level}">
+    <div class="factor-usage-head">
+      <span class="factor-usage-status">${htmlText(factorUsageStatusLabel(meta))}</span>
+      <b>${htmlText(policy)}</b>
+    </div>
+    <div>${htmlText(meta.usage_note || "")}${dataEnd}</div>
+  </div>`;
+}
+
+function comboConstraintViolations(factors) {
+  const codes = [...new Set((factors || []).map(item => item?.code).filter(Boolean))];
+  const codeSet = new Set(codes);
+  const violations = [];
+  const seenGroups = new Set();
+  for (const code of codes) {
+    const meta = factorUsageMeta(code);
+    if (meta.combo_policy === "block") {
+      violations.push(`${code}：${meta.usage_note || "当前不允许加入新组合"}`);
+    }
+    for (const group of (meta.combo_exclusion_groups || [])) {
+      if (!group?.id || seenGroups.has(group.id)) continue;
+      const members = codes.filter(other => (
+        factorUsageMeta(other).combo_exclusion_groups || []
+      ).some(item => item?.id === group.id));
+      if (members.length > 1 && members.every(member => codeSet.has(member))) {
+        violations.push(`${members.join(" / ")}：${group.reason || "高度重复信号不得同时计权"}`);
+        seenGroups.add(group.id);
+      }
+    }
+  }
+  return violations;
+}
+
+function comboUsageWarnings(factors) {
+  return [...new Set((factors || []).map(item => item?.code).filter(Boolean))]
+    .map(code => factorUsageMeta(code))
+    .filter(meta => meta.combo_policy === "warn")
+    .map(meta => `${meta.code}：${meta.usage_note}`);
+}
+
 async function loadDataManifest() {
   try {
     state.dataManifest = await fetchJson(DATA_MANIFEST);
@@ -572,6 +645,7 @@ function validatePublishedCombo(raw, idx, validCodes) {
       if (f?.thr !== null && f?.thr !== undefined && (!Number.isFinite(Number(f.thr)) || typeof f.thr === "boolean")) reasons.push(`${nf.code || "未知因子"} 阈值无效`);
       return nf;
     });
+    reasons.push(...comboConstraintViolations(combo.factors));
   }
   combo.valid = reasons.length === 0;
   combo.invalidReason = reasons.join("；");
@@ -790,6 +864,13 @@ function renderTree(filter) {
         const l3Div = document.createElement("div");
         l3Div.className = "tree-l3";
         l3Div.innerHTML = `${f.code}<span class="tree-cn">${f.name_cn || ""}</span>`;
+        if (f.combo_policy === "block" || f.combo_policy === "warn") {
+          const badge = document.createElement("span");
+          badge.className = `tree-usage-badge ${f.combo_policy}`;
+          badge.textContent = factorUsageBadgeText(f);
+          badge.title = f.usage_note || factorUsageStatusLabel(f);
+          l3Div.appendChild(badge);
+        }
         l3Div.dataset.code = f.code;
         l3Div.title = `${f.code} · ${f.name_cn || ""}`;
         l3Div.onclick = () => onTreeClick(f.code);
@@ -1384,6 +1465,7 @@ function renderFactorDetail(meta, snap = null) {
     <p><b>${meta.l1} → ${meta.l2}</b>　默认方向：${dirArrow}　当前：<b>${sideLabel(side)}</b>（${sideRawDirection(meta, side)}）</p>
     ${tagBlock}
     <p>${meta.description}</p>
+    ${factorUsageNoticeHtml(meta)}
     ${positiveOnlyNote(meta)}
     ${formulaBlock}
     ${sourceBlock}
@@ -5253,7 +5335,13 @@ function rankSendTo(mode) {
       alert(composeNeutralUnavailableMessage());
       composeScoreMode = "raw";
     }
-    state.composeFactors = codes.map(code => ({ code, weight: 1, side, scoreMode: composeScoreMode, op: ">=", thr: null }));
+    const nextFactors = codes.map(code => ({ code, weight: 1, side, scoreMode: composeScoreMode, op: ">=", thr: null }));
+    const violations = comboConstraintViolations(nextFactors);
+    if (violations.length) {
+      alert(`所选因子不能直接带入新组合：\n${violations.join("\n")}`);
+      return;
+    }
+    state.composeFactors = nextFactors;
     state.composeConstraintMode = constraintMode;
   }
   switchMode(mode);
@@ -5436,7 +5524,15 @@ async function ensureComposeBase() {
 function toggleComposeFactor(code) {
   const i = state.composeFactors.findIndex(f => f.code === code);
   if (i >= 0) state.composeFactors.splice(i, 1);
-  else state.composeFactors.push({ code, weight: 1, side: 1, scoreMode: "raw", op: ">=", thr: null });
+  else {
+    const next = [...state.composeFactors, { code, weight: 1, side: 1, scoreMode: "raw", op: ">=", thr: null }];
+    const violations = comboConstraintViolations(next);
+    if (violations.length) {
+      alert(`不能加入组合：\n${violations.join("\n")}`);
+      return;
+    }
+    state.composeFactors = next;
+  }
   updateTreeHighlight();
   renderComposeSoon(20);
 }
@@ -6404,6 +6500,11 @@ async function copyPublishRequest() {
     alert("先选至少一个因子并设好权重，再申请发布组合");
     return;
   }
+  const violations = comboConstraintViolations(state.composeFactors);
+  if (violations.length) {
+    alert(`当前组合不能申请发布：\n${violations.join("\n")}`);
+    return;
+  }
   const btn = document.getElementById("cps-copy-json");
   await submitPublishRequestFromButton(currentComboPublishPayload(), btn);
 }
@@ -6435,6 +6536,10 @@ function renderComposeControls() {
   const neutralNotice = hasComposeNeutralScores()
     ? ""
     : `<div style="margin:0 0 8px 0;color:#8a5a00;font-size:11px">${composeNeutralUnavailableMessage()}</div>`;
+  const usageWarnings = comboUsageWarnings(state.composeFactors);
+  const usageNotice = usageWarnings.length
+    ? `<div class="combo-usage-warning"><b>使用限制</b>${usageWarnings.map(item => `<div>${htmlText(item)}</div>`).join("")}</div>`
+    : "";
   const constraintBtns = `
     <div style="margin:0 0 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">组合约束：</span>
@@ -6442,7 +6547,7 @@ function renderComposeControls() {
       <button id="cps-constraint-industry" class="cpsn-btn cps-constraint-btn${constraint === "industry" ? " active" : ""}" data-mode="industry">行业中性</button>
       <span style="color:#888;font-size:11px">先按合成分数选股，再按申万一级行业目标权重配权</span>
     </div>`;
-  box.innerHTML = constraintBtns + neutralNotice + state.composeFactors.map((raw, i) => {
+  box.innerHTML = constraintBtns + neutralNotice + usageNotice + state.composeFactors.map((raw, i) => {
     const f = normalizeComposeFactor(raw);
     state.composeFactors[i] = f;
     const pctw = (f.weight / wsum * 100).toFixed(0);
@@ -6542,6 +6647,17 @@ async function renderCompose() {
   if (isComposeRenderStale(renderSeq)) return;
   renderComposeControls();
   renderSavedCombos();
+  const usageViolations = comboConstraintViolations(state.composeFactors);
+  if (usageViolations.length) {
+    const message = `当前组合已停止计算：${usageViolations.join("；")}`;
+    document.getElementById("cps-stocks").innerHTML = `<h3>合成 Top 股票</h3><div class="empty">${htmlText(message)}</div>`;
+    document.getElementById("cps-kpi").innerHTML = `<div class="empty">${htmlText(message)}</div>`;
+    if (cpsNavChart) { cpsNavChart.dispose(); cpsNavChart = null; }
+    document.getElementById("cps-nav-chart").innerHTML = "";
+    renderComposeIcDecayUnavailable(message);
+    renderComposeValidationUnavailable(message);
+    return;
+  }
   // 首次进入合成需按选中因子加载历史分片，给明确提示（避免误以为卡死）。
   if (!_composeLoadedOnce && state.composeFactors.length > 0) {
     document.getElementById("cps-stocks").innerHTML =
