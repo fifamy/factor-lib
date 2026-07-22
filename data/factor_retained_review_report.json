@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-22 14:23:44+0800",
+  "generated_at": "2026-07-22 15:04:07+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
   "resolution_updated_at": "2026-07-22",
   "summary": {
@@ -259,21 +259,22 @@
       ],
       "manual_updated_at": "2026-07-02T06:35:38.575917+00:00",
       "decision_titles": [
-        "分红率保留年度分红除以TTM净利润口径并明确期配差异"
+        "分红率保留年度分红除以TTM净利润口径并披露两类期配差异"
       ],
       "verification_assessment": [
-        "当前DIVPAYOUT使用截至月末最新已公告年度现金分红总额除以同期月末可得归母净利润TTM；人工建议的年度现金分红比例使用年度利润作分母，两者期配不同，不能再表述为已等价映射。当前口径表达最近年度分红相对当前盈利能力的负担或意愿，是可解释但不同的研究信号。"
+        "当前DIVPAYOUT使用截至月末最新已公告年度现金分红总额除以当前归母净利润TTM。它与Word的“滚动12个月现金分红总额/滚动12个月归母净利润”相比，分子由滚动12个月变为最新年度；与人工建议的“年度现金分红/年度归母净利润”相比，分母由年度利润变为当前TTM利润。三者期配不同，不能表述为公式一致。当前口径表达最近年度分红相对当前盈利能力的负担或意愿，是可解释但不同的研究信号。"
       ],
       "reason_not_changed": [
         "底层分红与TTM净利润字段均已取得，当前公式可复算；争议是分子分母期配选择，不是字段缺失或计算错误。"
       ],
       "decision_action": [
-        "本轮保留现有历史序列，并在名称、公式和审核页明确写为“最新年度现金分红/当前归母净利润TTM”。若后续需要严格年度分红率或滚动12个月分红率，应新增对齐口径并完成重叠期比较，不直接覆盖当前序列。"
+        "本轮保留现有历史序列，在审核页标记formula_mismatch=warn，并明确写为“最新年度现金分红/当前归母净利润TTM”。若后续需要严格Word滚动12个月口径或人工年度对齐口径，应新增独立因子并完成重叠期比较，不直接覆盖当前序列。"
       ],
       "evidence": [
-        "当前公式latest(年度现金分红总额)/S_DFA_NETPROFIT_TTM",
-        "Wind字典TOT_CASH_DVD为现金分红总额",
-        "Wind字典S_DFA_NETPROFIT_TTM为前推12个月归母净利润"
+        "Word公式为滚动12个月现金分红总额/滚动12个月归母净利润",
+        "当前公式为latest(年度现金分红总额)/S_DFA_NETPROFIT_TTM",
+        "人工建议为年度现金分红/年度归母净利润",
+        "Wind字典TOT_CASH_DVD为现金分红总额，S_DFA_NETPROFIT_TTM为前推12个月归母净利润"
       ],
       "decision_issue_ids": [
         "definition-divpayout-period-alignment"
@@ -333,24 +334,24 @@
       ],
       "manual_updated_at": "2026-07-02T06:39:04.18968+00:00",
       "decision_titles": [
-        "人工提出删除的八个重复候选因子暂不删除"
+        "盈利收益率与市盈率互为倒数表达但保留"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+        "EP按归母净利润TTM除以总市值计算，PE按总市值除以归母净利润TTM计算，两者在盈利为正且口径完全一致时互为倒数，但负利润、无效值处理和排序方向不同；本地中性化得分相关系数为0.478241，不支持把两条历史序列视为完全重复。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子，且中性化后相关性不足以证明两者为同一序列。"
       ],
       "decision_action": [
-        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留EP，不覆盖历史序列；组合构建时把EP与PE视为同一估值逻辑的不同表达，避免未经检验同时赋予完整权重。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义"
+        "EP系统公式为S_DFA_PROFITTOMV",
+        "EP/PE中性化得分相关系数0.478241",
+        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions"
+        "redundancy-ep-pe-retained"
       ]
     },
     {
@@ -627,24 +628,24 @@
       ],
       "manual_updated_at": "2026-06-25T02:50:48.257549+00:00",
       "decision_titles": [
-        "人工提出删除的八个重复候选因子暂不删除"
+        "盈亏方差比与下行波动率不是同一风险信号"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+        "GLVR60比较近60日盈利日与亏损日收益方差，DOWNVOL衡量负收益样本的年化标准差，前者是相对方差结构，后者是下行波动水平；本地得分相关系数为-0.062704，不支持因名称均涉及下跌风险而删除GLVR60。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子，且公式含义与实证相关性均表明两者不是重复序列。"
       ],
       "decision_action": [
-        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留GLVR60，不与DOWNVOL合并，也不设置组合层硬拦截；使用时分别解释为盈亏方差不对称与下行波动水平。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义"
+        "GLVR60为近60日盈利日方差/亏损日方差",
+        "DOWNVOL为负收益日标准差年化",
+        "GLVR60/DOWNVOL得分相关系数-0.062704"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions"
+        "redundancy-glvr60-downvol-retained"
       ]
     },
     {
@@ -769,36 +770,32 @@
       ],
       "manual_updated_at": "2026-07-10T06:29:05.034751+00:00",
       "decision_titles": [
-        "人工提出删除的八个重复候选因子暂不删除",
-        "高相关因子全部保留但组合层禁止重复计权"
+        "户均持股变化别名保留但不得与同源因子重复计权",
+        "两个人均持股变化代码近乎同序列"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。",
-        "多组原始得分绝对相关超过0.95。其中ESTEARNREV与NPFCST1M使用同一字段S_WEST_NETPROFIT_FTM_1M，属于同字段双注册，不只是经验高相关；MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明其他因子字段错误。"
+        "HOLDERCONCCHG与HOLDERAVGCHG均由PER_HOLDER相对上月变化构造，本地得分相关系数为0.999953，属于近乎同序列的兼容代码，不应被当作两个独立信号。",
+        "HOLDERAVGCHG与HOLDERCONCCHG均由PER_HOLDER相对上月的变化构造，底层含义相同，得分相关系数为0.999953。微小差异不足以支持组合重复计权。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子；保留代码不等于认可其为独立信号，重复使用风险已经由组合约束控制。",
+        "用户明确要求本轮不删除因子；保留兼容代码与认定独立信号是两回事。"
       ],
       "decision_action": [
-        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。",
-        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
+        "按用户决定保留HOLDERCONCCHG历史序列和代码兼容性；组合层继续禁止与HOLDERAVGCHG同时入选或重复计权。",
+        "按用户决定保留两个代码和历史序列；组合层继续硬拦截二者同时入选，新研究只选其中一个人均持股变化信号。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义",
-        "MOM60/RELRET60 0.99999997",
-        "ESTEARNREV/NPFCST1M 1.0",
-        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
-        "STOM/TURN20 0.999489",
-        "AMOUNT20/MFLOW20 0.999869",
-        "DEBT2EQ/EQMULT 0.999975",
-        "PLACEMENTSIZE/REFINPRESS -0.999520",
-        "MOM20/REV1M -0.965232"
+        "HOLDERCONCCHG与HOLDERAVGCHG均读取PER_HOLDER月度变化",
+        "两因子得分相关系数0.999953",
+        "config/factor_usage_constraints.json已设置硬拦截",
+        "两因子底层均为PER_HOLDER月度变化",
+        "PER_HOLDER由FREE_SHARES_TODAY/S_HOLDER_NUM生成",
+        "HOLDERAVGCHG/HOLDERCONCCHG得分相关系数0.999953"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions",
-        "redundancy-high-correlation"
+        "redundancy-holderconcchg-alias-retained",
+        "redundancy-holderavgchg-holderconcchg"
       ]
     },
     {
@@ -888,24 +885,24 @@
       ],
       "manual_updated_at": "2026-06-25T02:44:06.84914+00:00",
       "decision_titles": [
-        "人工提出删除的八个重复候选因子暂不删除"
+        "60日峰度与252日超额峰度按窗口和定义区分"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+        "KURT60使用Wind 60日收益峰度，RETKURT使用252日收益的Fisher超额峰度，窗口长度和峰度定义均不同；本地得分相关系数为0.390340，不支持删除KURT60。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子，且两个因子的窗口、峰度定义和得分表现均不同。"
       ],
       "decision_action": [
-        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留KURT60，不与RETKURT合并或设置硬拦截；审核页分别披露60日Wind字段与252日超额峰度口径。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义"
+        "KURT60为Wind 60日收益峰度",
+        "RETKURT为252日Fisher超额峰度",
+        "KURT60/RETKURT得分相关系数0.390340"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions"
+        "redundancy-kurt60-retkurt-retained"
       ]
     },
     {
@@ -926,36 +923,32 @@
       "manual_updated_at": "2026-07-02T06:04:53.382567+00:00",
       "decision_titles": [
         "十四个财务候选字段已完成字典与本地数据映射",
-        "高相关因子全部保留但组合层禁止重复计权"
+        "产权比率与权益乘数恒等相关，资产负债率保留独立比例表达"
       ],
       "verification_assessment": [
         "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。",
-        "多组原始得分绝对相关超过0.95。其中ESTEARNREV与NPFCST1M使用同一字段S_WEST_NETPROFIT_FTM_1M，属于同字段双注册，不只是经验高相关；MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明其他因子字段错误。"
+        "DEBT2EQ为总负债/股东权益，EQMULT为总资产/股东权益；在总资产=总负债+股东权益的会计恒等式下，EQMULT=1+DEBT2EQ，两者得分相关系数为0.999975。LEVERAGE为总负债/总资产，是有界比例，虽同属杠杆但不是与前两者相同的线性原值表达。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。",
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子；DEBT2EQ与EQMULT保留用于口径兼容，LEVERAGE则具有不同分母和取值边界。"
       ],
       "decision_action": [
         "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。",
-        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
+        "按用户决定保留三个因子；组合层继续硬拦截DEBT2EQ与EQMULT同时入选，LEVERAGE不因该恒等关系自动拦截，但与其他杠杆指标同时使用时需检验边际信息。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
         "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置",
-        "MOM60/RELRET60 0.99999997",
-        "ESTEARNREV/NPFCST1M 1.0",
-        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
-        "STOM/TURN20 0.999489",
-        "AMOUNT20/MFLOW20 0.999869",
-        "DEBT2EQ/EQMULT 0.999975",
-        "PLACEMENTSIZE/REFINPRESS -0.999520",
-        "MOM20/REV1M -0.965232"
+        "DEBT2EQ字段S_FA_DEBTTOEQUITY",
+        "EQMULT字段S_FA_ASSETSTOEQUITY且EQMULT=1+DEBT2EQ",
+        "DEBT2EQ/EQMULT得分相关系数0.999975",
+        "LEVERAGE字段S_DFA_DEBTTOASSET"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid",
-        "redundancy-high-correlation"
+        "redundancy-debt2eq-eqmult-leverage"
       ]
     },
     {
@@ -1086,36 +1079,31 @@
       "manual_updated_at": "2026-06-25T03:42:58.341248+00:00",
       "decision_titles": [
         "60日绝对动量与相对收益因子分别保留",
-        "高相关因子全部保留但组合层禁止重复计权"
+        "60日绝对动量与全市场相对收益近乎同序列"
       ],
       "verification_assessment": [
         "MOM60名称和公式均表达60日绝对累计收益；市场相对收益由RELRET60、行业相对收益由RELRETIND表达。人工将其视为相对强弱属于名称理解差异。",
-        "多组原始得分绝对相关超过0.95。其中ESTEARNREV与NPFCST1M使用同一字段S_WEST_NETPROFIT_FTM_1M，属于同字段双注册，不只是经验高相关；MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明其他因子字段错误。"
+        "MOM60是个股60日累计对数收益，RELRET60在同一截面减去全市场收益中位数；截面内减去共同常数不改变排序，两者得分相关系数为0.99999997，组合中重复计权没有新增横截面信息。"
       ],
       "reason_not_changed": [
         "当前名称没有声称超额收益，且项目已有独立相对收益因子。",
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子；保留展示口径不代表可在横截面组合中重复赋权。"
       ],
       "decision_action": [
         "保留MOM60绝对动量，不删除；组合中不得与几乎等价的RELRET60同时赋予完整权重。",
-        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
+        "按用户决定保留两条历史序列；组合层继续硬拦截MOM60与RELRET60同时入选，研究报告分别注明绝对收益水平与相对市场表达的定义差异。"
       ],
       "evidence": [
         "MOM60公式为60日日对数收益之和",
         "Jegadeesh、Titman (1993)支持中期过去收益信号",
         "MOM60与RELRET60得分相关0.99999997",
-        "MOM60/RELRET60 0.99999997",
-        "ESTEARNREV/NPFCST1M 1.0",
-        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
-        "STOM/TURN20 0.999489",
-        "AMOUNT20/MFLOW20 0.999869",
-        "DEBT2EQ/EQMULT 0.999975",
-        "PLACEMENTSIZE/REFINPRESS -0.999520",
-        "MOM20/REV1M -0.965232"
+        "MOM60为60日个股累计对数收益",
+        "RELRET60为个股60日收益减同日全市场中位数",
+        "MOM60/RELRET60得分相关系数0.99999997"
       ],
       "decision_issue_ids": [
         "definition-mom60-absolute-return",
-        "redundancy-high-correlation"
+        "redundancy-mom60-relret60"
       ]
     },
     {
@@ -1172,24 +1160,24 @@
       ],
       "manual_updated_at": "2026-07-10T06:36:05.318974+00:00",
       "decision_titles": [
-        "人工提出删除的八个重复候选因子暂不删除"
+        "三个月盈利预测调整保留独立观察窗口"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+        "NPFCST3M反映三个月一致预期净利润调整，NPFCST1M反映一个月调整；窗口有重叠但信息衰减速度不同，本地得分相关系数为0.612576，不属于同字段同窗口双注册。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子，且一个月与三个月预测调整具有不同研究期限。"
       ],
       "decision_action": [
-        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留NPFCST3M，不设置与NPFCST1M的硬拦截；多窗口同时使用时应通过回测确定权重，避免机械叠加。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义"
+        "NPFCST3M为三个月一致预期净利润调整",
+        "NPFCST1M为一个月一致预期净利润调整",
+        "NPFCST3M/NPFCST1M得分相关系数0.612576"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions"
+        "redundancy-npfcst3m-window-retained"
       ]
     },
     {
@@ -1439,24 +1427,24 @@
       ],
       "manual_updated_at": "2026-07-02T07:27:46.32589+00:00",
       "decision_titles": [
-        "人工提出删除的八个重复候选因子暂不删除"
+        "扣非市盈率与普通市盈率按盈利口径区分"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+        "PE_DED使用扣除非经常性损益后的归母净利润TTM，普通PE使用未扣非归母净利润TTM；两者估值框架相同但盈利质量口径不同，本地中性化得分相关系数为0.495634。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子，且扣非与未扣非盈利具有真实财务含义差异。"
       ],
       "decision_action": [
-        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留PE_DED，不覆盖普通PE；组合构建时明确区分扣非盈利与报表盈利口径，避免把两者误称为同一字段重复。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义"
+        "PE_DED系统字段为S_DFA_PETTM_DEDUCTED",
+        "普通PE使用未扣非归母净利润TTM",
+        "PE_DED/PE中性化得分相关系数0.495634"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions"
+        "redundancy-pe-deducted-retained"
       ]
     },
     {
@@ -1627,36 +1615,31 @@
       "manual_updated_at": "2026-06-25T03:42:06.949191+00:00",
       "decision_titles": [
         "相对市场收益保留全市场中位收益基准",
-        "高相关因子全部保留但组合层禁止重复计权"
+        "60日绝对动量与全市场相对收益近乎同序列"
       ],
       "verification_assessment": [
         "同一截面内从每只股票60日收益减去任一共同市场基准，只增加共同常数，不改变截面排序。改用全A指数不会形成新的选股信号。",
-        "多组原始得分绝对相关超过0.95。其中ESTEARNREV与NPFCST1M使用同一字段S_WEST_NETPROFIT_FTM_1M，属于同字段双注册，不只是经验高相关；MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明其他因子字段错误。"
+        "MOM60是个股60日累计对数收益，RELRET60在同一截面减去全市场收益中位数；截面内减去共同常数不改变排序，两者得分相关系数为0.99999997，组合中重复计权没有新增横截面信息。"
       ],
       "reason_not_changed": [
         "更换共同基准不会改变截面因子得分，重算没有研究增量。",
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子；保留展示口径不代表可在横截面组合中重复赋权。"
       ],
       "decision_action": [
         "保留当前中位收益基准并明确其仅用于展示相对值；组合选择时与MOM60视为同一信号，不重复计权。",
-        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
+        "按用户决定保留两条历史序列；组合层继续硬拦截MOM60与RELRET60同时入选，研究报告分别注明绝对收益水平与相对市场表达的定义差异。"
       ],
       "evidence": [
         "MOM60与RELRET60得分相关0.99999997",
         "共同基准减法的截面秩不变",
         "人工建议仅更换为全A指数",
-        "MOM60/RELRET60 0.99999997",
-        "ESTEARNREV/NPFCST1M 1.0",
-        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
-        "STOM/TURN20 0.999489",
-        "AMOUNT20/MFLOW20 0.999869",
-        "DEBT2EQ/EQMULT 0.999975",
-        "PLACEMENTSIZE/REFINPRESS -0.999520",
-        "MOM20/REV1M -0.965232"
+        "MOM60为60日个股累计对数收益",
+        "RELRET60为个股60日收益减同日全市场中位数",
+        "MOM60/RELRET60得分相关系数0.99999997"
       ],
       "decision_issue_ids": [
         "definition-relret60-common-benchmark",
-        "redundancy-high-correlation"
+        "redundancy-mom60-relret60"
       ]
     },
     {
@@ -1711,36 +1694,31 @@
       "manual_updated_at": "2026-06-25T03:46:03.465358+00:00",
       "decision_titles": [
         "21日短期反转保留，隔夜和日内反转另设因子",
-        "高相关因子全部保留但组合层禁止重复计权"
+        "20日动量与21日反转高度反向相关但不作硬拦截"
       ],
       "verification_assessment": [
         "REV1M使用21日累计收益并以负方向表达短期反转，名称和公式一致；隔夜反转和日内反转需要开盘价拆分，属于两个独立信号。",
-        "多组原始得分绝对相关超过0.95。其中ESTEARNREV与NPFCST1M使用同一字段S_WEST_NETPROFIT_FTM_1M，属于同字段双注册，不只是经验高相关；MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明其他因子字段错误。"
+        "MOM20保存近20日累计对数收益并按正向使用，REV1M保存近21日累计对数收益但按负向排序；窗口高度重叠且方向相反，得分相关系数为-0.965232。两者不是同字段同窗口双注册，但同时使用通常会相互抵消或重复表达短期收益。"
       ],
       "reason_not_changed": [
         "人工建议是扩充因子集合，不证明现有21日反转计算错误。",
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子；20日正向动量与21日反向使用在策略含义上仍有区别，当前证据支持软提示而非强制删除。"
       ],
       "decision_action": [
         "保留REV1M；后续如研究隔夜或日内反转，分别新增OVERNIGHTREV和INTRADAYREV，不覆盖REV1M。",
-        "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
+        "按用户决定保留两条历史序列；暂不作硬拦截，组合同时使用前必须检查方向、净权重和边际贡献，并在审核页持续提示经验高相关。"
       ],
       "evidence": [
         "REV1M公式ln(P_t/P_{t-21})且direction=-1",
         "人工复核建议保留Word口径并补充两个子因子",
         "REV1M与REV5D得分相关0.425563",
-        "MOM60/RELRET60 0.99999997",
-        "ESTEARNREV/NPFCST1M 1.0",
-        "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
-        "STOM/TURN20 0.999489",
-        "AMOUNT20/MFLOW20 0.999869",
-        "DEBT2EQ/EQMULT 0.999975",
-        "PLACEMENTSIZE/REFINPRESS -0.999520",
-        "MOM20/REV1M -0.965232"
+        "MOM20为20日累计对数收益且direction=1",
+        "REV1M为21日累计对数收益且direction=-1",
+        "MOM20/REV1M得分相关系数-0.965232"
       ],
       "decision_issue_ids": [
         "definition-rev1m-components",
-        "redundancy-high-correlation"
+        "redundancy-mom20-rev1m"
       ]
     },
     {
@@ -1760,24 +1738,24 @@
       ],
       "manual_updated_at": "2026-06-25T03:46:38.749626+00:00",
       "decision_titles": [
-        "人工提出删除的八个重复候选因子暂不删除"
+        "五日反转与一月反转保留不同交易窗口"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+        "REV5D使用近5个交易日收益反向排序，REV1M使用近21个交易日收益反向排序，分别刻画周度与月度反转；本地得分相关系数为0.425563，不支持删除REV5D。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子，且5日和21日反转对应不同交易期限。"
       ],
       "decision_action": [
-        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留REV5D，不设置与REV1M的硬拦截；需要同时使用时，应按策略持有期检验窗口贡献。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义"
+        "REV5D窗口为5个交易日",
+        "REV1M窗口为21个交易日",
+        "REV5D/REV1M得分相关系数0.425563"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions"
+        "redundancy-rev5d-window-retained"
       ]
     },
     {
@@ -2054,24 +2032,24 @@
       ],
       "manual_updated_at": "2026-06-25T03:19:25.014272+00:00",
       "decision_titles": [
-        "人工提出删除的八个重复候选因子暂不删除"
+        "20日换手波动与中期换手波动保留不同窗口"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+        "TURNVOL20刻画近20日换手率波动，TURNVOL使用更长的中期窗口；本地得分相关系数为0.855081，相关较高但尚不足以认定为同一序列。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "用户明确要求本轮不删除因子，且短期与中期换手波动具有不同响应速度。"
       ],
       "decision_action": [
-        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留TURNVOL20，不设置与TURNVOL的硬拦截；组合同时使用前进行边际信息和稳定性检验。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义"
+        "TURNVOL20使用20日换手率波动",
+        "TURNVOL使用更长中期窗口",
+        "TURNVOL20/TURNVOL得分相关系数0.855081"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions"
+        "redundancy-turnvol20-window-retained"
       ]
     },
     {
