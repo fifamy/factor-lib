@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-22 09:53:02+0800",
+  "generated_at": "2026-07-22 10:59:02+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
   "resolution_updated_at": "2026-07-22",
   "summary": {
@@ -36,22 +36,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:46:50.650577+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -222,22 +222,22 @@
       ],
       "manual_updated_at": "2026-07-02T06:33:34.999965+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -260,25 +260,24 @@
       ],
       "manual_updated_at": "2026-07-02T06:35:38.575917+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "分红率保留年度分红除以TTM净利润口径并明确期配差异"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "当前DIVPAYOUT使用截至月末最新已公告年度现金分红总额除以同期月末可得归母净利润TTM；人工建议的年度现金分红比例使用年度利润作分母，两者期配不同，不能再表述为已等价映射。当前口径表达最近年度分红相对当前盈利能力的负担或意愿，是可解释但不同的研究信号。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "底层分红与TTM净利润字段均已取得，当前公式可复算；争议是分子分母期配选择，不是字段缺失或计算错误。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "本轮保留现有历史序列，并在名称、公式和审核页明确写为“最新年度现金分红/当前归母净利润TTM”。若后续需要严格年度分红率或滚动12个月分红率，应新增对齐口径并完成重叠期比较，不直接覆盖当前序列。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
-        "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "当前公式latest(年度现金分红总额)/S_DFA_NETPROFIT_TTM",
+        "Wind字典TOT_CASH_DVD为现金分红总额",
+        "Wind字典S_DFA_NETPROFIT_TTM为前推12个月归母净利润"
       ],
       "decision_issue_ids": [
-        "field-pit-financial-valid"
+        "definition-divpayout-period-alignment"
       ]
     },
     {
@@ -298,22 +297,22 @@
       ],
       "manual_updated_at": "2026-07-02T06:36:57.906749+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -336,7 +335,7 @@
       ],
       "manual_updated_at": "2026-07-02T06:39:04.18968+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留"
+        "人工提出删除的九个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -345,7 +344,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -373,25 +372,24 @@
       ],
       "manual_updated_at": "2026-07-02T09:08:31.419602+00:00",
       "decision_titles": [
-        "6个事件因子的人工候选字段已在本地明细表中"
+        "高管和大股东增减持字段可得但有效性仅作补充研究"
       ],
       "verification_assessment": [
-        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+        "holder_trade_ext已包含AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE，当前增减持金额强度公式可以复算；但人工提出“有效性需要再商议”，字段可得并不等于选股有效性已经确认。"
       ],
       "reason_not_changed": [
-        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+        "当前争议是信号有效性和使用场景，不是字段或公式错误；删除序列会丢失后续验证样本。"
       ],
       "decision_action": [
-        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+        "保留两个增减持历史序列，继续显示低覆盖和厚尾提示，仅作为事件辅助信号，不作为默认宽基组合主排序因子；有效性结论以滚动期和分组回测另行评估。"
       ],
       "evidence": [
-        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
-        "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
-        "risk_illegality_ext已有AMOUNT",
-        "risk_investigation_ext已有STR_ANNDATE"
+        "holder_trade_ext已有AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE",
+        "EXECHOLDERCHG当前覆盖率约20.3%并带低覆盖提示",
+        "当前审核复算状态为match"
       ],
       "decision_issue_ids": [
-        "field-event-tables-valid"
+        "field-holder-trades-validity"
       ]
     },
     {
@@ -411,24 +409,24 @@
       ],
       "manual_updated_at": "2026-07-02T09:13:21.201737+00:00",
       "decision_titles": [
-        "业绩快报、预告和财报意外因子作为事件信号保留"
+        "四个业绩快报因子按首次披露月形成稀疏事件信号"
       ],
       "verification_assessment": [
-        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。EXPDEDNP、EXPOP、EXPROE、EXPSALES按首次披露月形成稀疏事件信号；PROFITNOTICEBEAT、REPORTSURPRISE通过_latest_asof持续携带最近一次公开披露相对一致预期的偏离，属于状态型披露信号。六个因子代表不同披露阶段，但不能再统一描述为首次披露月PIT。"
+        "AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED和S_FA_YOYSALES均已在Wind数据字典及本地快报表中验证。四个因子仅在业绩快报首次披露月份生成，非披露月份为空，属于低覆盖的稀疏事件信号。"
       ],
       "reason_not_changed": [
-        "公告内容意外与公告后市场反应是不同信号；现有持续携带口径可以复算且不存在前视，但必须与首次披露月事件口径分开披露。"
+        "当前字段、公告时点和首次披露月生成逻辑均可复算；人工意见没有证明底层字段错误，但事件稀疏性必须作为使用限制披露。"
       ],
       "decision_action": [
-        "保留六个因子且不改用公告后价格反应。四个业绩快报因子继续执行首次披露月PIT；PROFITNOTICEBEAT和REPORTSURPRISE明确按最近一次已公开披露值持续携带至下一次有效披露，并在页面披露持续携带和信号年龄风险。若后续需要纯公告月意外，应新增独立事件因子，不覆盖现有历史序列。"
+        "保留四个首次披露月PIT事件因子；在审核页持续显示低覆盖、稀疏中性化等质量提示，不作为默认宽基组合的主排序因子。人工给出的S_PERFORMANCEEXPRESS名称按终端别名处理，不替换已验证的底层字段。"
       ],
       "evidence": [
         "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
-        "Ball、Brown (1968), DOI:10.2307/2490232",
-        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+        "四个因子使用event_first首次披露月逻辑",
+        "当前覆盖率和中性化稀疏预警见各因子审核分片"
       ],
       "decision_issue_ids": [
-        "definition-event-validity"
+        "definition-profit-express-first-event"
       ]
     },
     {
@@ -448,24 +446,24 @@
       ],
       "manual_updated_at": "2026-07-02T09:16:25.5852+00:00",
       "decision_titles": [
-        "业绩快报、预告和财报意外因子作为事件信号保留"
+        "四个业绩快报因子按首次披露月形成稀疏事件信号"
       ],
       "verification_assessment": [
-        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。EXPDEDNP、EXPOP、EXPROE、EXPSALES按首次披露月形成稀疏事件信号；PROFITNOTICEBEAT、REPORTSURPRISE通过_latest_asof持续携带最近一次公开披露相对一致预期的偏离，属于状态型披露信号。六个因子代表不同披露阶段，但不能再统一描述为首次披露月PIT。"
+        "AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED和S_FA_YOYSALES均已在Wind数据字典及本地快报表中验证。四个因子仅在业绩快报首次披露月份生成，非披露月份为空，属于低覆盖的稀疏事件信号。"
       ],
       "reason_not_changed": [
-        "公告内容意外与公告后市场反应是不同信号；现有持续携带口径可以复算且不存在前视，但必须与首次披露月事件口径分开披露。"
+        "当前字段、公告时点和首次披露月生成逻辑均可复算；人工意见没有证明底层字段错误，但事件稀疏性必须作为使用限制披露。"
       ],
       "decision_action": [
-        "保留六个因子且不改用公告后价格反应。四个业绩快报因子继续执行首次披露月PIT；PROFITNOTICEBEAT和REPORTSURPRISE明确按最近一次已公开披露值持续携带至下一次有效披露，并在页面披露持续携带和信号年龄风险。若后续需要纯公告月意外，应新增独立事件因子，不覆盖现有历史序列。"
+        "保留四个首次披露月PIT事件因子；在审核页持续显示低覆盖、稀疏中性化等质量提示，不作为默认宽基组合的主排序因子。人工给出的S_PERFORMANCEEXPRESS名称按终端别名处理，不替换已验证的底层字段。"
       ],
       "evidence": [
         "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
-        "Ball、Brown (1968), DOI:10.2307/2490232",
-        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+        "四个因子使用event_first首次披露月逻辑",
+        "当前覆盖率和中性化稀疏预警见各因子审核分片"
       ],
       "decision_issue_ids": [
-        "definition-event-validity"
+        "definition-profit-express-first-event"
       ]
     },
     {
@@ -485,24 +483,24 @@
       ],
       "manual_updated_at": "2026-07-02T09:27:20.413751+00:00",
       "decision_titles": [
-        "业绩快报、预告和财报意外因子作为事件信号保留"
+        "四个业绩快报因子按首次披露月形成稀疏事件信号"
       ],
       "verification_assessment": [
-        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。EXPDEDNP、EXPOP、EXPROE、EXPSALES按首次披露月形成稀疏事件信号；PROFITNOTICEBEAT、REPORTSURPRISE通过_latest_asof持续携带最近一次公开披露相对一致预期的偏离，属于状态型披露信号。六个因子代表不同披露阶段，但不能再统一描述为首次披露月PIT。"
+        "AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED和S_FA_YOYSALES均已在Wind数据字典及本地快报表中验证。四个因子仅在业绩快报首次披露月份生成，非披露月份为空，属于低覆盖的稀疏事件信号。"
       ],
       "reason_not_changed": [
-        "公告内容意外与公告后市场反应是不同信号；现有持续携带口径可以复算且不存在前视，但必须与首次披露月事件口径分开披露。"
+        "当前字段、公告时点和首次披露月生成逻辑均可复算；人工意见没有证明底层字段错误，但事件稀疏性必须作为使用限制披露。"
       ],
       "decision_action": [
-        "保留六个因子且不改用公告后价格反应。四个业绩快报因子继续执行首次披露月PIT；PROFITNOTICEBEAT和REPORTSURPRISE明确按最近一次已公开披露值持续携带至下一次有效披露，并在页面披露持续携带和信号年龄风险。若后续需要纯公告月意外，应新增独立事件因子，不覆盖现有历史序列。"
+        "保留四个首次披露月PIT事件因子；在审核页持续显示低覆盖、稀疏中性化等质量提示，不作为默认宽基组合的主排序因子。人工给出的S_PERFORMANCEEXPRESS名称按终端别名处理，不替换已验证的底层字段。"
       ],
       "evidence": [
         "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
-        "Ball、Brown (1968), DOI:10.2307/2490232",
-        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+        "四个因子使用event_first首次披露月逻辑",
+        "当前覆盖率和中性化稀疏预警见各因子审核分片"
       ],
       "decision_issue_ids": [
-        "definition-event-validity"
+        "definition-profit-express-first-event"
       ]
     },
     {
@@ -522,24 +520,24 @@
       ],
       "manual_updated_at": "2026-07-02T09:47:37.624884+00:00",
       "decision_titles": [
-        "业绩快报、预告和财报意外因子作为事件信号保留"
+        "四个业绩快报因子按首次披露月形成稀疏事件信号"
       ],
       "verification_assessment": [
-        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。EXPDEDNP、EXPOP、EXPROE、EXPSALES按首次披露月形成稀疏事件信号；PROFITNOTICEBEAT、REPORTSURPRISE通过_latest_asof持续携带最近一次公开披露相对一致预期的偏离，属于状态型披露信号。六个因子代表不同披露阶段，但不能再统一描述为首次披露月PIT。"
+        "AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED和S_FA_YOYSALES均已在Wind数据字典及本地快报表中验证。四个因子仅在业绩快报首次披露月份生成，非披露月份为空，属于低覆盖的稀疏事件信号。"
       ],
       "reason_not_changed": [
-        "公告内容意外与公告后市场反应是不同信号；现有持续携带口径可以复算且不存在前视，但必须与首次披露月事件口径分开披露。"
+        "当前字段、公告时点和首次披露月生成逻辑均可复算；人工意见没有证明底层字段错误，但事件稀疏性必须作为使用限制披露。"
       ],
       "decision_action": [
-        "保留六个因子且不改用公告后价格反应。四个业绩快报因子继续执行首次披露月PIT；PROFITNOTICEBEAT和REPORTSURPRISE明确按最近一次已公开披露值持续携带至下一次有效披露，并在页面披露持续携带和信号年龄风险。若后续需要纯公告月意外，应新增独立事件因子，不覆盖现有历史序列。"
+        "保留四个首次披露月PIT事件因子；在审核页持续显示低覆盖、稀疏中性化等质量提示，不作为默认宽基组合的主排序因子。人工给出的S_PERFORMANCEEXPRESS名称按终端别名处理，不替换已验证的底层字段。"
       ],
       "evidence": [
         "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
-        "Ball、Brown (1968), DOI:10.2307/2490232",
-        "Bernard、Thomas (1989), DOI:10.2307/2491062"
+        "四个因子使用event_first首次披露月逻辑",
+        "当前覆盖率和中性化稀疏预警见各因子审核分片"
       ],
       "decision_issue_ids": [
-        "definition-event-validity"
+        "definition-profit-express-first-event"
       ]
     },
     {
@@ -557,25 +555,26 @@
       ],
       "manual_updated_at": "2026-07-02T07:50:21.896462+00:00",
       "decision_titles": [
-        "6个事件因子的人工候选字段已在本地明细表中"
+        "四个公司事件字段已取得但按稀疏辅助信号使用"
       ],
       "verification_assessment": [
-        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证，当前公式可复算；这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
       ],
       "reason_not_changed": [
-        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+        "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示，仅作为事件辅助信号；不作为默认宽基组合主排序因子。同批补充事件ID、最终处罚标记和违规类型用于增强去重与对账。"
       ],
       "evidence": [
-        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "incentive_ext已有INC_NUMBERS_RATE",
         "risk_illegality_ext已有AMOUNT",
-        "risk_investigation_ext已有STR_ANNDATE"
+        "risk_investigation_ext已有STR_ANNDATE",
+        "各因子覆盖和退化提示见审核分片"
       ],
       "decision_issue_ids": [
-        "field-event-tables-valid"
+        "field-sparse-event-tables-valid"
       ]
     },
     {
@@ -595,22 +594,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:19:17.372881+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -631,7 +630,7 @@
       ],
       "manual_updated_at": "2026-06-25T02:50:48.257549+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留"
+        "人工提出删除的九个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -640,7 +639,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -666,22 +665,22 @@
       ],
       "manual_updated_at": "2026-06-23T07:06:22.175338+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -704,22 +703,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:36:38.159058+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -742,7 +741,7 @@
       ],
       "manual_updated_at": "2026-07-10T06:27:49.413041+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留"
+        "人工提出删除的九个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -751,7 +750,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -775,7 +774,7 @@
       ],
       "manual_updated_at": "2026-07-10T06:29:05.034751+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留",
+        "人工提出删除的九个重复候选因子暂不删除",
         "高相关因子全部保留但组合层禁止重复计权"
       ],
       "verification_assessment": [
@@ -786,7 +785,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。",
+        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。",
         "按不删除决定保留全部历史序列。NPFCST1M作为S_WEST_NETPROFIT_FTM_1M的主因子，ESTEARNREV作为兼容别名，研究组合不得同时计权；其他高相关组应择一或先组内等权再配置组级权重。主站当前只提供相关性软提示，尚未执行强制拦截，报告不得写成系统已经保证。"
       ],
       "evidence": [
@@ -822,22 +821,22 @@
       ],
       "manual_updated_at": "2026-06-23T07:10:56.323298+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -858,25 +857,26 @@
       ],
       "manual_updated_at": "2026-07-02T09:59:39.308352+00:00",
       "decision_titles": [
-        "6个事件因子的人工候选字段已在本地明细表中"
+        "四个公司事件字段已取得但按稀疏辅助信号使用"
       ],
       "verification_assessment": [
-        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证，当前公式可复算；这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
       ],
       "reason_not_changed": [
-        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+        "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示，仅作为事件辅助信号；不作为默认宽基组合主排序因子。同批补充事件ID、最终处罚标记和违规类型用于增强去重与对账。"
       ],
       "evidence": [
-        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "incentive_ext已有INC_NUMBERS_RATE",
         "risk_illegality_ext已有AMOUNT",
-        "risk_investigation_ext已有STR_ANNDATE"
+        "risk_investigation_ext已有STR_ANNDATE",
+        "各因子覆盖和退化提示见审核分片"
       ],
       "decision_issue_ids": [
-        "field-event-tables-valid"
+        "field-sparse-event-tables-valid"
       ]
     },
     {
@@ -894,7 +894,7 @@
       ],
       "manual_updated_at": "2026-06-25T02:44:06.84914+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留"
+        "人工提出删除的九个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -903,7 +903,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -931,11 +931,11 @@
       ],
       "manual_updated_at": "2026-07-02T06:04:53.382567+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射",
+        "十六个财务候选字段已完成字典与本地数据映射",
         "高相关因子全部保留但组合层禁止重复计权"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。",
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。",
         "多组原始得分绝对相关超过0.95。其中ESTEARNREV与NPFCST1M使用同一字段S_WEST_NETPROFIT_FTM_1M，属于同字段双注册，不只是经验高相关；MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明其他因子字段错误。"
       ],
       "reason_not_changed": [
@@ -943,14 +943,14 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。",
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。",
         "按不删除决定保留全部历史序列。NPFCST1M作为S_WEST_NETPROFIT_FTM_1M的主因子，ESTEARNREV作为兼容别名，研究组合不得同时计权；其他高相关组应择一或先组内等权再配置组级权重。主站当前只提供相关性软提示，尚未执行强制拦截，报告不得写成系统已经保证。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
         "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置",
         "MOM60/RELRET60 0.99999997",
         "ESTEARNREV/NPFCST1M 1.0",
         "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
@@ -982,25 +982,24 @@
       ],
       "manual_updated_at": "2026-07-02T07:21:47.801569+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "对数市值保留正式市值字段，人工候选字段并非等价替代"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "当前DailyValuationFactor.S_DFA_LNMV在Wind字典中的正式定义是对数市值（元），与LNMV名称和当前公式一致。人工建议的AShareValuationIndicator.S_VAL_EV在本项目字典中定义为总市值1（元），不是对数值，更不能直接作为已等价映射的替代字段。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "当前字段已直接提供可复现的对数市值，改用S_VAL_EV还需要自行取对数且没有数据或口径增量。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "继续使用S_DFA_LNMV，不改因子值；审核报告明确写为人工候选字段选取不准确，而不是笼统称为终端别名等价映射。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
-        "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "Wind字典DailyValuationFactor.S_DFA_LNMV=对数市值（元）",
+        "Wind字典AShareValuationIndicator.S_VAL_EV=总市值1（元）",
+        "LNMV当前全历史覆盖率为100%且复算状态为match"
       ],
       "decision_issue_ids": [
-        "field-pit-financial-valid"
+        "field-ln_mv-human-candidate-invalid"
       ]
     },
     {
@@ -1056,25 +1055,24 @@
       ],
       "manual_updated_at": "2026-07-02T09:11:37.922194+00:00",
       "decision_titles": [
-        "6个事件因子的人工候选字段已在本地明细表中"
+        "高管和大股东增减持字段可得但有效性仅作补充研究"
       ],
       "verification_assessment": [
-        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+        "holder_trade_ext已包含AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE，当前增减持金额强度公式可以复算；但人工提出“有效性需要再商议”，字段可得并不等于选股有效性已经确认。"
       ],
       "reason_not_changed": [
-        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+        "当前争议是信号有效性和使用场景，不是字段或公式错误；删除序列会丢失后续验证样本。"
       ],
       "decision_action": [
-        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+        "保留两个增减持历史序列，继续显示低覆盖和厚尾提示，仅作为事件辅助信号，不作为默认宽基组合主排序因子；有效性结论以滚动期和分组回测另行评估。"
       ],
       "evidence": [
-        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
-        "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
-        "risk_illegality_ext已有AMOUNT",
-        "risk_investigation_ext已有STR_ANNDATE"
+        "holder_trade_ext已有AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE",
+        "EXECHOLDERCHG当前覆盖率约20.3%并带低覆盖提示",
+        "当前审核复算状态为match"
       ],
       "decision_issue_ids": [
-        "field-event-tables-valid"
+        "field-holder-trades-validity"
       ]
     },
     {
@@ -1144,22 +1142,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:37:55.090072+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1182,7 +1180,7 @@
       ],
       "manual_updated_at": "2026-07-10T06:36:05.318974+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留"
+        "人工提出删除的九个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -1191,7 +1189,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -1219,25 +1217,24 @@
       ],
       "manual_updated_at": "2026-07-02T06:20:05.168512+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "净利润同比的Wind已算增速与原值公式定义一致"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "S_DFA_TTMGROWRATE_NETPROFIT的Wind正式定义就是（本期归母净利润TTM-上年同期归母净利润TTM）/ABS(上年同期归母净利润TTM)×100，与Word和人工建议的原值计算公式一致。CFOGROWTH和OPGROWTH仍待原值对账，是因为其人工意见对应原值字段尚未下载，不应据此否定NPGROWTH已取得的正式公式证据。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "该字段的正式公式已由Wind字典明确给出且与目标公式一致，继续等待同一原值复算不会改变当前定义判断。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留Wind已算净利润TTM同比字段和当前历史序列；页面披露其正式公式与百分数单位。若后续统一开展全部成长因子的独立原值复算，可将NPGROWTH纳入抽样对账，但不作为当前待数据条件。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
-        "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "Wind字典S_DFA_TTMGROWRATE_NETPROFIT完整公式",
+        "Word净利润同比公式使用归母净利润TTM及上年同期绝对值分母",
+        "当前审核复算状态为match"
       ],
       "decision_issue_ids": [
-        "field-pit-financial-valid"
+        "field-npgrowth-wind-yoy-verified"
       ]
     },
     {
@@ -1257,22 +1254,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:42:57.743309+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1295,22 +1292,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:43:25.393309+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1370,22 +1367,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:38:35.083891+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1453,7 +1450,7 @@
       ],
       "manual_updated_at": "2026-07-02T07:27:46.32589+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留"
+        "人工提出删除的九个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -1462,7 +1459,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -1490,24 +1487,25 @@
       ],
       "manual_updated_at": "2026-07-02T09:55:46.739571+00:00",
       "decision_titles": [
-        "业绩快报、预告和财报意外因子作为事件信号保留"
+        "预告和财报意外按最近公开披露值形成状态型信号"
       ],
       "verification_assessment": [
-        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。EXPDEDNP、EXPOP、EXPROE、EXPSALES按首次披露月形成稀疏事件信号；PROFITNOTICEBEAT、REPORTSURPRISE通过_latest_asof持续携带最近一次公开披露相对一致预期的偏离，属于状态型披露信号。六个因子代表不同披露阶段，但不能再统一描述为首次披露月PIT。"
+        "PROFITNOTICEBEAT和REPORTSURPRISE通过_latest_asof持续携带最近一次已公开披露值相对一致预期的偏离，不是仅在公告首次披露月有效的稀疏事件因子。持续携带不存在前视，但较高覆盖率包含旧信号延续，需单独披露信号年龄风险。"
       ],
       "reason_not_changed": [
-        "公告内容意外与公告后市场反应是不同信号；现有持续携带口径可以复算且不存在前视，但必须与首次披露月事件口径分开披露。"
+        "公告内容意外和公告后价格反应是不同研究信号；当前口径可复算且不使用未来披露，但必须与首次披露月事件口径分开说明。"
       ],
       "decision_action": [
-        "保留六个因子且不改用公告后价格反应。四个业绩快报因子继续执行首次披露月PIT；PROFITNOTICEBEAT和REPORTSURPRISE明确按最近一次已公开披露值持续携带至下一次有效披露，并在页面披露持续携带和信号年龄风险。若后续需要纯公告月意外，应新增独立事件因子，不覆盖现有历史序列。"
+        "保留两个状态型披露信号及其历史序列；页面明确标注持续携带至下一次有效披露，并提示信号年龄风险。若研究需要纯公告月意外，应新增独立事件因子，不覆盖现有因子。"
       ],
       "evidence": [
-        "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
+        "PROFITNOTICEBEAT和REPORTSURPRISE当前实现均使用_latest_asof",
+        "审核样本复算状态为match",
         "Ball、Brown (1968), DOI:10.2307/2490232",
         "Bernard、Thomas (1989), DOI:10.2307/2491062"
       ],
       "decision_issue_ids": [
-        "definition-event-validity"
+        "definition-disclosure-surprise-state"
       ]
     },
     {
@@ -1562,25 +1560,26 @@
       ],
       "manual_updated_at": "2026-07-02T07:52:14.831577+00:00",
       "decision_titles": [
-        "6个事件因子的人工候选字段已在本地明细表中"
+        "四个公司事件字段已取得但按稀疏辅助信号使用"
       ],
       "verification_assessment": [
-        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证，当前公式可复算；这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
       ],
       "reason_not_changed": [
-        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+        "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示，仅作为事件辅助信号；不作为默认宽基组合主排序因子。同批补充事件ID、最终处罚标记和违规类型用于增强去重与对账。"
       ],
       "evidence": [
-        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "incentive_ext已有INC_NUMBERS_RATE",
         "risk_illegality_ext已有AMOUNT",
-        "risk_investigation_ext已有STR_ANNDATE"
+        "risk_investigation_ext已有STR_ANNDATE",
+        "各因子覆盖和退化提示见审核分片"
       ],
       "decision_issue_ids": [
-        "field-event-tables-valid"
+        "field-sparse-event-tables-valid"
       ]
     },
     {
@@ -1600,22 +1599,22 @@
       ],
       "manual_updated_at": "2026-07-02T06:30:31.532985+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1686,24 +1685,25 @@
       ],
       "manual_updated_at": "2026-07-02T09:56:55.003882+00:00",
       "decision_titles": [
-        "业绩快报、预告和财报意外因子作为事件信号保留"
+        "预告和财报意外按最近公开披露值形成状态型信号"
       ],
       "verification_assessment": [
-        "当前四个AShareProfitExpress字段均能在Wind数据库字典中验证，人工给出的S_PERFORMANCEEXPRESS名称属于终端别名。EXPDEDNP、EXPOP、EXPROE、EXPSALES按首次披露月形成稀疏事件信号；PROFITNOTICEBEAT、REPORTSURPRISE通过_latest_asof持续携带最近一次公开披露相对一致预期的偏离，属于状态型披露信号。六个因子代表不同披露阶段，但不能再统一描述为首次披露月PIT。"
+        "PROFITNOTICEBEAT和REPORTSURPRISE通过_latest_asof持续携带最近一次已公开披露值相对一致预期的偏离，不是仅在公告首次披露月有效的稀疏事件因子。持续携带不存在前视，但较高覆盖率包含旧信号延续，需单独披露信号年龄风险。"
       ],
       "reason_not_changed": [
-        "公告内容意外与公告后市场反应是不同信号；现有持续携带口径可以复算且不存在前视，但必须与首次披露月事件口径分开披露。"
+        "公告内容意外和公告后价格反应是不同研究信号；当前口径可复算且不使用未来披露，但必须与首次披露月事件口径分开说明。"
       ],
       "decision_action": [
-        "保留六个因子且不改用公告后价格反应。四个业绩快报因子继续执行首次披露月PIT；PROFITNOTICEBEAT和REPORTSURPRISE明确按最近一次已公开披露值持续携带至下一次有效披露，并在页面披露持续携带和信号年龄风险。若后续需要纯公告月意外，应新增独立事件因子，不覆盖现有历史序列。"
+        "保留两个状态型披露信号及其历史序列；页面明确标注持续携带至下一次有效披露，并提示信号年龄风险。若研究需要纯公告月意外，应新增独立事件因子，不覆盖现有因子。"
       ],
       "evidence": [
-        "Wind字典AShareProfitExpress.S_FA_YOYNETPROFIT_DEDUCTED、S_FA_YOYOP、ROE_DILUTED、S_FA_YOYSALES",
+        "PROFITNOTICEBEAT和REPORTSURPRISE当前实现均使用_latest_asof",
+        "审核样本复算状态为match",
         "Ball、Brown (1968), DOI:10.2307/2490232",
         "Bernard、Thomas (1989), DOI:10.2307/2491062"
       ],
       "decision_issue_ids": [
-        "definition-event-validity"
+        "definition-disclosure-surprise-state"
       ]
     },
     {
@@ -1771,7 +1771,7 @@
       ],
       "manual_updated_at": "2026-06-25T03:46:38.749626+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留"
+        "人工提出删除的九个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -1780,7 +1780,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -1806,30 +1806,31 @@
       ],
       "manual_updated_at": "2026-07-02T07:52:53.863969+00:00",
       "decision_titles": [
-        "6个事件因子的人工候选字段已在本地明细表中"
+        "四个公司事件字段已取得但按稀疏辅助信号使用"
       ],
       "verification_assessment": [
-        "EXECHOLDERCHG和MAJORHOLDERCHG所需AVG_PRICE、TRANSACT_QUANTITY已下载；FINRESTATEMENT所需S_CHANGE_ITEMCODE已下载；INCENTIVESIZE所需INC_NUMBERS_RATE已下载；PUNISHAMT所需AMOUNT已下载；RISKINVESTCNT所需STR_ANNDATE已下载。回购和解禁已因候选公式或公告日缺失拆出为待处理。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证，当前公式可复算；这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
       ],
       "reason_not_changed": [
-        "人工意见所指的核心数据已存在于本地明细表，且当前公式已使用这些字段；无需重复下载终端别名指向的同一底层数据。"
+        "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留这6个因子的当前明细表构造；同批补下载激励明细占总股本比例以及违规事件ID、最终处罚标记和违规类型，用于增强对账与去重。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示，仅作为事件辅助信号；不作为默认宽基组合主排序因子。同批补充事件ID、最终处罚标记和违规类型用于增强去重与对账。"
       ],
       "evidence": [
-        "holder_trade_ext已有AVG_PRICE和TRANSACT_QUANTITY",
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
+        "incentive_ext已有INC_NUMBERS_RATE",
         "risk_illegality_ext已有AMOUNT",
-        "risk_investigation_ext已有STR_ANNDATE"
+        "risk_investigation_ext已有STR_ANNDATE",
+        "各因子覆盖和退化提示见审核分片"
       ],
       "decision_issue_ids": [
-        "field-event-tables-valid"
+        "field-sparse-event-tables-valid"
       ]
     },
     {
       "factor_code": "ROA",
-      "name_cn": "总资产收益率",
+      "name_cn": "总资产净利率",
       "l1": "公司内生信息",
       "l2": "盈利能力类",
       "resolution_status": "not_planned",
@@ -1844,25 +1845,24 @@
       ],
       "manual_updated_at": "2026-07-02T07:39:26.650697+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "ROA明确保留总资产净利率口径而非总资产报酬率"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "当前S_DFA_ROA1_TTM是TTM净利润除以平均总资产的总资产净利率，与Word公式一致；人工建议的ROA2是使用报酬总额的总资产报酬率，属于另一指标，不是同一字段的终端别名。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "当前字段与Word定义一致且可以复算；替换为ROA2会改变利润口径和经济含义。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留S_DFA_ROA1_TTM和历史值，将中文名称与公式说明统一为“总资产净利率”；如研究需要总资产报酬率，应新增ROA2因子，不覆盖ROA。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
-        "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "Wind字典S_DFA_ROA1_TTM=总资产净利率(TTM)",
+        "Wind字典S_DFA_ROA2_TTM=总资产报酬率(TTM)",
+        "Word公式为TTM净利润/平均总资产"
       ],
       "decision_issue_ids": [
-        "field-pit-financial-valid"
+        "definition-roa1-net-income-return"
       ]
     },
     {
@@ -1882,22 +1882,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:39:57.362698+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1920,22 +1920,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:44:13.049889+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1958,22 +1958,22 @@
       ],
       "manual_updated_at": "2026-07-02T07:40:24.080591+00:00",
       "decision_titles": [
-        "人工候选财务字段已完成字典与本地数据映射"
+        "十六个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "20个因子的人工候选变量已逐项映射到Wind数据字典正式表字段，且当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。CFOGROWTH和OPGROWTH因缺原值对账字段已拆出为待数据，不再包含在本条。"
+        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的20个因子的当前口径；人工建议、数据字典字段和本地文件字段的逐项对照记录在候选变量核验与下载清单。"
+        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
-        "候选变量映射35项均命中Wind数据字典",
-        "其中25项已在本地数据中",
+        "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项"
+        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
+        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1996,24 +1996,24 @@
       ],
       "manual_updated_at": "2026-06-25T03:03:42.283369+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留"
+        "停牌天数保留为当前可交易股票的近期流动性历史"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+        "选股截面已剔除当日停牌股票，但SUSPENDDAYS统计过去60个交易日内的停牌或无成交天数，反映当前可交易股票近期是否经历交易中断。人工提出的当日可交易性筛选与回看期流动性历史不是同一信息。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "当日可交易不代表过去60日交易连续，回看停牌天数仍有独立信息；现有公式和样本空间可以复算。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "保留SUSPENDDAYS历史序列，明确其仅用于补充识别近期交易连续性和流动性风险，不作为默认宽基组合的主排序因子；不再使用高相关因子套话解释该因子。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义"
+        "SUSPENDDAYS=count(近60日停牌或无成交)",
+        "月末股票池剔除截面日停牌股票",
+        "历史停牌记录与截面日可交易状态属于不同时间维度"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions"
+        "definition-suspenddays-recent-liquidity"
       ]
     },
     {
@@ -2068,7 +2068,7 @@
       ],
       "manual_updated_at": "2026-06-25T03:19:25.014272+00:00",
       "decision_titles": [
-        "人工提出删除的十个因子全部保留"
+        "人工提出删除的九个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -2077,7 +2077,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留十个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
+        "按用户决定保留九个因子；只对HOLDERCONCCHG与HOLDERAVGCHG等另有实证高相关的组合设置重复计权提示，不删除原始序列。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",

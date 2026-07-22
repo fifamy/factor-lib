@@ -30,8 +30,8 @@ _DEFS = [
     # ---- 1.2 盈利能力类 ----
     ("ROE",       "公司内生信息", "盈利能力", 1, "净资产收益率", "pit_financial", "S_DFA_ROE_TTM",
      "ROE = TTM归母净利润 / 平均归母净资产；股东资本回报。"),
-    ("ROA",       "公司内生信息", "盈利能力", 1, "总资产收益率", "pit_financial", "S_DFA_ROA1_TTM",
-     "ROA = TTM净利润 / 平均总资产；资产盈利效率。"),
+    ("ROA",       "公司内生信息", "盈利能力", 1, "总资产净利率", "pit_financial", "S_DFA_ROA1_TTM",
+     "总资产净利率 = TTM净利润 / 平均总资产；区别于使用息税前利润等报酬总额的总资产报酬率（ROA2）。"),
     ("ROIC",      "公司内生信息", "盈利能力", 1, "投入资本回报率", "pit_financial", "S_DFA_ROIC_TTM",
      "ROIC = NOPAT / 平均投入资本；投入资本回报。"),
     ("GROSSMGN",  "公司内生信息", "盈利能力", 1, "毛利率", "pit_financial", "S_DFA_GROSSPROFITMARGIN_TTM",

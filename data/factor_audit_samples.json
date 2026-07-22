@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-22 09:09:23",
+  "generated_at": "2026-07-22 11:07:40",
   "summary": {
     "word_factor_count": 112,
     "system_factor_count": 149,
@@ -485,11 +485,11 @@
       "word_direction": "正向（数值越高，资产盈利效率越高）",
       "word_formula": "ROA=TTM净利润/平均总资产。其中净利润采用TTM滚动求和口径，规避季报季节性波动，具体计算规则为当前已披露财报最新四个季度净利润滚动求和，动态滚动更新。平均总资产采用当期期初与期末总资产均值计算，平滑资产规模短期波动。当个股TTM净利润数据缺失、平均总资产≤0或关键字段缺失时，ROA标记为无效值，不参与后续因子运算。",
       "system_code": "ROA",
-      "system_name_cn": "总资产收益率",
+      "system_name_cn": "总资产净利率",
       "system_l1": "公司内生信息",
       "system_l2": "盈利能力类",
       "system_direction": "正向",
-      "system_formula": "总资产收益率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_ROA1_TTM（Wind已算好，月末截面取值）",
+      "system_formula": "总资产净利率 = PITFinancialFactor（PIT，无未来函数）.S_DFA_ROA1_TTM（Wind已算好，月末截面取值）",
       "system_wind_source": "PITFinancialFactor（PIT，无未来函数）.S_DFA_ROA1_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
