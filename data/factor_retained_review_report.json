@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-22 11:49:41+0800",
+  "generated_at": "2026-07-22 14:23:44+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
   "resolution_updated_at": "2026-07-22",
   "summary": {
@@ -36,25 +36,25 @@
       ],
       "manual_updated_at": "2026-07-02T07:46:50.650577+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "应收款项占收入比保留期末余额口径并披露Word差异"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "当前ARRATIO按月末前最新已公告资产负债表的应收账款与应收票据期末余额之和，除以同月PIT营业收入TTM。该实现已经落实人工提出的“应收账款+应收票据”，但Word公式使用期初期末应收款项平均余额，两者分子时点口径不同，不能标记为完全一致。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工提出的分项字段已经落地，当前差异是期末余额与期初期末均值的方法选择；在没有对齐版本和重叠期比较前，直接覆盖会改变历史含义。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "本轮保留可复算的期末余额口径和历史序列，在审核页标记Word公式口径不一致；如后续需要平均余额版本，应取得同一报告期的期初余额并新增独立对齐因子，完成重叠期比较后再决定是否替换。"
       ],
       "evidence": [
-        "候选变量映射记录已逐项核对Wind数据字典",
-        "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "当前公式(ACCT_RCV+NOTES_RCV)/S_DFA_OR_TTM",
+        "Word公式为期初期末应收款项平均余额/TTM营业收入",
+        "资产负债表按ANN_DT执行月末PIT取值",
+        "当前抽样复算状态为match"
       ],
       "decision_issue_ids": [
-        "field-pit-financial-valid"
+        "definition-arratio-ending-balance"
       ]
     },
     {
@@ -222,22 +222,21 @@
       ],
       "manual_updated_at": "2026-07-02T06:33:34.999965+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -297,22 +296,21 @@
       ],
       "manual_updated_at": "2026-07-02T06:36:57.906749+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -335,7 +333,7 @@
       ],
       "manual_updated_at": "2026-07-02T06:39:04.18968+00:00",
       "decision_titles": [
-        "人工提出删除的九个重复候选因子暂不删除"
+        "人工提出删除的八个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -344,7 +342,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -594,22 +592,21 @@
       ],
       "manual_updated_at": "2026-07-02T07:19:17.372881+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -630,7 +627,7 @@
       ],
       "manual_updated_at": "2026-06-25T02:50:48.257549+00:00",
       "decision_titles": [
-        "人工提出删除的九个重复候选因子暂不删除"
+        "人工提出删除的八个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -639,7 +636,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -665,22 +662,21 @@
       ],
       "manual_updated_at": "2026-06-23T07:06:22.175338+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -703,22 +699,21 @@
       ],
       "manual_updated_at": "2026-07-02T07:36:38.159058+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -741,24 +736,24 @@
       ],
       "manual_updated_at": "2026-07-10T06:27:49.413041+00:00",
       "decision_titles": [
-        "人工提出删除的九个重复候选因子暂不删除"
+        "户均流通股公式已经落实人工建议"
       ],
       "verification_assessment": [
-        "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
+        "当前HOLDERCONC直接使用PER_HOLDER；下载脚本仅在股东户数大于0且自由流通股本非空时，按FREE_SHARES_TODAY/S_HOLDER_NUM计算PER_HOLDER，与人工建议的户均流通股公式一致。水平值反映月末户均流通股规模，变化率由HOLDERAVGCHG和HOLDERCONCCHG另行表达。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子。"
+        "人工建议的公式已经在数据下载和因子加载环节实现，当前不存在需要覆盖历史序列的计算差异。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "保留HOLDERCONC现有水平值和历史序列；审核页明确展示FREE_SHARES_TODAY/S_HOLDER_NUM，不再引用与本因子无关的估值文献或重复因子相关矩阵。"
       ],
       "evidence": [
-        "17组原始得分与中性得分相关性复核",
-        "Basu (1977), DOI:10.1111/j.1540-6261.1977.tb01979.x",
-        "不同窗口和不同盈利口径具有独立含义"
+        "资料/download_factor_data_to_20260531.py按FREE_SHARES_TODAY/S_HOLDER_NUM生成PER_HOLDER",
+        "S_HOLDER_NUM<=0或FREE_SHARES_TODAY缺失时不计算",
+        "HOLDERCONC读取PER_HOLDER水平值"
       ],
       "decision_issue_ids": [
-        "redundancy-review-decisions"
+        "definition-holderconc-per-holder"
       ]
     },
     {
@@ -774,7 +769,7 @@
       ],
       "manual_updated_at": "2026-07-10T06:29:05.034751+00:00",
       "decision_titles": [
-        "人工提出删除的九个重复候选因子暂不删除",
+        "人工提出删除的八个重复候选因子暂不删除",
         "高相关因子全部保留但组合层禁止重复计权"
       ],
       "verification_assessment": [
@@ -785,7 +780,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。",
+        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。",
         "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
       ],
       "evidence": [
@@ -821,22 +816,21 @@
       ],
       "manual_updated_at": "2026-06-23T07:10:56.323298+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -894,7 +888,7 @@
       ],
       "manual_updated_at": "2026-06-25T02:44:06.84914+00:00",
       "decision_titles": [
-        "人工提出删除的九个重复候选因子暂不删除"
+        "人工提出删除的八个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -903,7 +897,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -931,26 +925,25 @@
       ],
       "manual_updated_at": "2026-07-02T06:04:53.382567+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射",
+        "十四个财务候选字段已完成字典与本地数据映射",
         "高相关因子全部保留但组合层禁止重复计权"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。",
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。",
         "多组原始得分绝对相关超过0.95。其中ESTEARNREV与NPFCST1M使用同一字段S_WEST_NETPROFIT_FTM_1M，属于同字段双注册，不只是经验高相关；MOM60/RELRET60和HOLDERAVGCHG/HOLDERCONCCHG近乎相同，PLACEMENTSIZE/REFINPRESS及MOM20/REV1M方向相反。相关性证明组合重复计权风险，但不证明其他因子字段错误。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。",
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。",
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。",
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。",
         "按不删除决定保留全部历史序列。主站已对七组同字段、完全相同或接近完全相同的信号执行组合层硬拦截：NPFCST1M/ESTEARNREV、HOLDERAVGCHG/HOLDERCONCCHG、MOM60/RELRET60、DEBT2EQ/EQMULT、AMOUNT20/MFLOW20、STOM/TURN20、PLACEMENTSIZE/REFINPRESS。仅经验高相关但仍有独立含义的MOM20/REV1M等继续提示复核，不作硬拦截。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置",
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置",
         "MOM60/RELRET60 0.99999997",
         "ESTEARNREV/NPFCST1M 1.0",
         "HOLDERAVGCHG/HOLDERCONCCHG 0.999953",
@@ -1142,22 +1135,21 @@
       ],
       "manual_updated_at": "2026-07-02T07:37:55.090072+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1180,7 +1172,7 @@
       ],
       "manual_updated_at": "2026-07-10T06:36:05.318974+00:00",
       "decision_titles": [
-        "人工提出删除的九个重复候选因子暂不删除"
+        "人工提出删除的八个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -1189,7 +1181,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -1254,22 +1246,21 @@
       ],
       "manual_updated_at": "2026-07-02T07:42:57.743309+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1292,22 +1283,21 @@
       ],
       "manual_updated_at": "2026-07-02T07:43:25.393309+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1367,22 +1357,21 @@
       ],
       "manual_updated_at": "2026-07-02T07:38:35.083891+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1450,7 +1439,7 @@
       ],
       "manual_updated_at": "2026-07-02T07:27:46.32589+00:00",
       "decision_titles": [
-        "人工提出删除的九个重复候选因子暂不删除"
+        "人工提出删除的八个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -1459,7 +1448,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -1599,25 +1588,25 @@
       ],
       "manual_updated_at": "2026-07-02T06:30:31.532985+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "研发费用占比变化由明细字段独立重构"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "当前RDEXPRATIOCHG使用研发费用TTM除以营业收入TTM，并减去上年同季的占比，独立重构研发费用占比同比变化。人工建议的s_stmnote_rdexp_costtosales是终端比率别名；现实现并非直接读取该字段，但经济定义与Word公式一致。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "研发费用和营业收入底层字段已经取得，当前公式可独立复算并与Word定义一致；为终端展示别名重复下载同一比率不会增加可审计性。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留明细字段独立重构的现有历史序列；审核页明确写为“独立复算等价指标”，不再表述为已经直接使用终端比率字段。"
       ],
       "evidence": [
-        "候选变量映射记录已逐项核对Wind数据字典",
-        "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "当前公式RD_EXPENSE_TTM/OPER_REV_TTM减上年同季占比",
+        "Word公式为研发费用TTM占营业收入比的同比变化",
+        "本地使用AShareFinancialIndicator.RD_EXPENSE及营业收入明细重构",
+        "当前抽样复算状态为match"
       ],
       "decision_issue_ids": [
-        "field-pit-financial-valid"
+        "definition-rdexpratiochg-reconstructed"
       ]
     },
     {
@@ -1771,7 +1760,7 @@
       ],
       "manual_updated_at": "2026-06-25T03:46:38.749626+00:00",
       "decision_titles": [
-        "人工提出删除的九个重复候选因子暂不删除"
+        "人工提出删除的八个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -1780,7 +1769,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
@@ -1882,22 +1871,21 @@
       ],
       "manual_updated_at": "2026-07-02T07:39:57.362698+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1920,22 +1908,21 @@
       ],
       "manual_updated_at": "2026-07-02T07:44:13.049889+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -1958,22 +1945,21 @@
       ],
       "manual_updated_at": "2026-07-02T07:40:24.080591+00:00",
       "decision_titles": [
-        "十六个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射"
       ],
       "verification_assessment": [
-        "十六个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA和NPGROWTH因存在候选字段错误、期配差异或口径选择，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
       ],
       "reason_not_changed": [
-        "人工建议所需变量已下载，且当前公式已直接使用该字段或使用可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
+        "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十六个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "ARRATIO已使用ACCT_RCV与NOTES_RCV分项",
-        "LNMV、DIVPAYOUT、ROA和NPGROWTH已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
@@ -2068,7 +2054,7 @@
       ],
       "manual_updated_at": "2026-06-25T03:19:25.014272+00:00",
       "decision_titles": [
-        "人工提出删除的九个重复候选因子暂不删除"
+        "人工提出删除的八个重复候选因子暂不删除"
       ],
       "verification_assessment": [
         "本地得分相关性不支持按名称批量删除：GLVR60/DOWNVOL为-0.062704、KURT60/RETKURT为0.390340、NPFCST3M/NPFCST1M为0.612576、REV5D/REV1M为0.425563、TURNVOL20/TURNVOL为0.855081。EP与PE、PE_DED与PE较高但中性化后仅0.478241和0.495634，仍保留不同财务含义。"
@@ -2077,7 +2063,7 @@
         "用户明确要求本轮不删除因子。"
       ],
       "decision_action": [
-        "按用户决定保留九个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组九个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
+        "按用户决定保留八个因子，不删除原始序列。仅对另有实证支持的同字段或近乎同序列组合执行硬拦截；本组八个候选中除HOLDERCONCCHG外，其余不因名称相近而限制使用。"
       ],
       "evidence": [
         "17组原始得分与中性得分相关性复核",
