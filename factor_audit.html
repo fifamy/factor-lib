@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>因子核对 · 因子库 v1.4.8</title>
   <link rel="stylesheet" href="vendor/katex.min.css">
-  <link rel="stylesheet" href="factor_audit.css?v=20260724152654">
+  <link rel="stylesheet" href="factor_audit.css?v=20260724153845">
 </head>
 <body>
   <header class="fa-header">
@@ -44,7 +44,7 @@
     <span id="fa-stat" class="fa-stat"></span>
   </section>
   <section id="fa-methodology-warning" class="fa-methodology-warning">
-    行业口径提示：行业分层、行业中性组合和行业市值中性化当前使用静态申万行业，不是历史申万行业 PIT；补齐历史行业归属表前，相关结论只作为辅助复核。
+    行业口径提示：行业分层、行业中性组合和行业市值中性化均使用月末时点有效的历史申万一级行业 PIT（按 ENTRY_DT/REMOVE_DT 判定）；缺少当月有效映射的股票不参与相应行业计算。
   </section>
   <main class="fa-main">
     <table id="fa-table" class="fa-table">
@@ -137,6 +137,6 @@
     </div>
   </div>
   <script src="vendor/katex.min.js"></script>
-  <script src="factor_audit.js?v=20260724152654"></script>
+  <script src="factor_audit.js?v=20260724153845"></script>
 </body>
 </html>
