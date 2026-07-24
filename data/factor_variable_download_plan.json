@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-07-15 10:39:30+0800",
+  "generated_at": "2026-07-24 15:15:09+0800",
   "summary": {
     "target_count": 35,
     "dictionary_missing_count": 0,
-    "local_available_count": 25,
-    "download_count": 10,
-    "blocking_download_count": 3,
+    "local_available_count": 27,
+    "download_count": 8,
+    "blocking_download_count": 1,
     "optional_download_count": 7
   },
   "targets": [
@@ -93,13 +93,13 @@
       "table_name": "AShareCashFlow",
       "field_name": "NET_CASH_FLOWS_OPER_ACT",
       "purpose": "使用现金流量表累计原值构造TTM并自行计算同比，与Wind PIT增速对账",
-      "requirement": "blocking",
-      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/cashflow_statement_ext.parquet",
+      "requirement": "ready",
+      "local_path": "资料/balance_sheet_interest_bearing_processed/parquet/cashflow_raw_for_cfogrowth.parquet",
       "local_field": "NET_CASH_FLOWS_OPER_ACT",
       "dictionary_status": "found",
       "dictionary_field_cn": "经营活动产生的现金流量净额(元)",
       "dictionary_description": "与经营活动相关的现金流量的净增加或减少的金额；是指企业与经营活动有关的现金流入金额减去现金流出净额；",
-      "local_status": "missing"
+      "local_status": "available"
     },
     {
       "factor_codes": [
@@ -200,13 +200,13 @@
       "table_name": "PITFinancialFactor",
       "field_name": "S_DFA_OP_TTM",
       "purpose": "下载PIT营业利润TTM原值后自行计算同比，与Wind已算增速对账",
-      "requirement": "blocking",
-      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/pit_financial_ext.parquet",
+      "requirement": "ready",
+      "local_path": "资料/balance_sheet_interest_bearing_processed/parquet/pit_op_ttm_monthly.parquet",
       "local_field": "S_DFA_OP_TTM",
       "dictionary_status": "found",
       "dictionary_field_cn": "营业利润(TTM)(元)",
       "dictionary_description": "前推12个月营业利润",
-      "local_status": "missing"
+      "local_status": "available"
     },
     {
       "factor_codes": [
@@ -558,36 +558,6 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "应收票据及应收账款(元)",
       "dictionary_description": "应收票据与应收账款合计；反映资产负债表日以摊余成本计量的、企业因销售商品、提供服务等经营活动应收取的款项，以及收到的商业汇票，包括银行承兑汇票和商业承兑汇票该项目应根据“应收票据”和“应收账款”科目的期末余额，减去“坏账准备”科目中相关坏账准备期末余额后的金额填列；",
-      "local_status": "missing"
-    },
-    {
-      "factor_codes": [
-        "CFOGROWTH"
-      ],
-      "table_name": "AShareCashFlow",
-      "field_name": "NET_CASH_FLOWS_OPER_ACT",
-      "purpose": "使用现金流量表累计原值构造TTM并自行计算同比，与Wind PIT增速对账",
-      "requirement": "blocking",
-      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/cashflow_statement_ext.parquet",
-      "local_field": "NET_CASH_FLOWS_OPER_ACT",
-      "dictionary_status": "found",
-      "dictionary_field_cn": "经营活动产生的现金流量净额(元)",
-      "dictionary_description": "与经营活动相关的现金流量的净增加或减少的金额；是指企业与经营活动有关的现金流入金额减去现金流出净额；",
-      "local_status": "missing"
-    },
-    {
-      "factor_codes": [
-        "OPGROWTH"
-      ],
-      "table_name": "PITFinancialFactor",
-      "field_name": "S_DFA_OP_TTM",
-      "purpose": "下载PIT营业利润TTM原值后自行计算同比，与Wind已算增速对账",
-      "requirement": "blocking",
-      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/pit_financial_ext.parquet",
-      "local_field": "S_DFA_OP_TTM",
-      "dictionary_status": "found",
-      "dictionary_field_cn": "营业利润(TTM)(元)",
-      "dictionary_description": "前推12个月营业利润",
       "local_status": "missing"
     },
     {

@@ -1,19 +1,19 @@
 {
   "version": 1,
-  "generated_at": "2026-07-22 15:04:07+0800",
+  "generated_at": "2026-07-24 15:03:45+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
-  "resolution_updated_at": "2026-07-22",
+  "resolution_updated_at": "2026-07-24",
   "summary": {
     "manual_review_record_count": 148,
     "manual_issue_factor_count": 81,
     "cohort_factor_count": 55,
     "retained_issue_factor_count": 51,
-    "reclassified_fixed_count": 1,
-    "reclassified_pending_count": 3,
+    "reclassified_fixed_count": 3,
+    "reclassified_pending_count": 1,
     "status_counts": {
       "not_planned": 51,
-      "fixed": 1,
-      "pending_data": 3
+      "fixed": 3,
+      "pending_data": 1
     },
     "missing_problem_count": 3,
     "missing_suggestion_count": 10
@@ -173,7 +173,7 @@
       "name_cn": "现金流同比",
       "l1": "公司内生信息",
       "l2": "成长类",
-      "resolution_status": "pending_data",
+      "resolution_status": "fixed",
       "manual_problem": [
         "字段查询不到"
       ],
@@ -188,18 +188,18 @@
         "现金流和营业利润增速缺原值独立对账字段"
       ],
       "verification_assessment": [
-        "当前两个因子使用Wind PIT已计算增速。人工建议从原值自行构造TTM并计算同比，数据字典分别定位到AShareCashFlow.NET_CASH_FLOWS_OPER_ACT和PITFinancialFactor.S_DFA_OP_TTM，但两字段未在本地文件中。"
+        "已取得NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM。独立复算证明现有Wind PIT增速的主体公式正确；少数差异主要来自报表更正、特殊报告期或Wind PIT内部口径，因此保留Wind PIT原值，不用事后报表覆盖历史月末数据。"
       ],
       "reason_not_changed": [
-        "独立复算所需原值字段未下载，现阶段不能宣称人工建议已完成验证。"
+        "已完成修改，无待处理原因。"
       ],
       "decision_action": [
-        "下载NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM，按公告日PIT构造TTM和同比，与S_DFA_TTMGROWRATE_CFOTT、S_DFA_TTMGROWRATE_OP对账后再确定是否替换。"
+        "已使用合并现金流量表累计值独立重构CFO TTM并按公告日计算同比；使用营业利润TTM做严格12个月同比。现有CFOGROWTH和OPGROWTH保留Wind PIT值并解除待对账提示。"
       ],
       "evidence": [
-        "Wind字典定位AShareCashFlow.NET_CASH_FLOWS_OPER_ACT",
-        "Wind字典定位PITFinancialFactor.S_DFA_OP_TTM",
-        "本地cashflow_statement_ext和pit_financial_ext均缺对应字段"
+        "OPGROWTH对账535641条，93.87%在1bp内",
+        "CFOGROWTH对账552821条，89.47%在1bp内，Pearson相关0.999600",
+        "对账发现并修正通用TTM函数将一季度累计值误当TTM的问题"
       ],
       "decision_issue_ids": [
         "data-financial-raw-validation-fields"
@@ -1296,7 +1296,7 @@
       "name_cn": "营业利润同比",
       "l1": "公司内生信息",
       "l2": "成长类",
-      "resolution_status": "pending_data",
+      "resolution_status": "fixed",
       "manual_problem": [
         "查询不到字段"
       ],
@@ -1311,18 +1311,18 @@
         "现金流和营业利润增速缺原值独立对账字段"
       ],
       "verification_assessment": [
-        "当前两个因子使用Wind PIT已计算增速。人工建议从原值自行构造TTM并计算同比，数据字典分别定位到AShareCashFlow.NET_CASH_FLOWS_OPER_ACT和PITFinancialFactor.S_DFA_OP_TTM，但两字段未在本地文件中。"
+        "已取得NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM。独立复算证明现有Wind PIT增速的主体公式正确；少数差异主要来自报表更正、特殊报告期或Wind PIT内部口径，因此保留Wind PIT原值，不用事后报表覆盖历史月末数据。"
       ],
       "reason_not_changed": [
-        "独立复算所需原值字段未下载，现阶段不能宣称人工建议已完成验证。"
+        "已完成修改，无待处理原因。"
       ],
       "decision_action": [
-        "下载NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM，按公告日PIT构造TTM和同比，与S_DFA_TTMGROWRATE_CFOTT、S_DFA_TTMGROWRATE_OP对账后再确定是否替换。"
+        "已使用合并现金流量表累计值独立重构CFO TTM并按公告日计算同比；使用营业利润TTM做严格12个月同比。现有CFOGROWTH和OPGROWTH保留Wind PIT值并解除待对账提示。"
       ],
       "evidence": [
-        "Wind字典定位AShareCashFlow.NET_CASH_FLOWS_OPER_ACT",
-        "Wind字典定位PITFinancialFactor.S_DFA_OP_TTM",
-        "本地cashflow_statement_ext和pit_financial_ext均缺对应字段"
+        "OPGROWTH对账535641条，93.87%在1bp内",
+        "CFOGROWTH对账552821条，89.47%在1bp内，Pearson相关0.999600",
+        "对账发现并修正通用TTM函数将一季度累计值误当TTM的问题"
       ],
       "decision_issue_ids": [
         "data-financial-raw-validation-fields"

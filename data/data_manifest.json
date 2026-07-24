@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-22 11:11:55",
+  "generated_at": "2026-07-24 15:09:29",
   "factor_count": 149,
   "backtest_start_month": "2015-02",
   "backtest_end_month": "2026-05",
@@ -23,29 +23,29 @@
     "rolling_validation_parquet": true
   },
   "has_neutralized_scores": true,
-  "neutralization": "中性化口径使用申万一级行业哑变量 + log(市值) 截面回归残差；当前行业字段来自静态描述快照，不是历史申万行业 PIT。",
+  "neutralization": "中性化口径使用月末时点有效的申万一级行业哑变量 + log(市值) 截面回归残差。",
   "neutralization_quality": {
     "available": true,
     "source": "data/factor_score_neutral.parquet",
     "has_quality_column": true,
     "warning_level": "warning",
-    "total_rows": 56322935,
+    "total_rows": 56340481,
     "quality_counts": {
-      "insufficient_sample": 147,
-      "ok": 55939361,
-      "missing_input": 383427
+      "ok": 55952460,
+      "missing_input": 387874,
+      "insufficient_sample": 147
     },
     "insufficient_sample_rows": 147,
     "affected_factors": 6,
     "affected_factor_months": 133,
     "min_insufficient_valid_count": 1,
-    "missing_input_rows": 383427,
+    "missing_input_rows": 387874,
     "regression_failed_rows": 0,
     "warning": "中性化质量提示：6 个因子、133 个因子-月份存在有效样本不足 3 个，相关中性化分数为空；对应 RankIC、回测和分层结果应降低结论权重。"
   },
-  "industry_classification_source": "static_stock_descriptors",
-  "industry_classification_limitation": "行业分层、行业中性组合和行业市值中性化当前使用静态申万行业，不是历史申万行业 PIT；补齐历史行业归属表前，相关分层归因只作为辅助复核。",
+  "industry_classification_source": "wind_sw_pit_history",
+  "industry_classification_limitation": "行业分层、行业中性组合和行业市值中性化均按Wind历史行业表的ENTRY_DT/REMOVE_DT判定各月末有效的申万一级行业归属。",
   "has_industry_neutral_portfolio": true,
   "has_neutral_industry_neutral_portfolio": true,
-  "industry_neutral_portfolio": "组合行业中性口径使用申万一级行业；行业目标权重为当月可投资股票池行业数量占比，行业内按因子分数选股并等权；当前行业字段来自静态描述快照。"
+  "industry_neutral_portfolio": "组合行业中性口径使用各月末PIT申万一级行业；行业目标权重为当月可投资股票池行业数量占比，行业内按因子分数选股并等权。"
 }

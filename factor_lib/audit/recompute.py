@@ -38,7 +38,9 @@ DERIVED_CODES = {"GRCAGR3Y", "PBPCTL", "RELRET60", "RELPEIND", "RELPBIND", "RELR
 ROOT = Path(__file__).resolve().parents[2]
 WORD_V2_DEFAULT_SRC = ROOT / "资料" / "word_only_factor_data_direct_only_processed" / "parquet"
 WORD_V2_MISSING_SRC = ROOT / "资料" / "word_only_factor_data_42_missing_processed" / "parquet"
+FACTOR_GAP_SRC = ROOT / "资料" / "balance_sheet_interest_bearing_processed" / "parquet"
 _WORD_V2_MODULE = None
+_DERIVED_MODULE = None
 
 
 def _close(ref, stored, rel_tol: float = REL_TOL) -> bool:
@@ -82,6 +84,21 @@ def _load_word_v2_loader():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     _WORD_V2_MODULE = mod
+    return mod
+
+
+def _load_derived_loader():
+    """Load the production derived-factor builders for audit parity."""
+    global _DERIVED_MODULE
+    if _DERIVED_MODULE is not None:
+        return _DERIVED_MODULE
+    path = ROOT / "scripts" / "02e_derived_factors.py"
+    spec = importlib.util.spec_from_file_location("derived_loader_for_audit", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    _DERIVED_MODULE = mod
     return mod
 
 
@@ -196,7 +213,19 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         pit = _read_word_v2_parquet(src, "pit_financial_ext", [
             "S_INFO_WINDCODE", "TRADE_DT", "S_DFA_OR_TTM", "S_DFA_TOTLIAB",
         ], stocks)
-        out = mod.build_balance_quality_factors(balance, pit, keep_dates)
+        balance_interest = _read_word_v2_parquet(
+            FACTOR_GAP_SRC,
+            "balance_sheet_interest_bearing",
+            [
+                "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "STATEMENT_TYPE",
+                "ST_BORROW", "NON_CUR_LIAB_DUE_WITHIN_1Y", "LT_BORROW",
+                "BONDS_PAYABLE", "LEASE_LIAB", "INT_PAYABLE",
+            ],
+            stocks,
+        )
+        out = mod.build_balance_quality_factors(
+            balance, pit, keep_dates, balance_interest=balance_interest
+        )
     elif code in {"DIVPAYOUT", "DIVSTREAK", "DIVGROWTH"}:
         dividend = _read_word_v2_parquet(src, "dividend_ext", [
             "S_INFO_WINDCODE", "ANN_DT", "DVD_ANN_DT", "S_DIV_PRELANDATE", "EX_DT", "DVD_PAYOUT_DT",
@@ -569,6 +598,34 @@ def derived_reference_table(code: str, factor_raw: pl.DataFrame, panel: pl.DataF
         out = _derived_pbpctl(factor_raw)
     elif code == "RELRET60":
         out = _relret_table(panel, month_ends, by_industry=False)
+    elif code in {"RELRETIND", "RELPEIND", "RELPBIND"} and all(
+        (FACTOR_GAP_SRC / name).exists()
+        for name in [
+            "sw_industry_history.parquet",
+            "sw_industry_index_prices.parquet",
+            "sw_industry_index_description.parquet",
+        ]
+    ):
+        mod = _load_derived_loader()
+        industry_map = mod.build_pit_industry_map(
+            pl.read_parquet(FACTOR_GAP_SRC / "sw_industry_history.parquet"),
+            month_ends,
+        )
+        if code == "RELRETIND":
+            out = mod.build_relretind(
+                panel,
+                month_ends,
+                industry_map,
+                pl.read_parquet(FACTOR_GAP_SRC / "sw_industry_index_prices.parquet"),
+                pl.read_parquet(FACTOR_GAP_SRC / "sw_industry_index_description.parquet"),
+            ).select(["trade_date", "stock_code", "raw_value"])
+        else:
+            out = mod.build_rel_valuation(
+                factor_raw,
+                "PE" if code == "RELPEIND" else "PB",
+                code,
+                industry_map,
+            ).select(["trade_date", "stock_code", "raw_value"])
     elif code == "RELRETIND":
         out = _relret_table(panel, month_ends, by_industry=True)
     elif code == "RELPEIND":

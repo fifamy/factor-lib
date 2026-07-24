@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-22 11:07:40",
+  "generated_at": "2026-07-24 15:17:18",
   "summary": {
     "word_factor_count": 112,
     "system_factor_count": 149,
@@ -1081,21 +1081,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "600050.SH",
-        "stock_name": "中国联通",
-        "raw_value": -0.07779258720736149,
+        "stock_code": "002279.SZ",
+        "stock_name": "久其软件",
+        "raw_value": 0.12182128822526717,
         "score": 0.0002554655831529758,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=-0.077793，方向处理后的 score=0.000255。",
+          "系统输出 raw_value=0.121821，方向处理后的 score=0.000255。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": -0.07779258720736149,
-            "display": "-0.077793",
+            "value": 0.12182128822526717,
+            "display": "0.121821",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -1135,21 +1135,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "002234.SZ",
-        "stock_name": "民和股份",
-        "raw_value": -0.00035389781787876183,
+        "stock_code": "002441.SZ",
+        "stock_name": "众业达",
+        "raw_value": -0.0003572187086879398,
         "score": 0.0,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=-0.000354，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=-0.000357，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": -0.00035389781787876183,
-            "display": "-0.000354",
+            "value": -0.0003572187086879398,
+            "display": "-0.000357",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -7335,28 +7335,28 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "605377.SH",
-        "stock_name": "华旺科技",
-        "raw_value": 0.3321932647560829,
-        "score": 0.00026143390729916135,
+        "stock_code": "002911.SZ",
+        "stock_name": "佛燃能源",
+        "raw_value": 0.35370391150921143,
+        "score": 0.00026121595489131627,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.332193，方向处理后的 score=0.000261。",
+          "系统输出 raw_value=0.353704，方向处理后的 score=0.000261。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.3321932647560829,
-            "display": "0.332193",
+            "value": 0.35370391150921143,
+            "display": "0.353704",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.00026143390729916135,
+            "value": 0.00026121595489131627,
             "display": "0.000261",
             "unit": "",
             "note": "用于排序和组合构建"
@@ -8837,7 +8837,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "个股PB − 同行业同截面中位PB；相对行业越便宜越好，方向负。",
+      "system_formula": "个股PB − 历史时点所属申万一级行业同截面中位PB；相对行业越便宜越好，方向负。",
       "system_wind_source": "派生（已有数据计算）",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -8891,7 +8891,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "个股PE − 同行业(申万一级)同截面中位PE；相对行业越便宜越好，方向负。",
+      "system_formula": "个股PE − 历史时点所属申万一级行业同截面中位PE；相对行业越便宜越好，方向负。",
       "system_wind_source": "派生（已有数据计算）",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -8999,7 +8999,7 @@
       "system_l1": "市场交易信息",
       "system_l2": "收益趋势类",
       "system_direction": "正向",
-      "system_formula": "个股近60交易日收益 − 同行业均值收益；行业内的相对强度。",
+      "system_formula": "个股近60交易日收益 − 历史时点所属申万一级行业指数同期收益；相对行业的强度。",
       "system_wind_source": "派生（已有数据计算）",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -9009,21 +9009,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "603212.SH",
-        "stock_name": "赛伍技术",
-        "raw_value": -0.047783733269832235,
+        "stock_code": "000952.SZ",
+        "stock_name": "广济药业",
+        "raw_value": -0.04383534321572552,
         "score": 0.0,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=-0.047784，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=-0.043835，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": -0.047783733269832235,
-            "display": "-0.047784",
+            "value": -0.04383534321572552,
+            "display": "-0.043835",
             "unit": "",
             "note": "来自当前因子落地结果"
           },

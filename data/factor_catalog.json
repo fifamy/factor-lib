@@ -11,13 +11,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "RSTR252",
@@ -31,13 +31,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "pending_manual_review",
     "combo_policy": "warn",
     "usage_note": "该因子为MOM12_1改为等权后保留的原半衰期加权序列，当前尚无独立人工复核记录。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "REV1M",
@@ -51,13 +51,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "DASTD",
@@ -71,13 +71,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期失效"
   },
   {
     "code": "STOM",
@@ -91,8 +91,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -102,7 +100,9 @@
         "id": "turnover_level_alias",
         "reason": "当前历史得分相关性0.9995，默认不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "BETA",
@@ -116,13 +116,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "DOWNBETA",
@@ -136,13 +136,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "PE",
@@ -156,13 +156,13 @@
     "v2_status": "computed",
     "positive_only": true,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "PB",
@@ -176,13 +176,13 @@
     "v2_status": "computed",
     "positive_only": true,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "PS",
@@ -196,13 +196,13 @@
     "v2_status": "computed",
     "positive_only": true,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "DIVYLD",
@@ -216,13 +216,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "EP",
@@ -236,13 +236,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "PE_DED",
@@ -256,13 +256,13 @@
     "v2_status": "computed",
     "positive_only": true,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "EV2EBITDA",
@@ -276,13 +276,13 @@
     "v2_status": "computed",
     "positive_only": true,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "ROE",
@@ -296,13 +296,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "ROA",
@@ -316,13 +316,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "ROIC",
@@ -336,13 +336,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "GROSSMGN",
@@ -356,13 +356,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "持续低效"
   },
   {
     "code": "NETMGN",
@@ -376,13 +376,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "OPMGN",
@@ -396,13 +396,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "OCF2OR",
@@ -416,13 +416,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期失效"
   },
   {
     "code": "NPGROWTH",
@@ -436,13 +436,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "OPGROWTH",
@@ -456,13 +456,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
-    "usage_status": "pending_reconciliation",
-    "combo_policy": "warn",
-    "usage_note": "当前使用Wind PIT已计算增速；待补S_DFA_OP_TTM后做独立TTM同比对账。",
+    "usage_status": "standard",
+    "combo_policy": "allow",
+    "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "CFOGROWTH",
@@ -476,13 +476,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
-    "usage_status": "pending_reconciliation",
-    "combo_policy": "warn",
-    "usage_note": "当前使用Wind PIT已计算增速；待补NET_CASH_FLOWS_OPER_ACT后做独立TTM同比对账。",
+    "usage_status": "standard",
+    "combo_policy": "allow",
+    "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "LEVERAGE",
@@ -496,13 +496,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "LNMV",
@@ -516,13 +516,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "PCF",
@@ -536,13 +536,13 @@
     "v2_status": "computed",
     "positive_only": true,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "OCF2OI",
@@ -556,13 +556,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "ACCRUAL",
@@ -576,13 +576,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "IMPAIRRISK",
@@ -596,13 +596,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "GMGROWTH",
@@ -616,13 +616,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "DEDNPGROWTH",
@@ -636,13 +636,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "EQGROWTH",
@@ -656,13 +656,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "ROEGROWTH",
@@ -676,13 +676,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "ORGROWTH",
@@ -696,13 +696,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   },
   {
     "code": "CURRENT",
@@ -716,13 +716,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "QUICK",
@@ -736,13 +736,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "CASHRATIO",
@@ -756,13 +756,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "持续低效"
   },
   {
     "code": "INTCOVER",
@@ -776,13 +776,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "持续低效"
   },
   {
     "code": "DEBT2EQ",
@@ -796,8 +796,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -807,7 +805,9 @@
         "id": "leverage_monotonic_alias",
         "reason": "两者为同一资本结构的单调变换，当前得分完全一致，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "EQMULT",
@@ -821,8 +821,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -832,7 +830,9 @@
         "id": "leverage_monotonic_alias",
         "reason": "两者为同一资本结构的单调变换，当前得分完全一致，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "OCF2DEBT",
@@ -846,13 +846,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "TANG2ASSET",
@@ -866,13 +866,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "ASSETTURN",
@@ -886,13 +886,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "INVTURN",
@@ -906,13 +906,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "ARTURN",
@@ -926,13 +926,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "CATURN",
@@ -946,13 +946,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "FATURN",
@@ -966,13 +966,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "REV5D",
@@ -986,13 +986,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "MOM60",
@@ -1006,8 +1006,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -1017,7 +1015,9 @@
         "id": "absolute_relative_60d_rank_alias",
         "reason": "市场收益为截面常数，当前两者标准化得分完全一致，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "MOM20",
@@ -1031,13 +1031,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   },
   {
     "code": "PRICEZ",
@@ -1051,13 +1051,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "MA20BIAS",
@@ -1071,13 +1071,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "HLPOS",
@@ -1091,13 +1091,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "DOWNVOL",
@@ -1111,13 +1111,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "MAXDD1Y",
@@ -1131,13 +1131,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "RETSKEW",
@@ -1151,13 +1151,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "RETKURT",
@@ -1171,13 +1171,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "BIGDOWN",
@@ -1191,13 +1191,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "AMOUNT20",
@@ -1211,8 +1211,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -1222,7 +1220,9 @@
         "id": "amount_moneyflow_rank_alias",
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "VOLUME20",
@@ -1236,13 +1236,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "TURN20",
@@ -1256,8 +1256,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -1267,7 +1265,9 @@
         "id": "turnover_level_alias",
         "reason": "当前历史得分相关性0.9995，默认不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "AMTVOL",
@@ -1281,13 +1281,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "TURNVOL",
@@ -1301,13 +1301,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "TURNPCTL",
@@ -1321,13 +1321,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "PVCORR",
@@ -1341,13 +1341,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "UPVOLRATIO",
@@ -1361,13 +1361,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "ABTURN",
@@ -1381,13 +1381,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "HIGHMOMTURN",
@@ -1401,13 +1401,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "NPFCST1M",
@@ -1421,8 +1421,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -1432,7 +1430,9 @@
         "id": "analyst_profit_revision_alias",
         "reason": "两者使用同一S_WEST_NETPROFIT_FTM_1M信号，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "NPFCST3M",
@@ -1446,13 +1446,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期转强"
   },
   {
     "code": "EPSFCST1M",
@@ -1466,13 +1466,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期失效"
   },
   {
     "code": "SALESFCST1M",
@@ -1486,13 +1486,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "FCSTGROWTH",
@@ -1506,13 +1506,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "FCSTDISP",
@@ -1526,13 +1526,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "MAINFLOW",
@@ -1546,13 +1546,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "NBRATIO",
@@ -1566,13 +1566,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期失效",
     "usage_status": "limited_update",
     "combo_policy": "block",
     "usage_note": "2024-09起数据仅在季末更新，不能代表月度最新北向持股状态；保留历史分析，暂不允许加入新组合。",
     "data_end_date": "2026-03-31",
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期失效"
   },
   {
     "code": "NBHOLDCHG",
@@ -1586,13 +1586,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期失效",
     "usage_status": "historical_only",
     "combo_policy": "block",
     "usage_note": "2024-07后缺少连续月度持股比例快照，无法继续计算严格月度变化；仅保留历史研究。",
     "data_end_date": "2024-07-31",
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期失效"
   },
   {
     "code": "HOLDERCHG",
@@ -1606,13 +1606,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "HOLDERCONC",
@@ -1626,13 +1626,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "HOLDERCONCCHG",
@@ -1646,8 +1646,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -1657,7 +1655,9 @@
         "id": "holder_concentration_change_alias",
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "GRCAGR3Y",
@@ -1671,13 +1671,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期转强"
   },
   {
     "code": "PBPCTL",
@@ -1691,13 +1691,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "RELRET60",
@@ -1711,8 +1711,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -1722,7 +1720,9 @@
         "id": "absolute_relative_60d_rank_alias",
         "reason": "市场收益为截面常数，当前两者标准化得分完全一致，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "RELPEIND",
@@ -1730,19 +1730,19 @@
     "l1": "公司内生信息",
     "l2": "估值类",
     "direction": -1,
-    "description": "个股PE − 同行业(申万一级)同截面中位PE；相对行业越便宜越好，方向负。",
-    "formula": "个股PE − 同行业(申万一级)同截面中位PE；相对行业越便宜越好，方向负。",
+    "description": "个股PE − 历史时点所属申万一级行业同截面中位PE；相对行业越便宜越好，方向负。",
+    "formula": "个股PE − 历史时点所属申万一级行业同截面中位PE；相对行业越便宜越好，方向负。",
     "wind_source": "派生（已有数据计算）",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
-    "usage_status": "pending_pit_data",
-    "combo_policy": "block",
-    "usage_note": "当前使用静态申万行业，补齐历史PIT行业归属并重算前，不允许加入新组合。",
+    "usage_status": "standard",
+    "combo_policy": "allow",
+    "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "RELPBIND",
@@ -1750,19 +1750,19 @@
     "l1": "公司内生信息",
     "l2": "估值类",
     "direction": -1,
-    "description": "个股PB − 同行业同截面中位PB；相对行业越便宜越好，方向负。",
-    "formula": "个股PB − 同行业同截面中位PB；相对行业越便宜越好，方向负。",
+    "description": "个股PB − 历史时点所属申万一级行业同截面中位PB；相对行业越便宜越好，方向负。",
+    "formula": "个股PB − 历史时点所属申万一级行业同截面中位PB；相对行业越便宜越好，方向负。",
     "wind_source": "派生（已有数据计算）",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期转弱",
-    "usage_status": "pending_pit_data",
-    "combo_policy": "block",
-    "usage_note": "当前使用静态申万行业，补齐历史PIT行业归属并重算前，不允许加入新组合。",
+    "usage_status": "standard",
+    "combo_policy": "allow",
+    "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "RELRETIND",
@@ -1770,19 +1770,19 @@
     "l1": "市场交易信息",
     "l2": "收益趋势类",
     "direction": 1,
-    "description": "个股近60交易日收益 − 同行业均值收益；行业内的相对强度。",
-    "formula": "个股近60交易日收益 − 同行业均值收益；行业内的相对强度。",
+    "description": "个股近60交易日收益 − 历史时点所属申万一级行业指数同期收益；相对行业的强度。",
+    "formula": "个股近60交易日收益 − 历史时点所属申万一级行业指数同期收益；相对行业的强度。",
     "wind_source": "派生（已有数据计算）",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
-    "usage_status": "pending_pit_data",
-    "combo_policy": "block",
-    "usage_note": "当前使用静态申万行业截面均值；补齐历史PIT行业和行业指数收益前，不允许加入新组合。",
+    "usage_status": "standard",
+    "combo_policy": "allow",
+    "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "GLVR60",
@@ -1796,13 +1796,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "TREYNOR60",
@@ -1816,13 +1816,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "REVSVAR",
@@ -1836,13 +1836,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   },
   {
     "code": "KURT60",
@@ -1856,13 +1856,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "TURN20D120",
@@ -1876,13 +1876,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "VOL1M60",
@@ -1896,13 +1896,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "VR",
@@ -1916,13 +1916,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "black_box",
     "combo_policy": "block",
     "usage_note": "Wind字段S_TECH_VR的窗口、平盘成交量处理和倍率定义尚未取得；可查看历史结果，不用于需要可解释公式的新组合。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "TURNVOL20",
@@ -1936,13 +1936,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "PSKEW",
@@ -1956,13 +1956,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期转强"
   },
   {
     "code": "EXPDEDNP",
@@ -1976,13 +1976,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": true,
-    "env_tag": "全天候型",
-    "time_tag": "近期转强",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   },
   {
     "code": "EXPSALES",
@@ -1996,13 +1996,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": true,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转强",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "EXPROE",
@@ -2016,13 +2016,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": true,
-    "env_tag": "全天候型",
-    "time_tag": "近期转强",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   },
   {
     "code": "EXPOP",
@@ -2036,13 +2036,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": true,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转强",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "AROON",
@@ -2056,13 +2056,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "MFLOW20",
@@ -2076,8 +2076,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -2087,7 +2085,9 @@
         "id": "amount_moneyflow_rank_alias",
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "RVI",
@@ -2101,13 +2101,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   },
   {
     "code": "PEPCTL",
@@ -2121,13 +2121,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "FWDPE",
@@ -2141,13 +2141,13 @@
     "v2_status": "computed",
     "positive_only": true,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "EV2EBIT",
@@ -2161,13 +2161,13 @@
     "v2_status": "computed",
     "positive_only": true,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "ROEVOL",
@@ -2181,13 +2181,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "RATINGCHG",
@@ -2201,13 +2201,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "SURVEYCNT",
@@ -2221,13 +2221,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "持续低效"
   },
   {
     "code": "SURVEYINSTCNT",
@@ -2241,13 +2241,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "持续低效"
   },
   {
     "code": "ORCAGR3Y",
@@ -2261,13 +2261,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期转强"
   },
   {
     "code": "CAPEXGROWTH",
@@ -2281,13 +2281,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "RDEXPRATIOCHG",
@@ -2301,13 +2301,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "INTDEBTRATIO",
@@ -2321,13 +2321,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "持续低效",
-    "usage_status": "incomplete_input",
-    "combo_policy": "block",
-    "usage_note": "当前本地负债明细缺INT_PAYABLE，有息负债分子尚未完成全口径闭环。",
+    "usage_status": "standard",
+    "combo_policy": "allow",
+    "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "持续低效"
   },
   {
     "code": "GOODWILLRATIO",
@@ -2341,13 +2341,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "持续低效"
   },
   {
     "code": "ARRATIO",
@@ -2361,13 +2361,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "DIVPAYOUT",
@@ -2381,13 +2381,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "DIVSTREAK",
@@ -2401,13 +2401,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "DIVGROWTH",
@@ -2421,13 +2421,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "SUSPENDDAYS",
@@ -2441,13 +2441,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "持续低效"
   },
   {
     "code": "LIMITUPDAYS",
@@ -2461,13 +2461,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "LIMITDOWNDAYS",
@@ -2481,13 +2481,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "ONEBOARDDAYS",
@@ -2501,13 +2501,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "MARGINBALCHG",
@@ -2521,13 +2521,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   },
   {
     "code": "MARGINBUYRATIO",
@@ -2541,13 +2541,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期转强"
   },
   {
     "code": "NBNETBUY",
@@ -2561,13 +2561,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "historical_only",
     "combo_policy": "block",
     "usage_note": "2024-07后缺少连续月度持股数量快照，无法继续计算严格月度净买入近似；仅保留历史研究。",
     "data_end_date": "2024-07-31",
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "HOLDERAVGCHG",
@@ -2581,8 +2581,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -2592,7 +2590,9 @@
         "id": "holder_concentration_change_alias",
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "INSTHOLD",
@@ -2606,13 +2606,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "TOP10HOLD",
@@ -2626,13 +2626,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "UNLOCKPRESS",
@@ -2646,13 +2646,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "pending_pit_data",
     "combo_policy": "block",
     "usage_note": "本地解禁表缺ANN_DT，现有历史序列无法验证月末当时已经公告，存在未来信息风险。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "ANALYSTCOVER",
@@ -2666,13 +2666,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "持续低效"
   },
   {
     "code": "ESTEARNREV",
@@ -2686,8 +2686,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -2697,7 +2695,9 @@
         "id": "analyst_profit_revision_alias",
         "reason": "两者使用同一S_WEST_NETPROFIT_FTM_1M信号，不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "TARGETPRICECHG",
@@ -2711,13 +2711,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   },
   {
     "code": "BUYBACKRATIO",
@@ -2731,13 +2731,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "PLACEDISCOUNT",
@@ -2751,13 +2751,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期失效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "PLACEMENTSIZE",
@@ -2771,8 +2771,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -2782,7 +2780,9 @@
         "id": "placement_refinancing_alias",
         "reason": "当前历史得分绝对相关性0.9995，默认不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "MERGERSIZE",
@@ -2796,13 +2796,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "INCENTIVESIZE",
@@ -2816,13 +2816,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "持续低效",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "稀疏事件辅助信号，不建议单独作为默认主排序因子。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "持续低效"
   },
   {
     "code": "RISKINVESTCNT",
@@ -2836,13 +2836,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "稀疏风险事件辅助信号，不建议单独作为默认主排序因子。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "PUNISHAMT",
@@ -2856,13 +2856,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "稀疏风险事件辅助信号，不建议单独作为默认主排序因子。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "LAWSUITAMT",
@@ -2876,13 +2876,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "AUDITQUAL",
@@ -2896,13 +2896,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "持续低效",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "持续低效"
   },
   {
     "code": "MAJORHOLDERCHG",
@@ -2916,13 +2916,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "大股东增减持稀疏事件信号，字段可得不等于有效性已确认。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "EXECHOLDERCHG",
@@ -2936,13 +2936,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "高管增减持稀疏事件信号，字段可得不等于有效性已确认。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "FINRESTATEMENT",
@@ -2956,13 +2956,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "持续低效",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "稀疏风险事件辅助信号，不建议单独作为默认主排序因子。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "持续低效"
   },
   {
     "code": "PROFITNOTICEBEAT",
@@ -2976,13 +2976,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "最新可见预告持续携带状态信号，需关注信号龄。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "熊市防御型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "REPORTSURPRISE",
@@ -2996,13 +2996,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效",
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
     "usage_note": "最新年报与年度预测对比的状态信号，需关注信号龄。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "UNLOCKMVRATIO",
@@ -3016,13 +3016,13 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转弱",
     "usage_status": "pending_pit_data",
     "combo_policy": "block",
     "usage_note": "本地解禁表缺ANN_DT，现有历史序列无法验证月末当时已经公告，存在未来信息风险。",
     "data_end_date": null,
-    "combo_exclusion_groups": []
+    "combo_exclusion_groups": [],
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "REFINPRESS",
@@ -3036,8 +3036,6 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "env_tag": "全天候型",
-    "time_tag": "近期转强",
     "usage_status": "standard",
     "combo_policy": "allow",
     "usage_note": "",
@@ -3047,6 +3045,8 @@
         "id": "placement_refinancing_alias",
         "reason": "当前历史得分绝对相关性0.9995，默认不得同时计权。"
       }
-    ]
+    ],
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   }
 ]

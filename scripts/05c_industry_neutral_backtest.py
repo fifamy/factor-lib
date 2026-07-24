@@ -1,6 +1,6 @@
 """生成单因子行业中性组合回测与最新持仓权重。
 
-行业口径：申万一级行业。当前项目只有静态行业描述表，未拥有历史 PIT 行业归属。
+行业口径：各月末时点有效的申万一级行业归属。
 目标权重：每个月可投资股票池内，各行业股票数量占比。
 
 用法：
@@ -12,6 +12,7 @@ from pathlib import Path
 import polars as pl
 
 from factor_lib.factors import momentum, volatility, liquidity, beta, company, market_extra, investor, derived, tech_event, word_v2  # noqa: F401
+from factor_lib.industry import load_industry_map
 from factor_lib.registry import FACTOR_REGISTRY
 from factor_lib.universe import word_universe_for_scores
 try:
@@ -24,15 +25,8 @@ TOP_NS = list(range(1, 101))
 COST_PER_SIDE = 0.002
 
 
-def load_descriptors(path: str) -> pl.DataFrame:
-    p = Path(path)
-    if not p.exists():
-        raise FileNotFoundError(f"stock descriptors not found: {path}")
-    return (
-        pl.read_parquet(p, columns=["stock_code", "industry_sw1"])
-        .filter(pl.col("industry_sw1").is_not_null() & (pl.col("industry_sw1").cast(pl.Utf8).str.len_chars() > 0))
-        .unique("stock_code")
-    )
+def load_descriptors(path: str, industry_history_path: str, trade_dates: list) -> pl.DataFrame:
+    return load_industry_map(trade_dates, history_path=industry_history_path, static_path=path)
 
 
 def add_industry_targets(score: pl.DataFrame, eligible_with_industry: pl.DataFrame) -> pl.DataFrame:
@@ -229,11 +223,12 @@ def main(
     descriptors_path: str,
     out_path: str,
     holdings_out_path: str,
+    industry_history_path: str,
 ):
     score_all = pl.read_parquet(score_path)
     panel = pl.read_parquet(panel_path).sort(["stock_code", "trade_date"])
     meta = pl.read_parquet(meta_path)
-    desc = load_descriptors(descriptors_path)
+    desc = load_descriptors(descriptors_path, industry_history_path, score_all["trade_date"].unique().to_list())
 
     month_end, monthly_ret = monthly_forward_return(panel)
     score_all = word_universe_for_scores(score_all, panel, meta, FACTOR_REGISTRY)
@@ -241,7 +236,7 @@ def main(
         score_all
         .select(["factor_code", "trade_date", "stock_code"])
         .unique()
-        .join(desc, on="stock_code", how="inner")
+        .join(desc, on=["trade_date", "stock_code"] if "trade_date" in desc.columns else ["stock_code"], how="inner")
     )
     print(
         f"月度收益 {monthly_ret.height:,} 行；Word 股票池过滤后 score 样本 {score_all.height:,} 行；"
@@ -296,5 +291,6 @@ if __name__ == "__main__":
     parser.add_argument("--descriptors", default="frontend/data/stock_descriptors.parquet")
     parser.add_argument("--out", default="data/preset_backtest_industry_neutral.parquet")
     parser.add_argument("--holdings-out", default="data/factor_holdings_industry_neutral.parquet")
+    parser.add_argument("--industry-history", default="资料/balance_sheet_interest_bearing_processed/parquet/sw_industry_history.parquet")
     args = parser.parse_args()
-    main(args.score, args.panel, args.meta, args.descriptors, args.out, args.holdings_out)
+    main(args.score, args.panel, args.meta, args.descriptors, args.out, args.holdings_out, args.industry_history)

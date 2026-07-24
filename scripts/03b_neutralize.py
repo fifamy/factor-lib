@@ -16,6 +16,7 @@ import polars as pl
 import pyarrow.parquet as pq
 
 from factor_lib.factors import momentum, volatility, liquidity, beta, company, market_extra, investor, derived, tech_event, word_v2  # noqa: F401
+from factor_lib.industry import load_industry_map
 from factor_lib.monthly_returns import month_end_panel
 from factor_lib.registry import FACTOR_REGISTRY
 from factor_lib.normalize import apply_direction, neutralize_by_industry_size, rank_to_normal
@@ -114,20 +115,33 @@ def _apply_word_universe(raw: pl.DataFrame, panel_path: Optional[str], meta_path
     return word_universe_for_scores(raw, panel, meta, FACTOR_REGISTRY)
 
 
-def _descriptor_for_neutralization(descriptors_path: str, panel_path: Optional[str]) -> pl.DataFrame:
-    # 行业归属当前只有静态描述表；市值用 price_panel 月末 as-of 值，避免用最新市值回填历史。
-    desc = pl.read_parquet(descriptors_path, columns=["stock_code", "industry_sw1"])
+def _descriptor_for_neutralization(
+    descriptors_path: str,
+    panel_path: Optional[str],
+    industry_history_path: Optional[str],
+) -> pl.DataFrame:
     if not panel_path:
         return pl.read_parquet(descriptors_path, columns=["stock_code", "industry_sw1", "market_cap"])
     panel = pl.read_parquet(panel_path)
     month_end = month_end_panel(panel).select(["trade_date", "stock_code", "market_cap"])
-    return month_end.join(desc, on="stock_code", how="left").select(["trade_date", "stock_code", "industry_sw1", "market_cap"])
+    industry = (
+        load_industry_map(
+            month_end["trade_date"].unique().to_list(),
+            history_path=industry_history_path,
+            static_path=descriptors_path,
+        )
+        if industry_history_path
+        else pl.read_parquet(descriptors_path, columns=["stock_code", "industry_sw1"]).unique("stock_code")
+    )
+    join_keys = ["trade_date", "stock_code"] if "trade_date" in industry.columns else ["stock_code"]
+    return month_end.join(industry, on=join_keys, how="left").select(["trade_date", "stock_code", "industry_sw1", "market_cap"])
 
 
-def main(raw_path: str, descriptors_path: str, out_path: str, panel_path: Optional[str] = None, meta_path: Optional[str] = None):
+def main(raw_path: str, descriptors_path: str, out_path: str, panel_path: Optional[str] = None, meta_path: Optional[str] = None,
+         industry_history_path: Optional[str] = None):
     raw = pl.read_parquet(raw_path)
     raw = _apply_word_universe(raw, panel_path, meta_path)
-    desc = _descriptor_for_neutralization(descriptors_path, panel_path)
+    desc = _descriptor_for_neutralization(descriptors_path, panel_path, industry_history_path)
     join_keys = ["trade_date", "stock_code"] if "trade_date" in desc.columns else ["stock_code"]
     raw = raw.join(desc, on=join_keys, how="left")
 
@@ -165,5 +179,6 @@ if __name__ == "__main__":
     parser.add_argument("--out", default="data/factor_score_neutral.parquet")
     parser.add_argument("--panel", default=None)
     parser.add_argument("--meta", default=None)
+    parser.add_argument("--industry-history", default="资料/balance_sheet_interest_bearing_processed/parquet/sw_industry_history.parquet")
     args = parser.parse_args()
-    main(args.raw, args.descriptors, args.out, args.panel, args.meta)
+    main(args.raw, args.descriptors, args.out, args.panel, args.meta, args.industry_history)
