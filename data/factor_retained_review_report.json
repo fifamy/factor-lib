@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-24 15:03:45+0800",
+  "generated_at": "2026-07-27 09:07:16+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
   "resolution_updated_at": "2026-07-24",
   "summary": {
@@ -188,7 +188,7 @@
         "现金流和营业利润增速缺原值独立对账字段"
       ],
       "verification_assessment": [
-        "已取得NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM。独立复算证明现有Wind PIT增速的主体公式正确；少数差异主要来自报表更正、特殊报告期或Wind PIT内部口径，因此保留Wind PIT原值，不用事后报表覆盖历史月末数据。"
+        "已取得NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM。独立复算支持现有Wind PIT增速的主体公式，但不代表逐条完全一致：OPGROWTH的1 bp一致率为93.87%、Pearson相关0.893889；CFOGROWTH的1 bp一致率为89.47%、绝对差p95为65.78个百分点、Pearson相关0.999600。尾部差异可能来自报表更正、特殊报告期或Wind PIT内部口径，因此保留Wind PIT原值，不用事后报表覆盖历史月末数据。"
       ],
       "reason_not_changed": [
         "已完成修改，无待处理原因。"
@@ -197,8 +197,8 @@
         "已使用合并现金流量表累计值独立重构CFO TTM并按公告日计算同比；使用营业利润TTM做严格12个月同比。现有CFOGROWTH和OPGROWTH保留Wind PIT值并解除待对账提示。"
       ],
       "evidence": [
-        "OPGROWTH对账535641条，93.87%在1bp内",
-        "CFOGROWTH对账552821条，89.47%在1bp内，Pearson相关0.999600",
+        "OPGROWTH对账535641条，93.87%在1bp内，绝对差p95为2.29个百分点，Pearson相关0.893889",
+        "CFOGROWTH对账552821条，89.47%在1bp内，绝对差p95为65.78个百分点，Pearson相关0.999600",
         "对账发现并修正通用TTM函数将一季度累计值误当TTM的问题"
       ],
       "decision_issue_ids": [
@@ -1200,7 +1200,7 @@
         "净利润同比的Wind已算增速与原值公式定义一致"
       ],
       "verification_assessment": [
-        "S_DFA_TTMGROWRATE_NETPROFIT的Wind正式定义就是（本期归母净利润TTM-上年同期归母净利润TTM）/ABS(上年同期归母净利润TTM)×100，与Word和人工建议的原值计算公式一致。CFOGROWTH和OPGROWTH仍待原值对账，是因为其人工意见对应原值字段尚未下载，不应据此否定NPGROWTH已取得的正式公式证据。"
+        "S_DFA_TTMGROWRATE_NETPROFIT的Wind正式定义就是（本期归母净利润TTM-上年同期归母净利润TTM）/ABS(上年同期归母净利润TTM)×100，与Word和人工建议的原值计算公式一致。2026-07-24已取得CFOGROWTH和OPGROWTH原值字段并完成独立对账，三个成长因子现均保留Wind PIT增速口径，不再存在“一边待对账、一边保留”的状态不一致。"
       ],
       "reason_not_changed": [
         "该字段的正式公式已由Wind字典明确给出且与目标公式一致，继续等待同一原值复算不会改变当前定义判断。"
@@ -1311,7 +1311,7 @@
         "现金流和营业利润增速缺原值独立对账字段"
       ],
       "verification_assessment": [
-        "已取得NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM。独立复算证明现有Wind PIT增速的主体公式正确；少数差异主要来自报表更正、特殊报告期或Wind PIT内部口径，因此保留Wind PIT原值，不用事后报表覆盖历史月末数据。"
+        "已取得NET_CASH_FLOWS_OPER_ACT和S_DFA_OP_TTM。独立复算支持现有Wind PIT增速的主体公式，但不代表逐条完全一致：OPGROWTH的1 bp一致率为93.87%、Pearson相关0.893889；CFOGROWTH的1 bp一致率为89.47%、绝对差p95为65.78个百分点、Pearson相关0.999600。尾部差异可能来自报表更正、特殊报告期或Wind PIT内部口径，因此保留Wind PIT原值，不用事后报表覆盖历史月末数据。"
       ],
       "reason_not_changed": [
         "已完成修改，无待处理原因。"
@@ -1320,8 +1320,8 @@
         "已使用合并现金流量表累计值独立重构CFO TTM并按公告日计算同比；使用营业利润TTM做严格12个月同比。现有CFOGROWTH和OPGROWTH保留Wind PIT值并解除待对账提示。"
       ],
       "evidence": [
-        "OPGROWTH对账535641条，93.87%在1bp内",
-        "CFOGROWTH对账552821条，89.47%在1bp内，Pearson相关0.999600",
+        "OPGROWTH对账535641条，93.87%在1bp内，绝对差p95为2.29个百分点，Pearson相关0.893889",
+        "CFOGROWTH对账552821条，89.47%在1bp内，绝对差p95为65.78个百分点，Pearson相关0.999600",
         "对账发现并修正通用TTM函数将一季度累计值误当TTM的问题"
       ],
       "decision_issue_ids": [
@@ -2078,7 +2078,7 @@
         "本地解禁表缺ANN_DT，不能完成PIT过滤；取得字段前两个因子均不应标为已评估保留。"
       ],
       "decision_action": [
-        "重新下载AShareCompRestricted.ANN_DT；构造每个月末截面时只保留ANN_DT<=trade_date且S_INFO_LISTDATE位于未来90日的记录，然后重算UNLOCKMVRATIO和UNLOCKPRESS及全部下游结果。"
+        "已提供download_unlock_ann_dt_pit.py：自动探测当前Wind账号可访问且同时包含ANN_DT和解禁字段的表或视图，只输出按月末公告日过滤后的未来90日汇总，不下载日度行情或全量解禁明细。计算端已增加ANN_DT点时约束并支持月度PIT汇总；取得真实回传数据后再重算UNLOCKMVRATIO、UNLOCKPRESS及下游结果。"
       ],
       "evidence": [
         "Wind字典AShareCompRestricted包含ANN_DT",
