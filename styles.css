@@ -313,10 +313,33 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
   line-height: 1.5;
 }
 .validation-short-sample b { color: #ad3b32; margin-right: 6px; }
+.validation-industry-note {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: #eef4f9;
+  color: #3f5060;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.validation-industry-note b { color: #1a4d80; margin-right: 6px; }
 .validation-control-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 8px 0; color: #666; font-size: 11px; }
 .validation-control-row label { color: #1a4d80; font-weight: 700; }
 .validation-control-row select { border: 1px solid #cfd8e3; border-radius: 4px; background: #fff; padding: 3px 6px; font-size: 11px; color: #333; }
 .validation-subtitle { margin: 10px 0 0; color: #1a4d80; font-size: 12px; }
+.validation-method-note {
+  margin-top: 7px;
+  padding: 9px 10px;
+  border-radius: 5px;
+  background: #f3f6f9;
+  color: #46515f;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.validation-method-note-title { color: #1a4d80; font-weight: 700; margin-bottom: 5px; }
+.validation-method-note-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; }
+.validation-method-note-item { min-width: 0; }
+.validation-method-note-item b { color: #344054; }
 .cost-sensitivity-table td:first-child { color: #1a4d80; font-weight: 600; }
 .validation-guide { color: #4b5563; background: #f8fafc; border: 1px solid #e1e6ec; border-radius: 5px; padding: 10px 12px; }
 .guide-title { color: #1a4d80; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
@@ -373,6 +396,7 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
   .guide-grid { grid-template-columns: 1fr; }
   .combo-crowding-grid { grid-template-columns: 1fr; }
   .combo-parameter-grid { grid-template-columns: 1fr; }
+  .validation-method-note-grid { grid-template-columns: 1fr; }
 }
 
 /* 最优权重表：目标列+权重列左对齐，权重不换行；数字列右对齐；末列居中放按钮 */

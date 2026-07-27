@@ -381,12 +381,13 @@ def test_validation_panel_explains_new_validation_metrics():
     assert "Newey-West" in source
 
 
-def test_validation_panel_discloses_static_industry_limitation():
+def test_validation_panel_discloses_pit_industry_classification():
     source = APP_JS.read_text(encoding="utf-8")
 
-    assert "STATIC_INDUSTRY_LIMITATION" in source
-    assert "历史申万行业 PIT" in source
-    assert "行业分层、行业中性组合和行业市值中性化当前使用静态申万行业" in source
+    assert "INDUSTRY_CLASSIFICATION_DEFAULT" in source
+    assert "industry_classification_limitation" in source
+    assert "按月末时点有效的申万一级行业归属计算" in source
+    assert "当前使用静态申万行业" not in source
     assert "renderValidationIndustryLimitation" in source
 
 
@@ -543,6 +544,12 @@ def test_validation_panel_renders_planned_visual_charts_and_extra_metrics():
     assert "多空年化" in source
     assert "多空回撤" in source
     assert "validation-segment-portfolio-chart" in styles
+    assert "renderSegmentPortfolioMethodNote" in source
+    assert "分层组合收益数据说明" in source
+    assert "每个行业-月份至少有 20 只有效股票" in source
+    assert "行业仅保留多空年化最高 3 个和最低 3 个" in source
+    assert "与最新 Top 股票列表中的行业数量不是同一口径" in source
+    assert "validation-method-note" in styles
     assert "top30_excess_ann_return" in source
     assert "top30_excess_max_drawdown" in source
     assert "top30_avg_turnover" in source

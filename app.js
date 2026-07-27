@@ -9,7 +9,7 @@ const DATA_DIR = new URL("data/", document.baseURI).toString();
 // 用 "DEPLOY"+"_VERSION" 拼接判断，避免这行自己被替换。
 const _DEPLOY = "DEPLOY_VERSION";
 const V = _DEPLOY === ("DEPLOY" + "_VERSION") ? `?v=${Date.now()}` : `?v=${_DEPLOY}`;
-const STATIC_INDUSTRY_LIMITATION = "行业分层、行业中性组合和行业市值中性化当前使用静态申万行业，不是历史申万行业 PIT；补齐历史行业归属表前，相关分层归因只作为辅助复核。";
+const INDUSTRY_CLASSIFICATION_DEFAULT = "行业分层、行业中性组合和行业市值中性化均按月末时点有效的申万一级行业归属计算。";
 const F_META  = DATA_DIR + "stock_meta.parquet" + V;
 const SAVED_COMBOS = DATA_DIR + "saved_combos.json" + V;
 const SINGLE_SNAPSHOT_DIR = DATA_DIR + "single_snapshots/";
@@ -2727,7 +2727,8 @@ function renderValidationShortSampleWarning(warnings) {
 }
 
 function renderValidationIndustryLimitation() {
-  return `<div class="validation-short-sample"><b>行业口径</b><span>${STATIC_INDUSTRY_LIMITATION}</span></div>`;
+  const note = state.dataManifest?.industry_classification_limitation || INDUSTRY_CLASSIFICATION_DEFAULT;
+  return `<div class="validation-industry-note"><b>行业口径</b><span>${htmlText(note)}</span></div>`;
 }
 
 function neutralizationQualityWarnings(snap) {
@@ -3031,6 +3032,20 @@ function renderSegmentPortfolioTable(snap) {
     </table>`;
 }
 
+function renderSegmentPortfolioMethodNote(snap) {
+  const rows = Array.isArray(snap?.segment_portfolio?.rows) ? snap.segment_portfolio.rows : [];
+  const industryCount = rows.filter(r => r?.segment_type === "industry_sw1").length;
+  const industryCountText = industryCount > 0 ? `本因子当前展示 ${industryCount} 个行业。` : "无满足展示条件的行业。";
+  return `<div class="validation-method-note" role="note" aria-label="分层组合收益数据说明">
+    <div class="validation-method-note-title">数据说明</div>
+    <div class="validation-method-note-grid">
+      <div class="validation-method-note-item"><b>怎么计算：</b>按各月末有效的 PIT 申万一级行业分层，行业内按因子得分构建 Top 30% 与 Bottom 30% 等权组合；每个行业-月份至少有 20 只有效股票。</div>
+      <div class="validation-method-note-item"><b>怎么展示：</b>多空收益为 Top 减 Bottom，按换手计入单边 0.2% 成本。行业仅保留多空年化最高 3 个和最低 3 个；${industryCountText}</div>
+      <div class="validation-method-note-item"><b>股票数怎么看：</b>表中“平均股票数”是历史有效月份的行业样本均值，与最新 Top 股票列表中的行业数量不是同一口径。</div>
+    </div>
+  </div>`;
+}
+
 function renderSegmentPortfolioChart(snap) {
   const div = document.getElementById("segment-portfolio-chart");
   if (!div) return;
@@ -3232,6 +3247,7 @@ function renderValidationPanel(code, snap) {
     <div id="rolling-36m-chart" class="validation-chart"></div>
     ${renderSegmentValidationTable(snap)}
     <h4 class="validation-subtitle">分层组合收益图</h4>
+    ${renderSegmentPortfolioMethodNote(snap)}
     <div id="segment-portfolio-chart" class="validation-chart validation-segment-portfolio-chart"></div>
     ${renderSegmentPortfolioTable(snap)}
     <div id="segment-heatmap" class="validation-chart validation-heatmap"></div>
