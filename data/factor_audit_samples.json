@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-27 09:08:56",
+  "generated_at": "2026-07-27 14:02:19",
   "summary": {
     "word_factor_count": 112,
     "system_factor_count": 149,
@@ -2301,7 +2301,7 @@
       "system_l1": "市场交易信息",
       "system_l2": "波动风险类",
       "system_direction": "负向",
-      "system_formula": "DOWNVOL = std(ln(P_d/P_{d-1}) | ln(P_d/P_{d-1}) < 0, 252) * sqrt(252)，P=S_DQ_ADJCLOSE",
+      "system_formula": "DOWNVOL = std(min(ln(P_d/P_{d-1}), 0), 252) * sqrt(250)，P=S_DQ_ADJCLOSE",
       "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -2311,21 +2311,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "002881.SZ",
-        "stock_name": "美格智能",
-        "raw_value": 0.26777525766657595,
+        "stock_code": "603150.SH",
+        "stock_name": "万朗磁塑",
+        "raw_value": 0.24074462119753173,
         "score": -0.0,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.267775，方向处理后的 score=-0.000000。",
+          "系统输出 raw_value=0.240745，方向处理后的 score=-0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.26777525766657595,
-            "display": "0.267775",
+            "value": 0.24074462119753173,
+            "display": "0.240745",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -2463,7 +2463,7 @@
       "system_l1": "市场交易信息",
       "system_l2": "波动风险类",
       "system_direction": "负向",
-      "system_formula": "RETKURT = kurtosis(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), 252)",
+      "system_formula": "RETKURT = ordinary_kurtosis(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), 252)",
       "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -2475,19 +2475,19 @@
         "trade_date": "2026-05-29",
         "stock_code": "301336.SZ",
         "stock_name": "趣睡科技",
-        "raw_value": 2.9235818198214645,
+        "raw_value": 5.9235818198214645,
         "score": -0.0,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=2.9236，方向处理后的 score=-0.000000。",
+          "系统输出 raw_value=5.9236，方向处理后的 score=-0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 2.9235818198214645,
-            "display": "2.9236",
+            "value": 5.9235818198214645,
+            "display": "5.9236",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -8415,29 +8415,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "300684.SZ",
-        "stock_name": "中石科技",
-        "raw_value": 0.6470588235294118,
-        "score": 0.0006939724462427169,
+        "stock_code": "000555.SZ",
+        "stock_name": "神州信息",
+        "raw_value": 0.6666666666666666,
+        "score": 0.024638512464553033,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.647059，方向处理后的 score=0.000694。",
+          "系统输出 raw_value=0.666667，方向处理后的 score=0.024639。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.6470588235294118,
-            "display": "0.647059",
+            "value": 0.6666666666666666,
+            "display": "0.666667",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.0006939724462427169,
-            "display": "0.000694",
+            "value": 0.024638512464553033,
+            "display": "0.024639",
             "unit": "",
             "note": "用于排序和组合构建"
           }

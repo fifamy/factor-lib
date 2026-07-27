@@ -198,16 +198,21 @@ def hlpos(panel, asof):
 # ============================== 2.3 波动风险类 ==============================
 
 @factor(code="DOWNVOL", l1="市场交易信息", l2="波动", direction=-1,
-        formula="DOWNVOL = std(ln(P_d/P_{d-1}) | ln(P_d/P_{d-1}) < 0, 252) * sqrt(252)，P=S_DQ_ADJCLOSE",
+        formula="DOWNVOL = std(min(ln(P_d/P_{d-1}), 0), 252) * sqrt(250)，P=S_DQ_ADJCLOSE",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
-        description="下行波动率：近 252 日负收益的标准差 × √252；只看下跌的波动，越高风险越大。")
+        description="下行波动率：近 252 日日对数收益取 min(r,0)，非下跌日按 0 纳入，标准差乘 √250 年化；越高风险越大。")
 def downvol(panel, asof):
     h = _hist(panel, asof, 252)
-    neg = h.filter(pl.col("ret") < 0)
-    out = (neg.group_by("stock_code")
-             .agg([pl.col("ret").std().alias("sd"), pl.len().alias("n")])
-             .filter(pl.col("n") >= 20)
-             .with_columns((pl.col("sd") * (252 ** 0.5)).alias("value")))
+    out = (
+        h.group_by("stock_code")
+        .agg([
+            pl.col("ret").clip(upper_bound=0).std().alias("sd"),
+            pl.col("ret").count().alias("n"),
+            pl.col("ret").filter(pl.col("ret") < 0).count().alias("n_negative"),
+        ])
+        .filter(pl.col("n_negative") >= 20)
+        .with_columns((pl.col("sd") * (250 ** 0.5)).alias("value"))
+    )
     return out.select(["stock_code", "value"])
 
 
@@ -239,13 +244,13 @@ def retskew(panel, asof):
 
 
 @factor(code="RETKURT", l1="市场交易信息", l2="波动", direction=-1,
-        formula="RETKURT = kurtosis(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), 252)",
+        formula="RETKURT = ordinary_kurtosis(ln(S_DQ_ADJCLOSE_d / S_DQ_ADJCLOSE_{d-1}), 252)",
         wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
-        description="近 252 日日收益峰度；峰度高=极端波动多，方向负。")
+        description="近 252 日日对数收益普通峰度（非 Fisher 超额峰度）；峰度高=极端波动多，方向负。")
 def retkurt(panel, asof):
     h = _hist(panel, asof, 252)
     out = (h.group_by("stock_code")
-            .agg([pl.col("ret").kurtosis().alias("value"), pl.col("ret").count().alias("n")])
+            .agg([pl.col("ret").kurtosis(fisher=False).alias("value"), pl.col("ret").count().alias("n")])
             .filter((pl.col("n") >= 60) & pl.col("value").is_finite()))
     return out.select(["stock_code", "value"])
 

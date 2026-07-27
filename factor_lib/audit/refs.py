@@ -64,7 +64,7 @@ def _skew(x: np.ndarray) -> float:
 
 
 def _kurt(x: np.ndarray) -> float:
-    """有偏 Fisher 峰度（超额），与 polars Series.kurtosis() 默认口径一致。"""
+    """有偏普通峰度，与 polars Series.kurtosis(fisher=False) 口径一致。"""
     n = len(x)
     if n < 2:
         return float("nan")
@@ -72,7 +72,7 @@ def _kurt(x: np.ndarray) -> float:
     s = math.sqrt(np.mean((x - m) ** 2))
     if s == 0:
         return float("nan")
-    return float(np.mean((x - m) ** 4) / s ** 4 - 3.0)
+    return float(np.mean((x - m) ** 4) / s ** 4)
 
 
 # ---------- 动量 momentum ----------
@@ -165,8 +165,8 @@ def _downvol(win, ctx):
     neg = r[r < 0]
     if len(neg) < 20:
         return None, []
-    v = float(np.std(neg, ddof=1) * math.sqrt(252))
-    return v, [f"下行波动 std(r|r<0,252)×√252 = {v:.6f}"]
+    v = float(np.std(np.minimum(r, 0.0), ddof=1) * math.sqrt(250))
+    return v, [f"下行波动 std(min(r,0),252)×√250 = {v:.6f}"]
 
 
 @_ref("MAXDD1Y")
@@ -204,7 +204,7 @@ def _retkurt(win, ctx):
     if len(r) < 60:
         return None, []
     v = float(_kurt(r))
-    return v, [f"kurtosis(日对数收益,252) = {v:.6f}"]
+    return v, [f"普通峰度(日对数收益,252) = {v:.6f}"]
 
 
 @_ref("BIGDOWN")
