@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-07-24 15:15:09+0800",
+  "generated_at": "2026-07-27 16:37:01+0800",
   "summary": {
-    "target_count": 35,
+    "target_count": 38,
     "dictionary_missing_count": 0,
-    "local_available_count": 27,
-    "download_count": 8,
-    "blocking_download_count": 1,
+    "local_available_count": 31,
+    "download_count": 7,
+    "blocking_download_count": 0,
     "optional_download_count": 7
   },
   "targets": [
@@ -440,15 +440,15 @@
         "UNLOCKMVRATIO",
         "UNLOCKPRESS"
       ],
-      "table_name": "AShareCompRestricted",
+      "table_name": "AShareFreeFloatCalendar",
       "field_name": "S_INFO_LISTDATE",
-      "purpose": "确定未来窗口内的实际解禁日期",
+      "purpose": "确定未来90日窗口内的限售股上市日期",
       "requirement": "ready",
-      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/unlock_ext.parquet",
-      "local_field": "S_INFO_LISTDATE",
+      "local_path": "资料/unlock_monthly_pit_90d_from_free_float_calendar_processed/parquet/unlock_monthly_pit_90d.parquet",
+      "local_field": "FIRST_UNLOCK_DATE",
       "dictionary_status": "found",
-      "dictionary_field_cn": "可流通日期",
-      "dictionary_description": "本次发行的股票可以上市进行买卖流通的日期",
+      "dictionary_field_cn": "限售股上市日期",
+      "dictionary_description": "股份上市流通的日期",
       "local_status": "available"
     },
     {
@@ -456,15 +456,15 @@
         "UNLOCKMVRATIO",
         "UNLOCKPRESS"
       ],
-      "table_name": "AShareCompRestricted",
+      "table_name": "AShareFreeFloatCalendar",
       "field_name": "S_SHARE_LST",
-      "purpose": "计算未来窗口解禁股份数量",
+      "purpose": "计算未来窗口解禁股份数量；回传样本实证单位为万股",
       "requirement": "ready",
-      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/unlock_ext.parquet",
-      "local_field": "S_SHARE_LST",
+      "local_path": "资料/unlock_monthly_pit_90d_from_free_float_calendar_processed/parquet/unlock_monthly_pit_90d.parquet",
+      "local_field": "UNLOCK_SHARES_90D",
       "dictionary_status": "found",
-      "dictionary_field_cn": "可流通数量(股)",
-      "dictionary_description": "只适用于股票，默认等于获配数量，当获配股份在可流通前发生送转股事件时，等于送转股后的股数，在获配股份流通后不再维护",
+      "dictionary_field_cn": "上市股份数量",
+      "dictionary_description": "当期股份上市流通的数量；本项目回传样本与AShareCompRestricted交叉核验后按万股口径接入",
       "local_status": "available"
     },
     {
@@ -472,16 +472,62 @@
         "UNLOCKMVRATIO",
         "UNLOCKPRESS"
       ],
-      "table_name": "AShareCompRestricted",
+      "table_name": "AShareFreeFloatCalendar",
       "field_name": "ANN_DT",
       "purpose": "确保只使用月末前已公告的未来解禁计划，防止未来信息泄漏",
-      "requirement": "blocking",
-      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/unlock_ext.parquet",
-      "local_field": "ANN_DT",
+      "requirement": "ready",
+      "local_path": "资料/unlock_monthly_pit_90d_from_free_float_calendar_processed/parquet/unlock_monthly_pit_90d.parquet",
+      "local_field": "MAX_ANN_DT",
       "dictionary_status": "found",
       "dictionary_field_cn": "公告日期",
-      "dictionary_description": "公告发布日期",
-      "local_status": "missing"
+      "dictionary_description": "公告发布当天的日期",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "UNLOCKPRESS"
+      ],
+      "table_name": "AShareFreeFloatCalendar",
+      "field_name": "S_SHARE_NONLST",
+      "purpose": "与无限售股份数量合计作为解禁比例分母",
+      "requirement": "ready",
+      "local_path": "资料/unlock_monthly_pit_90d_from_free_float_calendar_processed/parquet/unlock_monthly_pit_90d.parquet",
+      "local_field": "UNLOCK_RATIO_90D",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "未上市股份数量",
+      "dictionary_description": "公司未上市流通的股份总量",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "UNLOCKPRESS"
+      ],
+      "table_name": "AShareFreeFloatCalendar",
+      "field_name": "S_SHARE_UNRESTRICTED",
+      "purpose": "与未上市股份数量合计作为解禁比例分母",
+      "requirement": "ready",
+      "local_path": "资料/unlock_monthly_pit_90d_from_free_float_calendar_processed/parquet/unlock_monthly_pit_90d.parquet",
+      "local_field": "UNLOCK_RATIO_90D",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "无限售条件股份数量（万股）",
+      "dictionary_description": "公司已上市流通的股份总量",
+      "local_status": "available"
+    },
+    {
+      "factor_codes": [
+        "UNLOCKMVRATIO",
+        "UNLOCKPRESS"
+      ],
+      "table_name": "AShareFreeFloatCalendar",
+      "field_name": "S_SHARE_LST_IS_ANN",
+      "purpose": "区分预测值与实际公布值并保留月度审计计数",
+      "requirement": "ready",
+      "local_path": "资料/unlock_monthly_pit_90d_from_free_float_calendar_processed/parquet/unlock_monthly_pit_90d.parquet",
+      "local_field": "PREDICTED_EVENT_COUNT",
+      "dictionary_status": "found",
+      "dictionary_field_cn": "上市数量是否公布值",
+      "dictionary_description": "0为预测值；1为实际公布值",
+      "local_status": "available"
     },
     {
       "factor_codes": [
@@ -648,22 +694,6 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "违规事件ID",
       "dictionary_description": "用来关联同一违规事件下的不同违规主体，一个事件有一个违规事件ID，唯一且不重复，违规事件ID的格式为“YYMMDD+英文字母(AC)+顺序号”",
-      "local_status": "missing"
-    },
-    {
-      "factor_codes": [
-        "UNLOCKMVRATIO",
-        "UNLOCKPRESS"
-      ],
-      "table_name": "AShareCompRestricted",
-      "field_name": "ANN_DT",
-      "purpose": "确保只使用月末前已公告的未来解禁计划，防止未来信息泄漏",
-      "requirement": "blocking",
-      "local_path": "资料/word_only_factor_data_direct_only_processed/parquet/unlock_ext.parquet",
-      "local_field": "ANN_DT",
-      "dictionary_status": "found",
-      "dictionary_field_cn": "公告日期",
-      "dictionary_description": "公告发布日期",
       "local_status": "missing"
     }
   ]

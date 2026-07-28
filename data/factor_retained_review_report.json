@@ -1,19 +1,18 @@
 {
   "version": 1,
-  "generated_at": "2026-07-27 09:07:16+0800",
+  "generated_at": "2026-07-28 11:04:26+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
-  "resolution_updated_at": "2026-07-24",
+  "resolution_updated_at": "2026-07-27",
   "summary": {
     "manual_review_record_count": 148,
     "manual_issue_factor_count": 81,
     "cohort_factor_count": 55,
     "retained_issue_factor_count": 51,
-    "reclassified_fixed_count": 3,
-    "reclassified_pending_count": 1,
+    "reclassified_fixed_count": 4,
+    "reclassified_pending_count": 0,
     "status_counts": {
       "not_planned": 51,
-      "fixed": 3,
-      "pending_data": 1
+      "fixed": 4
     },
     "missing_problem_count": 3,
     "missing_suggestion_count": 10
@@ -2057,7 +2056,7 @@
       "name_cn": "解禁市值/流通市值",
       "l1": "事件驱动信息",
       "l2": "供给冲击类",
-      "resolution_status": "pending_data",
+      "resolution_status": "fixed",
       "manual_problem": [
         "查询不到该字段"
       ],
@@ -2072,18 +2071,19 @@
         "解禁类因子缺公告日过滤"
       ],
       "verification_assessment": [
-        "当前unlock_ext有可流通日期和解禁数量，但缺AShareCompRestricted.ANN_DT。现公式直接统计未来90日解禁计划，无法验证该计划在当时月末是否已经公告，存在未来信息泄漏风险。"
+        "AShareCompRestricted在当前Wind权限下无法取得ANN_DT，但AShareFreeFloatCalendar同时提供公告日、限售股上市日期、上市数量、未上市数量、无限售数量和预测/实际标记，可以构造月末点时的未来90日解禁输入。源表为当前快照而非修订历史，历史预测版本可能被最终公告覆盖，因此历史覆盖偏保守；ANN_DT过滤本身不会引入月末后公告信息。"
       ],
       "reason_not_changed": [
-        "本地解禁表缺ANN_DT，不能完成PIT过滤；取得字段前两个因子均不应标为已评估保留。"
+        "已完成修改，无待处理原因。"
       ],
       "decision_action": [
-        "已提供download_unlock_ann_dt_pit.py：自动探测当前Wind账号可访问且同时包含ANN_DT和解禁字段的表或视图，只输出按月末公告日过滤后的未来90日汇总，不下载日度行情或全量解禁明细。计算端已增加ANN_DT点时约束并支持月度PIT汇总；取得真实回传数据后再重算UNLOCKMVRATIO、UNLOCKPRESS及下游结果。"
+        "已验收31,405条AShareFreeFloatCalendar回传记录，并按ANN_DT<=月末<解禁日<=月末+90日聚合；同时保留预测值和实际公布值。S_SHARE_LST经与AShareCompRestricted样本交叉核验为万股，转换为股后计算UNLOCKMVRATIO；解禁比例按S_SHARE_LST/(S_SHARE_NONLST+S_SHARE_UNRESTRICTED)*100计算。已重算两个因子并解除未来信息硬拦截，因事件稀疏和当前快照的历史版本限制改为组合使用提示。"
       ],
       "evidence": [
-        "Wind字典AShareCompRestricted包含ANN_DT",
-        "unlock_ext.parquet有18,504,271行但不含ANN_DT",
-        "missing_fields.parquet明确记录ANN_DT候选字段未下载"
+        "AShareFreeFloatCalendar回传31,405行、业务主键无重复、ANN_DT无缺失，其中预测值1,199行、实际公布值30,206行",
+        "月度PIT输入3,824个股票—月末键，覆盖2015-01-30至2026-05-29共137个月末",
+        "S_SHARE_LST与AShareCompRestricted重叠事件的数量比中位数为10,000，确认Calendar字段应按万股转换",
+        "重算后UNLOCKPRESS为3,648行、UNLOCKMVRATIO为3,515行；149个因子中仅这两个因子发生变化"
       ],
       "decision_issue_ids": [
         "data-unlock-announcement-date"

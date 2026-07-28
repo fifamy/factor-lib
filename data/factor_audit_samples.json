@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-27 14:50:44",
+  "generated_at": "2026-07-28 11:12:22",
   "summary": {
     "word_factor_count": 112,
     "system_factor_count": 149,
@@ -9991,8 +9991,8 @@
       "system_l1": "事件驱动信息",
       "system_l2": "供给冲击类",
       "system_direction": "负向",
-      "system_formula": "UNLOCKMVRATIO = sum(S_SHARE_LST, 未来90日) / FREE_SHARES_TODAY。",
-      "system_wind_source": "AShareCompRestricted.S_SHARE_LST; AShareEODPrices.FREE_SHARES_TODAY",
+      "system_formula": "UNLOCKMVRATIO = sum(S_SHARE_LST × 10,000, 未来90日) / (FREE_SHARES_TODAY × 10,000)，且ANN_DT不晚于月末。",
+      "system_wind_source": "AShareFreeFloatCalendar.ANN_DT; S_INFO_LISTDATE; S_SHARE_LST; S_SHARE_LST_IS_ANN; AShareEODPrices.FREE_SHARES_TODAY",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -10001,29 +10001,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "300013.SZ",
-        "stock_name": "新宁物流",
-        "raw_value": 0.2745155214397275,
-        "score": 0.006460427090764302,
+        "stock_code": "301236.SZ",
+        "stock_name": "软通动力",
+        "raw_value": 0.1330555480317446,
+        "score": -0.0,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.274516，方向处理后的 score=0.006460。",
+          "系统输出 raw_value=0.133056，方向处理后的 score=-0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.2745155214397275,
-            "display": "0.274516",
+            "value": 0.1330555480317446,
+            "display": "0.133056",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.006460427090764302,
-            "display": "0.006460",
+            "value": -0.0,
+            "display": "-0.000000",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -10045,8 +10045,8 @@
       "system_l1": "投资者行为信息",
       "system_l2": "筹码结构类",
       "system_direction": "负向",
-      "system_formula": "UNLOCKPRESS = sum(S_SHARE_RATIO, 未来90日)。",
-      "system_wind_source": "AShareCompRestricted.S_INFO_LISTDATE; S_SHARE_RATIO",
+      "system_formula": "UNLOCKPRESS = sum(S_SHARE_LST / (S_SHARE_NONLST + S_SHARE_UNRESTRICTED) × 100, 未来90日)，且ANN_DT不晚于月末。",
+      "system_wind_source": "AShareFreeFloatCalendar.ANN_DT; S_INFO_LISTDATE; S_SHARE_LST; S_SHARE_NONLST; S_SHARE_UNRESTRICTED; S_SHARE_LST_IS_ANN",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -10055,29 +10055,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "600299.SH",
-        "stock_name": "安迪苏",
-        "raw_value": 12.9192,
-        "score": 0.0075501568965554745,
+        "stock_code": "600057.SH",
+        "stock_name": "厦门象屿",
+        "raw_value": 7.6584994,
+        "score": 0.017408019974707787,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=12.9192，方向处理后的 score=0.007550。",
+          "系统输出 raw_value=7.6585，方向处理后的 score=0.017408。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 12.9192,
-            "display": "12.9192",
+            "value": 7.6584994,
+            "display": "7.6585",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.0075501568965554745,
-            "display": "0.007550",
+            "value": 0.017408019974707787,
+            "display": "0.017408",
             "unit": "",
             "note": "用于排序和组合构建"
           }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-27 13:51:32",
+  "generated_at": "2026-07-28 10:50:08",
   "factor_count": 149,
   "backtest_start_month": "2015-02",
   "backtest_end_month": "2026-05",
@@ -29,19 +29,19 @@
     "source": "data/factor_score_neutral.parquet",
     "has_quality_column": true,
     "warning_level": "warning",
-    "total_rows": 56340481,
+    "total_rows": 56269382,
     "quality_counts": {
-      "missing_input": 387874,
-      "insufficient_sample": 147,
-      "ok": 55952460
+      "ok": 55881360,
+      "missing_input": 387872,
+      "insufficient_sample": 150
     },
-    "insufficient_sample_rows": 147,
-    "affected_factors": 6,
-    "affected_factor_months": 133,
+    "insufficient_sample_rows": 150,
+    "affected_factors": 8,
+    "affected_factor_months": 135,
     "min_insufficient_valid_count": 1,
-    "missing_input_rows": 387874,
+    "missing_input_rows": 387872,
     "regression_failed_rows": 0,
-    "warning": "中性化质量提示：6 个因子、133 个因子-月份存在有效样本不足 3 个，相关中性化分数为空；对应 RankIC、回测和分层结果应降低结论权重。"
+    "warning": "中性化质量提示：8 个因子、135 个因子-月份存在有效样本不足 3 个，相关中性化分数为空；对应 RankIC、回测和分层结果应降低结论权重。"
   },
   "industry_classification_source": "wind_sw_pit_history",
   "industry_classification_limitation": "行业分层、行业中性组合和行业市值中性化均按Wind历史行业表的ENTRY_DT/REMOVE_DT判定各月末有效的申万一级行业归属。",

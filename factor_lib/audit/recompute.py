@@ -39,6 +39,12 @@ ROOT = Path(__file__).resolve().parents[2]
 WORD_V2_DEFAULT_SRC = ROOT / "资料" / "word_only_factor_data_direct_only_processed" / "parquet"
 WORD_V2_MISSING_SRC = ROOT / "资料" / "word_only_factor_data_42_missing_processed" / "parquet"
 FACTOR_GAP_SRC = ROOT / "资料" / "balance_sheet_interest_bearing_processed" / "parquet"
+FACTOR_UNLOCK_SRC = (
+    ROOT
+    / "资料"
+    / "unlock_monthly_pit_90d_from_free_float_calendar_processed"
+    / "parquet"
+)
 _WORD_V2_MODULE = None
 _DERIVED_MODULE = None
 
@@ -245,8 +251,18 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             holder = _read_word_v2_parquet(src, "holder_ext", ["S_INFO_WINDCODE", "ANN_DT", "S_HOLDER_NUM"], stocks)
             out = mod.build_holder_avg_chg(holder, price, keep_dates)
         else:
-            unlock = _read_word_v2_parquet(src, "unlock_ext", ["S_INFO_WINDCODE", "S_INFO_LISTDATE", "S_SHARE_LST"], stocks)
-            out = mod.build_unlock_mv_ratio(unlock, price, keep_dates)
+            unlock_monthly = _read_word_v2_parquet(
+                FACTOR_UNLOCK_SRC,
+                "unlock_monthly_pit_90d",
+                [
+                    "TRADE_DT", "S_INFO_WINDCODE", "UNLOCK_SHARES_90D",
+                    "UNLOCK_RATIO_90D",
+                ],
+                stocks,
+            )
+            out = mod.build_unlock_mv_ratio_monthly(
+                unlock_monthly, price, keep_dates
+            )
     elif code == "NBNETBUY":
         northbound = _read_word_v2_parquet(src, "northbound_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_QUANTITY"], stocks)
         out = mod.build_north_netbuy(northbound, keep_dates)
@@ -261,8 +277,16 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         ], stocks)
         out = mod.build_top10_holder(inside_holder, keep_dates)
     elif code == "UNLOCKPRESS":
-        unlock = _read_word_v2_parquet(src, "unlock_ext", ["S_INFO_WINDCODE", "S_INFO_LISTDATE", "S_SHARE_RATIO"], stocks)
-        out = mod.build_unlock_pressure(unlock, keep_dates)
+        unlock_monthly = _read_word_v2_parquet(
+            FACTOR_UNLOCK_SRC,
+            "unlock_monthly_pit_90d",
+            [
+                "TRADE_DT", "S_INFO_WINDCODE", "UNLOCK_SHARES_90D",
+                "UNLOCK_RATIO_90D",
+            ],
+            stocks,
+        )
+        out = mod.build_unlock_pressure_monthly(unlock_monthly, keep_dates)
     elif code == "MARGINBALCHG":
         margin = _read_word_v2_parquet(src, "margin_trading_ext", [
             "S_INFO_WINDCODE", "TRADE_DT", "S_MARGIN_TRADINGBALANCE",

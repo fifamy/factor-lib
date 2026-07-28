@@ -221,9 +221,9 @@ _DEFS = [
     (
         "UNLOCKPRESS", "投资者行为信息", "筹码结构", -1, "解禁压力",
         "word_v2", "UNLOCKPRESS", "future_window_sum",
-        "未来 90 日限售股解禁比例合计；潜在供给压力越高越不利。",
-        "UNLOCKPRESS = sum(S_SHARE_RATIO, 未来90日)。",
-        "AShareCompRestricted.S_INFO_LISTDATE; S_SHARE_RATIO",
+        "月末已知、未来 90 日限售股解禁比例合计；潜在供给压力越高越不利。",
+        "UNLOCKPRESS = sum(S_SHARE_LST / (S_SHARE_NONLST + S_SHARE_UNRESTRICTED) × 100, 未来90日)，且ANN_DT不晚于月末。",
+        "AShareFreeFloatCalendar.ANN_DT; S_INFO_LISTDATE; S_SHARE_LST; S_SHARE_NONLST; S_SHARE_UNRESTRICTED; S_SHARE_LST_IS_ANN",
         False,
     ),
     (
@@ -365,9 +365,9 @@ _DEFS = [
     (
         "UNLOCKMVRATIO", "事件驱动信息", "供给冲击", -1, "解禁市值/流通市值",
         "word_v2", "UNLOCKMVRATIO", "future_window_ratio",
-        "未来 90 日解禁股份占当前自由流通股比例；比例越高，供给冲击越大。",
-        "UNLOCKMVRATIO = sum(S_SHARE_LST, 未来90日) / FREE_SHARES_TODAY。",
-        "AShareCompRestricted.S_SHARE_LST; AShareEODPrices.FREE_SHARES_TODAY",
+        "月末已知、未来 90 日解禁股份占当前自由流通股比例；比例越高，供给冲击越大。",
+        "UNLOCKMVRATIO = sum(S_SHARE_LST × 10,000, 未来90日) / (FREE_SHARES_TODAY × 10,000)，且ANN_DT不晚于月末。",
+        "AShareFreeFloatCalendar.ANN_DT; S_INFO_LISTDATE; S_SHARE_LST; S_SHARE_LST_IS_ANN; AShareEODPrices.FREE_SHARES_TODAY",
         False,
     ),
     (
