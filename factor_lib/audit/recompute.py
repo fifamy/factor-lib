@@ -263,9 +263,6 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             out = mod.build_unlock_mv_ratio_monthly(
                 unlock_monthly, price, keep_dates
             )
-    elif code == "NBNETBUY":
-        northbound = _read_word_v2_parquet(src, "northbound_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_QUANTITY"], stocks)
-        out = mod.build_north_netbuy(northbound, keep_dates)
     elif code == "INSTHOLD":
         institution = _read_word_v2_parquet(src, "institution_holding_ext", [
             "S_INFO_WINDCODE", "REPORT_PERIOD", "S_HOLDER_PCT", "ANN_DATE",

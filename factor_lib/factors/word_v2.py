@@ -187,14 +187,6 @@ _DEFS = [
         False,
     ),
     (
-        "NBNETBUY", "投资者行为信息", "资金流", 1, "北向净买入",
-        "word_v2", "NBNETBUY", "mom_diff",
-        "北向持股数量月度变化，作为北向净买入近似；数量增加越多，外资边际买入越强。",
-        "NBNETBUY = S_QUANTITY - lag1(S_QUANTITY)，按个股月末序列计算。",
-        "SHSCChannelholdings.S_QUANTITY; TRADE_DT",
-        False,
-    ),
-    (
         "HOLDERAVGCHG", "投资者行为信息", "筹码结构", 1, "人均持股变化",
         "word_v2", "HOLDERAVGCHG", "mom_pct",
         "流通股本/股东户数的月度变化率；人均持股上升代表筹码趋于集中。",

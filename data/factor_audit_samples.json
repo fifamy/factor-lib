@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "generated_at": "2026-07-28 11:12:22",
+  "generated_at": "2026-07-29 08:54:03",
   "summary": {
-    "word_factor_count": 112,
-    "system_factor_count": 149,
+    "word_factor_count": 110,
+    "system_factor_count": 146,
     "matched_count": 63,
-    "word_only_count": 49,
-    "system_extra_count": 86,
-    "computed_count": 149,
-    "pending_data_count": 49,
+    "word_only_count": 47,
+    "system_extra_count": 83,
+    "computed_count": 146,
+    "pending_data_count": 47,
     "metadata_gap_count": 0
   },
   "factors": [
@@ -3874,80 +3874,6 @@
         "score": null,
         "steps": [
           "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
-        ],
-        "inputs": []
-      }
-    },
-    {
-      "id": "3.1.1",
-      "status": "word_only",
-      "support_status": "pending_data",
-      "word_number": "3.1.1",
-      "word_name": "北向净买入",
-      "word_level0": "投资者行为信息",
-      "word_level1": "资金流类",
-      "word_direction": "正向（北向资金净流入越高，说明外资边际配置意愿较强，股票可能获得资金面支持。）",
-      "word_formula": "北向净买入=近N日北向资金累计净买入金额",
-      "system_code": "NORTH_NETBUY",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：北向净买入=近N日北向资金累计净买入金额",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
-      "detail_url": "",
-      "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
-      ],
-      "required_data": [],
-      "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
-        "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
-        ],
-        "inputs": []
-      }
-    },
-    {
-      "id": "3.1.2",
-      "status": "word_only",
-      "support_status": "pending_data",
-      "word_number": "3.1.2",
-      "word_name": "北向持股比例变化",
-      "word_level0": "投资者行为信息",
-      "word_level1": "资金流类",
-      "word_direction": "正向（北向资金持股比例提升越明显，说明外资边际配置意愿较强，股票可能获得资金面支持。）",
-      "word_formula": "北向持股比例变化=本期北向持股比例-上期北向持股比例； 其中，北向持股比例为北向持股市值与自由流通市值之比。",
-      "system_code": "NORTH_HOLD_CHG",
-      "system_name_cn": "",
-      "system_l1": "",
-      "system_l2": "",
-      "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：北向持股比例变化=本期北向持股比例-上期北向持股比例； 其中，北向持股比例为北向持股市值与自由流通市值之比。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
-      "catalog_v2_status": "",
-      "detail_url": "",
-      "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
-      ],
-      "required_data": [],
-      "sample": {
-        "trade_date": "",
-        "stock_code": "",
-        "stock_name": "",
-        "raw_value": null,
-        "score": null,
-        "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
         ],
         "inputs": []
       }
@@ -7844,168 +7770,6 @@
             "label": "方向处理后标准化分数 score",
             "value": 0.0,
             "display": "0.000000",
-            "unit": "",
-            "note": "用于排序和组合构建"
-          }
-        ]
-      }
-    },
-    {
-      "id": "NBHOLDCHG",
-      "status": "system_extra",
-      "support_status": "computed",
-      "word_number": "",
-      "word_name": "",
-      "word_level0": "",
-      "word_level1": "",
-      "word_direction": "",
-      "word_formula": "",
-      "system_code": "NBHOLDCHG",
-      "system_name_cn": "北向持股变化",
-      "system_l1": "投资者行为信息",
-      "system_l2": "资金流类",
-      "system_direction": "正向",
-      "system_formula": "北向持股变化 = SHSCChannelholdings（陆股通持股）.S_RATIO（月度差分）",
-      "system_wind_source": "SHSCChannelholdings（陆股通持股）.S_RATIO",
-      "catalog_v2_status": "computed",
-      "detail_url": "",
-      "warnings": [
-        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
-      ],
-      "required_data": [],
-      "sample": {
-        "trade_date": "2024-07-31",
-        "stock_code": "603660.SH",
-        "stock_name": "苏州科达",
-        "raw_value": 0.0,
-        "score": -0.11308299707525608,
-        "steps": [
-          "选取最新截面 2024-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=-0.113083。",
-          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
-        ],
-        "inputs": [
-          {
-            "field": "raw_value",
-            "label": "系统原始因子值 raw_value",
-            "value": 0.0,
-            "display": "0.000000",
-            "unit": "",
-            "note": "来自当前因子落地结果"
-          },
-          {
-            "field": "score",
-            "label": "方向处理后标准化分数 score",
-            "value": -0.11308299707525608,
-            "display": "-0.113083",
-            "unit": "",
-            "note": "用于排序和组合构建"
-          }
-        ]
-      }
-    },
-    {
-      "id": "NBNETBUY",
-      "status": "system_extra",
-      "support_status": "computed",
-      "word_number": "",
-      "word_name": "",
-      "word_level0": "",
-      "word_level1": "",
-      "word_direction": "",
-      "word_formula": "",
-      "system_code": "NBNETBUY",
-      "system_name_cn": "北向净买入",
-      "system_l1": "投资者行为信息",
-      "system_l2": "资金流类",
-      "system_direction": "正向",
-      "system_formula": "NBNETBUY = S_QUANTITY - lag1(S_QUANTITY)，按个股月末序列计算。",
-      "system_wind_source": "SHSCChannelholdings.S_QUANTITY; TRADE_DT",
-      "catalog_v2_status": "computed",
-      "detail_url": "",
-      "warnings": [
-        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
-      ],
-      "required_data": [],
-      "sample": {
-        "trade_date": "2024-07-31",
-        "stock_code": "603989.SH",
-        "stock_name": "艾华集团",
-        "raw_value": 21044.0,
-        "score": 0.0,
-        "steps": [
-          "选取最新截面 2024-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=21,044.00，方向处理后的 score=0.000000。",
-          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
-        ],
-        "inputs": [
-          {
-            "field": "raw_value",
-            "label": "系统原始因子值 raw_value",
-            "value": 21044.0,
-            "display": "21,044.00",
-            "unit": "",
-            "note": "来自当前因子落地结果"
-          },
-          {
-            "field": "score",
-            "label": "方向处理后标准化分数 score",
-            "value": 0.0,
-            "display": "0.000000",
-            "unit": "",
-            "note": "用于排序和组合构建"
-          }
-        ]
-      }
-    },
-    {
-      "id": "NBRATIO",
-      "status": "system_extra",
-      "support_status": "computed",
-      "word_number": "",
-      "word_name": "",
-      "word_level0": "",
-      "word_level1": "",
-      "word_direction": "",
-      "word_formula": "",
-      "system_code": "NBRATIO",
-      "system_name_cn": "北向持股占比",
-      "system_l1": "投资者行为信息",
-      "system_l2": "资金流类",
-      "system_direction": "正向",
-      "system_formula": "北向持股占比 = SHSCChannelholdings（陆股通持股）.S_RATIO（当月值）",
-      "system_wind_source": "SHSCChannelholdings（陆股通持股）.S_RATIO",
-      "catalog_v2_status": "computed",
-      "detail_url": "",
-      "warnings": [
-        "系统已计算，但 Word v2 原正文未单列；已按新增因子展示。"
-      ],
-      "required_data": [],
-      "sample": {
-        "trade_date": "2026-03-31",
-        "stock_code": "301507.SZ",
-        "stock_name": "民生健康",
-        "raw_value": 0.79,
-        "score": -0.0025094989043297233,
-        "steps": [
-          "选取最新截面 2026-03-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.790000，方向处理后的 score=-0.002509。",
-          "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
-        ],
-        "inputs": [
-          {
-            "field": "raw_value",
-            "label": "系统原始因子值 raw_value",
-            "value": 0.79,
-            "display": "0.790000",
-            "unit": "",
-            "note": "来自当前因子落地结果"
-          },
-          {
-            "field": "score",
-            "label": "方向处理后标准化分数 score",
-            "value": -0.0025094989043297233,
-            "display": "-0.002509",
             "unit": "",
             "note": "用于排序和组合构建"
           }

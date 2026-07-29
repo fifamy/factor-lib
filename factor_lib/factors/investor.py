@@ -1,9 +1,8 @@
 """投资者行为信息类因子（技术文档 3.1~3.3）。
 
-原始值来自 download_investor_factors.py 下载的 4 个 CSV，由 02d_load_investor_factors.py 取值。
+原始值来自 download_investor_factors.py 下载的 3 个 CSV，由 02d_load_investor_factors.py 取值。
 有两类取法（transform）：
-  - level   ：直接用字段当月值（预期变化、分歧度、主力净流入强度、北向占比）
-  - mom_diff：逐股月度差分（北向持股占比变化）
+  - level   ：直接用字段当月值（预期变化、分歧度、主力净流入强度）
   - mom_pct ：逐股月度变化率（股东户数变化）
 
 注意：02b 不 import 本模块，所以这批因子不走 02b；由独立的 02d 加载。03/06 import 本模块取元数据。
@@ -30,10 +29,6 @@ _DEFS = [
     # ---- 3.1 资金流类 ----
     ("MAINFLOW", "资金流", 1, "主力净流入强度", "moneyflow", "MAINFORCE_NET_RATIO", "level",
      "近20交易日(机构+大户)净流入 / 近20日总成交额；主力资金净买入越强越好。"),
-    ("NBRATIO", "资金流", 1, "北向持股占比", "northbound", "S_RATIO", "level",
-     "陆股通(北向)持股占流通股比例；外资偏好，仅覆盖陆股通标的。"),
-    ("NBHOLDCHG", "资金流", 1, "北向持股变化", "northbound", "S_RATIO", "mom_diff",
-     "北向持股占比的月度变化(本月−上月，百分点)；北向净增持，正向。"),
     # ---- 3.2 筹码结构类 ----
     ("HOLDERCHG", "筹码结构", -1, "股东户数变化", "holdernum", "S_HOLDER_NUM", "mom_pct",
      "股东户数月度变化率；户数减少=筹码集中(通常利好)，方向负。"),
@@ -46,7 +41,6 @@ _DEFS = [
 _WIND_TABLE = {
     "consensus": "ConsensusExpectationFactor",
     "moneyflow": "AShareMoneyFlow（日频→近20日聚合）",
-    "northbound": "SHSCChannelholdings（陆股通持股）",
     "holdernum": "AShareHolderNumber（ANN_DT PIT 对齐）",
     "holderconc": "AShareHolderNumber + price_panel（户均流通股，本地算）",
 }

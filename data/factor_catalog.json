@@ -121,7 +121,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期转强"
   },
   {
@@ -1286,7 +1286,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1555,46 +1555,6 @@
     "time_tag": "持续低效"
   },
   {
-    "code": "NBRATIO",
-    "name_cn": "北向持股占比",
-    "l1": "投资者行为信息",
-    "l2": "资金流类",
-    "direction": 1,
-    "description": "陆股通(北向)持股占流通股比例；外资偏好，仅覆盖陆股通标的。",
-    "formula": "北向持股占比 = SHSCChannelholdings（陆股通持股）.S_RATIO（当月值）",
-    "wind_source": "SHSCChannelholdings（陆股通持股）.S_RATIO",
-    "v2_status": "computed",
-    "positive_only": false,
-    "is_event": false,
-    "usage_status": "limited_update",
-    "combo_policy": "block",
-    "usage_note": "2024-09起数据仅在季末更新，不能代表月度最新北向持股状态；保留历史分析，暂不允许加入新组合。",
-    "data_end_date": "2026-03-31",
-    "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "近期失效"
-  },
-  {
-    "code": "NBHOLDCHG",
-    "name_cn": "北向持股变化",
-    "l1": "投资者行为信息",
-    "l2": "资金流类",
-    "direction": 1,
-    "description": "北向持股占比的月度变化(本月−上月，百分点)；北向净增持，正向。",
-    "formula": "北向持股变化 = SHSCChannelholdings（陆股通持股）.S_RATIO（月度差分）",
-    "wind_source": "SHSCChannelholdings（陆股通持股）.S_RATIO",
-    "v2_status": "computed",
-    "positive_only": false,
-    "is_event": false,
-    "usage_status": "historical_only",
-    "combo_policy": "block",
-    "usage_note": "2024-07后缺少连续月度持股比例快照，无法继续计算严格月度变化；仅保留历史研究。",
-    "data_end_date": "2024-07-31",
-    "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "近期失效"
-  },
-  {
     "code": "HOLDERCHG",
     "name_cn": "股东户数变化",
     "l1": "投资者行为信息",
@@ -1656,7 +1616,7 @@
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
     ],
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2550,26 +2510,6 @@
     "time_tag": "近期转强"
   },
   {
-    "code": "NBNETBUY",
-    "name_cn": "北向净买入",
-    "l1": "投资者行为信息",
-    "l2": "资金流类",
-    "direction": 1,
-    "description": "北向持股数量月度变化，作为北向净买入近似；数量增加越多，外资边际买入越强。",
-    "formula": "NBNETBUY = S_QUANTITY - lag1(S_QUANTITY)，按个股月末序列计算。",
-    "wind_source": "SHSCChannelholdings.S_QUANTITY; TRADE_DT",
-    "v2_status": "computed",
-    "positive_only": false,
-    "is_event": false,
-    "usage_status": "historical_only",
-    "combo_policy": "block",
-    "usage_note": "2024-07后缺少连续月度持股数量快照，无法继续计算严格月度净买入近似；仅保留历史研究。",
-    "data_end_date": "2024-07-31",
-    "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
-  },
-  {
     "code": "HOLDERAVGCHG",
     "name_cn": "人均持股变化",
     "l1": "投资者行为信息",
@@ -2591,7 +2531,7 @@
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
     ],
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
