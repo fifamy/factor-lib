@@ -117,6 +117,35 @@ def test_compare_fast_table_uses_effective_annualization_for_rank_ic_ir():
     assert "latestIcir" not in body
 
 
+def test_ranking_fast_path_preserves_month_labels_for_rank_ic_ir():
+    source = APP_JS.read_text(encoding="utf-8")
+    ranking_body = _source_between(source, "async function computeRankingFast", "async function computeRanking(")
+    stats_helpers = _source_between(source, "function monthIdFromLabel", "function memberForwardReturn")
+    slice_helpers = _source_between(source, "function labelsByIndexes", "function sliceBacktestByRange")
+    ranking = json.loads((FRONTEND_DATA / "factor_ranking_snapshot.json").read_text(encoding="utf-8"))
+    sample = next(
+        row for row in ranking["factors"]
+        if row.get("rank_ic_ir_1m") is not None and abs(float(row["rank_ic_ir_1m"])) > 1e-6
+    )
+
+    assert "rankIcStats(labelsByIndexes(months, idxs)" in ranking_body
+    assert "rankIcStats(sliceByIndexes(months, idxs)" not in ranking_body
+
+    result = _frontend_eval_json([
+        stats_helpers,
+        slice_helpers,
+        f"const months = {json.dumps(ranking['months'])};",
+        f"const values = {json.dumps(sample['rank_ic'])};",
+        "const idxs = rangeFilterIndexes(months, months[0], months[months.length - 1]);",
+        "const stats = rankIcStats(labelsByIndexes(months, idxs), sliceByIndexes(values, idxs), 1, 1);",
+        "console.log(JSON.stringify(stats));",
+    ])
+
+    assert result["ir"] is not None
+    assert abs(float(result["ir"])) > 1e-6
+    assert math.isclose(float(result["ir"]), float(sample["rank_ic_ir_1m"]), rel_tol=0, abs_tol=1e-4)
+
+
 def test_frontend_compute_metrics_uses_backend_sharpe_definition():
     source = APP_JS.read_text(encoding="utf-8")
     body = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")

@@ -5091,7 +5091,8 @@ async function computeRankingFast(startMonth, endMonth) {
   const rows = [];
   for (const f of snap.factors || []) {
     const rets = sliceByIndexes(f[retKey] || f.top30_ret, idxs).map(v => Number(v) * side);
-    const rankStats = rankIcStats(sliceByIndexes(months, idxs), sliceByIndexes(f[icKey] || f.rank_ic, idxs), side, 1);
+    // 月份标签不能走数值切片；否则 "YYYY-MM" 会被 Number() 过滤，IC_IR 因缺少年化频率而回退为 0。
+    const rankStats = rankIcStats(labelsByIndexes(months, idxs), sliceByIndexes(f[icKey] || f.rank_ic, idxs), side, 1);
     const decayStats = filteredIcDecayStats(f[decayKey], side, startMonth, endMonth);
     const decayMean = (h) => {
       const item = decayStats.find(s => s.h === h);
