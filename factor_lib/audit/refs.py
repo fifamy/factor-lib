@@ -340,6 +340,30 @@ def _upvolratio(win, ctx):
     return v, [f"上涨日成交额占比(20d) = {v:.6f}"]
 
 
+@_ref("VR")
+def _vr(win, ctx):
+    """24 日成交量比率：上涨日量合计 / 下跌日量合计，平盘日不计。"""
+    if win.height < 25:
+        return None, []
+    w = win.tail(25)
+    p = w["adj_close"].to_numpy().astype(float)
+    volume = w["volume"].to_numpy().astype(float)[1:]
+    change = np.diff(p)
+    valid = np.isfinite(change) & np.isfinite(volume) & (volume >= 0)
+    if valid.sum() != 24:
+        return None, []
+    up_volume = float(volume[(change > 0) & valid].sum())
+    down_volume = float(volume[(change < 0) & valid].sum())
+    if down_volume <= 0:
+        return None, []
+    value = up_volume / down_volume
+    return value, [
+        f"近24日上涨日成交量合计={up_volume:.4f}",
+        f"近24日下跌日成交量合计={down_volume:.4f}",
+        f"VR24=上涨日量/下跌日量={value:.6f}（平盘日不计）",
+    ]
+
+
 @_ref("ABTURN")
 def _abturn(win, ctx):
     """异常换手率：当日换手率相对近60日的Z分数。"""

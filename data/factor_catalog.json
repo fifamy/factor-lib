@@ -1865,26 +1865,6 @@
     "time_tag": "长期稳定型"
   },
   {
-    "code": "VR",
-    "name_cn": "成交量比率VR",
-    "l1": "市场交易信息",
-    "l2": "价量配合类",
-    "direction": -1,
-    "description": "成交量比率（上涨日量 / 下跌日量）；实测高者后续收益偏低，按 RankIC 取负向。",
-    "formula": "成交量比率VR = TurnoverTechnicalFactor.S_TECH_VR（当月值）",
-    "wind_source": "TurnoverTechnicalFactor.S_TECH_VR",
-    "v2_status": "computed",
-    "positive_only": false,
-    "is_event": false,
-    "usage_status": "black_box",
-    "combo_policy": "block",
-    "usage_note": "Wind字段S_TECH_VR的窗口、平盘成交量处理和倍率定义尚未取得；可查看历史结果，不用于需要可解释公式的新组合。",
-    "data_end_date": null,
-    "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱"
-  },
-  {
     "code": "TURNVOL20",
     "name_cn": "换手率波动(20D)",
     "l1": "市场交易信息",
@@ -2003,6 +1983,26 @@
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
     "time_tag": "近期转强"
+  },
+  {
+    "code": "VR",
+    "name_cn": "成交量比率VR(24D)",
+    "l1": "市场交易信息",
+    "l2": "价量配合类",
+    "direction": -1,
+    "description": "近24个交易日上涨日成交量合计除以下跌日成交量合计；涨跌按复权收盘价判断，平盘日成交量不进入分子或分母。实测高者后续收益偏低，方向取负。",
+    "formula": "VR24 = sum(S_DQ_VOLUME | S_DQ_ADJCLOSE_t>S_DQ_ADJCLOSE_{t-1},24D) / sum(S_DQ_VOLUME | S_DQ_ADJCLOSE_t<S_DQ_ADJCLOSE_{t-1},24D)",
+    "wind_source": "AShareEODPrices.S_DQ_ADJCLOSE; S_DQ_VOLUME",
+    "v2_status": "computed",
+    "positive_only": false,
+    "is_event": false,
+    "usage_status": "standard",
+    "combo_policy": "allow",
+    "usage_note": "",
+    "data_end_date": null,
+    "combo_exclusion_groups": [],
+    "env_tag": "全天候型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "AROON",

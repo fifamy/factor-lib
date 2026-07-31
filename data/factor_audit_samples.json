@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-29 08:54:03",
+  "generated_at": "2026-07-31 08:53:56",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -10020,8 +10020,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "价量配合类",
       "system_direction": "负向",
-      "system_formula": "成交量比率VR = TurnoverTechnicalFactor.S_TECH_VR（当月值）",
-      "system_wind_source": "TurnoverTechnicalFactor.S_TECH_VR",
+      "system_formula": "VR24 = sum(S_DQ_VOLUME | S_DQ_ADJCLOSE_t>S_DQ_ADJCLOSE_{t-1},24D) / sum(S_DQ_VOLUME | S_DQ_ADJCLOSE_t<S_DQ_ADJCLOSE_{t-1},24D)",
+      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE; S_DQ_VOLUME",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -10030,29 +10030,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-05-29",
-        "stock_code": "301325.SZ",
-        "stock_name": "曼恩斯特",
-        "raw_value": 0.94620159,
-        "score": 0.00026860569061001974,
+        "stock_code": "603190.SH",
+        "stock_name": "亚通精工",
+        "raw_value": 0.9459998701941572,
+        "score": -0.0,
         "steps": [
           "选取最新截面 2026-05-29 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.946202，方向处理后的 score=0.000269。",
+          "系统输出 raw_value=0.946000，方向处理后的 score=-0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.94620159,
-            "display": "0.946202",
+            "value": 0.9459998701941572,
+            "display": "0.946000",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.00026860569061001974,
-            "display": "0.000269",
+            "value": -0.0,
+            "display": "-0.000000",
             "unit": "",
             "note": "用于排序和组合构建"
           }

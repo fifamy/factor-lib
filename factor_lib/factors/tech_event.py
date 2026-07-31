@@ -1,13 +1,13 @@
-"""技术扩充 + 业绩快报事件类因子（本批新接入的 4 个 Wind CSV）。
+"""技术扩充 + 业绩快报事件类因子。
 
 大部分原始值来自资料/download_more_factors.py下载的Wind CSV，由02f_load_more_factors.py取值：
   revtech.csv   —— 收益风险技术（RevenueTechnicalFactor，TRADE_DT 月末直取）
-  turntech.csv  —— 换手量价技术（TurnoverTechnicalFactor，TRADE_DT 月末直取）
+  turntech.csv  —— 换手量价技术（除 VR 外，TRADE_DT 月末直取）
   mktderiv.csv  —— 市场衍生（仅保留股价偏度月末直取；AROON/MFLOW20/RVI由日行情回算）
   profitexpress.csv —— 业绩快报（AShareProfitExpress，已 PIT as-of 对齐月末）→ 事件驱动
 
 取值方式（transform）：
-  - level       ：直接用字段当月值（前 12 个技术因子）
+  - level       ：直接用字段当月值
   - event_first ：业绩快报「首次出现」——只在该期快报首次进入截面的月末发出值，其余月份缺失。
                   由 02f 用 EXPRESS_AGE 反推报告期、检测报告期跳进实现（真正的事件信号，不 carry-forward）。
 
@@ -37,8 +37,6 @@ _DEFS = [
      "20日 / 120日换手率比；越高交易越拥挤，拥挤度回撤风险大，故负向。"),
     ("VOL1M60",  "市场交易信息", "量价技术", -1, "量能比(20/60)", "turntech", "S_TECH_VOLUME1M60", "level",
      "20日 / 60日成交量比；A股实测放量者后续收益偏低（拥挤/反转），按 RankIC 取负向。"),
-    ("VR",       "市场交易信息", "量价技术", -1, "成交量比率VR", "turntech", "S_TECH_VR", "level",
-     "成交量比率（上涨日量 / 下跌日量）；实测高者后续收益偏低，按 RankIC 取负向。"),
     ("TURNVOL20", "市场交易信息", "量价技术", -1, "换手率波动(20D)", "turntech", "S_TECH_TURNOVERRATEVOL20", "level",
      "换手率相对波动率；换手不稳定=交易结构不稳，故负向。"),
     # ============ mktderiv：市场衍生（市场交易信息·趋势资金）============
@@ -82,6 +80,61 @@ def _recent(panel: pl.DataFrame, asof: date, window: int) -> pl.DataFrame:
             pl.col("trade_date").rank("ordinal", descending=True).over("stock_code").alias("_rk")
         )
         .filter(pl.col("_rk") <= window)
+    )
+
+
+@factor(
+    code="VR",
+    l1="市场交易信息",
+    l2="量价技术",
+    direction=-1,
+    name_cn="成交量比率VR(24D)",
+    formula=(
+        "VR24 = sum(S_DQ_VOLUME | S_DQ_ADJCLOSE_t>S_DQ_ADJCLOSE_{t-1},24D) / "
+        "sum(S_DQ_VOLUME | S_DQ_ADJCLOSE_t<S_DQ_ADJCLOSE_{t-1},24D)"
+    ),
+    wind_source="AShareEODPrices.S_DQ_ADJCLOSE; S_DQ_VOLUME",
+    description=(
+        "近24个交易日上涨日成交量合计除以下跌日成交量合计；涨跌按复权收盘价判断，"
+        "平盘日成交量不进入分子或分母。实测高者后续收益偏低，方向取负。"
+    ),
+)
+def vr(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
+    """用 25 个价格观测构造 24 个涨跌比较，平盘日成交量不计入。"""
+    h = (
+        _recent(panel, asof, 25)
+        .sort(["stock_code", "trade_date"])
+        .with_columns(pl.col("adj_close").shift(1).over("stock_code").alias("_prev_close"))
+        .with_columns(
+            (
+                pl.col("adj_close").is_not_null()
+                & pl.col("_prev_close").is_not_null()
+                & pl.col("volume").is_not_null()
+                & (pl.col("volume") >= 0)
+            ).alias("_valid")
+        )
+        .with_columns([
+            pl.when(pl.col("_valid") & (pl.col("adj_close") > pl.col("_prev_close")))
+            .then(pl.col("volume"))
+            .otherwise(0.0)
+            .alias("_up_volume"),
+            pl.when(pl.col("_valid") & (pl.col("adj_close") < pl.col("_prev_close")))
+            .then(pl.col("volume"))
+            .otherwise(0.0)
+            .alias("_down_volume"),
+        ])
+    )
+    return (
+        h.group_by("stock_code")
+        .agg([
+            pl.col("_up_volume").sum().alias("_up_sum"),
+            pl.col("_down_volume").sum().alias("_down_sum"),
+            pl.col("_valid").sum().alias("_n_valid"),
+        ])
+        .filter((pl.col("_n_valid") == 24) & (pl.col("_down_sum") > 0))
+        .with_columns((pl.col("_up_sum") / pl.col("_down_sum")).alias("value"))
+        .select(["stock_code", "value"])
+        .filter(pl.col("value").is_finite())
     )
 
 
