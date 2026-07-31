@@ -1,13 +1,15 @@
 {
   "version": 1,
-  "generated_at": "2026-07-29 16:48:17+0800",
+  "generated_at": "2026-07-31 11:35:59+0800",
   "summary": {
     "target_count": 38,
     "dictionary_missing_count": 0,
     "local_available_count": 31,
     "download_count": 7,
     "blocking_download_count": 0,
-    "optional_download_count": 7
+    "optional_download_count": 7,
+    "actionable_download_count": 0,
+    "deferred_optional_count": 7
   },
   "targets": [
     {
@@ -24,7 +26,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "收盘价(元)",
       "dictionary_description": "该证券在当日交易结束时的最后一笔成交价格；若无成交，则以前一笔价格为准。回购的量纲为%，指数无量纲。",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -39,7 +42,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "应收账款(元)",
       "dictionary_description": "因销售活动或提供劳务而形成的债权；指企业在正常的经营过程中因销售商品、产品、提供劳务等业务，应向购买单位收取的款项，包括应由购买单位或接受劳务单位负担的税金、代购买方垫付的各种运杂费等；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -54,7 +58,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "应收票据(元)",
       "dictionary_description": "一般指的是一年以内（含一年）的短期应收取的票据；指由付款人或收款人签发、由付款人承兑、到期无条件付款的一种书面凭证；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -69,7 +74,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "应收票据及应收账款(元)",
       "dictionary_description": "应收票据与应收账款合计；反映资产负债表日以摊余成本计量的、企业因销售商品、提供服务等经营活动应收取的款项，以及收到的商业汇票，包括银行承兑汇票和商业承兑汇票该项目应根据“应收票据”和“应收账款”科目的期末余额，减去“坏账准备”科目中相关坏账准备期末余额后的金额填列；",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -84,7 +90,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "增长率-经营活动产生的现金流量净额（TTM)(%)",
       "dictionary_description": "(本期CFO(TTM)-上年同期CFO(TTM))/ABS(上年同期CFO(TTM))*100",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -99,7 +106,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "经营活动产生的现金流量净额(元)",
       "dictionary_description": "与经营活动相关的现金流量的净增加或减少的金额；是指企业与经营活动有关的现金流入金额减去现金流出净额；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -116,7 +124,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "现金分红总额(元)",
       "dictionary_description": "上市公司分红公告披露的不含其他方式（比如股份回购）的现金分红总额，含税",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -131,7 +140,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "市盈率(倍)",
       "dictionary_description": "当日收盘价*预测基准股本综合值/一致预测净利润（若当日未非工作日，未有收盘价，则为空",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -146,7 +156,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "商誉(元)",
       "dictionary_description": "企业在同等条件下，等获得高于正常投资报酬率所形成的价值；指企业在同等条件下，能获得高于正常投资报酬率所形成的价值；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -161,7 +172,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "资产减值损失/营业总收入(TTM)(%)",
       "dictionary_description": "资产减值损失占营业总收入的比重，反映企业资产减值损失的整体情况(TTM)",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -176,7 +188,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "资产负债率(MRQ)(%)",
       "dictionary_description": "截止指定日已披露的最新报告期数据",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -191,7 +204,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "增长率-营业利润(TTM)(%)",
       "dictionary_description": "(本期营业利润(TTM)-上年同期营业利润(TTM))/ABS(上年同期营业利润(TTM))*100",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -206,7 +220,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "营业利润(TTM)(元)",
       "dictionary_description": "前推12个月营业利润",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -221,7 +236,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "研发费用(元)",
       "dictionary_description": "企业研究与开发某项目所支付的费用；研发费用是指研究与开发某项目所支付的费用；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -236,7 +252,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "回购金额(元)",
       "dictionary_description": "实施证券回购所支付的金额；回购预计使用总金额；截止日实际回购使用的总金额；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -251,7 +268,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "回购股数占总股本比例(%)",
       "dictionary_description": "实施证券回购所涉及的股份数量占本公司总股本的比例；预计回购股份总数占当前上市公司总股本的比例；截止日实际回购总数量占当前上市公司总股本的比例；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -266,7 +284,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "预计回购金额下限(元)",
       "dictionary_description": "预计本次事件回购所使用金额的最小值",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -281,7 +300,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "预计回购金额上限(元)",
       "dictionary_description": "预计本次事件回购所使用金额的最大值",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -297,7 +317,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "平均价格(元)",
       "dictionary_description": "记录持有人增减持的平均价格",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -313,7 +334,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "变动数量(股/张)",
       "dictionary_description": "记录持有人增减持变动的数量",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -328,7 +350,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "变更项目代码",
       "dictionary_description": "可关联AShareTypeCode获取代码对应名称",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -343,7 +366,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "激励数量占当前总股本比例(%)",
       "dictionary_description": "上市公司在股权激励授予的股票/期权总量占总股本的百分比",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -358,7 +382,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "占本次授予时公司总股本比例",
       "dictionary_description": "%",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -373,7 +398,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "处罚金额(元)",
       "dictionary_description": "",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -388,7 +414,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "违规类型代码",
       "dictionary_description": "违规行为的类别代码，包括业绩预测结果不准确或不及时、信息披露虚假或严重误导性陈述、未依法履行其他职责、未及时披露公司重大事项、未按时披露定期报告",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -403,7 +430,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "是否最终处罚",
       "dictionary_description": "1或空是被最终处罚，0是未被最终处罚",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -418,7 +446,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "违规事件ID",
       "dictionary_description": "用来关联同一违规事件下的不同违规主体，一个事件有一个违规事件ID，唯一且不重复，违规事件ID的格式为“YYMMDD+英文字母(AC)+顺序号”",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -433,7 +462,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "开始公告日期",
       "dictionary_description": "",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -449,7 +479,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "限售股上市日期",
       "dictionary_description": "股份上市流通的日期",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -465,7 +496,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "上市股份数量",
       "dictionary_description": "当期股份上市流通的数量；本项目回传样本与AShareCompRestricted交叉核验后按万股口径接入",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -481,7 +513,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "公告日期",
       "dictionary_description": "公告发布当天的日期",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -496,7 +529,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "未上市股份数量",
       "dictionary_description": "公司未上市流通的股份总量",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -511,7 +545,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "无限售条件股份数量（万股）",
       "dictionary_description": "公司已上市流通的股份总量",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -527,7 +562,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "上市数量是否公布值",
       "dictionary_description": "0为预测值；1为实际公布值",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -542,7 +578,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "自由流通股本(万股)",
       "dictionary_description": "经流通股本扣除包括股东持有等其他应扣除股份后得到的股份数目；剔除不流通股份，以及由于战略持股形式或其他原始导致的基本不流通的股份，剩余的股份数；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -557,7 +594,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "开盘价(元)",
       "dictionary_description": "是当日股票交易价格的第一个价格，如果当日集合竞价没有成交，就以上一日的收盘价为当日的开盘价；当前基金在交易所当天的开盘价；交易当天的开盘成交价格，回购的量纲为%，指数无量纲；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -572,7 +610,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "收盘价(元)",
       "dictionary_description": "当日股票交易价格的最后一个价格，如果收盘集中竞价没有价格，就以上一笔价格为当日收盘价格；当前基金在交易所当天的收盘价；交易当天的收盘成交价格，回购的量纲为%，指数无量纲；",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -587,7 +626,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "净利润(万元)",
       "dictionary_description": "取综合值周期时间范围内（180），同一报告期同一机构只取最新预测净利润EST_NET_PROFIT，若最新预测净利润为空，取预测净利润（换算）S_EST_NPCAL，取综合值计算标记（中国A股盈利预测明细）为1，算数平均得到",
-      "local_status": "available"
+      "local_status": "available",
+      "planning_status": "deferred_optional"
     }
   ],
   "download_list": [
@@ -604,7 +644,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "应收票据及应收账款(元)",
       "dictionary_description": "应收票据与应收账款合计；反映资产负债表日以摊余成本计量的、企业因销售商品、提供服务等经营活动应收取的款项，以及收到的商业汇票，包括银行承兑汇票和商业承兑汇票该项目应根据“应收票据”和“应收账款”科目的期末余额，减去“坏账准备”科目中相关坏账准备期末余额后的金额填列；",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -619,7 +660,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "预计回购金额下限(元)",
       "dictionary_description": "预计本次事件回购所使用金额的最小值",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -634,7 +676,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "预计回购金额上限(元)",
       "dictionary_description": "预计本次事件回购所使用金额的最大值",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -649,7 +692,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "占本次授予时公司总股本比例",
       "dictionary_description": "%",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -664,7 +708,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "违规类型代码",
       "dictionary_description": "违规行为的类别代码，包括业绩预测结果不准确或不及时、信息披露虚假或严重误导性陈述、未依法履行其他职责、未及时披露公司重大事项、未按时披露定期报告",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -679,7 +724,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "是否最终处罚",
       "dictionary_description": "1或空是被最终处罚，0是未被最终处罚",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     },
     {
       "factor_codes": [
@@ -694,7 +740,8 @@
       "dictionary_status": "found",
       "dictionary_field_cn": "违规事件ID",
       "dictionary_description": "用来关联同一违规事件下的不同违规主体，一个事件有一个违规事件ID，唯一且不重复，违规事件ID的格式为“YYMMDD+英文字母(AC)+顺序号”",
-      "local_status": "missing"
+      "local_status": "missing",
+      "planning_status": "deferred_optional"
     }
   ]
 }

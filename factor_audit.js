@@ -608,7 +608,10 @@ function renderRetainedReviewReport() {
   }) : allRows;
   const summary = retainedReviewReport.summary || {};
   const scope = normalizedQuery ? `${rows.length}/${allRows.length}项` : `${allRows.length}项`;
-  countEl.textContent = `${scope}：保留${summary.retained_issue_factor_count || 0} · 已修改${summary.reclassified_fixed_count || 0} · 转待处理${summary.reclassified_pending_count || 0}`;
+  const sourceProblemGaps = summary.source_missing_problem_count ?? summary.missing_problem_count ?? 0;
+  const sourceSuggestionGaps = summary.source_missing_suggestion_count ?? summary.missing_suggestion_count ?? 0;
+  const currentDecisionGaps = summary.current_decision_gap_count ?? 0;
+  countEl.textContent = `${scope}：保留${summary.retained_issue_factor_count || 0} · 已修改${summary.reclassified_fixed_count || 0} · 转待处理${summary.reclassified_pending_count || 0} · 原人工文本缺项${sourceProblemGaps}/${sourceSuggestionGaps} · 当前处置缺口${currentDecisionGaps}`;
   root.innerHTML = rows.map(row => `
     <tr>
       <td>${resolutionStatusCell({ resolution_status: row.resolution_status })}</td>
@@ -619,8 +622,8 @@ function renderRetainedReviewReport() {
         </button>
         <small>${esc(row.l1)} / ${esc(row.l2)}</small>
       </td>
-      <td>${retainedReportLines(row.manual_problem)}</td>
-      <td>${retainedReportLines(row.manual_suggestion)}</td>
+      <td>${retainedReportLines(row.manual_problem, "原人工记录未填写；以右侧当前核验结论为准")}</td>
+      <td>${retainedReportLines(row.manual_suggestion, "原人工记录未填写；以右侧当前核验结论为准")}</td>
       <td>
         <strong>核验结论</strong>${retainedReportLines(row.verification_assessment, "未记录")}
         <strong>${row.resolution_status === "not_planned" ? "不修改理由" : row.resolution_status === "fixed" ? "完成状态" : "尚未完成原因"}</strong>${retainedReportLines(row.reason_not_changed, "未记录")}
@@ -644,10 +647,12 @@ function renderVariableDownloadPlan() {
   }
   const summary = variableDownloadPlan.summary || {};
   const rows = variableDownloadPlan.download_list || [];
-  countEl.textContent = `需下载${summary.download_count || rows.length}项：阻断${summary.blocking_download_count || 0} · 建议同批${summary.optional_download_count || 0} · 已有${summary.local_available_count || 0}项`;
+  const actionable = summary.actionable_download_count ?? summary.blocking_download_count ?? 0;
+  const deferred = summary.deferred_optional_count ?? summary.optional_download_count ?? 0;
+  countEl.textContent = `当前必须下载${actionable}项 · 可选增强${deferred}项（非待办） · 已有${summary.local_available_count || 0}项`;
   root.innerHTML = rows.map(row => `
     <tr>
-      <td><span class="fa-variable-priority ${row.requirement === "blocking" ? "blocking" : "optional"}">${row.requirement === "blocking" ? "必须下载" : "建议同批"}</span></td>
+      <td><span class="fa-variable-priority ${row.requirement === "blocking" ? "blocking" : "optional"}">${row.requirement === "blocking" ? "必须下载" : "可选增强（非待办）"}</span></td>
       <td class="fa-mono">${esc((row.factor_codes || []).join("、"))}</td>
       <td class="fa-mono">${esc(row.table_name)}</td>
       <td class="fa-mono">${esc(row.field_name)}</td>

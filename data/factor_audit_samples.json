@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-07-31 11:09:39",
+  "generated_at": "2026-07-31 11:36:25",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -8,7 +8,8 @@
     "word_only_count": 47,
     "system_extra_count": 83,
     "computed_count": 146,
-    "pending_data_count": 47,
+    "pending_data_count": 0,
+    "not_in_scope_count": 47,
     "metadata_gap_count": 0
   },
   "factors": [
@@ -69,7 +70,7 @@
     {
       "id": "1.1.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "1.1.2",
       "word_name": "PE分位数",
       "word_level0": "公司内生信息",
@@ -81,21 +82,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：PE分位数= rank(PE_t, PE历史窗口或行业截面) /样本数；其中历史序列分位数N可以选取3年、5年、10年等不同参数。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：PE分位数= rank(PE_t, PE历史窗口或行业截面) /样本数；其中历史序列分位数N可以选取3年、5年、10年等不同参数。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -103,7 +98,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -381,7 +376,7 @@
     {
       "id": "1.1.8",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "1.1.8",
       "word_name": "EV/EBIT",
       "word_level0": "公司内生信息",
@@ -393,21 +388,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：EV/EBIT =企业价值/ TTM EBIT。其中企业价值（EV）采用当日口径统计，企业价值EV=总市值+有息负债-货币资金及等价物，保证全市场个股统计标准统一。当日总市值采用个股当日收盘总市值（总股本×当日收盘价），非流通市值计入统计，严格沿用全市值口径。有息负债、货币资金及等价物取自当期最新已披露财报数据。EBIT采用TTM滚动求和口径，规避季报季节性波动。具体计算规则为当前已披露财报最新四个季度EBIT滚动求和，动态滚动更新。当个股TTM EBIT≤0、EV为负或关键数据缺失时，EV/EBIT标记为无效值，不参与后续运算。EBIT必要时可使用wind计算好的数据。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：EV/EBIT =企业价值/ TTM EBIT。其中企业价值（EV）采用当日口径统计，企业价值EV=总市值+有息负债-货币资金及等价物，保证全市场个股统计标准统一。当日总市值采用个股当日收盘总市值（总股本×当日收盘价），非流通市值计入统计，严格沿用全市值口径。有息负债、货币资金及等价物取自当期最新已披露财报数据。EBIT采用TTM滚动求和口径，规避季报季节性波动。具体计算规则为当前已披露财报最新四个季度EBIT滚动求和，动态滚动更新。当个股TTM EBIT≤0、EV为负或关键数据缺失时，EV/EBIT标记为无效值，不参与后续运算。EBIT必要时可使用wind计算好的数据。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -415,7 +404,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -909,7 +898,7 @@
     {
       "id": "1.4.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "1.4.2",
       "word_name": "营收复合增速",
       "word_level0": "公司内生信息",
@@ -921,21 +910,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：营收复合增速= (期末营业收入/期初营业收入)^(1/N)–1,N可取1、2、3等参数。营业收入一般采用TMM口径。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：营收复合增速= (期末营业收入/期初营业收入)^(1/N)–1,N可取1、2、3等参数。营业收入一般采用TMM口径。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -943,7 +926,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -1221,7 +1204,7 @@
     {
       "id": "1.5.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "1.5.2",
       "word_name": "有息负债率",
       "word_level0": "公司内生信息",
@@ -1233,21 +1216,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：有息负债率=有息负债/总资产。其中总资产取自当期最新披露财报期末账面数据；有息负债为企业所有付息类债务合计，具体包含：短期借款、一年内到期的非流动负债、长期借款、应付债券、租赁负债，剔除应付账款、应付票据、应付职工薪酬等无息经营性负债。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：有息负债率=有息负债/总资产。其中总资产取自当期最新披露财报期末账面数据；有息负债为企业所有付息类债务合计，具体包含：短期借款、一年内到期的非流动负债、长期借款、应付债券、租赁负债，剔除应付账款、应付票据、应付职工薪酬等无息经营性负债。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -1255,7 +1232,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -2613,7 +2590,7 @@
     {
       "id": "2.4.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "2.4.2",
       "word_name": "行业beta",
       "word_level0": "市场交易信息",
@@ -2625,21 +2602,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，为股票i的收益率序列，为行业指数的收益率序列，为个股收益率与行业指数收益率的协方差，为行业收益率方差。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，为股票i的收益率序列，为行业指数的收益率序列，为个股收益率与行业指数收益率的协方差，为行业收益率方差。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -2647,7 +2618,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -2820,7 +2791,7 @@
     {
       "id": "2.5.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "2.5.2",
       "word_name": "日均成交量",
       "word_level0": "市场交易信息",
@@ -2832,21 +2803,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，为股票i在t日过去N日平均成交额，为第t−k日成交额。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，为股票i在t日过去N日平均成交额，为第t−k日成交额。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -2854,7 +2819,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3143,7 +3108,7 @@
     {
       "id": "2.6.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "2.6.2",
       "word_name": "复牌天数",
       "word_level0": "市场交易信息",
@@ -3155,22 +3120,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：复牌天数=窗口N日内触发复牌后的交易日数量",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：复牌天数=窗口N日内触发复牌后的交易日数量",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "高频盘口或分钟行情",
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -3178,7 +3136,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3456,7 +3414,7 @@
     {
       "id": "2.7.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "2.7.3",
       "word_name": "量价背离",
       "word_level0": "市场交易信息",
@@ -3468,21 +3426,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：; 其中，M为短期成交额均值窗口，例如5日或20日，一般小于N。该口径下，若价格涨幅较高但成交额变化较弱，则因子值较高，可能表示上涨缺乏量能支持。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：; 其中，M为短期成交额均值窗口，例如5日或20日，一般小于N。该口径下，若价格涨幅较高但成交额变化较弱，则因子值较高，可能表示上涨缺乏量能支持。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -3490,7 +3442,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3673,7 +3625,7 @@
     {
       "id": "2.8.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "2.8.3",
       "word_name": "高动量+高换手",
       "word_level0": "市场交易信息",
@@ -3685,14 +3637,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，和分别是股票i过去N日的收益率和换手率，为指示函数，条件成立取1，否则取0，和分别是收益率和换手率横截面分位数阈值，k一般可取50-100%。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，和分别是股票i过去N日的收益率和换手率，为指示函数，条件成立取1，否则取0，和分别是收益率和换手率横截面分位数阈值，k一般可取50-100%。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -3702,7 +3653,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3710,7 +3661,7 @@
     {
       "id": "2.9.1",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "2.9.1",
       "word_name": "买卖价差",
       "word_level0": "市场交易信息",
@@ -3722,22 +3673,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，和分别为股票i在t时刻的一档卖价和买价，为二者的中间价。该因子为日内高频因子，日频因子可以取日内多个时刻的盘口快照的均值或中位数。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，和分别为股票i在t时刻的一档卖价和买价，为二者的中间价。该因子为日内高频因子，日频因子可以取日内多个时刻的盘口快照的均值或中位数。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "高频盘口或分钟行情",
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -3745,7 +3689,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3753,7 +3697,7 @@
     {
       "id": "2.9.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "2.9.2",
       "word_name": "冲击成本",
       "word_level0": "市场交易信息",
@@ -3765,22 +3709,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，为交易区间内价格变化，为该区间成交额，因子代表单位成交量引起的价格变化。该因子为日内高频因子，日频因子可以取日内多个时刻的盘口快照的均值或中位数。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，为交易区间内价格变化，为该区间成交额，因子代表单位成交量引起的价格变化。该因子为日内高频因子，日频因子可以取日内多个时刻的盘口快照的均值或中位数。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "高频盘口或分钟行情",
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -3788,7 +3725,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3796,7 +3733,7 @@
     {
       "id": "2.9.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "2.9.3",
       "word_name": "委托深度",
       "word_level0": "市场交易信息",
@@ -3808,22 +3745,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，K为前K档委托，因子口径为买卖两侧前K档委托金额之和。日度因子通常取日内快照均值或中位数。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，K为前K档委托，因子口径为买卖两侧前K档委托金额之和。日度因子通常取日内快照均值或中位数。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "高频盘口或分钟行情",
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -3831,7 +3761,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3839,7 +3769,7 @@
     {
       "id": "2.9.4",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "2.9.4",
       "word_name": "订单不平衡",
       "word_level0": "市场交易信息",
@@ -3851,21 +3781,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，K为前K档委托，因子口径为买盘委托量与买盘委托量之差与其和的比值。因子取值通常在[−1,1]之间，数值越高代表买盘相对更强，数值越低代表卖盘相对更强。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，K为前K档委托，因子口径为买盘委托量与买盘委托量之差与其和的比值。因子取值通常在[−1,1]之间，数值越高代表买盘相对更强，数值越低代表卖盘相对更强。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -3873,7 +3797,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3881,7 +3805,7 @@
     {
       "id": "3.1.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.1.3",
       "word_name": "融资余额变化",
       "word_level0": "投资者行为信息",
@@ -3893,14 +3817,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score，待补充数据源后落地。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -3910,7 +3833,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3918,7 +3841,7 @@
     {
       "id": "3.1.4",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.1.4",
       "word_name": "融资买入占比",
       "word_level0": "投资者行为信息",
@@ -3930,14 +3853,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score，待补充数据源后落地。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -3947,7 +3869,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3955,7 +3877,7 @@
     {
       "id": "3.1.5",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.1.5",
       "word_name": "主力资金净流入",
       "word_level0": "投资者行为信息",
@@ -3967,14 +3889,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score，待补充数据源后落地。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -3984,7 +3905,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -3992,7 +3913,7 @@
     {
       "id": "3.1.6",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.1.6",
       "word_name": "行业ETF资金流",
       "word_level0": "投资者行为信息",
@@ -4004,21 +3925,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，为ETF规模，为ETF当日收益率。对于成份股，可根据成份股在ETF中的权重计算资金流。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，为ETF规模，为ETF当日收益率。对于成份股，可根据成份股在ETF中的权重计算资金流。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -4026,7 +3941,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4034,7 +3949,7 @@
     {
       "id": "3.1.7",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.1.7",
       "word_name": "宽基ETF资金流",
       "word_level0": "投资者行为信息",
@@ -4046,21 +3961,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，为ETF规模，为ETF当日收益率。对于成份股，可根据成份股在ETF中的权重计算资金流。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，为ETF规模，为ETF当日收益率。对于成份股，可根据成份股在ETF中的权重计算资金流。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -4068,7 +3977,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4076,7 +3985,7 @@
     {
       "id": "3.2.1",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.2.1",
       "word_name": "股东户数变化",
       "word_level0": "投资者行为信息",
@@ -4088,14 +3997,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score，待补充数据源后落地。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4105,7 +4013,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4113,7 +4021,7 @@
     {
       "id": "3.2.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.2.2",
       "word_name": "人均持股变化",
       "word_level0": "投资者行为信息",
@@ -4125,14 +4033,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，人均持股为总股本除以股东人数。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，人均持股为总股本除以股东人数。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4142,7 +4049,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4150,7 +4057,7 @@
     {
       "id": "3.2.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.2.3",
       "word_name": "机构持仓比例",
       "word_level0": "投资者行为信息",
@@ -4162,14 +4069,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score，待补充数据源后落地。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4179,7 +4085,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4187,7 +4093,7 @@
     {
       "id": "3.2.4",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.2.4",
       "word_name": "持仓集中度",
       "word_level0": "投资者行为信息",
@@ -4199,14 +4105,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：，一般关注前十大股东或第一大股东持股比例。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：，一般关注前十大股东或第一大股东持股比例。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4216,7 +4121,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4224,7 +4129,7 @@
     {
       "id": "3.2.5",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.2.5",
       "word_name": "解禁压力",
       "word_level0": "投资者行为信息",
@@ -4236,14 +4141,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score，待补充数据源后落地。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4253,7 +4157,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4261,7 +4165,7 @@
     {
       "id": "3.3.1",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.3.1",
       "word_name": "盈利预测调整幅度",
       "word_level0": "投资者行为信息",
@@ -4273,14 +4177,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，盈利可通过净利润或EPS衡量，一致预期为分析师预期均值。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，盈利可通过净利润或EPS衡量，一致预期为分析师预期均值。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4290,7 +4193,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4352,7 +4255,7 @@
     {
       "id": "3.3.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.3.3",
       "word_name": "目标价调整幅度",
       "word_level0": "投资者行为信息",
@@ -4364,14 +4267,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，一致目标价为分析师目标价均值。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，一致目标价为分析师目标价均值。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4381,7 +4283,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4389,7 +4291,7 @@
     {
       "id": "3.3.4",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.3.4",
       "word_name": "分析师分歧度",
       "word_level0": "投资者行为信息",
@@ -4401,14 +4303,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：分析师分歧度可用盈利预测、评级、目标价的标准差来衡量。盈利预测口径：评级口径：目标价口径：",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：分析师分歧度可用盈利预测、评级、目标价的标准差来衡量。盈利预测口径：评级口径：目标价口径：",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4418,7 +4319,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4426,7 +4327,7 @@
     {
       "id": "3.4.1",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.4.1",
       "word_name": "机构调研次数",
       "word_level0": "投资者行为信息",
@@ -4438,14 +4339,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：机构调研次数=过去N日机构调研次数",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：机构调研次数=过去N日机构调研次数",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4455,7 +4355,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4463,7 +4363,7 @@
     {
       "id": "3.4.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.4.2",
       "word_name": "调研机构数量",
       "word_level0": "投资者行为信息",
@@ -4475,14 +4375,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：调研机构数量=过去N日参与调研的机构数量",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：调研机构数量=过去N日参与调研的机构数量",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4492,7 +4391,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4500,7 +4399,7 @@
     {
       "id": "3.4.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.4.3",
       "word_name": "分析师覆盖",
       "word_level0": "投资者行为信息",
@@ -4512,14 +4411,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：研报数量口径：分析师覆盖=过去N日研报数量 首次覆盖数量：分析师覆盖=过去N日发布首次覆盖研报的数量",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：研报数量口径：分析师覆盖=过去N日研报数量 首次覆盖数量：分析师覆盖=过去N日发布首次覆盖研报的数量",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4529,7 +4427,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4537,7 +4435,7 @@
     {
       "id": "3.5.1",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.5.1",
       "word_name": "正面新闻占比",
       "word_level0": "投资者行为信息",
@@ -4549,21 +4447,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score，待补充数据源后落地。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -4571,7 +4463,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4579,7 +4471,7 @@
     {
       "id": "3.5.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.5.2",
       "word_name": "负面新闻占比",
       "word_level0": "投资者行为信息",
@@ -4591,21 +4483,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score，待补充数据源后落地。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -4613,7 +4499,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4621,7 +4507,7 @@
     {
       "id": "3.5.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.5.3",
       "word_name": "新闻数量",
       "word_level0": "投资者行为信息",
@@ -4633,21 +4519,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score，待补充数据源后落地。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -4655,7 +4535,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4663,7 +4543,7 @@
     {
       "id": "3.5.4",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.5.4",
       "word_name": "社交媒体讨论度",
       "word_level0": "投资者行为信息",
@@ -4675,21 +4555,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：其中，社交媒体讨论可以通过社交媒体帖子数量、阅读量、评论数、转发数等指标衡量。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：其中，社交媒体讨论可以通过社交媒体帖子数量、阅读量、评论数、转发数等指标衡量。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -4697,7 +4571,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4705,7 +4579,7 @@
     {
       "id": "3.5.5",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.5.5",
       "word_name": "公告文本情绪",
       "word_level0": "投资者行为信息",
@@ -4717,22 +4591,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：可按公告类型加权，例如定期报告、风险提示公告、监管问询回复、诉讼仲裁公告等权重更高。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：可按公告类型加权，例如定期报告、风险提示公告、监管问询回复、诉讼仲裁公告等权重更高。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "公告/事件文本数据",
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -4740,7 +4607,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4748,7 +4615,7 @@
     {
       "id": "3.5.6",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "3.5.6",
       "word_name": "风险提示词频",
       "word_level0": "投资者行为信息",
@@ -4760,22 +4627,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：可按公告类型加权，例如定期报告、风险提示公告、监管问询回复、诉讼仲裁公告等权重更高。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：可按公告类型加权，例如定期报告、风险提示公告、监管问询回复、诉讼仲裁公告等权重更高。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "公告/事件文本数据",
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -4783,7 +4643,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4791,7 +4651,7 @@
     {
       "id": "4.1.1",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.1.1",
       "word_name": "预告超预期",
       "word_level0": "事件驱动信息",
@@ -4803,14 +4663,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：（业绩预告中枢净利润 - 市场一致预期净利润）/市场一致预期净利润。其中业绩预告中枢净利润取上市公司当期业绩预告披露净利润区间的中位值；市场一致预期净利润取披露日前市场分析师一致预期净利润均值。另一类常用的认定方法是，业绩公布后第二天股价是否开盘上涨，上涨认定为超预期，否则低预期。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：（业绩预告中枢净利润 - 市场一致预期净利润）/市场一致预期净利润。其中业绩预告中枢净利润取上市公司当期业绩预告披露净利润区间的中位值；市场一致预期净利润取披露日前市场分析师一致预期净利润均值。另一类常用的认定方法是，业绩公布后第二天股价是否开盘上涨，上涨认定为超预期，否则低预期。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4820,7 +4679,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4828,7 +4687,7 @@
     {
       "id": "4.1.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.1.2",
       "word_name": "财报超/低预期",
       "word_level0": "事件驱动信息",
@@ -4840,14 +4699,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：财报超/低预期=（财报归母净利润-市场一致预期净利润）/市场一致预期净利润，大于0超预期，小于0低预期。其中正式财报净利润取当期披露定期财报账面净利润，市场一致预期净利润取财报披露日前市场分析师一致预期均值。考虑到分析师预期一般会偏高，可以使用业绩公布后的股价表现，如是否高开/低开来表示，或者是业绩公布后分析师上调/下调当年的业绩预期。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：财报超/低预期=（财报归母净利润-市场一致预期净利润）/市场一致预期净利润，大于0超预期，小于0低预期。其中正式财报净利润取当期披露定期财报账面净利润，市场一致预期净利润取财报披露日前市场分析师一致预期均值。考虑到分析师预期一般会偏高，可以使用业绩公布后的股价表现，如是否高开/低开来表示，或者是业绩公布后分析师上调/下调当年的业绩预期。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4857,7 +4715,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4865,7 +4723,7 @@
     {
       "id": "4.2.1",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.2.1",
       "word_name": "定增折价率",
       "word_level0": "事件驱动信息",
@@ -4877,14 +4735,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：定增折价率=(定增基准市价-定增发行价)/定增基准市价；基准价取定增定价基准日二级市场价格，发行价取自正式落地的定增发行价格。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：定增折价率=(定增基准市价-定增发行价)/定增基准市价；基准价取定增定价基准日二级市场价格，发行价取自正式落地的定增发行价格。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4894,7 +4751,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4902,7 +4759,7 @@
     {
       "id": "4.2.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.2.2",
       "word_name": "定增规模",
       "word_level0": "事件驱动信息",
@@ -4914,14 +4771,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：定增规模=定增实际募资总额/公告日总市值；募资总额采用定增落地实际募集资金，总市值取定增公告当日总市值。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：定增规模=定增实际募资总额/公告日总市值；募资总额采用定增落地实际募集资金，总市值取定增公告当日总市值。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4931,7 +4787,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4939,7 +4795,7 @@
     {
       "id": "4.2.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.2.3",
       "word_name": "并购规模",
       "word_level0": "事件驱动信息",
@@ -4951,14 +4807,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：并购规模=并购标的交易对价总额/并购公告日总市值；交易金额取自重组预案/正式报告书披露对价，总市值为公告当日总市值。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：并购规模=并购标的交易对价总额/并购公告日总市值；交易金额取自重组预案/正式报告书披露对价，总市值为公告当日总市值。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -4968,7 +4823,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -4976,7 +4831,7 @@
     {
       "id": "4.2.4",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.2.4",
       "word_name": "激励规模",
       "word_level0": "事件驱动信息",
@@ -4988,14 +4843,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：激励规模=股权激励授予股本数量/公司最新总股本；授予股数取自激励计划公告，总股本取公告当日股本。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：激励规模=股权激励授予股本数量/公司最新总股本；授予股数取自激励计划公告，总股本取公告当日股本。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -5005,7 +4859,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -5013,7 +4867,7 @@
     {
       "id": "4.3.1",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.3.1",
       "word_name": "大股东增持/减持",
       "word_level0": "事件驱动信息",
@@ -5025,14 +4879,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：大股东增持=近窗口期大股东累计增持或减持金额/公告日公司总市值。其中累计增持或减持金额取截面观察窗口内大股东二级市场实际增持总金额，总市值取首次增持公告当日个股总市值，通过市值标准化实现跨标的可比。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：大股东增持=近窗口期大股东累计增持或减持金额/公告日公司总市值。其中累计增持或减持金额取截面观察窗口内大股东二级市场实际增持总金额，总市值取首次增持公告当日个股总市值，通过市值标准化实现跨标的可比。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -5042,7 +4895,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -5050,7 +4903,7 @@
     {
       "id": "4.3.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.3.2",
       "word_name": "高管增持/减持",
       "word_level0": "事件驱动信息",
@@ -5062,14 +4915,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：高管增持=近窗口期高管累计增减持金额/公告日公司总市值。其中累计增减持金额取截面观察窗口内董监高二级市场实际增减持总金额，总市值取高管增减持公告当日个股总市值，标准化后消除市值差异影响",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：高管增持=近窗口期高管累计增减持金额/公告日公司总市值。其中累计增减持金额取截面观察窗口内董监高二级市场实际增减持总金额，总市值取高管增减持公告当日个股总市值，标准化后消除市值差异影响",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -5079,7 +4931,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -5087,7 +4939,7 @@
     {
       "id": "4.3.3",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.3.3",
       "word_name": "回购比例",
       "word_level0": "事件驱动信息",
@@ -5099,14 +4951,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：回购比例=近窗口期累计回购股本数量/公司最新总股本。回购股本数量取窗口期内已完成回购的股份总数，总股本取回购公告当日公司总股本。窗口期一般取12个月。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：回购比例=近窗口期累计回购股本数量/公司最新总股本。回购股本数量取窗口期内已完成回购的股份总数，总股本取回购公告当日公司总股本。窗口期一般取12个月。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -5116,7 +4967,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -5178,7 +5029,7 @@
     {
       "id": "4.4.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.4.2",
       "word_name": "处罚公告",
       "word_level0": "事件驱动信息",
@@ -5190,22 +5041,15 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：处罚公告因子采用事件量化赋值口径，统计观察窗口内上市公司新增监管处罚公告，根据处罚类型、处罚金额、违规严重程度梯度赋值。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：处罚公告因子采用事件量化赋值口径，统计观察窗口内上市公司新增监管处罚公告，根据处罚类型、处罚金额、违规严重程度梯度赋值。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
-      "required_data": [
-        "公告/事件文本数据",
-        "字段映射",
-        "历史截面样本",
-        "因子计算脚本",
-        "前端导出分片"
-      ],
+      "required_data": [],
       "sample": {
         "trade_date": "",
         "stock_code": "",
@@ -5213,7 +5057,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "系统当前暂未生成该因子的 score；需先补充数据源和字段映射后才能给出真实股票样本。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -5383,7 +5227,7 @@
     {
       "id": "4.5.1",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.5.1",
       "word_name": "解禁市值/流通市值",
       "word_level0": "事件驱动信息",
@@ -5395,14 +5239,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：解禁市值/流通市值=窗口期内新增解禁股份总市值/个股最新流通市值。其中解禁市值取当期限售股解禁数量与对应解禁日收盘价的乘积，流通市值取截面当日个股流通市值。窗口期一般取值12个月。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：解禁市值/流通市值=窗口期内新增解禁股份总市值/个股最新流通市值。其中解禁市值取当期限售股解禁数量与对应解禁日收盘价的乘积，流通市值取截面当日个股流通市值。窗口期一般取值12个月。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -5412,7 +5255,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }
@@ -5420,7 +5263,7 @@
     {
       "id": "4.5.2",
       "status": "word_only",
-      "support_status": "pending_data",
+      "support_status": "not_in_scope",
       "word_number": "4.5.2",
       "word_name": "再融资压力",
       "word_level0": "事件驱动信息",
@@ -5432,14 +5275,13 @@
       "system_l1": "",
       "system_l2": "",
       "system_direction": "",
-      "system_formula": "系统暂未生成 score；Word 理论口径为：再融资压力=窗口期内全市场上市公司再融资合计募资总额/ A股市场总流通市值。募资总额统计定增、配股、公开增发等各类股权再融资落地资金规模，总流通市值取截面当日全市场流通市值。",
-      "system_wind_source": "暂未落地；需要补充 Wind/公告/文本/盘口等数据字段。",
+      "system_formula": "未纳入当前系统；Word 理论口径为：再融资压力=窗口期内全市场上市公司再融资合计募资总额/ A股市场总流通市值。募资总额统计定增、配股、公开增发等各类股权再融资落地资金规模，总流通市值取截面当日全市场流通市值。",
+      "system_wind_source": "未纳入当前系统，不生成新的 Wind 数据下载要求。",
       "catalog_v2_status": "",
       "detail_url": "",
       "warnings": [
-        "Word v2 已定义，但系统当前没有生成 score。",
-        "当前没有可展示的股票样本。",
-        "落地依赖仍需补充数据源或字段映射。"
+        "Word v2 曾定义，但依据当前治理决定未纳入系统，不构成待下载或待实现事项。",
+        "当前没有可展示的股票样本。"
       ],
       "required_data": [],
       "sample": {
@@ -5449,7 +5291,7 @@
         "raw_value": null,
         "score": null,
         "steps": [
-          "当前前端最新截面没有可用样本；待数据覆盖后可展示真实股票样例。"
+          "该 Word 因子未纳入当前系统，不生成 score、股票样例或数据下载任务。"
         ],
         "inputs": []
       }

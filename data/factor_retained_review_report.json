@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "generated_at": "2026-07-29 16:48:17+0800",
+  "generated_at": "2026-07-31 11:32:12+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
-  "resolution_updated_at": "2026-07-29",
+  "resolution_updated_at": "2026-07-31",
   "summary": {
     "manual_review_record_count": 148,
     "manual_issue_factor_count": 81,
@@ -15,7 +15,10 @@
       "fixed": 4
     },
     "missing_problem_count": 3,
-    "missing_suggestion_count": 10
+    "missing_suggestion_count": 10,
+    "source_missing_problem_count": 3,
+    "source_missing_suggestion_count": 10,
+    "current_decision_gap_count": 0
   },
   "factors": [
     {
@@ -2068,7 +2071,7 @@
       ],
       "manual_updated_at": "2026-07-02T08:00:18.236141+00:00",
       "decision_titles": [
-        "解禁类因子缺公告日过滤"
+        "解禁类因子公告日过滤（已用FreeFloatCalendar闭环）"
       ],
       "verification_assessment": [
         "AShareCompRestricted在当前Wind权限下无法取得ANN_DT，但AShareFreeFloatCalendar同时提供公告日、限售股上市日期、上市数量、未上市数量、无限售数量和预测/实际标记，可以构造月末点时的未来90日解禁输入。源表为当前快照而非修订历史，历史预测版本可能被最终公告覆盖，因此历史覆盖偏保守；ANN_DT过滤本身不会引入月末后公告信息。"

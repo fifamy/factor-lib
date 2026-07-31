@@ -828,6 +828,30 @@ def test_combo_library_and_admin_rendering_escape_user_supplied_text():
     assert "htmlText(state.publishedComboErrors.join(\"；\"))" in source
     assert "htmlText(JSON.stringify(payload, null, 2))" in source
     assert "htmlAttr(combo.id)" in source
+
+
+def test_admin_auth_and_rls_static_contract():
+    source = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    schema = (ROOT / "supabase" / "schema.sql").read_text(encoding="utf-8")
+
+    for needle in [
+        'supabaseFetch("/auth/v1/token?grant_type=password"',
+        "Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`",
+        "async function loadAdminRequests()",
+        "async function approvePublishRequest",
+        "async function deletePublishedComboByAdmin",
+    ]:
+        assert needle in source
+
+    for needle in [
+        "alter table public.combo_publish_requests enable row level security",
+        'create policy "Admins can read publish requests"',
+        'create policy "Admins can update publish requests"',
+        'create policy "Admins can publish combos"',
+        'create policy "Admins can delete published combos"',
+        "public.is_combo_admin()",
+    ]:
+        assert needle in schema
     assert "htmlAttr(r.id)" in source
     assert "htmlText(r.error)" in source
 
@@ -902,8 +926,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current_after_validation_upgrade():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v1.4.16</title>" in index
-    assert "<b>因子库 v1.4.16</b>" in index
+    assert "<title>因子库 v1.4.17</title>" in index
+    assert "<b>因子库 v1.4.17</b>" in index
     assert "v1.1.0" not in index
 
 
