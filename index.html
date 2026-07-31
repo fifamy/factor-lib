@@ -2,8 +2,9 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>因子库 v1.4.14</title>
-  <link rel="stylesheet" href="styles.css?v=20260731102127">
+  <title>因子库 v1.4.15</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=20260731104654">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -15,9 +16,9 @@
 </head>
 <body>
   <div id="topbar">
-    <span><b>因子库 v1.4.14</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
+    <span><b>因子库 v1.4.15</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260731102127" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260731104654" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta">加载中…</span>
@@ -285,11 +286,11 @@
         <div class="panel">
           <h3>管理员审核</h3>
           <div id="admin-login-box">
-            <div class="admin-login-row">
+            <form id="admin-login-form" class="admin-login-row">
               <input id="admin-email" type="email" placeholder="管理员邮箱" autocomplete="username" />
               <input id="admin-password" type="password" placeholder="密码" autocomplete="current-password" />
-              <button id="admin-login-btn" class="cpsn-btn">登录</button>
-            </div>
+              <button id="admin-login-btn" class="cpsn-btn" type="submit">登录</button>
+            </form>
             <p class="admin-help">管理员账号需先在 Supabase Auth 创建，并加入 combo_admins 表。</p>
           </div>
           <div id="admin-session-box" style="display:none">
@@ -439,7 +440,7 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260731102127"></script>
-  <script type="module" src="app.js?v=20260731102127"></script>
+  <script src="app_holding_scope.js?v=20260731104654"></script>
+  <script type="module" src="app.js?v=20260731104654"></script>
 </body>
 </html>

@@ -902,9 +902,21 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current_after_validation_upgrade():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v1.4.14</title>" in index
-    assert "<b>因子库 v1.4.14</b>" in index
+    assert "<title>因子库 v1.4.15</title>" in index
+    assert "<b>因子库 v1.4.15</b>" in index
     assert "v1.1.0" not in index
+
+
+def test_optional_snapshot_prefetch_and_admin_login_do_not_emit_browser_warnings():
+    source = APP_JS.read_text(encoding="utf-8")
+    index = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert "state.dataManifest?.capabilities?.single_snapshots === false" in source
+    assert '<form id="admin-login-form" class="admin-login-row">' in index
+    assert 'id="admin-login-btn" class="cpsn-btn" type="submit"' in index
+    assert 'rel="icon" href="favicon.svg"' in index
+    assert 'document.getElementById("admin-login-form")' in source
+    assert "event.preventDefault()" in source
 
 
 def test_publish_worktree_record_points_to_current_clone():
@@ -940,6 +952,8 @@ def test_deploy_script_targets_formal_factor_lib_pages_repo():
     assert '"$ROOT/e2e/compose_validation.mjs"' in text
     assert '"$ROOT/e2e/package-lock.json"' in text
     assert 'touch "$DEPLOY/.nojekyll"' in text
+    assert '"$SRC/favicon.svg"' in text
+    assert '"single_snapshots"' in text
     assert 'cp "$ROOT/docs/2026-06-26_因子检验口径说明.md" "$DEPLOY/docs/"' in text
     pre_publish = (ROOT / "scripts" / "pre_publish_validation.sh").read_text(encoding="utf-8")
     assert "scripts/test_frontend_sql.py" in pre_publish

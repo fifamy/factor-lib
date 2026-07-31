@@ -20,7 +20,8 @@
     "compose_scores_raw": true,
     "compose_scores_neutral": true,
     "segment_validation_parquet": true,
-    "rolling_validation_parquet": true
+    "rolling_validation_parquet": true,
+    "single_snapshots": false
   },
   "has_neutralized_scores": true,
   "neutralization": "中性化口径使用月末时点有效的申万一级行业哑变量 + log(市值) 截面回归残差。",

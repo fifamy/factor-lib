@@ -1367,6 +1367,9 @@ function nearbySingleCodes(code, limit = 4) {
 }
 
 function prefetchNearbySingleSnapshots(code) {
+  // 正式 Pages 发布包为控制体积会排除完整快照目录；仅在清单明确支持时预取，
+  // 避免把有意裁剪的可选资源记录成浏览器 404。
+  if (state.dataManifest?.capabilities?.single_snapshots === false) return;
   const seq = ++_singlePrefetchSeq;
   const codes = nearbySingleCodes(code, 4);
   if (!codes.length) return;
@@ -6136,8 +6139,11 @@ function renderAdminView() {
 }
 
 function bindAdminControls() {
-  const login = document.getElementById("admin-login-btn");
-  if (login) login.onclick = () => adminLogin().catch(e => console.error("admin login failed:", e));
+  const loginForm = document.getElementById("admin-login-form");
+  if (loginForm) loginForm.onsubmit = event => {
+    event.preventDefault();
+    adminLogin().catch(e => console.error("admin login failed:", e));
+  };
   const refresh = document.getElementById("admin-refresh-btn");
   if (refresh) refresh.onclick = () => loadAdminData().catch(e => console.error("load admin data failed:", e));
   const logout = document.getElementById("admin-logout-btn");
