@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-07-31T03:38:22+00:00",
-  "deploy_version": "20260731113819",
+  "generated_at": "2026-07-31T05:35:35+00:00",
+  "deploy_version": "20260731133522",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "d3a8819cf1a62744c973977f8dcf5d7187827590",
+  "pages_worktree_git_commit_before_sync": "0ef73617d5151e565d7bbb8afd8de9d60cffc6d4",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "021a2e2c75704aad1236416494f31f61110120734c7097d19249f2eaa3f403bc",
+      "sha256": "55c3c41ac2349f4add3d867064bd589b472f357a074ed9e5abdfb30a763b3107",
       "bytes": 29324
     },
     "app.js": {
@@ -22,7 +22,7 @@
       "bytes": 29429
     },
     "factor_audit.html": {
-      "sha256": "be3a681025f99e32c8e8c994bf1dc5d5e7bf84d8f94e16389eb1e888c269501a",
+      "sha256": "53c541902e04c528cee3da545bffd7b163f900632e093724bbc97296502d3f73",
       "bytes": 7349
     },
     "factor_audit.js": {
