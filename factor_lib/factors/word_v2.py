@@ -13,8 +13,8 @@ _DEFS = [
     (
         "PEPCTL", "公司内生信息", "估值", -1, "PE历史分位",
         "word_v2", "PEPCTL", "derived",
-        "PE 在个股自身历史月末序列中的分位数；分位越低，估值越便宜。",
-        "PEPCTL = count(PE历史值 <= 当前PE) / count(PE历史值)，按个股历史月末序列 expanding 计算。",
+        "PE在个股自身近36个月有效月末序列中的中位秩分位；仅使用正PE，分位越低，估值越便宜。",
+        "PEPCTL = [count(PE_i < PE_t) + (count(PE_i = PE_t) + 1) / 2] / N，i为含当月在内的近36个月正PE月末观测。",
         "AShareValuationIndicator.S_VAL_PE_TTM",
         False,
     ),

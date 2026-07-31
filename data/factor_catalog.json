@@ -15,7 +15,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "momentum_12_1_weighting_overlap",
+        "reason": "两者使用相同的12-1形成期，仅日收益加权方式不同；RSTR252已转为研究留档，不得与MOM12_1同时计权。"
+      }
+    ],
     "env_tag": "全天候型",
     "time_tag": "长期稳定型"
   },
@@ -31,11 +36,16 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "usage_status": "pending_manual_review",
-    "combo_policy": "warn",
-    "usage_note": "该因子为MOM12_1改为等权后保留的原半衰期加权序列，当前尚无独立人工复核记录。",
+    "usage_status": "historical_only",
+    "combo_policy": "block",
+    "usage_note": "人工复核决定退出正式生产并转为研究留档：该因子与MOM12_1使用相同形成期，仅加权方式不同，当前得分相关性约0.93，且全样本、最近3年、最近5年及验证集均未显示增量优势。保留计算代码和历史数据，但不得加入新组合。",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "momentum_12_1_weighting_overlap",
+        "reason": "两者使用相同的12-1形成期，仅日收益加权方式不同；RSTR252已转为研究留档，不得与MOM12_1同时计权。"
+      }
+    ],
     "env_tag": "全天候型",
     "time_tag": "长期稳定型"
   },
@@ -2075,8 +2085,8 @@
     "l1": "公司内生信息",
     "l2": "估值类",
     "direction": -1,
-    "description": "PE 在个股自身历史月末序列中的分位数；分位越低，估值越便宜。",
-    "formula": "PEPCTL = count(PE历史值 <= 当前PE) / count(PE历史值)，按个股历史月末序列 expanding 计算。",
+    "description": "PE在个股自身近36个月有效月末序列中的中位秩分位；仅使用正PE，分位越低，估值越便宜。",
+    "formula": "PEPCTL = [count(PE_i < PE_t) + (count(PE_i = PE_t) + 1) / 2] / N，i为含当月在内的近36个月正PE月末观测。",
     "wind_source": "AShareValuationIndicator.S_VAL_PE_TTM",
     "v2_status": "computed",
     "positive_only": false,
@@ -2796,9 +2806,9 @@
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
-    "usage_status": "supplementary_event",
-    "combo_policy": "warn",
-    "usage_note": "稀疏风险事件辅助信号，不建议单独作为默认主排序因子。",
+    "usage_status": "historical_only",
+    "combo_policy": "block",
+    "usage_note": "人工复核决定退出正式生产并转为研究留档：当前仅有处罚金额，缺少违规类型、最终处罚标记和事件ID，无法可靠排除预处罚、最终处罚及多主体记录的重复统计。保留计算代码和历史数据，但不得加入新组合。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
