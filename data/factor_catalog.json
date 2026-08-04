@@ -22,7 +22,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "RSTR252",
@@ -47,7 +47,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "REV1M",
@@ -86,8 +86,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "近期失效"
+    "env_tag": "熊市防御型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "STOM",
@@ -112,7 +112,7 @@
       }
     ],
     "env_tag": "熊市防御型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "BETA",
@@ -131,7 +131,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "近期转强"
   },
   {
@@ -172,7 +172,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "PB",
@@ -192,7 +192,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "PS",
@@ -212,7 +212,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "DIVYLD",
@@ -232,7 +232,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "EP",
@@ -252,7 +252,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "PE_DED",
@@ -272,7 +272,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "EV2EBITDA",
@@ -312,7 +312,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "ROA",
@@ -332,7 +332,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "ROIC",
@@ -352,7 +352,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "GROSSMGN",
@@ -392,7 +392,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "OPMGN",
@@ -412,7 +412,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "OCF2OR",
@@ -431,8 +431,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期失效"
+    "env_tag": "熊市防御型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "NPGROWTH",
@@ -532,7 +532,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "PCF",
@@ -552,7 +552,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "OCF2OI",
@@ -671,8 +671,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "ROEGROWTH",
@@ -792,7 +792,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "DEBT2EQ",
@@ -862,7 +862,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "TANG2ASSET",
@@ -962,7 +962,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "FATURN",
@@ -982,7 +982,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "持续低效"
   },
   {
     "code": "REV5D",
@@ -1002,7 +1002,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转强"
   },
   {
     "code": "MOM60",
@@ -1027,7 +1027,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "MOM20",
@@ -1067,7 +1067,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "MA20BIAS",
@@ -1087,7 +1087,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "HLPOS",
@@ -1107,7 +1107,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "DOWNVOL",
@@ -1127,7 +1127,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "MAXDD1Y",
@@ -1187,7 +1187,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转强"
   },
   {
     "code": "BIGDOWN",
@@ -1207,7 +1207,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "AMOUNT20",
@@ -1277,7 +1277,7 @@
       }
     ],
     "env_tag": "熊市防御型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "AMTVOL",
@@ -1296,7 +1296,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1317,7 +1317,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "TURNPCTL",
@@ -1377,7 +1377,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "ABTURN",
@@ -1417,7 +1417,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "NPFCST1M",
@@ -1442,7 +1442,7 @@
       }
     ],
     "env_tag": "震荡占优型",
-    "time_tag": "近期转强"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "NPFCST3M",
@@ -1462,7 +1462,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "近期转强"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "EPSFCST1M",
@@ -1482,7 +1482,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "SALESFCST1M",
@@ -1501,7 +1501,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -1522,7 +1522,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "近期转强"
+    "time_tag": "持续低效"
   },
   {
     "code": "FCSTDISP",
@@ -1602,7 +1602,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "HOLDERCONCCHG",
@@ -1667,7 +1667,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "RELRET60",
@@ -1692,7 +1692,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "RELPEIND",
@@ -1712,7 +1712,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "RELPBIND",
@@ -1732,7 +1732,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "RELRETIND",
@@ -1792,7 +1792,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "REVSVAR",
@@ -1832,7 +1832,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "TURN20D120",
@@ -1892,7 +1892,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "PSKEW",
@@ -2012,7 +2012,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "AROON",
@@ -2077,7 +2077,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "time_tag": "近期失效"
   },
   {
     "code": "PEPCTL",
@@ -2097,7 +2097,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "FWDPE",
@@ -2117,7 +2117,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "EV2EBIT",
@@ -2137,7 +2137,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "ROEVOL",
@@ -2217,7 +2217,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "持续低效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "ORCAGR3Y",
@@ -2296,7 +2296,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {
@@ -2356,7 +2356,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期失效"
   },
   {
@@ -2396,7 +2396,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -2416,7 +2416,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -2456,7 +2456,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2541,7 +2541,7 @@
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
     ],
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2562,7 +2562,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "TOP10HOLD",
@@ -2622,7 +2622,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "持续低效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "ESTEARNREV",
@@ -2647,7 +2647,7 @@
       }
     ],
     "env_tag": "震荡占优型",
-    "time_tag": "近期转强"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "TARGETPRICECHG",
@@ -2731,8 +2731,8 @@
         "reason": "当前历史得分绝对相关性0.9995，默认不得同时计权。"
       }
     ],
-    "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "env_tag": "牛市进攻型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "MERGERSIZE",
@@ -2792,7 +2792,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转强"
   },
   {
     "code": "PUNISHAMT",
@@ -2831,8 +2831,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转强"
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "AUDITQUAL",
@@ -2891,7 +2891,7 @@
     "usage_note": "高管增减持稀疏事件信号，字段可得不等于有效性已确认。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2997,6 +2997,6 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "time_tag": "长期稳定型"
   }
 ]
