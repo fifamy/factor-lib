@@ -220,10 +220,12 @@ def _bigdown(win, ctx):
 # ---------- 流动性 liquidity ----------
 @_ref("AMOUNT20")
 def _amount20(win, ctx):
-    a = win["amount"].to_numpy().astype(float)
-    if len(a) < 20:
+    # 生产端允许上市历史不足 20 日的股票进入计算，但至少要有 15 个交易日。
+    a = win.tail(20)["amount"].to_numpy().astype(float)
+    a = a[np.isfinite(a)]
+    if len(a) < 15:
         return None, []
-    m = a[-20:].mean()
+    m = a.mean()
     if m <= 0:
         return None, []
     v = float(math.log(m))
@@ -287,9 +289,11 @@ def _amtvol(win, ctx):
 @_ref("TURNVOL")
 def _turnvol(win, ctx):
     """近60日换手率标准差 (ddof=1)。"""
-    if win.height < 60:
-        return None, []
+    # 与生产端一致：最长 60 日，上市历史较短时至少需要 40 个交易日。
     t = _turnover(win.tail(60))
+    t = t[np.isfinite(t)]
+    if len(t) < 40:
+        return None, []
     v = float(np.std(t, ddof=1))
     return v, [f"std(turnover,60) = {v:.6f}"]
 
@@ -326,13 +330,20 @@ def _pvcorr(win, ctx):
 @_ref("UPVOLRATIO")
 def _upvolratio(win, ctx):
     """近20日上涨日成交额占比：上涨日(r>0)成交额/全部成交额。"""
-    if win.height < 21:
+    # 价格窗口最多取 21 行以形成 20 个收益观测；新上市股票按生产端规则
+    # 可使用更短窗口，但必须至少形成 15 个有效收益观测。
+    if win.height < 16:
         return None, []
     w = win.tail(21)
     p = w["adj_close"].to_numpy().astype(float)
     a = w["amount"].to_numpy().astype(float)
     r = np.diff(np.log(p))
     a = a[1:]
+    valid = np.isfinite(r) & np.isfinite(a)
+    r = r[valid]
+    a = a[valid]
+    if len(r) < 15:
+        return None, []
     tot = a.sum()
     if tot <= 0:
         return None, []

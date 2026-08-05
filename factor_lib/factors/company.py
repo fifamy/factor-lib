@@ -26,7 +26,7 @@ _DEFS = [
     ("PE_DED",    "公司内生信息", "估值", -1, "扣非市盈率", "daily_valuation", "S_DFA_PETTM_DEDUCTED",
      "扣除非经常性损益后的 PE(TTM)；剔除一次性损益的估值。"),
     ("EV2EBITDA", "公司内生信息", "估值", -1, "总市值/EBITDA", "daily_valuation", "S_DFA_MVTOEBITDA",
-     "总市值 / EBITDA(TTM)；适合跨资本结构比较。"),
+     "总市值 / EBITDA(TTM)；历史代码沿用EV2EBITDA，但当前口径不等同于企业价值EV/EBITDA，数值越低通常表示估值较低。"),
     # ---- 1.2 盈利能力类 ----
     ("ROE",       "公司内生信息", "盈利能力", 1, "净资产收益率", "pit_financial", "S_DFA_ROE_TTM",
      "ROE = TTM归母净利润 / 平均归母净资产；股东资本回报。"),
@@ -119,7 +119,12 @@ _WIND_TABLE = {
 # 价格/盈利类估值比率：分母为负（亏损/负净资产/负现金流/负EBITDA）时，比率没有"便宜"含义，
 # 03_normalize 会把原始值 ≤0 置为缺失，避免亏损股被当成"超低估值"选进 top。
 _POSITIVE_ONLY = {"PE", "PB", "PS", "PE_DED", "EV2EBITDA", "PCF"}
-_TRANSFORMS = {"GMGROWTH": "yoy_diff_12m"}
+_TRANSFORMS = {
+    "GMGROWTH": "yoy_diff_12m",
+    # 生产值不再直接依赖近期覆盖异常的 S_DFA_MVTOEBITDA；02b 使用
+    # S_VAL_MV_ARD / PIT S_DFA_EBITDA_TTM 复原，并用直取字段做历史一致性核对。
+    "EV2EBITDA": "mv_ebitda_asof",
+}
 
 for code, l1, l2, direction, name_cn, sfile, sfield, desc in _DEFS:
     register_external(
@@ -128,9 +133,19 @@ for code, l1, l2, direction, name_cn, sfile, sfield, desc in _DEFS:
         formula=(
             "GMGROWTH = S_DFA_GROSSPROFITMARGIN_TTM_t - S_DFA_GROSSPROFITMARGIN_TTM_{t-12个月}"
             if code == "GMGROWTH"
-            else f"{name_cn} = {_WIND_TABLE[sfile]}.{sfield}（Wind已算好，月末截面取值）"
+            else (
+                "总市值/EBITDA = AShareValuationIndicator.S_VAL_MV_ARD / "
+                "PITFinancialFactor.S_DFA_EBITDA_TTM；EBITDA 按月末可得信息向前沿用，最长 200 天"
+                if code == "EV2EBITDA"
+                else f"{name_cn} = {_WIND_TABLE[sfile]}.{sfield}（Wind已算好，月末截面取值）"
+            )
         ),
-        wind_source=f"{_WIND_TABLE[sfile]}.{sfield}",
+        wind_source=(
+            "AShareValuationIndicator.S_VAL_MV_ARD; PITFinancialFactor.S_DFA_EBITDA_TTM; "
+            "DailyValuationFactor.S_DFA_MVTOEBITDA（仅核对）"
+            if code == "EV2EBITDA"
+            else f"{_WIND_TABLE[sfile]}.{sfield}"
+        ),
         positive_only=code in _POSITIVE_ONLY,
         transform=_TRANSFORMS.get(code, "level"),
     )

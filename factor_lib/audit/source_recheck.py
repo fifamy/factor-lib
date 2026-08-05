@@ -12,6 +12,7 @@ from factor_lib.audit.sampling import sample_missing_units, sample_units
 _CODE_COL = {"valuation": "STOCK_CODE"}
 ABS_TOL = 1e-9
 REL_TOL = 1e-6
+EV2EBITDA_MAX_STALE_DAYS = 200
 
 
 def _code_col(source_file: str) -> str:
@@ -45,6 +46,88 @@ def _close(ref, stored) -> bool:
     return abs(ref - stored) <= ABS_TOL + REL_TOL * abs(stored)
 
 
+def _mv_ebitda_asof_reference(
+    src_dir: str,
+    factor_raw: pl.DataFrame,
+    candidate_units: pl.DataFrame | None,
+) -> pl.DataFrame:
+    """独立复算历史代码 EV2EBITDA 的当前总市值/EBITDA 口径。"""
+    root = Path(src_dir)
+    valuation_path = root / "valuation.csv"
+    pit_path = root / "pit_financial.csv"
+    if not valuation_path.exists() or not pit_path.exists():
+        return pl.DataFrame()
+
+    keys = factor_raw.select(["stock_code", "trade_date"])
+    if candidate_units is not None and not candidate_units.is_empty():
+        keys = pl.concat(
+            [keys, candidate_units.select(["stock_code", "trade_date"])],
+            how="vertical",
+        )
+    keys = keys.drop_nulls().unique()
+    if keys.is_empty():
+        return pl.DataFrame()
+    stocks = keys.get_column("stock_code").unique().to_list()
+    date_keys = keys.get_column("trade_date").unique().dt.strftime("%Y%m%d").to_list()
+
+    market_value = (
+        pl.read_csv(
+            valuation_path,
+            infer_schema_length=0,
+            columns=["STOCK_CODE", "TRADE_DT", "S_VAL_MV_ARD"],
+        )
+        .filter(
+            pl.col("STOCK_CODE").cast(pl.Utf8).str.strip_chars().is_in(stocks)
+            & pl.col("TRADE_DT").cast(pl.Utf8).is_in(date_keys)
+        )
+        .with_columns([
+            pl.col("STOCK_CODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("TRADE_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d").alias("trade_date"),
+            pl.col("S_VAL_MV_ARD").cast(pl.Float64, strict=False).alias("market_value"),
+        ])
+        .select(["stock_code", "trade_date", "market_value"])
+    )
+    ebitda = (
+        pl.read_csv(
+            pit_path,
+            infer_schema_length=0,
+            columns=["S_INFO_WINDCODE", "TRADE_DT", "S_DFA_EBITDA_TTM"],
+        )
+        .filter(
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().is_in(stocks)
+            & pl.col("TRADE_DT").cast(pl.Utf8).is_in(date_keys)
+        )
+        .with_columns([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("TRADE_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d").alias("trade_date"),
+            pl.col("S_DFA_EBITDA_TTM").cast(pl.Float64, strict=False).alias("ebitda"),
+        ])
+        .select(["stock_code", "trade_date", "ebitda"])
+        .sort(["stock_code", "trade_date"])
+        .with_columns(
+            pl.when(pl.col("ebitda").is_not_null())
+            .then(pl.col("trade_date"))
+            .otherwise(None)
+            .alias("ebitda_observed_date")
+        )
+        .with_columns([
+            pl.col("ebitda").forward_fill().over("stock_code"),
+            pl.col("ebitda_observed_date").forward_fill().over("stock_code"),
+        ])
+        .filter(
+            (pl.col("trade_date") - pl.col("ebitda_observed_date")).dt.total_days()
+            <= EV2EBITDA_MAX_STALE_DAYS
+        )
+    )
+    return (
+        market_value.join(ebitda, on=["stock_code", "trade_date"], how="left")
+        .with_columns((pl.col("market_value") / pl.col("ebitda")).alias("ref"))
+        .select(["stock_code", "trade_date", "ref"])
+        .filter(pl.col("ref").is_not_null() & pl.col("ref").is_finite())
+        .unique(subset=["stock_code", "trade_date"], keep="last")
+    )
+
+
 def recheck_external(
     code: str,
     meta: dict,
@@ -56,14 +139,20 @@ def recheck_external(
     field = meta["source_field"]
     sfile = meta["source_file"]
     transform = meta.get("transform", "level")
-    extra = ["EXPRESS_AGE"] if transform == "event_first" else []
-    src = _read_source(sfile, [field] + extra, src_dir)
     base = {"status": "na", "method": "source_recheck", "n_checked": 0, "n_match": 0,
             "n_stored_only": 0, "n_ref_only": 0,
             "max_abs_diff": 0.0, "tol": REL_TOL, "mismatches": []}
-    if src.is_empty() or field not in src.columns:
-        base["status"] = "source_missing"
-        return base
+    if transform == "mv_ebitda_asof":
+        ref_df = _mv_ebitda_asof_reference(src_dir, factor_raw, candidate_units)
+        if ref_df.is_empty():
+            base["status"] = "source_missing"
+            return base
+    else:
+        extra = ["EXPRESS_AGE"] if transform == "event_first" else []
+        src = _read_source(sfile, [field] + extra, src_dir)
+        if src.is_empty() or field not in src.columns:
+            base["status"] = "source_missing"
+            return base
 
     if transform == "level":
         ref_df = src.select(["stock_code", "trade_date", pl.col(field).alias("ref")])
@@ -109,7 +198,7 @@ def recheck_external(
         prev = pl.col("rp_idx").shift(1).over("stock_code")
         first = s.filter(prev.is_null() | (pl.col("rp_idx") > prev))
         ref_df = first.select(["stock_code", "trade_date", pl.col(field).alias("ref")])
-    else:
+    elif transform != "mv_ebitda_asof":
         return base
 
     ref_df = (

@@ -46,7 +46,7 @@
         "reason": "两者使用相同的12-1形成期，仅日收益加权方式不同；RSTR252已转为研究留档，不得与MOM12_1同时计权。"
       }
     ],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期失效"
   },
   {
@@ -86,7 +86,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -131,7 +131,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -211,7 +211,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -280,9 +280,9 @@
     "l1": "公司内生信息",
     "l2": "估值类",
     "direction": -1,
-    "description": "总市值 / EBITDA(TTM)；适合跨资本结构比较。",
-    "formula": "总市值/EBITDA = DailyValuationFactor.S_DFA_MVTOEBITDA（Wind已算好，月末截面取值）",
-    "wind_source": "DailyValuationFactor.S_DFA_MVTOEBITDA",
+    "description": "总市值 / EBITDA(TTM)；历史代码沿用EV2EBITDA，但当前口径不等同于企业价值EV/EBITDA，数值越低通常表示估值较低。",
+    "formula": "总市值/EBITDA = AShareValuationIndicator.S_VAL_MV_ARD / PITFinancialFactor.S_DFA_EBITDA_TTM；EBITDA 按月末可得信息向前沿用，最长 200 天",
+    "wind_source": "AShareValuationIndicator.S_VAL_MV_ARD; PITFinancialFactor.S_DFA_EBITDA_TTM; DailyValuationFactor.S_DFA_MVTOEBITDA（仅核对）",
     "v2_status": "computed",
     "positive_only": true,
     "is_event": false,
@@ -292,7 +292,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "ROE",
@@ -671,7 +671,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "近期转强"
   },
   {
@@ -771,7 +771,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -941,7 +941,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "持续低效"
   },
   {
@@ -1296,7 +1296,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1416,7 +1416,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1441,7 +1441,7 @@
         "reason": "两者使用同一S_WEST_NETPROFIT_FTM_1M信号，不得同时计权。"
       }
     ],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1581,7 +1581,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1626,7 +1626,7 @@
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
     ],
-    "env_tag": "震荡占优型",
+    "env_tag": "全天候型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1731,7 +1731,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2121,12 +2121,12 @@
   },
   {
     "code": "EV2EBIT",
-    "name_cn": "总市值/EBIT",
+    "name_cn": "企业价值/EBIT",
     "l1": "公司内生信息",
     "l2": "估值类",
     "direction": -1,
-    "description": "总市值 / TTM EBIT；EBIT 为正时有效，数值越低越便宜。代码沿用历史标识EV2EBIT。",
-    "formula": "总市值/EBIT = AShareValuationIndicator.S_VAL_EV / PITFinancialFactor.S_DFA_EBIT_TTM；EBIT<=0置缺失。",
+    "description": "企业价值 / TTM EBIT；EBIT 为正时有效，数值越低越便宜。代码沿用历史标识EV2EBIT。",
+    "formula": "企业价值/EBIT = AShareValuationIndicator.S_VAL_EV / PITFinancialFactor.S_DFA_EBIT_TTM；EBIT<=0置缺失。",
     "wind_source": "AShareValuationIndicator.S_VAL_EV; PITFinancialFactor.S_DFA_EBIT_TTM",
     "v2_status": "computed",
     "positive_only": true,
@@ -2196,7 +2196,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -2216,7 +2216,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2396,7 +2396,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {
@@ -2496,7 +2496,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -2646,7 +2646,7 @@
         "reason": "两者使用同一S_WEST_NETPROFIT_FTM_1M信号，不得同时计权。"
       }
     ],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2791,7 +2791,7 @@
     "usage_note": "稀疏风险事件辅助信号，不建议单独作为默认主排序因子。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "全天候型",
     "time_tag": "近期转强"
   },
   {
@@ -2951,7 +2951,7 @@
     "usage_note": "最新年报与年度预测对比的状态信号，需关注信号龄。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {

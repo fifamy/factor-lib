@@ -27,10 +27,10 @@ _DEFS = [
         True,
     ),
     (
-        "EV2EBIT", "公司内生信息", "估值", -1, "总市值/EBIT",
+        "EV2EBIT", "公司内生信息", "估值", -1, "企业价值/EBIT",
         "word_v2", "EV2EBIT", "derived",
-        "总市值 / TTM EBIT；EBIT 为正时有效，数值越低越便宜。代码沿用历史标识EV2EBIT。",
-        "总市值/EBIT = AShareValuationIndicator.S_VAL_EV / PITFinancialFactor.S_DFA_EBIT_TTM；EBIT<=0置缺失。",
+        "企业价值 / TTM EBIT；EBIT 为正时有效，数值越低越便宜。代码沿用历史标识EV2EBIT。",
+        "企业价值/EBIT = AShareValuationIndicator.S_VAL_EV / PITFinancialFactor.S_DFA_EBIT_TTM；EBIT<=0置缺失。",
         "AShareValuationIndicator.S_VAL_EV; PITFinancialFactor.S_DFA_EBIT_TTM",
         True,
     ),

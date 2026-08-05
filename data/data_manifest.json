@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-04 13:50:52",
+  "generated_at": "2026-08-05 12:19:53",
   "factor_count": 146,
   "backtest_start_month": "2015-02",
   "backtest_end_month": "2026-07",
@@ -18,9 +18,9 @@
   "has_compose_scores_neutral": false,
   "capabilities": {
     "compose_scores_raw": true,
-    "compose_scores_neutral": true,
-    "segment_validation_parquet": true,
-    "rolling_validation_parquet": true,
+    "compose_scores_neutral": false,
+    "segment_validation_parquet": false,
+    "rolling_validation_parquet": false,
     "single_snapshots": false
   },
   "has_neutralized_scores": true,
@@ -30,17 +30,17 @@
     "source": "data/factor_score_neutral.parquet",
     "has_quality_column": true,
     "warning_level": "warning",
-    "total_rows": 57179375,
+    "total_rows": 57189959,
     "quality_counts": {
-      "missing_input": 410601,
-      "ok": 56768622,
-      "insufficient_sample": 152
+      "ok": 56777781,
+      "insufficient_sample": 152,
+      "missing_input": 412026
     },
     "insufficient_sample_rows": 152,
     "affected_factors": 8,
     "affected_factor_months": 135,
     "min_insufficient_valid_count": 1,
-    "missing_input_rows": 410601,
+    "missing_input_rows": 412026,
     "regression_failed_rows": 0,
     "warning": "中性化质量提示：8 个因子、135 个因子-月份存在有效样本不足 3 个，相关中性化分数为空；对应 RankIC、回测和分层结果应降低结论权重。"
   },
