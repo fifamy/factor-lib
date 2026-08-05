@@ -1,26 +1,66 @@
 {
   "version": 1,
-  "generated_at": "2026-07-31 11:32:12+0800",
+  "generated_at": "2026-08-05 14:20:22+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
   "resolution_updated_at": "2026-07-31",
   "summary": {
     "manual_review_record_count": 148,
     "manual_issue_factor_count": 81,
-    "cohort_factor_count": 55,
-    "retained_issue_factor_count": 51,
+    "cohort_factor_count": 94,
+    "retained_issue_factor_count": 90,
     "reclassified_fixed_count": 4,
     "reclassified_pending_count": 0,
     "status_counts": {
-      "not_planned": 51,
-      "fixed": 4
+      "fixed": 33,
+      "none": 23,
+      "not_planned": 90
     },
     "missing_problem_count": 3,
     "missing_suggestion_count": 10,
     "source_missing_problem_count": 3,
     "source_missing_suggestion_count": 10,
-    "current_decision_gap_count": 0
+    "current_decision_gap_count": 0,
+    "legacy_cohort_factor_count": 55,
+    "current_retained_factor_count": 90,
+    "current_no_action_factor_count": 23,
+    "report_row_status_counts": {
+      "not_planned": 90,
+      "fixed": 4
+    }
   },
   "factors": [
+    {
+      "factor_code": "AMOUNT20",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "近20日日均成交额",
+      "l1": "市场交易信息",
+      "l2": "流动性类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "20日成交额规模的两种单调变换近乎同序列"
+      ],
+      "verification_assessment": [
+        "AMOUNT20对近20日日均成交额取自然对数，MFLOW20对同一成交额窗口作规模变换，主要差异是表达尺度；得分相关系数为0.999869，组合重复计权没有实质新增信息。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；保留不同表达尺度不等于允许重复计算同一成交额信号。"
+      ],
+      "decision_action": [
+        "按用户决定保留两条历史序列；组合层继续硬拦截AMOUNT20与MFLOW20同时入选，根据模型对量纲和压缩方式的需求选择其一。"
+      ],
+      "evidence": [
+        "AMOUNT20=ln(mean(成交额,20日))",
+        "MFLOW20使用同一20日成交额聚合信息",
+        "AMOUNT20/MFLOW20得分相关系数0.999869"
+      ],
+      "decision_issue_ids": [
+        "redundancy-amount20-mflow20"
+      ]
+    },
     {
       "factor_code": "ARRATIO",
       "name_cn": "应收账款占收入比例",
@@ -57,7 +97,8 @@
       ],
       "decision_issue_ids": [
         "definition-arratio-ending-balance"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "BETA",
@@ -94,7 +135,8 @@
       ],
       "decision_issue_ids": [
         "definition-beta-market-proxy"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "BUYBACKRATIO",
@@ -131,7 +173,8 @@
       ],
       "decision_issue_ids": [
         "definition-buybackratio-amount-candidate"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "CAPEXGROWTH",
@@ -168,7 +211,8 @@
       ],
       "decision_issue_ids": [
         "definition-financial-methods"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "CFOGROWTH",
@@ -205,6 +249,72 @@
       ],
       "decision_issue_ids": [
         "data-financial-raw-validation-fields"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "DASTD",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "日收益年化波动率",
+      "l1": "市场交易信息",
+      "l2": "波动风险类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "市场类因子保留现行固定窗口，多窗口版本另设代码"
+      ],
+      "verification_assessment": [
+        "Word 将 N、市场下跌阈值或高动量高换手阈值写为可配置参数，系统则分别固定为已经登记并持续使用的 20、60、252 日等口径。直接在原代码下切换窗口会覆盖历史因子含义，且不同窗口通常属于不同信号而不是同一序列的技术修正。DASTD 继续使用 A 股量化常用的 252 日和 √252 年化，Word 中的 √250 与其仅为尺度差异。"
+      ],
+      "reason_not_changed": [
+        "现有实现口径明确、审计可重算；没有证据证明某一可选参数应替代当前稳定版本。"
+      ],
+      "decision_action": [
+        "保留现有代码与页面参数告警；如业务需要其他窗口或 DOWNBETA 非零阈值，新增独立因子代码并单独回测，不覆盖现有历史序列。"
+      ],
+      "evidence": [
+        "DASTD=252 日对数收益标准差×√252",
+        "MA20BIAS、HLPOS、TURNVOL 的窗口已写入代码或名称",
+        "参数族变体需要独立代码才能保持历史可解释性"
+      ],
+      "decision_issue_ids": [
+        "parameter-fixed-market-windows-retained"
+      ]
+    },
+    {
+      "factor_code": "DEBT2EQ",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "产权比率",
+      "l1": "公司内生信息",
+      "l2": "财务稳健类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "产权比率与权益乘数恒等相关，资产负债率保留独立比例表达"
+      ],
+      "verification_assessment": [
+        "DEBT2EQ为总负债/股东权益，EQMULT为总资产/股东权益；在总资产=总负债+股东权益的会计恒等式下，EQMULT=1+DEBT2EQ，两者得分相关系数为0.999975。LEVERAGE为总负债/总资产，是有界比例，虽同属杠杆但不是与前两者相同的线性原值表达。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；DEBT2EQ与EQMULT保留用于口径兼容，LEVERAGE则具有不同分母和取值边界。"
+      ],
+      "decision_action": [
+        "按用户决定保留三个因子；组合层继续硬拦截DEBT2EQ与EQMULT同时入选，LEVERAGE不因该恒等关系自动拦截，但与其他杠杆指标同时使用时需检验边际信息。"
+      ],
+      "evidence": [
+        "DEBT2EQ字段S_FA_DEBTTOEQUITY",
+        "EQMULT字段S_FA_ASSETSTOEQUITY且EQMULT=1+DEBT2EQ",
+        "DEBT2EQ/EQMULT得分相关系数0.999975",
+        "LEVERAGE字段S_DFA_DEBTTOASSET"
+      ],
+      "decision_issue_ids": [
+        "redundancy-debt2eq-eqmult-leverage"
       ]
     },
     {
@@ -242,7 +352,8 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "DIVPAYOUT",
@@ -280,7 +391,8 @@
       ],
       "decision_issue_ids": [
         "definition-divpayout-period-alignment"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "DIVSTREAK",
@@ -317,6 +429,39 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "DOWNBETA",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "下行beta",
+      "l1": "市场交易信息",
+      "l2": "beta风险类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "市场类因子保留现行固定窗口，多窗口版本另设代码"
+      ],
+      "verification_assessment": [
+        "Word 将 N、市场下跌阈值或高动量高换手阈值写为可配置参数，系统则分别固定为已经登记并持续使用的 20、60、252 日等口径。直接在原代码下切换窗口会覆盖历史因子含义，且不同窗口通常属于不同信号而不是同一序列的技术修正。DASTD 继续使用 A 股量化常用的 252 日和 √252 年化，Word 中的 √250 与其仅为尺度差异。"
+      ],
+      "reason_not_changed": [
+        "现有实现口径明确、审计可重算；没有证据证明某一可选参数应替代当前稳定版本。"
+      ],
+      "decision_action": [
+        "保留现有代码与页面参数告警；如业务需要其他窗口或 DOWNBETA 非零阈值，新增独立因子代码并单独回测，不覆盖现有历史序列。"
+      ],
+      "evidence": [
+        "DASTD=252 日对数收益标准差×√252",
+        "MA20BIAS、HLPOS、TURNVOL 的窗口已写入代码或名称",
+        "参数族变体需要独立代码才能保持历史可解释性"
+      ],
+      "decision_issue_ids": [
+        "parameter-fixed-market-windows-retained"
       ]
     },
     {
@@ -354,6 +499,72 @@
       ],
       "decision_issue_ids": [
         "redundancy-ep-pe-retained"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "EQMULT",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "权益乘数",
+      "l1": "公司内生信息",
+      "l2": "财务稳健类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "产权比率与权益乘数恒等相关，资产负债率保留独立比例表达"
+      ],
+      "verification_assessment": [
+        "DEBT2EQ为总负债/股东权益，EQMULT为总资产/股东权益；在总资产=总负债+股东权益的会计恒等式下，EQMULT=1+DEBT2EQ，两者得分相关系数为0.999975。LEVERAGE为总负债/总资产，是有界比例，虽同属杠杆但不是与前两者相同的线性原值表达。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；DEBT2EQ与EQMULT保留用于口径兼容，LEVERAGE则具有不同分母和取值边界。"
+      ],
+      "decision_action": [
+        "按用户决定保留三个因子；组合层继续硬拦截DEBT2EQ与EQMULT同时入选，LEVERAGE不因该恒等关系自动拦截，但与其他杠杆指标同时使用时需检验边际信息。"
+      ],
+      "evidence": [
+        "DEBT2EQ字段S_FA_DEBTTOEQUITY",
+        "EQMULT字段S_FA_ASSETSTOEQUITY且EQMULT=1+DEBT2EQ",
+        "DEBT2EQ/EQMULT得分相关系数0.999975",
+        "LEVERAGE字段S_DFA_DEBTTOASSET"
+      ],
+      "decision_issue_ids": [
+        "redundancy-debt2eq-eqmult-leverage"
+      ]
+    },
+    {
+      "factor_code": "ESTEARNREV",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "盈利预测调整幅度",
+      "l1": "投资者行为信息",
+      "l2": "分析师预期类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "一个月盈利预测调整因子属于同字段双注册"
+      ],
+      "verification_assessment": [
+        "ESTEARNREV与NPFCST1M均直接使用S_WEST_NETPROFIT_FTM_1M，定义、窗口和底层字段相同，得分相关系数为1.0，属于同一信号的两个代码。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；代码兼容需求可以保留，但不得将同字段双注册当作两个独立信号。"
+      ],
+      "decision_action": [
+        "按用户决定保留两个代码和历史序列以兼容既有结果；组合层继续硬拦截两者同时入选，新增研究优先使用NPFCST1M作为含窗口信息的代码。"
+      ],
+      "evidence": [
+        "ESTEARNREV系统字段为S_WEST_NETPROFIT_FTM_1M",
+        "NPFCST1M系统字段为S_WEST_NETPROFIT_FTM_1M",
+        "两因子得分相关系数1.0"
+      ],
+      "decision_issue_ids": [
+        "redundancy-estearnrev-npfcst1m"
       ]
     },
     {
@@ -391,7 +602,8 @@
       ],
       "decision_issue_ids": [
         "field-holder-trades-validity"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "EXPDEDNP",
@@ -428,7 +640,8 @@
       ],
       "decision_issue_ids": [
         "definition-profit-express-first-event"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "EXPOP",
@@ -465,7 +678,8 @@
       ],
       "decision_issue_ids": [
         "definition-profit-express-first-event"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "EXPROE",
@@ -502,7 +716,8 @@
       ],
       "decision_issue_ids": [
         "definition-profit-express-first-event"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "EXPSALES",
@@ -539,6 +754,39 @@
       ],
       "decision_issue_ids": [
         "definition-profit-express-first-event"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "FCSTDISP",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "盈利预测分歧度",
+      "l1": "投资者行为信息",
+      "l2": "分析师预期类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "分析师分歧与评级变化保留当前单一信号定义"
+      ],
+      "verification_assessment": [
+        "FCSTDISP 当前明确表示 FY1 EPS 预测标准差；评级分歧、目标价分歧是不同输入信号。RATINGCHG 当前表示近 60 日评级上调次数减下调次数；共识评级水平差分也不是单纯窗口替换。把这些信号静默并入现代码会改变因子经济含义。"
+      ],
+      "reason_not_changed": [
+        "当前数据与定义足以支撑现有两个因子，但不足以证明其他分析师信号可作为等价替代。"
+      ],
+      "decision_action": [
+        "保留 FCSTDISP 与 RATINGCHG 当前定义及参数告警；需要评级分歧、目标价分歧或共识评级水平差分时，新增独立代码并分别验证覆盖率。"
+      ],
+      "evidence": [
+        "FCSTDISP 使用 FY1 EPS consensus 标准差",
+        "RATINGCHG 使用近 60 日上调次数减下调次数",
+        "评级水平、分歧和事件净次数的经济含义不同"
+      ],
+      "decision_issue_ids": [
+        "parameter-analyst-signal-scope-retained"
       ]
     },
     {
@@ -576,7 +824,8 @@
       ],
       "decision_issue_ids": [
         "field-sparse-event-tables-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "FWDPE",
@@ -613,7 +862,8 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "GLVR60",
@@ -648,7 +898,8 @@
       ],
       "decision_issue_ids": [
         "redundancy-glvr60-downvol-retained"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "GOODWILLRATIO",
@@ -683,6 +934,39 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "GRCAGR3Y",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "营收3年复合增速",
+      "l1": "公司内生信息",
+      "l2": "成长类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "营业总收入与营业收入增速高度相关但保留"
+      ],
+      "verification_assessment": [
+        "两因子得分高度相关，原始序列相关系数为0.987947且96.3309%的共同观测完全相同，但营业总收入与营业收入在部分行业和报表项目中并非同一概念。"
+      ],
+      "reason_not_changed": [
+        "语义差异真实存在，高相关不足以证明其中一个字段错误；本轮明确保留而不再等待去留研究。"
+      ],
+      "decision_action": [
+        "按用户不删除的决定保留两个因子，页面继续提示高相关；组合构建时避免同时赋予完整权重。"
+      ],
+      "evidence": [
+        "S_DFA_GR_TTM与S_DFA_OR_TTM本地共同样本367772条",
+        "原始序列相关系数0.987947",
+        "用户决定不删除因子"
+      ],
+      "decision_issue_ids": [
+        "redundancy-revenue-cagr-retained"
       ]
     },
     {
@@ -720,6 +1004,135 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "HIGHMOMTURN",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "高动量+高换手",
+      "l1": "市场交易信息",
+      "l2": "拥挤度类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "市场类因子保留现行固定窗口，多窗口版本另设代码"
+      ],
+      "verification_assessment": [
+        "Word 将 N、市场下跌阈值或高动量高换手阈值写为可配置参数，系统则分别固定为已经登记并持续使用的 20、60、252 日等口径。直接在原代码下切换窗口会覆盖历史因子含义，且不同窗口通常属于不同信号而不是同一序列的技术修正。DASTD 继续使用 A 股量化常用的 252 日和 √252 年化，Word 中的 √250 与其仅为尺度差异。"
+      ],
+      "reason_not_changed": [
+        "现有实现口径明确、审计可重算；没有证据证明某一可选参数应替代当前稳定版本。"
+      ],
+      "decision_action": [
+        "保留现有代码与页面参数告警；如业务需要其他窗口或 DOWNBETA 非零阈值，新增独立因子代码并单独回测，不覆盖现有历史序列。"
+      ],
+      "evidence": [
+        "DASTD=252 日对数收益标准差×√252",
+        "MA20BIAS、HLPOS、TURNVOL 的窗口已写入代码或名称",
+        "参数族变体需要独立代码才能保持历史可解释性"
+      ],
+      "decision_issue_ids": [
+        "parameter-fixed-market-windows-retained"
+      ]
+    },
+    {
+      "factor_code": "HLPOS",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "高低点位置",
+      "l1": "市场交易信息",
+      "l2": "均值回复类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "市场类因子保留现行固定窗口，多窗口版本另设代码"
+      ],
+      "verification_assessment": [
+        "Word 将 N、市场下跌阈值或高动量高换手阈值写为可配置参数，系统则分别固定为已经登记并持续使用的 20、60、252 日等口径。直接在原代码下切换窗口会覆盖历史因子含义，且不同窗口通常属于不同信号而不是同一序列的技术修正。DASTD 继续使用 A 股量化常用的 252 日和 √252 年化，Word 中的 √250 与其仅为尺度差异。"
+      ],
+      "reason_not_changed": [
+        "现有实现口径明确、审计可重算；没有证据证明某一可选参数应替代当前稳定版本。"
+      ],
+      "decision_action": [
+        "保留现有代码与页面参数告警；如业务需要其他窗口或 DOWNBETA 非零阈值，新增独立因子代码并单独回测，不覆盖现有历史序列。"
+      ],
+      "evidence": [
+        "DASTD=252 日对数收益标准差×√252",
+        "MA20BIAS、HLPOS、TURNVOL 的窗口已写入代码或名称",
+        "参数族变体需要独立代码才能保持历史可解释性"
+      ],
+      "decision_issue_ids": [
+        "parameter-fixed-market-windows-retained"
+      ]
+    },
+    {
+      "factor_code": "HOLDERAVGCHG",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "人均持股变化",
+      "l1": "投资者行为信息",
+      "l2": "筹码结构类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "两个人均持股变化代码近乎同序列"
+      ],
+      "verification_assessment": [
+        "HOLDERAVGCHG与HOLDERCONCCHG均由PER_HOLDER相对上月的变化构造，底层含义相同，得分相关系数为0.999953。微小差异不足以支持组合重复计权。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；保留兼容代码与认定独立信号是两回事。"
+      ],
+      "decision_action": [
+        "按用户决定保留两个代码和历史序列；组合层继续硬拦截二者同时入选，新研究只选其中一个人均持股变化信号。"
+      ],
+      "evidence": [
+        "两因子底层均为PER_HOLDER月度变化",
+        "PER_HOLDER由FREE_SHARES_TODAY/S_HOLDER_NUM生成",
+        "HOLDERAVGCHG/HOLDERCONCCHG得分相关系数0.999953"
+      ],
+      "decision_issue_ids": [
+        "redundancy-holderavgchg-holderconcchg"
+      ]
+    },
+    {
+      "factor_code": "HOLDERCHG",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "股东户数变化",
+      "l1": "投资者行为信息",
+      "l2": "筹码结构类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "股东户数与融资余额变化保留滚动方向预警"
+      ],
+      "verification_assessment": [
+        "HOLDERCHG覆盖率98.64%，MARGINBALCHG覆盖率52.40%，两者均对账一致。方向预警说明变化类信号在不同市场阶段的横截面关系不稳定；MARGINBALCHG另有厚尾和极端值，但没有非有限值或源数据对账错误。"
+      ],
+      "reason_not_changed": [
+        "当前问题属于时变有效性和覆盖边界，不是字段、单位或计算公式错误。"
+      ],
+      "decision_action": [
+        "保留现有变化定义与方向约定，继续展示方向、厚尾和覆盖提示；组合使用前按滚动窗口和覆盖样本检验稳定性，不把缺失样本填成无变化。"
+      ],
+      "evidence": [
+        "HOLDERCHG与MARGINBALCHG当前均为recon=match",
+        "HOLDERCHG覆盖率98.64%",
+        "MARGINBALCHG覆盖率52.40%且存在outlier、heavy_tail提示"
+      ],
+      "decision_issue_ids": [
+        "validation-holder-margin-change-retained"
       ]
     },
     {
@@ -757,7 +1170,8 @@
       ],
       "decision_issue_ids": [
         "definition-holderconc-per-holder"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "HOLDERCONCCHG",
@@ -798,7 +1212,8 @@
       "decision_issue_ids": [
         "redundancy-holderconcchg-alias-retained",
         "redundancy-holderavgchg-holderconcchg"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "IMPAIRRISK",
@@ -833,7 +1248,8 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "INCENTIVESIZE",
@@ -870,7 +1286,8 @@
       ],
       "decision_issue_ids": [
         "field-sparse-event-tables-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "KURT60",
@@ -905,6 +1322,39 @@
       ],
       "decision_issue_ids": [
         "redundancy-kurt60-retkurt-retained"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "LAWSUITAMT",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "重大诉讼金额",
+      "l1": "事件驱动信息",
+      "l2": "风险事件类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "重大诉讼金额按稀疏厚尾风险事件使用"
+      ],
+      "verification_assessment": [
+        "LAWSUITAMT覆盖率18.05%且源数据对账一致。诉讼金额天然集中在少量事件和公司，因而同时出现coverage_low、outlier和heavy_tail；这些标签描述分布，不代表金额字段或365日聚合错误。"
+      ],
+      "reason_not_changed": [
+        "稀疏和厚尾符合诉讼事件数据特征，当前没有计算或单位错误证据。"
+      ],
+      "decision_action": [
+        "保留重大诉讼金额原始事件聚合和分布预警，仅作为风险事件辅助信号；组合检验时披露覆盖率并检查极端事件影响，不删除真实大额记录。"
+      ],
+      "evidence": [
+        "LAWSUITAMT当前为recon=match",
+        "覆盖率18.05%",
+        "当前标签为coverage_low、outlier与heavy_tail"
+      ],
+      "decision_issue_ids": [
+        "coverage-lawsuit-amount-retained"
       ]
     },
     {
@@ -951,6 +1401,71 @@
       "decision_issue_ids": [
         "field-pit-financial-valid",
         "redundancy-debt2eq-eqmult-leverage"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "LIMITDOWNDAYS",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "跌停天数",
+      "l1": "市场交易信息",
+      "l2": "交易约束类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "涨跌停与一字板天数保留市场状态预警"
+      ],
+      "verification_assessment": [
+        "三个因子均覆盖完整并对账一致，当前只有direction_ic_flip。涨停、跌停和一字板天数既可能表示趋势强弱，也可能表示交易受限或拥挤风险，方向随持有期和市场制度环境变化具有合理性。"
+      ],
+      "reason_not_changed": [
+        "现有数据只能证明经验方向不稳定，不能证明事件计数或涨跌停识别错误。"
+      ],
+      "decision_action": [
+        "保留三个事件计数因子的定义和注册方向，持续展示方向预警；应用时按目标持有期分别检验，不把三个不同交易状态合并成单一方向结论。"
+      ],
+      "evidence": [
+        "LIMITUPDAYS、LIMITDOWNDAYS、ONEBOARDDAYS均为recon=match",
+        "三项覆盖率均为100%",
+        "三项当前仅有direction_ic_flip标签"
+      ],
+      "decision_issue_ids": [
+        "validation-price-limit-event-directions-retained"
+      ]
+    },
+    {
+      "factor_code": "LIMITUPDAYS",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "涨停天数",
+      "l1": "市场交易信息",
+      "l2": "交易约束类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "涨跌停与一字板天数保留市场状态预警"
+      ],
+      "verification_assessment": [
+        "三个因子均覆盖完整并对账一致，当前只有direction_ic_flip。涨停、跌停和一字板天数既可能表示趋势强弱，也可能表示交易受限或拥挤风险，方向随持有期和市场制度环境变化具有合理性。"
+      ],
+      "reason_not_changed": [
+        "现有数据只能证明经验方向不稳定，不能证明事件计数或涨跌停识别错误。"
+      ],
+      "decision_action": [
+        "保留三个事件计数因子的定义和注册方向，持续展示方向预警；应用时按目标持有期分别检验，不把三个不同交易状态合并成单一方向结论。"
+      ],
+      "evidence": [
+        "LIMITUPDAYS、LIMITDOWNDAYS、ONEBOARDDAYS均为recon=match",
+        "三项覆盖率均为100%",
+        "三项当前仅有direction_ic_flip标签"
+      ],
+      "decision_issue_ids": [
+        "validation-price-limit-event-directions-retained"
       ]
     },
     {
@@ -988,6 +1503,39 @@
       ],
       "decision_issue_ids": [
         "field-ln_mv-human-candidate-invalid"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "MA20BIAS",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "均线偏离度",
+      "l1": "市场交易信息",
+      "l2": "均值回复类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "市场类因子保留现行固定窗口，多窗口版本另设代码"
+      ],
+      "verification_assessment": [
+        "Word 将 N、市场下跌阈值或高动量高换手阈值写为可配置参数，系统则分别固定为已经登记并持续使用的 20、60、252 日等口径。直接在原代码下切换窗口会覆盖历史因子含义，且不同窗口通常属于不同信号而不是同一序列的技术修正。DASTD 继续使用 A 股量化常用的 252 日和 √252 年化，Word 中的 √250 与其仅为尺度差异。"
+      ],
+      "reason_not_changed": [
+        "现有实现口径明确、审计可重算；没有证据证明某一可选参数应替代当前稳定版本。"
+      ],
+      "decision_action": [
+        "保留现有代码与页面参数告警；如业务需要其他窗口或 DOWNBETA 非零阈值，新增独立因子代码并单独回测，不覆盖现有历史序列。"
+      ],
+      "evidence": [
+        "DASTD=252 日对数收益标准差×√252",
+        "MA20BIAS、HLPOS、TURNVOL 的窗口已写入代码或名称",
+        "参数族变体需要独立代码才能保持历史可解释性"
+      ],
+      "decision_issue_ids": [
+        "parameter-fixed-market-windows-retained"
       ]
     },
     {
@@ -1024,7 +1572,8 @@
       ],
       "decision_issue_ids": [
         "definition-mainflow-synthetic"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "MAJORHOLDERCHG",
@@ -1061,6 +1610,71 @@
       ],
       "decision_issue_ids": [
         "field-holder-trades-validity"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "MARGINBALCHG",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "融资余额变化",
+      "l1": "投资者行为信息",
+      "l2": "资金流类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "股东户数与融资余额变化保留滚动方向预警"
+      ],
+      "verification_assessment": [
+        "HOLDERCHG覆盖率98.64%，MARGINBALCHG覆盖率52.40%，两者均对账一致。方向预警说明变化类信号在不同市场阶段的横截面关系不稳定；MARGINBALCHG另有厚尾和极端值，但没有非有限值或源数据对账错误。"
+      ],
+      "reason_not_changed": [
+        "当前问题属于时变有效性和覆盖边界，不是字段、单位或计算公式错误。"
+      ],
+      "decision_action": [
+        "保留现有变化定义与方向约定，继续展示方向、厚尾和覆盖提示；组合使用前按滚动窗口和覆盖样本检验稳定性，不把缺失样本填成无变化。"
+      ],
+      "evidence": [
+        "HOLDERCHG与MARGINBALCHG当前均为recon=match",
+        "HOLDERCHG覆盖率98.64%",
+        "MARGINBALCHG覆盖率52.40%且存在outlier、heavy_tail提示"
+      ],
+      "decision_issue_ids": [
+        "validation-holder-margin-change-retained"
+      ]
+    },
+    {
+      "factor_code": "MOM20",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "20日动量",
+      "l1": "市场交易信息",
+      "l2": "收益趋势类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "20日动量与21日反转高度反向相关但不作硬拦截"
+      ],
+      "verification_assessment": [
+        "MOM20保存近20日累计对数收益并按正向使用，REV1M保存近21日累计对数收益但按负向排序；窗口高度重叠且方向相反，得分相关系数为-0.965232。两者不是同字段同窗口双注册，但同时使用通常会相互抵消或重复表达短期收益。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；20日正向动量与21日反向使用在策略含义上仍有区别，当前证据支持软提示而非强制删除。"
+      ],
+      "decision_action": [
+        "按用户决定保留两条历史序列；暂不作硬拦截，组合同时使用前必须检查方向、净权重和边际贡献，并在审核页持续提示经验高相关。"
+      ],
+      "evidence": [
+        "MOM20为20日累计对数收益且direction=1",
+        "REV1M为21日累计对数收益且direction=-1",
+        "MOM20/REV1M得分相关系数-0.965232"
+      ],
+      "decision_issue_ids": [
+        "redundancy-mom20-rev1m"
       ]
     },
     {
@@ -1106,7 +1720,8 @@
       "decision_issue_ids": [
         "definition-mom60-absolute-return",
         "redundancy-mom60-relret60"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "NETMGN",
@@ -1143,6 +1758,39 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "NPFCST1M",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "净利预期上修(1M)",
+      "l1": "投资者行为信息",
+      "l2": "分析师预期类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "一个月盈利预测调整因子属于同字段双注册"
+      ],
+      "verification_assessment": [
+        "ESTEARNREV与NPFCST1M均直接使用S_WEST_NETPROFIT_FTM_1M，定义、窗口和底层字段相同，得分相关系数为1.0，属于同一信号的两个代码。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；代码兼容需求可以保留，但不得将同字段双注册当作两个独立信号。"
+      ],
+      "decision_action": [
+        "按用户决定保留两个代码和历史序列以兼容既有结果；组合层继续硬拦截两者同时入选，新增研究优先使用NPFCST1M作为含窗口信息的代码。"
+      ],
+      "evidence": [
+        "ESTEARNREV系统字段为S_WEST_NETPROFIT_FTM_1M",
+        "NPFCST1M系统字段为S_WEST_NETPROFIT_FTM_1M",
+        "两因子得分相关系数1.0"
+      ],
+      "decision_issue_ids": [
+        "redundancy-estearnrev-npfcst1m"
       ]
     },
     {
@@ -1180,7 +1828,8 @@
       ],
       "decision_issue_ids": [
         "redundancy-npfcst3m-window-retained"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "NPGROWTH",
@@ -1217,7 +1866,8 @@
       ],
       "decision_issue_ids": [
         "field-npgrowth-wind-yoy-verified"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "OCF2OI",
@@ -1254,7 +1904,8 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "OCF2OR",
@@ -1291,6 +1942,39 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "ONEBOARDDAYS",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "一字板天数",
+      "l1": "市场交易信息",
+      "l2": "交易约束类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "涨跌停与一字板天数保留市场状态预警"
+      ],
+      "verification_assessment": [
+        "三个因子均覆盖完整并对账一致，当前只有direction_ic_flip。涨停、跌停和一字板天数既可能表示趋势强弱，也可能表示交易受限或拥挤风险，方向随持有期和市场制度环境变化具有合理性。"
+      ],
+      "reason_not_changed": [
+        "现有数据只能证明经验方向不稳定，不能证明事件计数或涨跌停识别错误。"
+      ],
+      "decision_action": [
+        "保留三个事件计数因子的定义和注册方向，持续展示方向预警；应用时按目标持有期分别检验，不把三个不同交易状态合并成单一方向结论。"
+      ],
+      "evidence": [
+        "LIMITUPDAYS、LIMITDOWNDAYS、ONEBOARDDAYS均为recon=match",
+        "三项覆盖率均为100%",
+        "三项当前仅有direction_ic_flip标签"
+      ],
+      "decision_issue_ids": [
+        "validation-price-limit-event-directions-retained"
       ]
     },
     {
@@ -1328,7 +2012,8 @@
       ],
       "decision_issue_ids": [
         "data-financial-raw-validation-fields"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "OPMGN",
@@ -1365,7 +2050,8 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "ORCAGR3Y",
@@ -1410,6 +2096,103 @@
       "decision_issue_ids": [
         "definition-orcagr3y-revenue-scope",
         "redundancy-revenue-cagr-retained"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "PB",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "市净率PB",
+      "l1": "公司内生信息",
+      "l2": "估值类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "估值倍数的厚尾与方向变化保留为研究预警"
+      ],
+      "verification_assessment": [
+        "PE、PB、PS和PCF均已完成源数据对账，覆盖率为99.98%至100%。当前预警来自厚尾、极端值或RankIC方向随样本变化，不证明估值字段或计算公式错误；估值倍数的经济方向还会受盈利质量、行业结构和市场阶段影响。"
+      ],
+      "reason_not_changed": [
+        "四个因子均可复算且数据覆盖完整，当前证据只支持研究期复核，不支持修改公式或统一反转方向。"
+      ],
+      "decision_action": [
+        "保留四个估值因子的原始定义和自动预警；使用时同时查看原始/中性RankIC、滚动结果和分行业表现，不因一次全样本方向提示反转注册方向，也不删除原始极端观测。"
+      ],
+      "evidence": [
+        "当前审计PE、PB、PS、PCF均为recon=match",
+        "覆盖率区间99.98%至100%",
+        "自动标签仅为heavy_tail、outlier或direction_ic_flip"
+      ],
+      "decision_issue_ids": [
+        "validation-valuation-ratio-distribution-retained"
+      ]
+    },
+    {
+      "factor_code": "PCF",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "市现率PCF",
+      "l1": "公司内生信息",
+      "l2": "估值类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "估值倍数的厚尾与方向变化保留为研究预警"
+      ],
+      "verification_assessment": [
+        "PE、PB、PS和PCF均已完成源数据对账，覆盖率为99.98%至100%。当前预警来自厚尾、极端值或RankIC方向随样本变化，不证明估值字段或计算公式错误；估值倍数的经济方向还会受盈利质量、行业结构和市场阶段影响。"
+      ],
+      "reason_not_changed": [
+        "四个因子均可复算且数据覆盖完整，当前证据只支持研究期复核，不支持修改公式或统一反转方向。"
+      ],
+      "decision_action": [
+        "保留四个估值因子的原始定义和自动预警；使用时同时查看原始/中性RankIC、滚动结果和分行业表现，不因一次全样本方向提示反转注册方向，也不删除原始极端观测。"
+      ],
+      "evidence": [
+        "当前审计PE、PB、PS、PCF均为recon=match",
+        "覆盖率区间99.98%至100%",
+        "自动标签仅为heavy_tail、outlier或direction_ic_flip"
+      ],
+      "decision_issue_ids": [
+        "validation-valuation-ratio-distribution-retained"
+      ]
+    },
+    {
+      "factor_code": "PE",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "市盈率PE",
+      "l1": "公司内生信息",
+      "l2": "估值类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "估值倍数的厚尾与方向变化保留为研究预警"
+      ],
+      "verification_assessment": [
+        "PE、PB、PS和PCF均已完成源数据对账，覆盖率为99.98%至100%。当前预警来自厚尾、极端值或RankIC方向随样本变化，不证明估值字段或计算公式错误；估值倍数的经济方向还会受盈利质量、行业结构和市场阶段影响。"
+      ],
+      "reason_not_changed": [
+        "四个因子均可复算且数据覆盖完整，当前证据只支持研究期复核，不支持修改公式或统一反转方向。"
+      ],
+      "decision_action": [
+        "保留四个估值因子的原始定义和自动预警；使用时同时查看原始/中性RankIC、滚动结果和分行业表现，不因一次全样本方向提示反转注册方向，也不删除原始极端观测。"
+      ],
+      "evidence": [
+        "当前审计PE、PB、PS、PCF均为recon=match",
+        "覆盖率区间99.98%至100%",
+        "自动标签仅为heavy_tail、outlier或direction_ic_flip"
+      ],
+      "decision_issue_ids": [
+        "validation-valuation-ratio-distribution-retained"
       ]
     },
     {
@@ -1447,6 +2230,71 @@
       ],
       "decision_issue_ids": [
         "redundancy-pe-deducted-retained"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "PLACEDISCOUNT",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "定增折价率",
+      "l1": "事件驱动信息",
+      "l2": "资本运作类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "定增折价率按稀疏资本事件信号使用"
+      ],
+      "verification_assessment": [
+        "PLACEDISCOUNT覆盖率8.55%且源数据对账一致，低覆盖由定增事件稀疏性决定。direction_ic_flip说明折价既可能反映安全边际，也可能反映融资压力或信息劣势，不能据此自动改变公式方向。"
+      ],
+      "reason_not_changed": [
+        "当前预警来自事件稀疏和经济含义的条件性，不是折价率计算错误。"
+      ],
+      "decision_action": [
+        "保留定增折价率及低覆盖、方向提示，仅作为发生定增事件时的辅助信号；不对无定增股票填零，不作为默认宽基主排序因子。"
+      ],
+      "evidence": [
+        "PLACEDISCOUNT当前为recon=match",
+        "覆盖率8.55%",
+        "当前标签为coverage_low与direction_ic_flip"
+      ],
+      "decision_issue_ids": [
+        "coverage-placement-discount-retained"
+      ]
+    },
+    {
+      "factor_code": "PLACEMENTSIZE",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "定增规模",
+      "l1": "事件驱动信息",
+      "l2": "资本运作类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "定增规模与再融资压力使用同源融资事件且方向相反"
+      ],
+      "verification_assessment": [
+        "PLACEMENTSIZE和REFINPRESS均汇总近期定增或再融资金额并按市值缩放，主要差异是事件范围、变换和排序方向；得分相关系数为-0.999520，绝对值接近1，组合中同时使用会重复表达同源融资压力。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；两种代码可保留历史兼容性，但近完全反向相关不支持重复计权。"
+      ],
+      "decision_action": [
+        "按用户决定保留两条历史序列；组合层继续硬拦截PLACEMENTSIZE与REFINPRESS同时入选，并在展示中明确其方向约定。"
+      ],
+      "evidence": [
+        "两因子均使用近期定增或再融资金额并按市值缩放",
+        "两因子排序方向约定相反",
+        "PLACEMENTSIZE/REFINPRESS得分相关系数-0.999520"
+      ],
+      "decision_issue_ids": [
+        "redundancy-placementsize-refinpress"
       ]
     },
     {
@@ -1485,6 +2333,39 @@
       ],
       "decision_issue_ids": [
         "definition-disclosure-surprise-state"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "PS",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "市销率PS",
+      "l1": "公司内生信息",
+      "l2": "估值类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "估值倍数的厚尾与方向变化保留为研究预警"
+      ],
+      "verification_assessment": [
+        "PE、PB、PS和PCF均已完成源数据对账，覆盖率为99.98%至100%。当前预警来自厚尾、极端值或RankIC方向随样本变化，不证明估值字段或计算公式错误；估值倍数的经济方向还会受盈利质量、行业结构和市场阶段影响。"
+      ],
+      "reason_not_changed": [
+        "四个因子均可复算且数据覆盖完整，当前证据只支持研究期复核，不支持修改公式或统一反转方向。"
+      ],
+      "decision_action": [
+        "保留四个估值因子的原始定义和自动预警；使用时同时查看原始/中性RankIC、滚动结果和分行业表现，不因一次全样本方向提示反转注册方向，也不删除原始极端观测。"
+      ],
+      "evidence": [
+        "当前审计PE、PB、PS、PCF均为recon=match",
+        "覆盖率区间99.98%至100%",
+        "自动标签仅为heavy_tail、outlier或direction_ic_flip"
+      ],
+      "decision_issue_ids": [
+        "validation-valuation-ratio-distribution-retained"
       ]
     },
     {
@@ -1520,7 +2401,8 @@
       ],
       "decision_issue_ids": [
         "definition-price-skew"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "PUNISHAMT",
@@ -1559,6 +2441,39 @@
       ],
       "decision_issue_ids": [
         "field-sparse-event-tables-valid"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "RATINGCHG",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "评级变化",
+      "l1": "投资者行为信息",
+      "l2": "分析师预期类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "分析师分歧与评级变化保留当前单一信号定义"
+      ],
+      "verification_assessment": [
+        "FCSTDISP 当前明确表示 FY1 EPS 预测标准差；评级分歧、目标价分歧是不同输入信号。RATINGCHG 当前表示近 60 日评级上调次数减下调次数；共识评级水平差分也不是单纯窗口替换。把这些信号静默并入现代码会改变因子经济含义。"
+      ],
+      "reason_not_changed": [
+        "当前数据与定义足以支撑现有两个因子，但不足以证明其他分析师信号可作为等价替代。"
+      ],
+      "decision_action": [
+        "保留 FCSTDISP 与 RATINGCHG 当前定义及参数告警；需要评级分歧、目标价分歧或共识评级水平差分时，新增独立代码并分别验证覆盖率。"
+      ],
+      "evidence": [
+        "FCSTDISP 使用 FY1 EPS consensus 标准差",
+        "RATINGCHG 使用近 60 日上调次数减下调次数",
+        "评级水平、分歧和事件净次数的经济含义不同"
+      ],
+      "decision_issue_ids": [
+        "parameter-analyst-signal-scope-retained"
       ]
     },
     {
@@ -1597,6 +2512,39 @@
       ],
       "decision_issue_ids": [
         "definition-rdexpratiochg-reconstructed"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "REFINPRESS",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "再融资压力",
+      "l1": "事件驱动信息",
+      "l2": "供给冲击类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "定增规模与再融资压力使用同源融资事件且方向相反"
+      ],
+      "verification_assessment": [
+        "PLACEMENTSIZE和REFINPRESS均汇总近期定增或再融资金额并按市值缩放，主要差异是事件范围、变换和排序方向；得分相关系数为-0.999520，绝对值接近1，组合中同时使用会重复表达同源融资压力。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；两种代码可保留历史兼容性，但近完全反向相关不支持重复计权。"
+      ],
+      "decision_action": [
+        "按用户决定保留两条历史序列；组合层继续硬拦截PLACEMENTSIZE与REFINPRESS同时入选，并在展示中明确其方向约定。"
+      ],
+      "evidence": [
+        "两因子均使用近期定增或再融资金额并按市值缩放",
+        "两因子排序方向约定相反",
+        "PLACEMENTSIZE/REFINPRESS得分相关系数-0.999520"
+      ],
+      "decision_issue_ids": [
+        "redundancy-placementsize-refinpress"
       ]
     },
     {
@@ -1642,7 +2590,8 @@
       "decision_issue_ids": [
         "definition-relret60-common-benchmark",
         "redundancy-mom60-relret60"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "REPORTSURPRISE",
@@ -1678,6 +2627,39 @@
       ],
       "decision_issue_ids": [
         "definition-disclosure-surprise-state"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "RETSKEW",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "收益偏度",
+      "l1": "市场交易信息",
+      "l2": "波动风险类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "市场类因子保留现行固定窗口，多窗口版本另设代码"
+      ],
+      "verification_assessment": [
+        "Word 将 N、市场下跌阈值或高动量高换手阈值写为可配置参数，系统则分别固定为已经登记并持续使用的 20、60、252 日等口径。直接在原代码下切换窗口会覆盖历史因子含义，且不同窗口通常属于不同信号而不是同一序列的技术修正。DASTD 继续使用 A 股量化常用的 252 日和 √252 年化，Word 中的 √250 与其仅为尺度差异。"
+      ],
+      "reason_not_changed": [
+        "现有实现口径明确、审计可重算；没有证据证明某一可选参数应替代当前稳定版本。"
+      ],
+      "decision_action": [
+        "保留现有代码与页面参数告警；如业务需要其他窗口或 DOWNBETA 非零阈值，新增独立因子代码并单独回测，不覆盖现有历史序列。"
+      ],
+      "evidence": [
+        "DASTD=252 日对数收益标准差×√252",
+        "MA20BIAS、HLPOS、TURNVOL 的窗口已写入代码或名称",
+        "参数族变体需要独立代码才能保持历史可解释性"
+      ],
+      "decision_issue_ids": [
+        "parameter-fixed-market-windows-retained"
       ]
     },
     {
@@ -1721,7 +2703,8 @@
       "decision_issue_ids": [
         "definition-rev1m-components",
         "redundancy-mom20-rev1m"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "REV5D",
@@ -1758,6 +2741,39 @@
       ],
       "decision_issue_ids": [
         "redundancy-rev5d-window-retained"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "REVSVAR",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "回报方差比率(30/120)",
+      "l1": "市场交易信息",
+      "l2": "波动风险类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "收益风险比率保留方向稳定性预警"
+      ],
+      "verification_assessment": [
+        "TREYNOR60和REVSVAR覆盖率均为99.99%，源数据复算一致。TREYNOR60的厚尾来自收益与Beta比值的分母敏感性；两项direction_ic_flip均是经验有效性提示，不构成公式错误。"
+      ],
+      "reason_not_changed": [
+        "两项因子定义明确且覆盖完整，没有证据支持用自动方向预警覆盖既有经济定义。"
+      ],
+      "decision_action": [
+        "保留现有60日特诺雷比率和30/120日回报方差比率；研究使用时检查分母敏感性、滚动RankIC和极端月份影响，不根据单一全样本符号改方向。"
+      ],
+      "evidence": [
+        "TREYNOR60与REVSVAR当前均为recon=match",
+        "两项覆盖率均为99.99%",
+        "TREYNOR60仅增加heavy_tail提示，REVSVAR仅有direction_ic_flip提示"
+      ],
+      "decision_issue_ids": [
+        "validation-return-risk-ratios-retained"
       ]
     },
     {
@@ -1795,7 +2811,8 @@
       ],
       "decision_issue_ids": [
         "field-sparse-event-tables-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "ROA",
@@ -1832,7 +2849,8 @@
       ],
       "decision_issue_ids": [
         "definition-roa1-net-income-return"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "ROE",
@@ -1869,7 +2887,8 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "ROEVOL",
@@ -1906,7 +2925,8 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "ROIC",
@@ -1943,6 +2963,105 @@
       ],
       "decision_issue_ids": [
         "field-pit-financial-valid"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "STOM",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "月度对数换手率",
+      "l1": "市场交易信息",
+      "l2": "流动性类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "月度换手强度的对数和均值表达近乎同序列"
+      ],
+      "verification_assessment": [
+        "STOM对近21日换手率合计取自然对数，TURN20计算近20日换手率均值；窗口仅差一个交易日，且对数与常数缩放均保持单调排序，得分相关系数为0.999489。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；两个代码仍可服务不同模型输入尺度，但不应重复计权。"
+      ],
+      "decision_action": [
+        "按用户决定保留两条历史序列；组合层继续硬拦截STOM与TURN20同时入选，使用时根据模型是否需要对数压缩选择一种表达。"
+      ],
+      "evidence": [
+        "STOM=ln(sum(TURN,21日))",
+        "TURN20=mean(TURN,20日)",
+        "STOM/TURN20得分相关系数0.999489"
+      ],
+      "decision_issue_ids": [
+        "redundancy-stom-turn20"
+      ]
+    },
+    {
+      "factor_code": "SURVEYCNT",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "机构调研次数",
+      "l1": "投资者行为信息",
+      "l2": "关注度类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "调研与目标价信号按有限覆盖样本使用"
+      ],
+      "verification_assessment": [
+        "SURVEYCNT、SURVEYINSTCNT和TARGETPRICECHG覆盖率分别为30.34%、30.25%和22.24%，均已对账一致。低覆盖主要来自事件披露和分析师覆盖本身的选择性，不应把未披露或无覆盖样本机械填为零。"
+      ],
+      "reason_not_changed": [
+        "低覆盖是数据生成机制和适用范围限制，补零会把未知状态误写成无事件或无变化。"
+      ],
+      "decision_action": [
+        "保留三个因子及coverage_low提示，仅在有调研或分析师覆盖的适用样本中使用；宽基组合中须同步报告有效样本比例，不作为全市场默认主排序因子。"
+      ],
+      "evidence": [
+        "三个因子当前均为recon=match",
+        "SURVEYCNT覆盖率30.34%",
+        "SURVEYINSTCNT覆盖率30.25%",
+        "TARGETPRICECHG覆盖率22.24%"
+      ],
+      "decision_issue_ids": [
+        "coverage-attention-signals-retained"
+      ]
+    },
+    {
+      "factor_code": "SURVEYINSTCNT",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "调研机构数量",
+      "l1": "投资者行为信息",
+      "l2": "关注度类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "调研与目标价信号按有限覆盖样本使用"
+      ],
+      "verification_assessment": [
+        "SURVEYCNT、SURVEYINSTCNT和TARGETPRICECHG覆盖率分别为30.34%、30.25%和22.24%，均已对账一致。低覆盖主要来自事件披露和分析师覆盖本身的选择性，不应把未披露或无覆盖样本机械填为零。"
+      ],
+      "reason_not_changed": [
+        "低覆盖是数据生成机制和适用范围限制，补零会把未知状态误写成无事件或无变化。"
+      ],
+      "decision_action": [
+        "保留三个因子及coverage_low提示，仅在有调研或分析师覆盖的适用样本中使用；宽基组合中须同步报告有效样本比例，不作为全市场默认主排序因子。"
+      ],
+      "evidence": [
+        "三个因子当前均为recon=match",
+        "SURVEYCNT覆盖率30.34%",
+        "SURVEYINSTCNT覆盖率30.25%",
+        "TARGETPRICECHG覆盖率22.24%"
+      ],
+      "decision_issue_ids": [
+        "coverage-attention-signals-retained"
       ]
     },
     {
@@ -1980,6 +3099,136 @@
       ],
       "decision_issue_ids": [
         "definition-suspenddays-recent-liquidity"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "TARGETPRICECHG",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "目标价调整幅度",
+      "l1": "投资者行为信息",
+      "l2": "分析师预期类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "调研与目标价信号按有限覆盖样本使用"
+      ],
+      "verification_assessment": [
+        "SURVEYCNT、SURVEYINSTCNT和TARGETPRICECHG覆盖率分别为30.34%、30.25%和22.24%，均已对账一致。低覆盖主要来自事件披露和分析师覆盖本身的选择性，不应把未披露或无覆盖样本机械填为零。"
+      ],
+      "reason_not_changed": [
+        "低覆盖是数据生成机制和适用范围限制，补零会把未知状态误写成无事件或无变化。"
+      ],
+      "decision_action": [
+        "保留三个因子及coverage_low提示，仅在有调研或分析师覆盖的适用样本中使用；宽基组合中须同步报告有效样本比例，不作为全市场默认主排序因子。"
+      ],
+      "evidence": [
+        "三个因子当前均为recon=match",
+        "SURVEYCNT覆盖率30.34%",
+        "SURVEYINSTCNT覆盖率30.25%",
+        "TARGETPRICECHG覆盖率22.24%"
+      ],
+      "decision_issue_ids": [
+        "coverage-attention-signals-retained"
+      ]
+    },
+    {
+      "factor_code": "TREYNOR60",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "特诺雷比率(60D)",
+      "l1": "市场交易信息",
+      "l2": "波动风险类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "收益风险比率保留方向稳定性预警"
+      ],
+      "verification_assessment": [
+        "TREYNOR60和REVSVAR覆盖率均为99.99%，源数据复算一致。TREYNOR60的厚尾来自收益与Beta比值的分母敏感性；两项direction_ic_flip均是经验有效性提示，不构成公式错误。"
+      ],
+      "reason_not_changed": [
+        "两项因子定义明确且覆盖完整，没有证据支持用自动方向预警覆盖既有经济定义。"
+      ],
+      "decision_action": [
+        "保留现有60日特诺雷比率和30/120日回报方差比率；研究使用时检查分母敏感性、滚动RankIC和极端月份影响，不根据单一全样本符号改方向。"
+      ],
+      "evidence": [
+        "TREYNOR60与REVSVAR当前均为recon=match",
+        "两项覆盖率均为99.99%",
+        "TREYNOR60仅增加heavy_tail提示，REVSVAR仅有direction_ic_flip提示"
+      ],
+      "decision_issue_ids": [
+        "validation-return-risk-ratios-retained"
+      ]
+    },
+    {
+      "factor_code": "TURN20",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "日均换手率",
+      "l1": "市场交易信息",
+      "l2": "流动性类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "月度换手强度的对数和均值表达近乎同序列"
+      ],
+      "verification_assessment": [
+        "STOM对近21日换手率合计取自然对数，TURN20计算近20日换手率均值；窗口仅差一个交易日，且对数与常数缩放均保持单调排序，得分相关系数为0.999489。"
+      ],
+      "reason_not_changed": [
+        "用户明确要求本轮不删除因子；两个代码仍可服务不同模型输入尺度，但不应重复计权。"
+      ],
+      "decision_action": [
+        "按用户决定保留两条历史序列；组合层继续硬拦截STOM与TURN20同时入选，使用时根据模型是否需要对数压缩选择一种表达。"
+      ],
+      "evidence": [
+        "STOM=ln(sum(TURN,21日))",
+        "TURN20=mean(TURN,20日)",
+        "STOM/TURN20得分相关系数0.999489"
+      ],
+      "decision_issue_ids": [
+        "redundancy-stom-turn20"
+      ]
+    },
+    {
+      "factor_code": "TURN20D120",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "短长换手比(20/120)",
+      "l1": "市场交易信息",
+      "l2": "拥挤度类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "短长换手与量能比保留方向变化预警"
+      ],
+      "verification_assessment": [
+        "TURN20D120和VOL1M60均为短窗口与长窗口的交易活跃度比值，覆盖率100%且对账一致。当前只有direction_ic_flip，说明放量或换手抬升在趋势延续与拥挤反转阶段可能对应不同结果。"
+      ],
+      "reason_not_changed": [
+        "自动方向变化反映条件有效性，不能证明短长窗口比值公式错误。"
+      ],
+      "decision_action": [
+        "保留两个比率因子及现有方向，页面持续显示方向预警；组合使用时结合市场阶段、滚动RankIC和换手成本判断，不静默反转或合并两个信号。"
+      ],
+      "evidence": [
+        "TURN20D120与VOL1M60当前均为recon=match",
+        "两项覆盖率均为100%",
+        "两项当前仅有direction_ic_flip标签"
+      ],
+      "decision_issue_ids": [
+        "validation-turnover-volume-ratios-retained"
       ]
     },
     {
@@ -2015,6 +3264,39 @@
       ],
       "decision_issue_ids": [
         "definition-turnpctl-two-stage"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "TURNVOL",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "换手率波动率",
+      "l1": "市场交易信息",
+      "l2": "流动性类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "市场类因子保留现行固定窗口，多窗口版本另设代码"
+      ],
+      "verification_assessment": [
+        "Word 将 N、市场下跌阈值或高动量高换手阈值写为可配置参数，系统则分别固定为已经登记并持续使用的 20、60、252 日等口径。直接在原代码下切换窗口会覆盖历史因子含义，且不同窗口通常属于不同信号而不是同一序列的技术修正。DASTD 继续使用 A 股量化常用的 252 日和 √252 年化，Word 中的 √250 与其仅为尺度差异。"
+      ],
+      "reason_not_changed": [
+        "现有实现口径明确、审计可重算；没有证据证明某一可选参数应替代当前稳定版本。"
+      ],
+      "decision_action": [
+        "保留现有代码与页面参数告警；如业务需要其他窗口或 DOWNBETA 非零阈值，新增独立因子代码并单独回测，不覆盖现有历史序列。"
+      ],
+      "evidence": [
+        "DASTD=252 日对数收益标准差×√252",
+        "MA20BIAS、HLPOS、TURNVOL 的窗口已写入代码或名称",
+        "参数族变体需要独立代码才能保持历史可解释性"
+      ],
+      "decision_issue_ids": [
+        "parameter-fixed-market-windows-retained"
       ]
     },
     {
@@ -2052,7 +3334,8 @@
       ],
       "decision_issue_ids": [
         "redundancy-turnvol20-window-retained"
-      ]
+      ],
+      "manual_review_available": true
     },
     {
       "factor_code": "UNLOCKMVRATIO",
@@ -2090,6 +3373,39 @@
       ],
       "decision_issue_ids": [
         "data-unlock-announcement-date"
+      ],
+      "manual_review_available": true
+    },
+    {
+      "factor_code": "VOL1M60",
+      "manual_problem": [],
+      "manual_suggestion": [],
+      "manual_system_versions": [],
+      "manual_updated_at": "",
+      "manual_review_available": false,
+      "name_cn": "量能比(20/60)",
+      "l1": "市场交易信息",
+      "l2": "价量配合类",
+      "resolution_status": "not_planned",
+      "decision_titles": [
+        "短长换手与量能比保留方向变化预警"
+      ],
+      "verification_assessment": [
+        "TURN20D120和VOL1M60均为短窗口与长窗口的交易活跃度比值，覆盖率100%且对账一致。当前只有direction_ic_flip，说明放量或换手抬升在趋势延续与拥挤反转阶段可能对应不同结果。"
+      ],
+      "reason_not_changed": [
+        "自动方向变化反映条件有效性，不能证明短长窗口比值公式错误。"
+      ],
+      "decision_action": [
+        "保留两个比率因子及现有方向，页面持续显示方向预警；组合使用时结合市场阶段、滚动RankIC和换手成本判断，不静默反转或合并两个信号。"
+      ],
+      "evidence": [
+        "TURN20D120与VOL1M60当前均为recon=match",
+        "两项覆盖率均为100%",
+        "两项当前仅有direction_ic_flip标签"
+      ],
+      "decision_issue_ids": [
+        "validation-turnover-volume-ratios-retained"
       ]
     }
   ]

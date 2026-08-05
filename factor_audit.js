@@ -611,8 +611,13 @@ function renderRetainedReviewReport() {
   const sourceProblemGaps = summary.source_missing_problem_count ?? summary.missing_problem_count ?? 0;
   const sourceSuggestionGaps = summary.source_missing_suggestion_count ?? summary.missing_suggestion_count ?? 0;
   const currentDecisionGaps = summary.current_decision_gap_count ?? 0;
-  countEl.textContent = `${scope}：保留${summary.retained_issue_factor_count || 0} · 已修改${summary.reclassified_fixed_count || 0} · 转待处理${summary.reclassified_pending_count || 0} · 原人工文本缺项${sourceProblemGaps}/${sourceSuggestionGaps} · 当前处置缺口${currentDecisionGaps}`;
-  root.innerHTML = rows.map(row => `
+  const noActionCount = summary.current_no_action_factor_count ?? 0;
+  countEl.textContent = `${scope}：当前保留${summary.current_retained_factor_count ?? summary.retained_issue_factor_count ?? 0} · 无处置${noActionCount} · 历史已修改${summary.reclassified_fixed_count || 0} · 转待处理${summary.reclassified_pending_count || 0} · 原人工文本缺项${sourceProblemGaps}/${sourceSuggestionGaps} · 当前处置缺口${currentDecisionGaps}`;
+  root.innerHTML = rows.map(row => {
+    const manualEmpty = row.manual_review_available === false
+      ? "不适用：非原人工问题队列；由补充核查形成保留决定"
+      : "原人工记录未填写；以右侧当前核验结论为准";
+    return `
     <tr>
       <td>${resolutionStatusCell({ resolution_status: row.resolution_status })}</td>
       <td>
@@ -622,8 +627,8 @@ function renderRetainedReviewReport() {
         </button>
         <small>${esc(row.l1)} / ${esc(row.l2)}</small>
       </td>
-      <td>${retainedReportLines(row.manual_problem, "原人工记录未填写；以右侧当前核验结论为准")}</td>
-      <td>${retainedReportLines(row.manual_suggestion, "原人工记录未填写；以右侧当前核验结论为准")}</td>
+      <td>${retainedReportLines(row.manual_problem, manualEmpty)}</td>
+      <td>${retainedReportLines(row.manual_suggestion, manualEmpty)}</td>
       <td>
         <strong>核验结论</strong>${retainedReportLines(row.verification_assessment, "未记录")}
         <strong>${row.resolution_status === "not_planned" ? "不修改理由" : row.resolution_status === "fixed" ? "完成状态" : "尚未完成原因"}</strong>${retainedReportLines(row.reason_not_changed, "未记录")}
@@ -632,7 +637,8 @@ function renderRetainedReviewReport() {
         <strong>处理与使用约束</strong>${retainedReportLines(row.decision_action, "未记录")}
         <strong>核心证据</strong>${retainedReportLines(row.evidence, "未记录")}
       </td>
-    </tr>`).join("") || `<tr><td colspan="6" class="fa-empty">无匹配因子</td></tr>`;
+    </tr>`;
+  }).join("") || `<tr><td colspan="6" class="fa-empty">无匹配因子</td></tr>`;
   root.querySelectorAll("[data-code]").forEach(btn =>
     btn.addEventListener("click", () => openDetail(btn.dataset.code)));
 }
