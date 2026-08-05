@@ -12,6 +12,8 @@ async function launchValidationBrowser() {
     options.executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
   } else if (process.env.PLAYWRIGHT_CHROMIUM_CHANNEL) {
     options.channel = process.env.PLAYWRIGHT_CHROMIUM_CHANNEL;
+  } else {
+    options.channel = "chrome";
   }
 
   try {

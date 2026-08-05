@@ -5,6 +5,11 @@ on:
     branches:
       - main
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-validation-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   static-checks:
@@ -61,3 +66,37 @@ jobs:
           node --check e2e/compose_validation.mjs
           node --check e2e/run_compose_validation.mjs
           node --check e2e/online_compose_validation.mjs
+          node --check e2e/perf_budget.mjs
+
+  online-release:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: static-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install browser test dependencies
+        run: npm ci --prefix e2e
+
+      - name: Show Chrome version
+        run: google-chrome --version
+
+      - name: Wait for Pages and validate the live release
+        env:
+          ONLINE_E2E_URL: https://fifamy.github.io/factor-lib/
+          ONLINE_E2E_BROWSER: "1"
+          ONLINE_WAIT_TIMEOUT_MS: "900000"
+          ONLINE_WAIT_INTERVAL_MS: "15000"
+          PLAYWRIGHT_CHROMIUM_CHANNEL: chrome
+          PERF_BUDGET_MULTIPLIER: "3"
+        run: node e2e/online_compose_validation.mjs
