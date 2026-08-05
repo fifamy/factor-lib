@@ -142,6 +142,7 @@ function runNodeScript(scriptName, args = [], extraEnv = {}) {
 
 async function runBrowserValidation() {
   await runNodeScript("compose_validation.mjs", [liveUrl]);
+  await runNodeScript("accessibility_validation.mjs", [liveUrl]);
   await runNodeScript("perf_budget.mjs", [liveUrl, "--enforce"]);
 }
 

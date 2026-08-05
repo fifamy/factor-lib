@@ -35,7 +35,9 @@ jobs:
         run: python3 -m pip install pytest numpy scipy
 
       - name: Static frontend contract tests
-        run: python3 -m pytest tests/test_frontend_validation_panel.py -q
+        run: |
+          python3 -m pytest tests/test_frontend_validation_panel.py -q
+          python3 -m pytest tests/test_frontend_accessibility.py -q
 
       - name: Static release manifest smoke
         run: |
@@ -67,6 +69,7 @@ jobs:
           node --check e2e/run_compose_validation.mjs
           node --check e2e/online_compose_validation.mjs
           node --check e2e/perf_budget.mjs
+          node --check e2e/accessibility_validation.mjs
 
   online-release:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'

@@ -813,6 +813,7 @@ function renderTree(filter) {
   const tree = document.getElementById("factor-tree");
   tree.innerHTML = "";
   tree.className = "";
+  let treeGroupIndex = 0;
 
   const q = (filter || "").trim().toLowerCase();
   const searching = !!q;
@@ -835,13 +836,19 @@ function renderTree(filter) {
   // 折叠头：点击切换下方容器显隐 + 箭头方向；搜索时一律展开
   const makeHead = (cls, key, label, body) => {
     const collapsed = !searching && _treeCollapsed.has(key);
-    const head = document.createElement("div");
+    const head = document.createElement("button");
+    const bodyId = `factor-tree-group-${++treeGroupIndex}`;
+    head.type = "button";
     head.className = cls;
+    head.setAttribute("aria-expanded", String(!collapsed));
+    head.setAttribute("aria-controls", bodyId);
     head.innerHTML = `<span class="tw">${collapsed ? "▶" : "▼"}</span>${label}`;
-    if (collapsed) body.style.display = "none";
+    body.id = bodyId;
+    body.hidden = collapsed;
     head.onclick = () => {
-      const nowCollapsed = body.style.display !== "none";
-      body.style.display = nowCollapsed ? "none" : "";
+      const nowCollapsed = !body.hidden;
+      body.hidden = nowCollapsed;
+      head.setAttribute("aria-expanded", String(!nowCollapsed));
       head.querySelector(".tw").textContent = nowCollapsed ? "▶" : "▼";
       if (nowCollapsed) _treeCollapsed.add(key); else _treeCollapsed.delete(key);
     };
@@ -861,7 +868,8 @@ function renderTree(filter) {
       l1Body.appendChild(l2Body);
 
       for (const f of factors) {
-        const l3Div = document.createElement("div");
+        const l3Div = document.createElement("button");
+        l3Div.type = "button";
         l3Div.className = "tree-l3";
         l3Div.innerHTML = `${f.code}<span class="tree-cn">${f.name_cn || ""}</span>`;
         if (f.combo_policy === "block" || f.combo_policy === "warn") {
@@ -873,6 +881,7 @@ function renderTree(filter) {
         }
         l3Div.dataset.code = f.code;
         l3Div.title = `${f.code} · ${f.name_cn || ""}`;
+        l3Div.setAttribute("aria-pressed", "false");
         l3Div.onclick = () => onTreeClick(f.code);
         l2Body.appendChild(l3Div);
       }
@@ -1171,7 +1180,9 @@ async function selectFactor(code, opts = {}) {
   if (code !== state.activeFactor && !opts.preserveParams) state.singleSide = 1;
   state.activeFactor = code;
   document.querySelectorAll(".tree-l3").forEach(el => {
-    el.classList.toggle("active", el.dataset.code === code);
+    const active = el.dataset.code === code;
+    el.classList.toggle("active", active);
+    el.setAttribute("aria-pressed", String(active));
   });
   const meta = state.catalog.find(f => f.code === code);
   try {
@@ -1444,7 +1455,7 @@ function renderFactorDetail(meta, snap = null) {
   ).join("");
   // 已选 N 的 chips（带 × 移除）
   const chips = state.selectedNs.map(n =>
-    `<span class="n-chip" data-n="${n}">top${n} ${state.selectedNs.length > 1 ? '×' : ''}</span>`
+    `<button type="button" class="n-chip" data-n="${n}" aria-label="${state.selectedNs.length > 1 ? `移除 top${n}` : `已选择 top${n}`}"${state.selectedNs.length > 1 ? "" : " disabled"}>top${n} ${state.selectedNs.length > 1 ? '×' : ''}</button>`
   ).join("");
   const formulaBlock = meta.formula ? `
     <div style="margin-top:8px">
@@ -1651,9 +1662,9 @@ async function renderTopStocks(code) {
   rows.forEach((r, i) => {
     const as_of_date = holdingAsOfDate(r);
     const pool_date = holdingPoolDate(r);
-    html += `<tr class="stock-row" data-stock="${r.stock_code}" data-name="${r.name || ""}" title="点击看该股各因子打分（为什么入选）">
+    html += `<tr class="stock-row" data-stock="${htmlAttr(r.stock_code)}" data-name="${htmlAttr(r.name || "")}" title="点击看该股各因子打分（为什么入选）">
       <td>${i + 1}</td>
-      <td>${r.stock_code}</td>
+      <td><button type="button" class="stock-detail-btn" aria-label="查看 ${htmlAttr(r.stock_code)} ${htmlAttr(r.name || "")} 的因子打分">${htmlText(r.stock_code)}</button></td>
       <td>${r.name || ""}</td>
       <td>${as_of_date}</td>
       <td>${pool_date}</td>
@@ -1819,9 +1830,9 @@ function renderTopStocksRows(code, rows, opts = {}) {
   rows.forEach((r, i) => {
     const as_of_date = holdingAsOfDate(r);
     const pool_date = holdingPoolDate(r);
-    html += `<tr class="stock-row" data-stock="${r.stock_code}" data-name="${r.name || ""}" title="点击看该股各因子打分（为什么入选）">
+    html += `<tr class="stock-row" data-stock="${htmlAttr(r.stock_code)}" data-name="${htmlAttr(r.name || "")}" title="点击看该股各因子打分（为什么入选）">
       <td>${i + 1}</td>
-      <td>${r.stock_code}</td>
+      <td><button type="button" class="stock-detail-btn" aria-label="查看 ${htmlAttr(r.stock_code)} ${htmlAttr(r.name || "")} 的因子打分">${htmlText(r.stock_code)}</button></td>
       <td>${r.name || ""}</td>
       <td>${as_of_date}</td>
       <td>${pool_date}</td>
@@ -2588,6 +2599,18 @@ function htmlAttr(s) {
 
 function htmlText(s) {
   return htmlAttr(s);
+}
+
+function bindSortableHeader(th, handler, sortDirection = null) {
+  th.tabIndex = 0;
+  th.setAttribute("scope", "col");
+  th.setAttribute("aria-sort", sortDirection || "none");
+  th.onclick = handler;
+  th.onkeydown = event => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    handler();
+  };
 }
 
 function firstSnapshotNumber(...values) {
@@ -3738,13 +3761,18 @@ function updateTreeHighlight() {
     else if (state.mode === "compare") on = cmpHas(c);
     else if (state.mode === "compose") on = cpsHas(c);
     el.classList.toggle("active", on);
+    el.setAttribute("aria-pressed", String(on));
   });
 }
 
 function switchMode(mode) {
   state.mode = mode;
-  document.querySelectorAll(".mode-btn").forEach(b =>
-    b.classList.toggle("active", b.dataset.mode === mode));
+  document.querySelectorAll(".mode-btn").forEach(b => {
+    const active = b.dataset.mode === mode;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+    b.tabIndex = active || !["single", "compare", "compose", "ranking"].includes(mode) ? 0 : -1;
+  });
   document.getElementById("single-view").style.display = mode === "single" ? "flex" : "none";
   document.getElementById("compare-view").style.display = mode === "compare" ? "flex" : "none";
   document.getElementById("compose-view").style.display = mode === "compose" ? "flex" : "none";
@@ -3818,8 +3846,7 @@ function renderCmpControls() {
       <span style="color:#888;font-size:11px">top</span>
       <input class="cmp-n-input" data-idx="${i}" type="number" min="1" max="100" value="${f.n}"
              style="width:52px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px" />
-      <span class="cmp-remove" data-idx="${i}"
-            style="cursor:pointer;color:#c14545;font-size:13px;padding:0 2px">×</span>
+      <button type="button" class="cmp-remove" data-idx="${i}" aria-label="移除对比因子 ${f.code}">×</button>
     </span>
   `; }).join("");
   box.querySelectorAll(".cmp-n-input").forEach(inp => {
@@ -4093,8 +4120,8 @@ function drawCmpTable() {
   }
   const arrow = k => _cmpSort.key === k ? (_cmpSort.dir < 0 ? " ▼" : " ▲") : "";
   const thead = COLS.map(c => c.sortable === false
-    ? `<th>${c.label}</th>`
-    : `<th class="cmp-sort" data-key="${c.key}">${c.label}${arrow(c.key)}</th>`).join("");
+    ? `<th scope="col">${c.label}</th>`
+    : `<th class="cmp-sort" scope="col" data-key="${c.key}">${c.label}${arrow(c.key)}</th>`).join("");
   const rowHtml = (r, bench) => {
     if (r.noData) return `<tr><td>${r.label}</td><td colspan="${COLS.length - 1}">无数据</td></tr>`;
     const tds = COLS.map(c => `<td>${c.cell(r)}</td>`).join("");
@@ -4102,11 +4129,13 @@ function drawCmpTable() {
   };
   const body = factors.map(r => rowHtml(r, false)).join("") + _cmpRows.benches.map(r => rowHtml(r, true)).join("");
   target.innerHTML = `<table class="kpi-table"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
-  target.querySelectorAll("th.cmp-sort").forEach(th => th.onclick = () => {
+  target.querySelectorAll("th.cmp-sort").forEach(th => {
     const k = th.dataset.key;
-    if (_cmpSort.key === k) _cmpSort.dir = -_cmpSort.dir;
-    else { _cmpSort.key = k; _cmpSort.dir = -1; }   // 首次点某列默认降序
-    drawCmpTable();
+    bindSortableHeader(th, () => {
+      if (_cmpSort.key === k) _cmpSort.dir = -_cmpSort.dir;
+      else { _cmpSort.key = k; _cmpSort.dir = -1; }   // 首次点某列默认降序
+      drawCmpTable();
+    }, _cmpSort.key === k ? (_cmpSort.dir < 0 ? "descending" : "ascending") : "none");
   });
 }
 
@@ -4503,8 +4532,20 @@ async function renderCmpCorrFast() {
 }
 
 function bindModeButtons() {
-  document.querySelectorAll(".mode-btn").forEach(b => {
+  const buttons = [...document.querySelectorAll(".mode-btn")];
+  buttons.forEach((b, index) => {
     b.onclick = () => switchMode(b.dataset.mode);
+    b.onkeydown = e => {
+      let nextIndex = null;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") nextIndex = (index + 1) % buttons.length;
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") nextIndex = (index - 1 + buttons.length) % buttons.length;
+      if (e.key === "Home") nextIndex = 0;
+      if (e.key === "End") nextIndex = buttons.length - 1;
+      if (nextIndex === null) return;
+      e.preventDefault();
+      buttons[nextIndex].focus();
+      switchMode(buttons[nextIndex].dataset.mode);
+    };
   });
   const comboBtn = document.getElementById("combo-manager-btn");
   if (comboBtn) comboBtn.onclick = () => switchMode("library");
@@ -4683,7 +4724,7 @@ const RANK_COLS = [
   { key: "tags",      label: "标签", lcol: true, sortable: false,
     fmt: (_, r) => [r.env_tag, r.time_tag]
       .filter(t => t && t !== "—")
-      .map(t => `<span class="ftag ftag-${t}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}">${htmlText(t)}</span>`)
+      .map(t => `<span class="ftag ftag-${t}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}" tabindex="0">${htmlText(t)}</span>`)
       .join(" ") || "—",
     help: "辅助标签由市场环境表现和近12个月RankIC变化生成；悬停标签可查看触发口径。" },
   { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => v, help: "最新Top30持仓中权重靠前的三个行业，用于观察行业集中度。" },
@@ -4718,13 +4759,15 @@ function buildTagFilters() {
   if (_tagFilterBound) return;
   const box = document.getElementById("rank-tag-filters");
   box.innerHTML = [...ENV_TAGS, ...TIME_TAGS]
-    .map(t => `<span class="ftag ftag-${t} tagfilter" data-tag="${t}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}">${t}</span>`).join(" ");
+    .map(t => `<button type="button" class="ftag ftag-${t} tagfilter" data-tag="${t}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}" aria-pressed="false">${t}</button>`).join(" ");
   box.querySelectorAll(".tagfilter").forEach(el => {
     el.onclick = () => {
       const t = el.dataset.tag;
       if (_rankState.tagFilters.has(t)) _rankState.tagFilters.delete(t);
       else _rankState.tagFilters.add(t);
-      el.classList.toggle("on", _rankState.tagFilters.has(t));
+      const active = _rankState.tagFilters.has(t);
+      el.classList.toggle("on", active);
+      el.setAttribute("aria-pressed", String(active));
       document.getElementById("rank-tag-clear").style.display =
         _rankState.tagFilters.size ? "inline" : "none";
       drawRankTable();
@@ -4732,7 +4775,10 @@ function buildTagFilters() {
   });
   document.getElementById("rank-tag-clear").onclick = () => {
     _rankState.tagFilters.clear();
-    document.querySelectorAll("#rank-tag-filters .tagfilter").forEach(e => e.classList.remove("on"));
+    document.querySelectorAll("#rank-tag-filters .tagfilter").forEach(e => {
+      e.classList.remove("on");
+      e.setAttribute("aria-pressed", "false");
+    });
     document.getElementById("rank-tag-clear").style.display = "none";
     drawRankTable();
   };
@@ -5276,17 +5322,18 @@ function drawRankTable() {
   });
   const ths = RANK_COLS.map(c => {
     const cls = `${c.lcol ? "lcol " : ""}${c.key === sortKey ? "sorted " : ""}${c.help ? "rank-help" : ""}`.trim();
-    return `<th class="${cls}" data-key="${c.key}" title="${htmlAttr(c.help || c.label)}">${c.label}${c.key === sortKey ? (desc ? " ▼" : " ▲") : ""}</th>`;
+    const sortable = c.sortable !== false && c.key !== "rank" && c.key !== "tags";
+    return `<th class="${cls}" scope="col"${sortable ? ` data-key="${c.key}"` : ""} title="${htmlAttr(c.help || c.label)}">${c.label}${c.key === sortKey ? (desc ? " ▼" : " ▲") : ""}</th>`;
   }).join("");
   // 首列：勾选框（含全选）
   const allChecked = sorted.length > 0 && sorted.every(r => _rankState.checked.has(r.code));
   let html = `<table class="rank-table"><thead><tr>` +
-    `<th class="lcol" style="cursor:default"><input type="checkbox" id="rank-check-all" ${allChecked ? "checked" : ""}></th>` +
+    `<th class="lcol" scope="col" style="cursor:default"><input type="checkbox" id="rank-check-all" aria-label="全选当前排行榜因子" ${allChecked ? "checked" : ""}></th>` +
     `${ths}</tr></thead><tbody>`;
   sorted.forEach((r, i) => {
     r._rank = i + 1;
     const topCls = (sortKey === "score" && desc && i < 5) ? "top-rank" : "";
-    const chk = `<td class="lcol"><input type="checkbox" class="rank-chk" data-code="${r.code}" ${_rankState.checked.has(r.code) ? "checked" : ""}></td>`;
+    const chk = `<td class="lcol"><input type="checkbox" class="rank-chk" data-code="${r.code}" aria-label="选择因子 ${htmlAttr(r.code)} ${htmlAttr(r.name_cn || "")}" ${_rankState.checked.has(r.code) ? "checked" : ""}></td>`;
     const tds = RANK_COLS.map(c => {
       const cls = (c.lcol ? "lcol " : "") + (c.cls || "");
       let val;
@@ -5300,13 +5347,12 @@ function drawRankTable() {
   box.innerHTML = html;
   // 列头点击排序（勾选列除外）
   box.querySelectorAll("th[data-key]").forEach(th => {
-    th.onclick = () => {
-      const k = th.dataset.key;
-      if (k === "rank" || k === "tags") return;   // 标签列不参与排序
+    const k = th.dataset.key;
+    bindSortableHeader(th, () => {
       if (_rankState.sortKey === k) _rankState.desc = !_rankState.desc;
       else { _rankState.sortKey = k; _rankState.desc = true; }
       drawRankTable();
-    };
+    }, _rankState.sortKey === k ? (_rankState.desc ? "descending" : "ascending") : "none");
   });
   // 勾选框
   box.querySelectorAll(".rank-chk").forEach(cb => {
@@ -5974,7 +6020,7 @@ function renderComboRanking(statusText = null) {
     { key: "best_single_ic_ir_gap", label: "相对最佳单因子" },
   ];
   const rows = sortedComboRankingRows();
-  const th = cols.map(c => `<th class="${state.comboRankingSortKey === c.key ? "sorted" : ""}" data-key="${c.key}">${c.label}${state.comboRankingSortKey === c.key ? (state.comboRankingSortDir === "asc" ? " ↑" : " ↓") : ""}</th>`).join("");
+  const th = cols.map(c => `<th class="${state.comboRankingSortKey === c.key ? "sorted" : ""}" scope="col" data-key="${c.key}">${c.label}${state.comboRankingSortKey === c.key ? (state.comboRankingSortDir === "asc" ? " ↑" : " ↓") : ""}</th>`).join("");
   const body = rows.map(r => {
     const warn = (snapshotNumber(r.n_months) ?? 99) < 36 ? `<span class="combo-ranking-warn">样本短</span>` : ((snapshotNumber(r.max_abs_corr) ?? 0) >= 0.7 ? `<span class="combo-ranking-warn">高相关</span>` : "");
     if (r.error) {
@@ -6020,15 +6066,15 @@ function bindComboRankingHandlers() {
     renderComboRanking("来源已切换，点击“计算排行榜”重新计算");
   };
   document.querySelectorAll(".combo-ranking-table th[data-key]").forEach(th => {
-    th.onclick = () => {
-      const key = th.dataset.key;
+    const key = th.dataset.key;
+    bindSortableHeader(th, () => {
       if (state.comboRankingSortKey === key) state.comboRankingSortDir = state.comboRankingSortDir === "asc" ? "desc" : "asc";
       else {
         state.comboRankingSortKey = key;
         state.comboRankingSortDir = key === "name" || key === "source_label" ? "asc" : "desc";
       }
       renderComboRanking();
-    };
+    }, state.comboRankingSortKey === key ? (state.comboRankingSortDir === "asc" ? "ascending" : "descending") : "none");
   });
   document.querySelectorAll(".combo-ranking-validate").forEach(btn => {
     btn.onclick = () => loadComboForValidation(btn.dataset.source, btn.dataset.id);
@@ -6598,7 +6644,7 @@ function renderComposeControls() {
       <input class="cps-thr" data-idx="${i}" type="number" step="0.5" placeholder="不限"
              value="${f.thr === null ? "" : f.thr}"
              style="width:54px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px" />
-      <span class="cps-remove" data-idx="${i}" style="cursor:pointer;color:#c14545;font-size:13px;padding:0 4px">×</span>
+      <button type="button" class="cps-remove" data-idx="${i}" aria-label="移除合成因子 ${f.code}">×</button>
     </div>`;
   }).join("");
   box.querySelectorAll(".cps-w-input").forEach(inp => {
@@ -6788,7 +6834,7 @@ async function renderComposeStocks(renderSeq) {
   rows.forEach((r, i) => {
     const as_of_date = holdingAsOfDate(r);
     const pool_date = holdingPoolDate(r);
-    html += `<tr class="stock-row" data-stock="${r.stock_code}" data-name="${r.name || ""}" title="点击看该股各因子打分（为什么入选）"><td>${i + 1}</td><td>${r.stock_code}</td><td>${r.name || ""}</td>
+    html += `<tr class="stock-row" data-stock="${htmlAttr(r.stock_code)}" data-name="${htmlAttr(r.name || "")}" title="点击看该股各因子打分（为什么入选）"><td>${i + 1}</td><td><button type="button" class="stock-detail-btn" aria-label="查看 ${htmlAttr(r.stock_code)} ${htmlAttr(r.name || "")} 的因子打分">${htmlText(r.stock_code)}</button></td><td>${r.name || ""}</td>
       <td>${as_of_date}</td><td>${pool_date}</td>
       <td>${r.industry_sw1 || "—"}</td><td>${fmtMV(r.market_cap)}</td>
       <td>${fmt(r.pe, 1)}</td><td>${fmt(r.pb, 2)}</td>${constraint === "industry" ? `<td>${pctText(Number(r.weight))}</td>` : ""}<td>${fmt(r.comp_score, 3)}</td></tr>`;
@@ -8661,9 +8707,9 @@ function renderSavedCombos() {
     const summ = comboSummary(c);
     return `<div style="display:inline-flex;align-items:center;gap:6px;background:#f2f5f9;border:1px solid #e0e6ee;border-radius:14px;padding:3px 10px;margin:0 6px 6px 0;font-size:11px">
       <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex:none"></span>
-      <b class="cps-saved-rename" data-idx="${i}" style="cursor:pointer" title="点击改名">${c.name}</b>
+      <button type="button" class="cps-saved-rename" data-idx="${i}" title="点击改名" aria-label="重命名组合 ${htmlAttr(c.name)}">${htmlText(c.name)}</button>
       <span style="color:#888">${summ}</span>
-      <span class="cps-saved-rm" data-idx="${i}" style="cursor:pointer;color:#c14545;padding-left:2px">×</span>
+      <button type="button" class="cps-saved-rm" data-idx="${i}" aria-label="移除临时组合 ${htmlAttr(c.name)}">×</button>
     </div>`;
   }).join("");
   box.querySelectorAll(".cps-saved-rm").forEach(el => el.onclick = () => removeSavedCombo(parseInt(el.dataset.idx, 10)));
@@ -8702,19 +8748,21 @@ function drawCpsCompareTable() {
   }
   const arrow = k => _cpsCompareSort.key === k ? (_cpsCompareSort.dir < 0 ? " ▼" : " ▲") : "";
   const thead = COLS.map(c => c.sortable === false
-    ? `<th>${c.label}</th>`
-    : `<th class="cmp-sort" data-key="${c.key}">${c.label}${arrow(c.key)}</th>`).join("");
+    ? `<th scope="col">${c.label}</th>`
+    : `<th class="cmp-sort" scope="col" data-key="${c.key}">${c.label}${arrow(c.key)}</th>`).join("");
   const body = rows.map(r => {
     if (r.noData) return `<tr><td>${r.labelHtml || r.label}</td><td colspan="${COLS.length - 1}" style="color:#aaa">无数据（过滤过严 / 因子覆盖不足）</td></tr>`;
     const tds = COLS.map(c => `<td>${c.cell(r)}</td>`).join("");
     return `<tr${r.isBench ? ' style="color:#888;border-top:2px solid #ddd"' : ""}>${tds}</tr>`;
   }).join("");
   tblDiv.innerHTML = `<table class="kpi-table"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
-  tblDiv.querySelectorAll("th.cmp-sort").forEach(th => th.onclick = () => {
+  tblDiv.querySelectorAll("th.cmp-sort").forEach(th => {
     const k = th.dataset.key;
-    if (_cpsCompareSort.key === k) _cpsCompareSort.dir = -_cpsCompareSort.dir;
-    else { _cpsCompareSort.key = k; _cpsCompareSort.dir = -1; }
-    drawCpsCompareTable();
+    bindSortableHeader(th, () => {
+      if (_cpsCompareSort.key === k) _cpsCompareSort.dir = -_cpsCompareSort.dir;
+      else { _cpsCompareSort.key = k; _cpsCompareSort.dir = -1; }
+      drawCpsCompareTable();
+    }, _cpsCompareSort.key === k ? (_cpsCompareSort.dir < 0 ? "descending" : "ascending") : "none");
   });
 }
 
@@ -9060,9 +9108,53 @@ function _ncdf(z) {
   return z > 0 ? 1 - p : p;
 }
 
+let _stockModalTrigger = null;
+
+function openStockModal() {
+  const overlay = document.getElementById("stock-modal");
+  if (!overlay) return;
+  _stockModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  overlay.hidden = false;
+  document.body.classList.add("modal-open");
+  [document.getElementById("topbar"), document.getElementById("main")].forEach(el => {
+    if (el) el.inert = true;
+  });
+  requestAnimationFrame(() => overlay.querySelector(".sd-close")?.focus());
+}
+
 function closeStockModal() {
-  const o = document.getElementById("stock-modal");
-  if (o) o.style.display = "none";
+  const overlay = document.getElementById("stock-modal");
+  if (!overlay || overlay.hidden) return;
+  overlay.hidden = true;
+  document.body.classList.remove("modal-open");
+  [document.getElementById("topbar"), document.getElementById("main")].forEach(el => {
+    if (el) el.inert = false;
+  });
+  const trigger = _stockModalTrigger;
+  _stockModalTrigger = null;
+  if (trigger?.isConnected) requestAnimationFrame(() => trigger.focus());
+}
+
+function trapStockModalFocus(event) {
+  const overlay = document.getElementById("stock-modal");
+  if (!overlay || overlay.hidden || event.key !== "Tab") return;
+  const focusable = [...overlay.querySelectorAll(
+    'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )].filter(el => !el.hidden && el.getClientRects().length > 0);
+  if (!focusable.length) {
+    event.preventDefault();
+    overlay.querySelector(".modal-box")?.focus();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function metaRowFromSnapshot(code) {
@@ -9128,7 +9220,7 @@ async function showStockDetail(code, name) {
   const overlay = document.getElementById("stock-modal");
   const titleEl = document.getElementById("stock-modal-title");
   const body = document.getElementById("stock-modal-body");
-  overlay.style.display = "flex";
+  openStockModal();
   titleEl.textContent = `${code}${name ? " · " + name : ""}`;
   if (!isListedStockCode(code)) {
     body.innerHTML = `<div class="empty">这不是正常上市股票代码，通常是 Wind 的 IPO 终止/未上市占位码，已从组合持仓中剔除。</div>`;
@@ -9173,10 +9265,18 @@ async function showStockDetail(code, name) {
 // 事件委托：点任意 .stock-row 开弹窗；点遮罩/× 关闭；Esc 关闭
 document.addEventListener("click", (e) => {
   const row = e.target.closest ? e.target.closest("tr.stock-row") : null;
-  if (row && row.dataset.stock) { showStockDetail(row.dataset.stock, row.dataset.name || ""); return; }
+  if (row && row.dataset.stock) {
+    const trigger = e.target.closest?.(".stock-detail-btn") || row.querySelector(".stock-detail-btn");
+    trigger?.focus();
+    showStockDetail(row.dataset.stock, row.dataset.name || "");
+    return;
+  }
   if (e.target.id === "stock-modal" || (e.target.classList && e.target.classList.contains("sd-close"))) closeStockModal();
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeStockModal(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeStockModal();
+  else trapStockModalFocus(e);
+});
 window.addEventListener("resize", () => {
   [
     navChart, quantileChart, scanChart,

@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "accessibility-validation": "node accessibility_validation.mjs",
     "compose-validation": "node run_compose_validation.mjs",
     "online-compose-validation": "node online_compose_validation.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
