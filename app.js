@@ -2143,8 +2143,13 @@ function rankIcStats(months, values, side = 1, horizonMonths = 1) {
 }
 
 function memberForwardReturn(value) {
+  return isValidForwardReturn(value) ? Number(value) : -1.0;
+}
+
+function isValidForwardReturn(value) {
+  if (value === null || value === undefined || value === "") return false;
   const n = Number(value);
-  return Number.isFinite(n) ? n : -1.0;
+  return Number.isFinite(n) && n > MIN_VALID_FORWARD_RETURN && n < MAX_VALID_FORWARD_RETURN;
 }
 
 function validForwardReturnSql(column = "fwd_return") {
@@ -3909,17 +3914,28 @@ async function renderCompare() {
       document.getElementById("cmp-table").innerHTML = `<div class="empty">从左侧选 1 个以上因子开始对比</div>`;
       return;
     }
-    await Promise.all([
-      Promise.all([...new Set(sel.map(f => f.code))].map(code => loadSingleSnapshot(code))),
-      ensureBenchmarkSnapshot(),
-      ensureCorrSnapshot(),
-    ]);
-    await Promise.all([renderCmpTableFast(), renderCmpNavFast(), renderCmpIcFast(), renderCmpCorrFast()]);
-  } catch (err) {
-    console.warn("fast renderCompare failed, falling back to DuckDB:", err);
+    const fastSnapshotsEnabled = state.dataManifest?.capabilities?.single_snapshots !== false;
+    let fastErr = null;
+    if (fastSnapshotsEnabled) {
+      try {
+        await Promise.all([
+          Promise.all([...new Set(sel.map(f => f.code))].map(code => loadSingleSnapshot(code))),
+          ensureBenchmarkSnapshot(),
+          ensureCorrSnapshot(),
+        ]);
+        await Promise.all([renderCmpTableFast(), renderCmpNavFast(), renderCmpIcFast(), renderCmpCorrFast()]);
+        return;
+      } catch (err) {
+        fastErr = err;
+        console.warn("fast renderCompare failed, falling back to DuckDB:", err);
+      }
+    }
     const blockedReason = compareFallbackBlockedReason(sel);
     if (blockedReason) {
-      const msg = `${blockedReason}\n\n原始错误：${err.message || err}`;
+      const cause = fastErr
+        ? `原始错误：${fastErr.message || fastErr}`
+        : "当前发布包未包含完整单因子快照。";
+      const msg = `${blockedReason}\n\n${cause}`;
       document.getElementById("cmp-table").innerHTML =
         `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">${htmlText(msg)}</pre>`;
       document.getElementById("cmp-nav").innerHTML = `<div class="empty">对比净值未渲染：${htmlText(blockedReason)}</div>`;
@@ -3933,9 +3949,14 @@ async function renderCompare() {
       await Promise.all([renderCmpTable(), renderCmpNav(), renderCmpIc(), renderCmpCorr()]);
     } catch (fallbackErr) {
       console.error("renderCompare failed:", fallbackErr);
+      const fallbackMsg = `对比渲染失败：${fallbackErr.message || fallbackErr}\n\n${fallbackErr.stack || ""}`;
       document.getElementById("cmp-table").innerHTML =
-        `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">对比渲染失败：${fallbackErr.message || fallbackErr}\n\n${fallbackErr.stack || ""}</pre>`;
+        `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">${htmlText(fallbackMsg)}</pre>`;
     }
+  } catch (err) {
+    console.error("renderCompare failed before data rendering:", err);
+    document.getElementById("cmp-table").innerHTML =
+      `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">对比初始化失败：${htmlText(err.message || err)}</pre>`;
   }
 }
 
@@ -4388,9 +4409,10 @@ async function renderCmpCorr() {
   const cmap = {};
   for (const r of res.toArray()) {
     cmap[`${r.factor_a}|${r.factor_b}`] = {
-      corr: r.corr,
-      nObs: r.n_obs,
-      nMonths: r.n_months,
+      corr: snapshotNumber(r.corr),
+      // DuckDB-Wasm 会把 BIGINT 计数返回为 JS BigInt；ECharts 只接受 Number。
+      nObs: snapshotNumber(r.n_obs),
+      nMonths: snapshotNumber(r.n_months),
     };
   }
   const data = [];
@@ -7246,15 +7268,17 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
     ),
     monthly AS (
       SELECT strftime(trade_date, '%Y-%m') AS signal_month,
-             strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS return_date,
+             strftime(MAX(return_date), '%Y-%m-%d') AS return_date,
              grp,
              AVG(${forwardReturnSql("fwd_return")}) AS port_ret,
              COUNT(*) AS n,
-             COUNT(fwd_return) AS observed_return_count,
-             SUM(CASE WHEN fwd_return IS NULL THEN 1 ELSE 0 END) AS missing_return_count
+             SUM(CASE WHEN ${validForwardReturnSql("fwd_return")} THEN 1 ELSE 0 END) AS observed_return_count,
+             SUM(CASE WHEN ${validForwardReturnSql("fwd_return")} THEN 0 ELSE 1 END) AS missing_return_count
       FROM ranked
-      GROUP BY trade_date, return_date, grp
+      GROUP BY trade_date, grp
+      -- 尚无任何有效远期收益的未完成月不进入绩效；已完成月内的缺失成员仍按 -100% 惩罚。
       HAVING COUNT(*) >= 5
+         AND SUM(CASE WHEN ${validForwardReturnSql("fwd_return")} THEN 1 ELSE 0 END) > 0
     )
     SELECT signal_month, return_date, grp, port_ret, n, observed_return_count, missing_return_count
     FROM monthly
@@ -7271,9 +7295,23 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
   })).filter(r => r.port_ret !== null);
   const groups = Array.from({ length: 10 }, (_, i) => `G${i + 1}`);
   const groupStats = groups.map(g => {
-    const rets = rows.filter(r => r.group === g).map(r => r.port_ret);
+    const groupRows = rows.filter(r => r.group === g);
+    const rets = groupRows.map(r => r.port_ret);
     const m = metricsFromReturns(rets);
-    return { group: g, ann_return: m?.annual ?? null, sharpe: m?.sharpe ?? null, max_drawdown: m?.mdd ?? null, n_months: rets.length };
+    const memberCount = groupRows.reduce((s, r) => s + (r.n || 0), 0);
+    const observedCount = groupRows.reduce((s, r) => s + (r.observed_return_count || 0), 0);
+    const missingCount = groupRows.reduce((s, r) => s + (r.missing_return_count || 0), 0);
+    return {
+      group: g,
+      ann_return: m?.annual ?? null,
+      sharpe: m?.sharpe ?? null,
+      max_drawdown: m?.mdd ?? null,
+      n_months: rets.length,
+      member_count: memberCount,
+      observed_return_count: observedCount,
+      missing_return_count: missingCount,
+      missing_return_rate: memberCount > 0 ? missingCount / memberCount : null,
+    };
   });
   const byMonth = new Map();
   for (const r of rows) {
@@ -8224,14 +8262,21 @@ function renderComboRollingTable(payload) {
 function renderComboGroup10Table(group10) {
   const rows = Array.isArray(group10?.rows) ? group10.rows : [];
   if (!rows.length) return `<div class="empty">暂无 10 组收益数据</div>`;
-  return `<table class="validation-table">
-    <thead><tr><th>10组</th><th>年化收益</th><th>夏普</th><th>最大回撤</th><th>月数</th></tr></thead>
+  const totalMembers = rows.reduce((s, r) => s + (r.member_count || 0), 0);
+  const totalMissing = rows.reduce((s, r) => s + (r.missing_return_count || 0), 0);
+  const coverageNote = totalMembers > 0
+    ? `<p class="validation-note">覆盖口径：已剔除整月无任何有效远期收益的未完成月；已完成月内的缺失成员按 -100% 惩罚。当前缺失 ${pctText(totalMissing / totalMembers)}。本表为分组等权毛收益，未扣换仓成本，用于观察排序单调性；不应与已扣成本的单因子分组收益直接比较数值。</p>`
+    : "";
+  return `${coverageNote}<table class="validation-table">
+    <thead><tr><th>10组</th><th>毛年化收益</th><th>夏普</th><th>最大回撤</th><th>月数</th><th>有效收益 / 成员</th><th>缺失率</th></tr></thead>
     <tbody>${rows.map(r => `<tr>
       <td>${r.group}${r.group === "G10" ? " 高分" : (r.group === "G1" ? " 低分" : "")}</td>
       <td>${signalValue("ann_return", r.ann_return, pctText(r.ann_return))}</td>
       <td>${signalValue("sharpe", r.sharpe, signedNumText(r.sharpe, 2))}</td>
       <td>${pctText(r.max_drawdown)}</td>
       <td>${signalValue("sample_months", r.n_months, numText(r.n_months, 0))}</td>
+      <td>${numText(r.observed_return_count, 0)} / ${numText(r.member_count, 0)}</td>
+      <td>${pctText(r.missing_return_rate)}</td>
     </tr>`).join("")}</tbody>
   </table>`;
 }
@@ -8252,7 +8297,7 @@ function renderComboGroup10Chart(payload) {
     tooltip: { trigger: "axis", valueFormatter: v => pctText(v) },
     xAxis: { type: "category", data: rows.map(r => r.group), axisLabel: { fontSize: 11 } },
     yAxis: { type: "value", axisLabel: { formatter: v => `${(v * 100).toFixed(0)}%` } },
-    series: [{ name: "10组年化收益", type: "bar", barMaxWidth: 22,
+    series: [{ name: "10组毛年化收益", type: "bar", barMaxWidth: 22,
       data: rows.map(r => snapshotNumber(r.ann_return)), itemStyle: { color: "#1a4d80" } }],
   });
 }
@@ -8345,7 +8390,7 @@ async function renderComposeValidation(renderSeq) {
             <h4>10组单调性</h4>
             ${validationValueBlock([
               ["10组单调性", signalValue("monotonicity", groupMono, numText(groupMono, 2))],
-              ["LS年化", signalValue("ann_return", ls?.annual, pctText(ls?.annual))],
+              ["LS毛年化", signalValue("ann_return", ls?.annual, pctText(ls?.annual))],
               ["LS夏普", signalValue("sharpe", ls?.sharpe, signedNumText(ls?.sharpe, 2))],
               ["组合约束", constraintModeLabel(payload.constraintMode)],
             ])}
@@ -8426,16 +8471,16 @@ function buildBacktestFromRows(rows, N) {
     }
     const o = byMonth.get(key);
     if (r.dt && String(r.dt) > String(o.returnDt)) o.returnDt = String(r.dt);
-    o.holdings.push({ stock_code: r.stock_code, ret: memberForwardReturn(r.fwd_return) });
+    o.holdings.push({ stock_code: r.stock_code, ret: r.fwd_return });
   }
   const periods = [...byMonth.values()]
-    .filter(o => o.returnDt && o.holdings.length)
+    .filter(o => o.returnDt && o.holdings.length && o.holdings.some(h => isValidForwardReturn(h.ret)))
     .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1; const x = [], navArr = [1], retArr = [];
   if (periods.length) x.push(periods[0].signalDt);
   for (const o of periods) {
     const weight = 1 / Math.max(1, o.holdings.length);
-    const gross = o.holdings.reduce((s, h) => s + weight * h.ret, 0);
+    const gross = o.holdings.reduce((s, h) => s + weight * memberForwardReturn(h.ret), 0);
     const cur = new Map(o.holdings.map(h => [h.stock_code, weight]));
     const turnover = weightedTurnover(cur, prev);
     const net = gross - tradingCostForTurnover(turnover, !prev);
@@ -8501,7 +8546,9 @@ function buildWeightedBacktestFromRows(rows) {
       ret: r.fwd_return,
     });
   }
-  const periods = [...byMonth.values()].sort((a, b) => a.returnDt.localeCompare(b.returnDt));
+  const periods = [...byMonth.values()]
+    .filter(o => [...o.holdings.values()].some(h => isValidForwardReturn(h.ret)))
+    .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1;
   const x = [], navArr = [1], retArr = [];
   if (periods.length) x.push(periods[0].signalDt);
@@ -8901,6 +8948,8 @@ function backtestWeights(monthsArr, weights, N, conds) {
     });
     scored.sort((a, b) => b.comp - a.comp || String(a.code).localeCompare(String(b.code)));
     const picks = scored.slice(0, N);
+    // 末期信号月尚无任何已实现远期收益时，不把该未完成月解释为组合全损。
+    if (!picks.some(p => isValidForwardReturn(p.ret))) continue;
     const weight = 1 / picks.length;
     const gross = picks.reduce((s, p) => s + weight * memberForwardReturn(p.ret), 0);
     const cur = new Map(picks.map(p => [p.code, weight]));

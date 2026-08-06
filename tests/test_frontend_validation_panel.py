@@ -238,6 +238,23 @@ def test_frontend_ranking_and_combo_validation_keep_missing_forward_returns_in_s
     assert "WHERE fwd_return IS NOT NULL" not in optimizer
     assert "missing_return_count" in group_validation
     assert "observed_return_count" in group_validation
+    assert "GROUP BY trade_date, grp" in group_validation
+    assert "GROUP BY trade_date, return_date, grp" not in group_validation
+    assert "MAX(return_date)" in group_validation
+    assert "HAVING COUNT(*) >= 5" in group_validation
+    assert 'SUM(CASE WHEN ${validForwardReturnSql("fwd_return")} THEN 1 ELSE 0 END) > 0' in group_validation
+
+
+def test_compare_respects_snapshot_capability_and_normalizes_duckdb_bigints():
+    source = APP_JS.read_text(encoding="utf-8")
+    compare = _source_between(source, "async function renderCompare", "function cmpPairCond")
+    corr = _source_between(source, "async function renderCmpCorr()", "async function renderCmpCorrFast()")
+
+    assert "state.dataManifest?.capabilities?.single_snapshots !== false" in compare
+    assert "if (fastSnapshotsEnabled)" in compare
+    assert "loadSingleSnapshot(code)" in compare
+    assert "nObs: snapshotNumber(r.n_obs)" in corr
+    assert "nMonths: snapshotNumber(r.n_months)" in corr
 
 
 def test_compare_fallback_does_not_silently_downgrade_score_constraint_or_side_modes():
@@ -272,13 +289,39 @@ def test_compose_backtest_keeps_missing_returns_and_charges_initial_single_side_
     assert "function memberForwardReturn" in source
     assert "function tradingCostForTurnover" in source
     assert "function weightedTurnover" in source
-    assert "memberForwardReturn(r.fwd_return)" in build
+    assert "isValidForwardReturn(h.ret)" in build
+    assert "memberForwardReturn(h.ret)" in build
     assert "memberForwardReturn(h.ret)" in weighted
     assert "tradingCostForTurnover(turnover, !prev)" in build
     assert "tradingCostForTurnover(turnover, !prev)" in weighted
     assert "tradingCostForTurnover(turnover, !prev)" in optimizer
     assert "if (r.fwd_return != null) o.rets.push" not in build
     assert "WHERE fwd_return IS NOT NULL" not in matrix_sql
+
+
+def test_compose_backtest_excludes_only_periods_with_no_valid_forward_return():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+    build = _source_between(source, "function buildBacktestFromRows", "function industryNeutralPickRows")
+
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0.002;",
+        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MAX_VALID_FORWARD_RETURN = 5.0;",
+        helpers,
+        build,
+        "const rows = [",
+        "  { signal_dt: '2026-05', dt: '2026-06-30', stock_code: 'A', fwd_return: 0.10 },",
+        "  { signal_dt: '2026-05', dt: '2026-06-30', stock_code: 'B', fwd_return: null },",
+        "  { signal_dt: '2026-06', dt: '2026-07-31', stock_code: 'A', fwd_return: null },",
+        "  { signal_dt: '2026-06', dt: '2026-07-31', stock_code: 'B', fwd_return: null },",
+        "];",
+        "const bt = buildBacktestFromRows(rows, 2);",
+        "console.log(JSON.stringify({ returns: bt.retArr, x: bt.x }));",
+    ])
+
+    assert result["returns"] == pytest.approx([-0.452])
+    assert result["x"] == ["2026-05", "2026-06-30"]
 
 
 def test_compose_ic_and_portfolio_sql_share_valid_forward_return_rule():
@@ -302,6 +345,8 @@ def test_optimal_weight_backtest_matches_compose_kpi_turnover_cost_and_tie_break
 
     result = _frontend_eval_json([
         "const COST_PER_SIDE = 0.002;",
+        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MAX_VALID_FORWARD_RETURN = 5.0;",
         helpers,
         metrics,
         compose_backtest,
@@ -344,6 +389,8 @@ def test_optimal_weight_backtest_rounds_composite_score_like_compose_kpi_sql():
 
     result = _frontend_eval_json([
         "const COST_PER_SIDE = 0.002;",
+        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MAX_VALID_FORWARD_RETURN = 5.0;",
         helpers,
         metrics,
         compose_backtest,
