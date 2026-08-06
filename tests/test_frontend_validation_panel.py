@@ -249,10 +249,13 @@ def test_compare_respects_snapshot_capability_and_normalizes_duckdb_bigints():
     source = APP_JS.read_text(encoding="utf-8")
     compare = _source_between(source, "async function renderCompare", "function cmpPairCond")
     corr = _source_between(source, "async function renderCmpCorr()", "async function renderCmpCorrFast()")
+    range_controls = _source_between(source, "async function initCompareRangeControls", "function setupCompareRangeControls")
 
     assert "state.dataManifest?.capabilities?.single_snapshots !== false" in compare
     assert "if (fastSnapshotsEnabled)" in compare
     assert "loadSingleSnapshot(code)" in compare
+    assert "state.dataManifest?.capabilities?.single_snapshots !== false" in range_controls
+    assert "loadSingleSnapshot(state.compareFactors[0].code)" in range_controls
     assert "nObs: snapshotNumber(r.n_obs)" in corr
     assert "nMonths: snapshotNumber(r.n_months)" in corr
 

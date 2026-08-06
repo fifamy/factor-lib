@@ -4590,7 +4590,9 @@ let _cmpRangeBound = false;
 let _cmpMonths = null;
 async function initCompareRangeControls() {
   let months = [];
-  if (state.compareFactors[0]) {
+  // 正式 Pages 包不含完整 single_snapshots；区间控件优先复用已发布的
+  // ranking / benchmark 月份，避免在 renderCompare 的能力判断前先触发 404。
+  if (state.compareFactors[0] && state.dataManifest?.capabilities?.single_snapshots !== false) {
     months = monthsFromSnapshot(await loadSingleSnapshot(state.compareFactors[0].code));
   }
   if (!months.length) {
