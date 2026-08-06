@@ -737,6 +737,25 @@ def test_frontend_error_paths_escape_dynamic_error_text():
     assert "table.rank-table th.rank-help" in styles
 
 
+def test_factor_ranking_table_has_accessible_horizontal_scroll_region():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    index = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert 'class="rank-table-scroll"' in index
+    assert 'role="region"' in index
+    assert 'aria-label="因子排行榜数据表，可横向滚动"' in index
+    assert 'aria-describedby="rank-scroll-hint"' in index
+    assert 'tabindex="0"' in index
+    assert "Shift+滚轮" in index
+    assert ".rank-table-scroll { max-width: 100%; overflow-x: auto" in styles
+    assert "overscroll-behavior-x: contain" in styles
+    assert "-webkit-overflow-scrolling: touch" in styles
+    assert "table.rank-table { width: max-content; min-width: 100%" in styles
+    assert "table.stock-table, table.kpi-table, table.rank-table" not in styles
+    assert 'let html = `<table class="rank-table">' in source
+
+
 def test_combo_ranking_static_contract():
     source = APP_JS.read_text(encoding="utf-8")
     styles = STYLES_CSS.read_text(encoding="utf-8")

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>因子库 v2.0</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260806160840">
+  <link rel="stylesheet" href="styles.css?v=20260806162250">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -20,7 +20,7 @@
   <header id="topbar">
     <span><b>因子库 v2.0</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260806160840" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260806162250" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -423,7 +423,10 @@
             <button id="rank-to-compose" class="cpsn-btn" style="border-color:#1a4d80;color:#1a4d80">→ 加入多因子合成</button>
             <button id="rank-clear-sel" class="cpsn-btn">清空勾选</button>
           </div>
-          <div id="rank-table" style="margin-top:10px"><div class="empty">加载中…</div></div>
+          <p id="rank-scroll-hint" class="rank-scroll-hint">数据列较多，可左右滑动、使用Shift+滚轮或拖动表格底部滚动条查看全部指标。</p>
+          <div class="rank-table-scroll" role="region" aria-label="因子排行榜数据表，可横向滚动" aria-describedby="rank-scroll-hint" tabindex="0">
+            <div id="rank-table"><div class="empty">加载中…</div></div>
+          </div>
         </div>
       </div>
 
@@ -443,7 +446,7 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260806160840"></script>
-  <script type="module" src="app.js?v=20260806160840"></script>
+  <script src="app_holding_scope.js?v=20260806162250"></script>
+  <script type="module" src="app.js?v=20260806162250"></script>
 </body>
 </html>

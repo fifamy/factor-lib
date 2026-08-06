@@ -219,7 +219,11 @@ tr.stock-row:hover td:nth-child(2) { text-decoration: underline; }
 .admin-published-card { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; border: 1px solid #dde5ee; border-radius: 5px; padding: 10px; margin-top: 8px; background: #fff; }
 .admin-published-card > div:first-child { min-width: 0; }
 #single-view, #compare-view, #compose-view, #combo-library-view, #admin-view, #filter-view, #ranking-view { display: flex; flex-direction: column; gap: 12px; }
-table.rank-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rank-scroll-hint { margin-top: 10px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.rank-table-scroll { max-width: 100%; overflow-x: auto; overflow-y: visible; margin-top: 4px;
+                     overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
+.rank-table-scroll:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+table.rank-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; }
 table.rank-table th { background: #f0f3f7; padding: 6px 8px; text-align: right; cursor: default; white-space: nowrap; user-select: none; border-bottom: 2px solid #d8dee6; }
 table.rank-table th[data-key] { cursor: pointer; }
 table.rank-table th.lcol, table.rank-table td.lcol { text-align: left; }
@@ -506,7 +510,7 @@ th[aria-sort="ascending"], th[aria-sort="descending"] { color: var(--brand); }
   .modal-overlay { align-items: flex-end; padding: 8px; }
   .modal-box { width: 100%; max-height: 92dvh; }
   .panel { padding: 10px; }
-  table.stock-table, table.kpi-table, table.rank-table, table.opt-table,
+  table.stock-table, table.kpi-table, table.opt-table,
   table.sd-table, table.validation-table, table.combo-ranking-table,
   table.published-detail-table { display: block; max-width: 100%; overflow-x: auto; }
   .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
