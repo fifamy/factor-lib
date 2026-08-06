@@ -1,4 +1,5 @@
-// 自动启动本地前端服务并运行多因子检验 e2e。
+// 自动启动本地前端服务并运行多因子检验e2e。
+// 源目录默认模拟正式精简包capabilities，以覆盖single_snapshots=false的DuckDB回退路径。
 // 用法：node e2e/run_compose_validation.mjs [port]
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -16,7 +17,7 @@ const sourceServerScript = resolve(sourceFrontendDir, "serve.py");
 const hasSourceServer = existsSync(sourceServerScript);
 const serverScriptLabel = hasSourceServer ? "frontend/serve.py" : "python3 -m http.server";
 const serverArgs = hasSourceServer
-  ? [sourceServerScript, String(port)]
+  ? [sourceServerScript, String(port), "--release-capabilities"]
   : ["-m", "http.server", String(port), "--bind", "127.0.0.1"];
 
 function waitForHttp(targetUrl, timeoutMs = 20000) {

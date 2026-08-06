@@ -937,6 +937,10 @@ def test_compose_validation_e2e_covers_current_modules():
     assert "TopN 敏感性" in e2e
     assert "约束敏感性" in e2e
     assert "权重扰动敏感性" in e2e
+    assert '.mode-btn[data-mode="compare"]' in e2e
+    assert "unexpectedSingleSnapshots" in e2e
+    assert "本次验收未进入正式精简包capabilities模式" in e2e
+    assert '"--release-capabilities"' in runner
 
 
 def test_compose_validation_e2e_has_self_hosted_runner_and_browser_diagnostic():
@@ -944,6 +948,7 @@ def test_compose_validation_e2e_has_self_hosted_runner_and_browser_diagnostic():
     runner = (root / "e2e" / "run_compose_validation.mjs").read_text(encoding="utf-8")
     e2e = (root / "e2e" / "compose_validation.mjs").read_text(encoding="utf-8")
     package = (root / "e2e" / "package.json").read_text(encoding="utf-8")
+    server_path = root / "frontend" / "serve.py"
 
     assert "frontend/serve.py" in runner
     assert "compose_validation.mjs" in runner
@@ -953,6 +958,11 @@ def test_compose_validation_e2e_has_self_hosted_runner_and_browser_diagnostic():
     assert "launchValidationBrowser" in e2e
     assert "浏览器进程启动失败" in e2e
     assert "非沙箱权限" in e2e
+    if server_path.exists():
+        server = server_path.read_text(encoding="utf-8")
+        assert "--release-capabilities" in server
+        assert 'release.get("capabilities")' in server
+        assert 'urlsplit(self.path).path == "/data/data_manifest.json"' in server
 
 
 def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():

@@ -37,6 +37,22 @@ async function launchValidationBrowser() {
   page.on("request", req => requests.push(req.url()));
 
   await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+  const dataManifest = await page.evaluate(async () => {
+    const response = await fetch("data/data_manifest.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`data_manifest HTTP ${response.status}`);
+    return response.json();
+  });
+  const slimReleaseMode = dataManifest?.capabilities?.single_snapshots === false;
+
+  await page.locator('.mode-btn[data-mode="compare"]').click();
+  await page.waitForSelector("#compare-view", { state: "visible", timeout: 15000 });
+  await page.locator('.tree-l3[data-code="MOM12_1"]').click();
+  await page.locator('.tree-l3[data-code="DASTD"]').click();
+  await page.waitForFunction(() => {
+    const text = document.querySelector("#cmp-table")?.innerText || "";
+    return text.includes("MOM12_1") && text.includes("DASTD") && text.includes("年化");
+  }, null, { timeout: 120000 });
+
   await page.locator('.mode-btn[data-mode="compose"]').click();
   await page.waitForSelector("#compose-view", { state: "visible", timeout: 15000 });
   await page.locator('.tree-l3[data-code="MOM12_1"]').click();
@@ -68,10 +84,17 @@ async function launchValidationBrowser() {
 
   const text = await page.locator("#combo-validation").innerText();
   const forbidden = requests.filter(u => /factor_score_full|factor_score\.parquet|factor_score_neutral\.parquet/.test(u));
+  const unexpectedSingleSnapshots = slimReleaseMode
+    ? requests.filter(u => /\/data\/single_snapshots\//.test(u))
+    : [];
   await browser.close();
 
   if (errors.length) throw new Error(`页面错误：${errors.join("\n")}`);
   if (forbidden.length) throw new Error(`多因子检验请求了全量大文件：${forbidden.join(", ")}`);
+  if (!slimReleaseMode) throw new Error("本次验收未进入正式精简包capabilities模式");
+  if (unexpectedSingleSnapshots.length) {
+    throw new Error(`精简包模式仍请求single_snapshots：${unexpectedSingleSnapshots.join(", ")}`);
+  }
   const required = [
     "组合内相关性",
     "与最佳单因子对比",
