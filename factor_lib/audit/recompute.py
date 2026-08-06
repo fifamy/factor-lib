@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import math
+from datetime import date, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -26,7 +27,7 @@ REL_TOL_BY_CODE = {
 
 # 各计算因子参考实现所需价格窗口长度（与 refs.py / tests/test_audit_refs.py 一致）
 WIN_N = {
-    "REV1M": 22, "REV5D": 6, "MOM20": 21, "MOM60": 61, "MOM12_1": 253, "RSTR252": 253, "DASTD": 252,
+    "REV1M": 22, "REV5D": 6, "MOM20": 21, "MOM60": 61, "MOM12_1": 253, "RSTR252": 253, "DASTD": 253,
     "DOWNVOL": 520, "MAXDD1Y": 252, "RETSKEW": 520, "RETKURT": 520, "BIGDOWN": 61,
     "AMOUNT20": 20, "VOLUME20": 20, "TURN20": 20, "STOM": 21, "AMTVOL": 20,
     "TURNVOL": 60, "TURNPCTL": 120, "PVCORR": 61, "UPVOLRATIO": 21, "PRICEZ": 20,
@@ -155,6 +156,189 @@ def _read_word_v2_parquet_preserve_order(src: Path, name: str, columns: list[str
 
 def _all_month_keys(factor_raw: pl.DataFrame) -> set[str]:
     return set(factor_raw["trade_date"].unique().cast(pl.Utf8).str.replace_all("-", "").to_list())
+
+
+def _parse_month_key(value: str) -> date | None:
+    key = str(value).replace("-", "")
+    if len(key) != 8:
+        return None
+    try:
+        return date(int(key[:4]), int(key[4:6]), int(key[6:8]))
+    except ValueError:
+        return None
+
+
+def _reference_monthly_value(
+    frame: pl.DataFrame,
+    date_col: str,
+    value_col: str,
+    keep_dates: set[str],
+    output_col: str,
+) -> pl.DataFrame:
+    if frame.is_empty():
+        return pl.DataFrame()
+    return (
+        frame.select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col(date_col).cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("trade_date"),
+            pl.col(value_col).cast(pl.Float64, strict=False).alias(output_col),
+        ])
+        .filter(
+            pl.col("trade_date").dt.strftime("%Y%m%d").is_in(sorted(keep_dates))
+            & pl.col("stock_code").is_not_null()
+        )
+    )
+
+
+def _reference_buybackratio(
+    buyback: pl.DataFrame,
+    price: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 365,
+) -> pl.DataFrame:
+    """Independent audit implementation of the latest-positive-amount rule."""
+    if buyback.is_empty() or price.is_empty():
+        return pl.DataFrame()
+    events = (
+        buyback.with_row_index("_rowid")
+        .select([
+            "_rowid",
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("EVENT_ID").cast(pl.Utf8).str.strip_chars().alias("event_id"),
+            pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("AMT").cast(pl.Float64, strict=False).alias("event_amount"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_id").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("event_amount").is_not_null()
+            & pl.col("event_amount").is_finite()
+            & (pl.col("event_amount") > 0)
+        )
+    )
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        start = asof - timedelta(days=window_days - 1)
+        part = (
+            events.filter((pl.col("event_date") >= start) & (pl.col("event_date") <= asof))
+            .sort(["stock_code", "event_id", "event_date", "_rowid"])
+            .group_by(["stock_code", "event_id"])
+            .last()
+            .group_by("stock_code")
+            .agg(pl.col("event_amount").sum().alias("buyback_amount"))
+            .with_columns(pl.lit(asof).alias("trade_date"))
+        )
+        if not part.is_empty():
+            parts.append(part)
+    if not parts:
+        return pl.DataFrame()
+    amount = pl.concat(parts, how="vertical")
+    float_mv = _reference_monthly_value(
+        price, "TRADE_DT", "S_DQ_MV", keep_dates, "float_mv_10k"
+    )
+    return (
+        amount.join(float_mv, on=["trade_date", "stock_code"], how="left")
+        .with_columns(
+            pl.when(pl.col("float_mv_10k") > 0)
+            .then(pl.col("buyback_amount") / (pl.col("float_mv_10k") * 10000.0))
+            .otherwise(None)
+            .alias("raw_value")
+        )
+        .filter((pl.col("raw_value") >= 0) & (pl.col("raw_value") <= 5.0))
+        .select([
+            "trade_date",
+            "stock_code",
+            pl.lit("BUYBACKRATIO").alias("factor_code"),
+            "raw_value",
+        ])
+    )
+
+
+def _reference_mergersize(
+    merger_event: pl.DataFrame,
+    merger_participant: pl.DataFrame,
+    valuation: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 365,
+) -> pl.DataFrame:
+    """Independent audit implementation of the buyer-only PIT merger rule."""
+    if merger_event.is_empty() or merger_participant.is_empty() or valuation.is_empty():
+        return pl.DataFrame()
+    trade_value = pl.col("TRADE_VALUE").cast(pl.Float64, strict=False)
+    cash_payment = pl.col("CASH_PAYMENT").cast(pl.Float64, strict=False)
+    event_value = (
+        merger_event.filter(
+            pl.col("CRNCY_CODE").cast(pl.Utf8).str.strip_chars().str.to_uppercase() == "CNY"
+        )
+        .select([
+            pl.col("EVENT_ID").cast(pl.Utf8),
+            pl.coalesce([
+                pl.col("UPDATE_DATE").cast(pl.Utf8),
+                pl.col("ANN_DATE").cast(pl.Utf8),
+            ]).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            (
+                pl.when(trade_value.is_not_null() & trade_value.is_finite() & (trade_value > 0))
+                .then(trade_value)
+                .when(cash_payment.is_not_null() & cash_payment.is_finite() & (cash_payment > 0))
+                .then(cash_payment)
+                .otherwise(None)
+                * 10000.0
+            ).alias("event_value"),
+        ])
+        .filter(
+            pl.col("EVENT_ID").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("event_value").is_not_null()
+            & pl.col("event_value").is_finite()
+            & (pl.col("event_value") > 0)
+        )
+    )
+    buyers = (
+        merger_participant.filter(
+            pl.col("PARTY_ROLE_CODE").cast(pl.Utf8).str.strip_chars() == "325001000"
+        )
+        .select([
+            pl.col("EVENT_ID").cast(pl.Utf8),
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+        ])
+        .filter(pl.col("EVENT_ID").is_not_null() & pl.col("stock_code").is_not_null())
+        .unique()
+    )
+    events = buyers.join(event_value, on="EVENT_ID", how="inner")
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        start = asof - timedelta(days=window_days - 1)
+        part = (
+            events.filter((pl.col("event_date") >= start) & (pl.col("event_date") <= asof))
+            .group_by("stock_code")
+            .agg(pl.col("event_value").sum().alias("event_value"))
+            .with_columns(pl.lit(asof).alias("trade_date"))
+        )
+        if not part.is_empty():
+            parts.append(part)
+    if not parts:
+        return pl.DataFrame()
+    raised = pl.concat(parts, how="vertical")
+    mv = _reference_monthly_value(
+        valuation, "TRADE_DT", "S_VAL_MV_ARD", keep_dates, "mv"
+    )
+    return (
+        raised.join(mv, on=["trade_date", "stock_code"], how="left")
+        .with_columns(
+            pl.when(pl.col("mv") > 0)
+            .then(pl.col("event_value") / pl.col("mv"))
+            .otherwise(None)
+            .alias("raw_value")
+        )
+        .filter((pl.col("raw_value") >= 0) & (pl.col("raw_value") <= 20.0))
+        .select([
+            "trade_date",
+            "stock_code",
+            pl.lit("MERGERSIZE").alias("factor_code"),
+            "raw_value",
+        ])
+    )
 
 
 def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_dir: str,
@@ -325,7 +509,7 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
     elif code == "BUYBACKRATIO":
         buyback = _read_word_v2_parquet(src, "buyback_ext", ["S_INFO_WINDCODE", "EVENT_ID", "ANN_DT", "AMT"], stocks)
         price = _read_word_v2_parquet(src, "price_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_DQ_MV"], stocks)
-        out = mod.build_buybackratio(buyback, price, keep_dates)
+        out = _reference_buybackratio(buyback, price, keep_dates)
     elif code == "PLACEDISCOUNT":
         placement = _read_word_v2_parquet(src, "placement_ext", ["S_INFO_WINDCODE", "ANN_DT", "S_FELLOW_DISCNTRATIO"], stocks)
         out = mod.build_placediscount(placement, keep_dates)
@@ -337,11 +521,21 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         out = mod.build_placement_size(placement, valuation, keep_dates)
     elif code == "MERGERSIZE":
         merger_event = _read_word_v2_parquet(src, "merger_event_ext", [
-            "EVENT_ID", "ANN_DATE", "TRADE_VALUE", "CASH_PAYMENT", "EVALUE_VALUE", "CRNCY_CODE",
+            "EVENT_ID", "ANN_DATE", "UPDATE_DATE", "TRADE_VALUE", "CASH_PAYMENT", "CRNCY_CODE",
         ], None)
-        merger_participant = _read_word_v2_parquet(src, "merger_participant_ext", ["EVENT_ID", "S_INFO_WINDCODE"], stocks)
+        merger_participant = _read_word_v2_parquet(
+            src,
+            "merger_participant_ext",
+            ["EVENT_ID", "S_INFO_WINDCODE", "PARTY_ROLE_CODE"],
+            stocks,
+        )
         valuation = _read_word_v2_parquet(src, "valuation_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_VAL_MV_ARD"], stocks)
-        out = mod.build_merger_size(merger_event, merger_participant, valuation, keep_dates)
+        out = _reference_mergersize(
+            merger_event,
+            merger_participant,
+            valuation,
+            keep_dates,
+        )
     elif code == "INCENTIVESIZE":
         incentive = _read_word_v2_parquet(src, "equity_incentive_ext", ["S_INFO_WINDCODE", "ANN_DT", "INC_NUMBERS_RATE"], stocks)
         out = mod.build_incentivesize(incentive, keep_dates)

@@ -147,11 +147,11 @@ def _rstr252(win, ctx):
 @_ref("DASTD")
 def _dastd(win, ctx):
     p = _adjclose(win)
-    if len(p) < 252:
+    if len(p) < 253:
         return None, []
-    r = np.diff(np.log(p[-252:]))
+    r = np.diff(np.log(p[-253:]))
     v = float(np.std(r, ddof=1) * math.sqrt(252))
-    return v, [f"std(日对数收益,252)×√252 = {v:.6f}"]
+    return v, [f"253个复权价格端点→252个日对数收益；std(收益,252)×√252 = {v:.6f}"]
 
 
 @_ref("DOWNVOL")
