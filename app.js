@@ -7274,13 +7274,13 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
              grp,
              AVG(${forwardReturnSql("fwd_return")}) AS port_ret,
              COUNT(*) AS n,
-             SUM(CASE WHEN ${validForwardReturnSql("fwd_return")} THEN 1 ELSE 0 END) AS observed_return_count,
-             SUM(CASE WHEN ${validForwardReturnSql("fwd_return")} THEN 0 ELSE 1 END) AS missing_return_count
+             COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS observed_return_count,
+             COUNT(*) - COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS missing_return_count
       FROM ranked
       GROUP BY trade_date, grp
       -- 尚无任何有效远期收益的未完成月不进入绩效；已完成月内的缺失成员仍按 -100% 惩罚。
       HAVING COUNT(*) >= 5
-         AND SUM(CASE WHEN ${validForwardReturnSql("fwd_return")} THEN 1 ELSE 0 END) > 0
+         AND COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) > 0
     )
     SELECT signal_month, return_date, grp, port_ret, n, observed_return_count, missing_return_count
     FROM monthly

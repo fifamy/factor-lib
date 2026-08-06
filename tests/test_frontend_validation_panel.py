@@ -242,7 +242,9 @@ def test_frontend_ranking_and_combo_validation_keep_missing_forward_returns_in_s
     assert "GROUP BY trade_date, return_date, grp" not in group_validation
     assert "MAX(return_date)" in group_validation
     assert "HAVING COUNT(*) >= 5" in group_validation
-    assert 'SUM(CASE WHEN ${validForwardReturnSql("fwd_return")} THEN 1 ELSE 0 END) > 0' in group_validation
+    assert 'COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS observed_return_count' in group_validation
+    assert 'COUNT(*) - COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS missing_return_count' in group_validation
+    assert 'COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) > 0' in group_validation
 
 
 def test_compare_respects_snapshot_capability_and_normalizes_duckdb_bigints():
