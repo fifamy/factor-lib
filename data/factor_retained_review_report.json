@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "generated_at": "2026-08-06 11:41:53+0800",
+  "generated_at": "2026-08-06 14:21:29+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
-  "resolution_updated_at": "2026-07-31",
+  "resolution_updated_at": "2026-08-06",
   "summary": {
     "manual_review_record_count": 148,
     "manual_issue_factor_count": 81,
@@ -1304,21 +1304,22 @@
       ],
       "manual_updated_at": "2026-06-25T02:44:06.84914+00:00",
       "decision_titles": [
-        "60日峰度与252日超额峰度按窗口和定义区分"
+        "60日Wind峰度与252日普通峰度按窗口和实现区分"
       ],
       "verification_assessment": [
-        "KURT60使用Wind 60日收益峰度，RETKURT使用252日收益的Fisher超额峰度，窗口长度和峰度定义均不同；本地得分相关系数为0.390340，不支持删除KURT60。"
+        "KURT60直接使用Wind 60日收益峰度字段，RETKURT使用自算252日日对数收益普通峰度。原“Fisher超额峰度”表述在2026-07-27普通峰度修复后已过时；两者的窗口和实现仍不同，本地得分相关系数为0.390340，不支持删除KURT60。"
       ],
       "reason_not_changed": [
-        "用户明确要求本轮不删除因子，且两个因子的窗口、峰度定义和得分表现均不同。"
+        "用户明确要求本轮不删除因子，且两个因子的窗口、实现方式和得分表现不同。"
       ],
       "decision_action": [
-        "按用户决定保留KURT60，不与RETKURT合并或设置硬拦截；审核页分别披露60日Wind字段与252日超额峰度口径。"
+        "按用户决定保留KURT60和RETKURT，不合并或设置硬拦截；审核页分别披露60日Wind峰度字段与自算252日普通峰度，不再将RETKURT表述为超额峰度。"
       ],
       "evidence": [
-        "KURT60为Wind 60日收益峰度",
-        "RETKURT为252日Fisher超额峰度",
-        "KURT60/RETKURT得分相关系数0.390340"
+        "KURT60为Wind 60日收益峰度字段",
+        "RETKURT为自算252日日对数收益普通峰度",
+        "KURT60/RETKURT得分相关系数0.390340",
+        "parameter-retkurt-ordinary-kurtosis-aligned于2026-07-27完成修复"
       ],
       "decision_issue_ids": [
         "redundancy-kurt60-retkurt-retained"
