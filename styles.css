@@ -220,6 +220,20 @@ tr.stock-row:hover td:nth-child(2) { text-decoration: underline; }
 .admin-published-card > div:first-child { min-width: 0; }
 #single-view, #compare-view, #compose-view, #combo-library-view, #admin-view, #filter-view, #ranking-view { display: flex; flex-direction: column; gap: 12px; }
 .rank-scroll-hint { margin-top: 10px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.rank-scroll-controls { position: sticky; top: var(--topbar-height); z-index: calc(var(--z-sticky) - 1);
+                        display: flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 8px;
+                        background: #f8fafc; border: 1px solid #d8e1ea; border-radius: 5px; }
+.rank-scroll-controls[hidden] { display: none; }
+.rank-scroll-label { flex: 0 0 auto; color: var(--text-secondary); font-size: 11px; font-weight: 600; }
+.rank-scroll-button { flex: 0 0 32px; width: 32px; height: 32px; padding: 0; border: 1px solid #b8c5d3;
+                      border-radius: 4px; background: #fff; color: var(--brand); font-size: 21px; line-height: 1;
+                      cursor: pointer; }
+.rank-scroll-button:hover:not(:disabled) { background: #eaf2f9; border-color: var(--brand); }
+.rank-scroll-button:disabled { color: #9aa4b2; background: #f1f3f5; cursor: default; }
+.rank-scrollbar-top { flex: 1 1 auto; min-width: 80px; height: 24px; overflow-x: auto; overflow-y: hidden;
+                      overscroll-behavior-x: contain; scrollbar-gutter: stable; }
+.rank-scrollbar-top:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.rank-scrollbar-spacer { height: 1px; }
 .rank-table-scroll { max-width: 100%; overflow-x: auto; overflow-y: visible; margin-top: 4px;
                      overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
 .rank-table-scroll:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -503,6 +517,7 @@ th[aria-sort="ascending"], th[aria-sort="descending"] { color: var(--brand); }
   #main { display: block; }
   #sidebar { position: static; max-height: 38dvh; border-right: 0; border-bottom: 1px solid #d8dee6; }
   #content { padding: 10px; gap: 10px; }
+  .rank-scroll-controls { top: 0; }
   #mode-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   .mode-btn, .mode-btn:first-child, .mode-btn:not(:first-child), .mode-btn:last-child {
     width: 100%; border: 1px solid var(--brand); border-radius: 5px; padding: 8px 6px;
@@ -519,6 +534,8 @@ th[aria-sort="ascending"], th[aria-sort="descending"] { color: var(--brand); }
 @media (pointer: coarse) {
   button, select, input[type="button"], input[type="submit"], .nav-link { min-height: 44px; }
   .tree-l1, .tree-l2, .tree-l3 { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
+  .rank-scroll-button { flex-basis: 44px; width: 44px; height: 44px; }
+  .rank-scrollbar-top { height: 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

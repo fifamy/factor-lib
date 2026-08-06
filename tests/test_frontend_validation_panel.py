@@ -756,6 +756,23 @@ def test_factor_ranking_table_has_accessible_horizontal_scroll_region():
     assert 'let html = `<table class="rank-table">' in source
 
 
+def test_factor_ranking_has_top_horizontal_scroll_controls():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    index = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert 'id="rank-scroll-controls"' in index
+    assert 'id="rank-scrollbar-top"' in index
+    assert 'aria-controls="rank-table"' in index
+    assert 'id="rank-scroll-left"' in index
+    assert 'id="rank-scroll-right"' in index
+    assert ".rank-scroll-controls { position: sticky" in styles
+    assert "function bindRankHorizontalScroll()" in source
+    assert "tableScroll.scrollLeft = topScroll.scrollLeft" in source
+    assert "topScroll.scrollLeft = tableScroll.scrollLeft" in source
+    assert "requestAnimationFrame(updateRankHorizontalScroll)" in source
+
+
 def test_combo_ranking_static_contract():
     source = APP_JS.read_text(encoding="utf-8")
     styles = STYLES_CSS.read_text(encoding="utf-8")

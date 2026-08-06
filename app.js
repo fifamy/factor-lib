@@ -4845,6 +4845,63 @@ function bindRankParamControls() {
 }
 
 let _rankBarBound = false;
+let _rankHorizontalScrollBound = false;
+
+function updateRankHorizontalScroll() {
+  const controls = document.getElementById("rank-scroll-controls");
+  const topScroll = document.getElementById("rank-scrollbar-top");
+  const spacer = document.getElementById("rank-scrollbar-spacer");
+  const tableScroll = document.querySelector(".rank-table-scroll");
+  const leftButton = document.getElementById("rank-scroll-left");
+  const rightButton = document.getElementById("rank-scroll-right");
+  if (!controls || !topScroll || !spacer || !tableScroll || !leftButton || !rightButton) return;
+
+  const maxScroll = Math.max(0, tableScroll.scrollWidth - tableScroll.clientWidth);
+  const hasOverflow = maxScroll > 1;
+  controls.hidden = !hasOverflow;
+  spacer.style.width = `${maxScroll + topScroll.clientWidth}px`;
+  if (Math.abs(topScroll.scrollLeft - tableScroll.scrollLeft) > 1) {
+    topScroll.scrollLeft = tableScroll.scrollLeft;
+  }
+  const current = Math.min(maxScroll, Math.max(0, tableScroll.scrollLeft));
+  topScroll.setAttribute("aria-valuemax", String(Math.round(maxScroll)));
+  topScroll.setAttribute("aria-valuenow", String(Math.round(current)));
+  leftButton.disabled = !hasOverflow || current <= 1;
+  rightButton.disabled = !hasOverflow || current >= maxScroll - 1;
+}
+
+function bindRankHorizontalScroll() {
+  if (_rankHorizontalScrollBound) return;
+  const topScroll = document.getElementById("rank-scrollbar-top");
+  const tableScroll = document.querySelector(".rank-table-scroll");
+  const leftButton = document.getElementById("rank-scroll-left");
+  const rightButton = document.getElementById("rank-scroll-right");
+  if (!topScroll || !tableScroll || !leftButton || !rightButton) return;
+
+  topScroll.addEventListener("scroll", () => {
+    if (Math.abs(tableScroll.scrollLeft - topScroll.scrollLeft) > 1) {
+      tableScroll.scrollLeft = topScroll.scrollLeft;
+    }
+    updateRankHorizontalScroll();
+  });
+  tableScroll.addEventListener("scroll", () => {
+    if (Math.abs(topScroll.scrollLeft - tableScroll.scrollLeft) > 1) {
+      topScroll.scrollLeft = tableScroll.scrollLeft;
+    }
+    updateRankHorizontalScroll();
+  });
+  const scrollByPage = direction => {
+    const distance = Math.max(240, Math.round(tableScroll.clientWidth * 0.75));
+    tableScroll.scrollLeft += direction * distance;
+    updateRankHorizontalScroll();
+  };
+  leftButton.addEventListener("click", () => scrollByPage(-1));
+  rightButton.addEventListener("click", () => scrollByPage(1));
+  window.addEventListener("resize", updateRankHorizontalScroll);
+  _rankHorizontalScrollBound = true;
+  updateRankHorizontalScroll();
+}
+
 async function renderRanking() {
   const box = document.getElementById("rank-table");
   try {
@@ -4855,6 +4912,7 @@ async function renderRanking() {
       document.getElementById("rank-clear-sel").onclick = () => { _rankState.checked.clear(); drawRankTable(); };
       buildTagFilters();
       bindRankParamControls();
+      bindRankHorizontalScroll();
       await initRankRangeControlsFast();
       _rankBarBound = true;
     }
@@ -4875,6 +4933,7 @@ async function renderRanking() {
         document.getElementById("rank-clear-sel").onclick = () => { _rankState.checked.clear(); drawRankTable(); };
         buildTagFilters();
         bindRankParamControls();
+        bindRankHorizontalScroll();
         await initRankRangeControls();
         _rankBarBound = true;
       }
@@ -5369,6 +5428,7 @@ function drawRankTable() {
   });
   html += `</tbody></table>`;
   box.innerHTML = html;
+  requestAnimationFrame(updateRankHorizontalScroll);
   // 列头点击排序（勾选列除外）
   box.querySelectorAll("th[data-key]").forEach(th => {
     const k = th.dataset.key;
