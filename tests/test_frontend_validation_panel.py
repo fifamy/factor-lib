@@ -786,14 +786,16 @@ def test_factor_ranking_table_has_accessible_horizontal_scroll_region():
 
     assert 'class="rank-table-scroll"' in index
     assert 'role="region"' in index
-    assert 'aria-label="因子排行榜数据表，可横向滚动"' in index
+    assert 'aria-label="因子排行榜数据表，可纵向和横向滚动"' in index
     assert 'aria-describedby="rank-scroll-hint"' in index
     assert 'tabindex="0"' in index
     assert "Shift+滚轮" in index
-    assert ".rank-table-scroll { max-width: 100%; overflow-x: auto" in styles
+    assert ".rank-table-scroll { max-width: 100%; max-height: clamp(" in styles
+    assert "overflow: auto; margin-top: 4px" in styles
     assert "overscroll-behavior-x: contain" in styles
     assert "-webkit-overflow-scrolling: touch" in styles
     assert "table.rank-table { width: max-content; min-width: 100%" in styles
+    assert "table.rank-table th { position: sticky; top: 0; z-index: 1" in styles
     assert "table.stock-table, table.kpi-table, table.rank-table" not in styles
     assert 'let html = `<table class="rank-table">' in source
 
@@ -1069,8 +1071,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.2</title>" in index
-    assert "<b>因子库 v2.0.2</b>" in index
+    assert "<title>因子库 v2.0.3</title>" in index
+    assert "<b>因子库 v2.0.3</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 
