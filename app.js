@@ -415,8 +415,20 @@ function hasComposeNeutralScores() {
   return state.dataManifest?.has_compose_scores_neutral !== false;
 }
 
+function hasAdvancedCompareSnapshots() {
+  return state.dataManifest?.capabilities?.single_snapshots !== false;
+}
+
+function compareAdvancedUnavailableMessage() {
+  return "当前精简发布包未包含完整单因子快照，仅支持默认方向、原始口径和无约束等权对比。";
+}
+
 function composeNeutralUnavailableMessage() {
   return "线上版本未发布 neutral 多因子合成分片；本地完整数据可用。";
+}
+
+function composeIndustryApproximationMessage() {
+  return "浏览器合成的行业约束使用最新静态申万一级行业，并按候选集行业占比分配权重；不等于单因子回测的月末PIT行业中性口径，两者结果不可直接比较。";
 }
 
 function normalizeComposeScoreMode(mode) {
@@ -440,6 +452,16 @@ function constraintHoldText(mode = state.singleConstraintMode) {
   return normalizeConstraintMode(mode) === "industry"
     ? "按申万一级行业目标权重持有"
     : "Top 股票等权持有";
+}
+
+function composeConstraintModeLabel(mode = state.composeConstraintMode) {
+  return normalizeConstraintMode(mode) === "industry" ? "静态行业约束" : "无约束等权";
+}
+
+function composeConstraintHoldText(mode = state.composeConstraintMode) {
+  return normalizeConstraintMode(mode) === "industry"
+    ? "按候选集最新静态申万一级行业占比近似配权"
+    : "Top股票等权持有";
 }
 
 function activeScoreSnapshot(snap) {
@@ -842,7 +864,7 @@ function renderTree(filter) {
     head.className = cls;
     head.setAttribute("aria-expanded", String(!collapsed));
     head.setAttribute("aria-controls", bodyId);
-    head.innerHTML = `<span class="tw">${collapsed ? "▶" : "▼"}</span>${label}`;
+    head.innerHTML = `<span class="tw">${collapsed ? "▶" : "▼"}</span>${htmlText(label)}`;
     body.id = bodyId;
     body.hidden = collapsed;
     head.onclick = () => {
@@ -871,7 +893,7 @@ function renderTree(filter) {
         const l3Div = document.createElement("button");
         l3Div.type = "button";
         l3Div.className = "tree-l3";
-        l3Div.innerHTML = `${f.code}<span class="tree-cn">${f.name_cn || ""}</span>`;
+        l3Div.innerHTML = `${htmlText(f.code)}<span class="tree-cn">${htmlText(f.name_cn || "")}</span>`;
         if (f.combo_policy === "block" || f.combo_policy === "warn") {
           const badge = document.createElement("span");
           badge.className = `tree-usage-badge ${f.combo_policy}`;
@@ -1461,24 +1483,24 @@ function renderFactorDetail(meta, snap = null) {
     <div style="margin-top:8px">
       <div class="label" style="color:#888;font-size:11px">计算公式</div>
       <pre style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:8px 10px;
-                  font-size:12px;line-height:1.5;white-space:pre-wrap;margin-top:3px;color:#333">${meta.formula}</pre>
+                  font-size:12px;line-height:1.5;white-space:pre-wrap;margin-top:3px;color:#333">${htmlText(meta.formula)}</pre>
     </div>` : "";
   const sourceBlock = meta.wind_source ? `
     <div style="margin-top:8px">
       <div class="label" style="color:#888;font-size:11px">数据来源（Wind 表.字段）</div>
-      <p style="font-size:12px;color:#444;margin-top:3px">${meta.wind_source}</p>
+      <p style="font-size:12px;color:#444;margin-top:3px">${htmlText(meta.wind_source)}</p>
     </div>` : "";
   const tagBlock = (meta.env_tag && meta.env_tag !== "—") ? `
     <p style="margin-top:4px">
-      <span class="ftag ftag-${meta.env_tag}">${meta.env_tag}</span>
-      <span class="ftag ftag-${meta.time_tag}">${meta.time_tag}</span>
+      <span class="ftag ftag-${htmlAttr(meta.env_tag)}">${htmlText(meta.env_tag)}</span>
+      <span class="ftag ftag-${htmlAttr(meta.time_tag)}">${htmlText(meta.time_tag)}</span>
       <span style="color:#aaa;font-size:11px;margin-left:6px">基于全样本回测/IC 自动判定</span>
     </p>` : "";
   document.getElementById("factor-detail").innerHTML = `
-    <h3>${meta.code}　·　${meta.name_cn}</h3>
-    <p><b>${meta.l1} → ${meta.l2}</b>　默认方向：${dirArrow}　当前：<b>${sideLabel(side)}</b>（${sideRawDirection(meta, side)}）</p>
+    <h3>${htmlText(meta.code)}　·　${htmlText(meta.name_cn)}</h3>
+    <p><b>${htmlText(meta.l1)} → ${htmlText(meta.l2)}</b>　默认方向：${dirArrow}　当前：<b>${sideLabel(side)}</b>（${htmlText(sideRawDirection(meta, side))}）</p>
     ${tagBlock}
-    <p>${meta.description}</p>
+    <p>${htmlText(meta.description)}</p>
     ${factorUsageNoticeHtml(meta)}
     ${positiveOnlyNote(meta)}
     ${formulaBlock}
@@ -1665,11 +1687,11 @@ async function renderTopStocks(code) {
     html += `<tr class="stock-row" data-stock="${htmlAttr(r.stock_code)}" data-name="${htmlAttr(r.name || "")}" title="点击看该股各因子打分（为什么入选）">
       <td>${i + 1}</td>
       <td><button type="button" class="stock-detail-btn" aria-label="查看 ${htmlAttr(r.stock_code)} ${htmlAttr(r.name || "")} 的因子打分">${htmlText(r.stock_code)}</button></td>
-      <td>${r.name || ""}</td>
-      <td>${as_of_date}</td>
-      <td>${pool_date}</td>
-      <td>${r.industry_sw1 || "—"}</td>
-      <td>${r.industry_sw2 || "—"}</td>
+      <td>${htmlText(r.name || "")}</td>
+      <td>${htmlText(as_of_date)}</td>
+      <td>${htmlText(pool_date)}</td>
+      <td>${htmlText(r.industry_sw1 || "—")}</td>
+      <td>${htmlText(r.industry_sw2 || "—")}</td>
       <td>${fmtMV(r.market_cap)}</td>
       <td>${fmt(r.pe, 1)}</td>
       <td>${fmt(r.pb, 2)}</td>
@@ -1833,11 +1855,11 @@ function renderTopStocksRows(code, rows, opts = {}) {
     html += `<tr class="stock-row" data-stock="${htmlAttr(r.stock_code)}" data-name="${htmlAttr(r.name || "")}" title="点击看该股各因子打分（为什么入选）">
       <td>${i + 1}</td>
       <td><button type="button" class="stock-detail-btn" aria-label="查看 ${htmlAttr(r.stock_code)} ${htmlAttr(r.name || "")} 的因子打分">${htmlText(r.stock_code)}</button></td>
-      <td>${r.name || ""}</td>
-      <td>${as_of_date}</td>
-      <td>${pool_date}</td>
-      <td>${r.industry_sw1 || "—"}</td>
-      <td>${r.industry_sw2 || "—"}</td>
+      <td>${htmlText(r.name || "")}</td>
+      <td>${htmlText(as_of_date)}</td>
+      <td>${htmlText(pool_date)}</td>
+      <td>${htmlText(r.industry_sw1 || "—")}</td>
+      <td>${htmlText(r.industry_sw2 || "—")}</td>
       <td>${fmtMV(r.market_cap)}</td>
       <td>${fmt(r.pe, 1)}</td>
       <td>${fmt(r.pb, 2)}</td>
@@ -2754,7 +2776,7 @@ function validationShortSampleWarnings(v, group10Months, segmentRows = [], segme
 
 function renderValidationShortSampleWarning(warnings) {
   if (!Array.isArray(warnings) || !warnings.length) return "";
-  return `<div class="validation-short-sample"><b>样本不足</b><span>${warnings.join("；")}。样本月数不足 36 时建议降低结论权重，优先结合前瞻期、滚动/样本外和分层结果复核。</span></div>`;
+  return `<div class="validation-short-sample"><b>样本不足</b><span>${warnings.map(htmlText).join("；")}。样本月数不足 36 时建议降低结论权重，优先结合前瞻期、滚动/样本外和分层结果复核。</span></div>`;
 }
 
 function renderValidationIndustryLimitation() {
@@ -2792,7 +2814,7 @@ function renderNeutralizationQualityWarning(snap) {
 
 function renderValidationUnavailable(message) {
   const target = document.getElementById("validation-summary");
-  if (target) target.innerHTML = `<div class="empty">${message}</div>`;
+  if (target) target.innerHTML = `<div class="empty">${htmlText(message)}</div>`;
 }
 
 function validationValueBlock(rows) {
@@ -3828,23 +3850,34 @@ function renderCmpControls() {
     box.innerHTML = `<div class="empty">未选因子</div>`;
     return;
   }
+  const advancedAvailable = hasAdvancedCompareSnapshots();
+  const advancedDisabled = advancedAvailable ? "" : " disabled";
+  const advancedTitle = advancedAvailable ? "" : ` title="${htmlAttr(compareAdvancedUnavailableMessage())}"`;
+  const capabilityNotice = advancedAvailable
+    ? ""
+    : `<div id="cmp-capability-note" class="capability-note">${htmlText(compareAdvancedUnavailableMessage())}</div>`;
   // 用 index 标识每一行（同因子可重复，不能用 code）
-  box.innerHTML = state.compareFactors.map((raw, i) => {
+  box.innerHTML = capabilityNotice + state.compareFactors.map((raw, i) => {
     const f = normalizeCompareFactor(raw);
+    if (!advancedAvailable) {
+      f.side = 1;
+      f.scoreMode = "raw";
+      f.constraintMode = "none";
+    }
     state.compareFactors[i] = f;
     return `
     <span class="cmp-frow" style="display:inline-flex;align-items:center;gap:4px;margin:0 10px 6px 0;flex-wrap:wrap">
       <span style="width:10px;height:10px;border-radius:50%;background:${STRAT_COLORS[i % STRAT_COLORS.length]};display:inline-block"></span>
-      <b style="font-size:12px">${f.code}</b>
-      <select class="cmp-side" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+      <b style="font-size:12px">${htmlText(f.code)}</b>
+      <select class="cmp-side" data-idx="${i}" aria-label="${htmlAttr(`${f.code}分析方向`)}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"${advancedDisabled}${advancedTitle}>
         <option value="1"${normalizeSide(f.side) === 1 ? " selected" : ""}>默认</option>
         <option value="-1"${normalizeSide(f.side) === -1 ? " selected" : ""}>反向</option>
       </select>
-      <select class="cmp-score-mode" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+      <select class="cmp-score-mode" data-idx="${i}" aria-label="${htmlAttr(`${f.code}分数口径`)}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"${advancedDisabled}${advancedTitle}>
         <option value="raw"${normalizeScoreMode(f.scoreMode) === "raw" ? " selected" : ""}>原始口径</option>
         <option value="neutral"${normalizeScoreMode(f.scoreMode) === "neutral" ? " selected" : ""}>行业市值中性</option>
       </select>
-      <select class="cmp-constraint-mode" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+      <select class="cmp-constraint-mode" data-idx="${i}" aria-label="${htmlAttr(`${f.code}组合约束`)}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"${advancedDisabled}${advancedTitle}>
         <option value="none"${normalizeConstraintMode(f.constraintMode) === "none" ? " selected" : ""}>无约束等权</option>
         <option value="industry"${normalizeConstraintMode(f.constraintMode) === "industry" ? " selected" : ""}>行业中性</option>
       </select>
@@ -4349,8 +4382,8 @@ async function renderCmpIcFast() {
   const uniqItems = [];
   const seen = new Set();
   for (const f of state.compareFactors) {
-    const item = { code: f.code, side: normalizeSide(f.side) };
-    const key = `${item.code}|${item.side}`;
+    const item = { code: f.code, side: normalizeSide(f.side), scoreMode: normalizeScoreMode(f.scoreMode) };
+    const key = `${item.code}|${item.side}|${item.scoreMode}`;
     if (seen.has(key)) continue;
     seen.add(key);
     uniqItems.push(item);
@@ -4722,8 +4755,8 @@ function clearComposeOptimization() {
 // 排行榜列定义：key 用于排序，label 表头，fmt 格式化，good=+1 表示越大越好（综合分方向用）
 const RANK_COLS = [
   { key: "rank",      label: "#",       lcol: true,  fmt: v => v, help: "当前排序条件下的名次。" },
-  { key: "code",      label: "因子",    lcol: true,  fmt: v => v, help: "因子代码，点击因子行可进入单因子检验。" },
-  { key: "name_cn",   label: "名称",    lcol: true,  fmt: v => v, help: "因子中文名称。" },
+  { key: "code",      label: "因子",    lcol: true,  fmt: v => htmlText(v), help: "因子代码，点击因子行可进入单因子检验。" },
+  { key: "name_cn",   label: "名称",    lcol: true,  fmt: v => htmlText(v), help: "因子中文名称。" },
   { key: "score",     label: "综合分",  fmt: v => v.toFixed(2), cls: "score-cell", help: "综合分综合收益、风险、IC与稳定性，适合做第一轮排序，不代表单独买入结论。" },
   { key: "annual",    label: "年化收益", fmt: v => (v * 100).toFixed(1) + "%", help: "Top30组合年化收益，反映绝对收益能力。" },
   { key: "vol",       label: "年化波动率", fmt: v => (v * 100).toFixed(1) + "%", help: "Top30组合收益波动率，越低说明组合收益起伏越小。" },
@@ -4744,14 +4777,14 @@ const RANK_COLS = [
   { key: "group10Mono", label: "10组单调性", fmt: v => numText(v, 2), help: "10组收益排序单调性，越高说明分组排序越清晰。" },
   { key: "top30Turnover", label: "月均换手", fmt: v => pctText(v), help: "Top30持仓月均换手，越高交易成本压力越大。" },
   { key: "medCap",    label: "中位市值(亿)", fmt: v => v === null ? "—" : Math.round(v).toLocaleString(), help: "最新Top30持仓的中位市值，用于判断因子偏大盘或小盘。" },
-  { key: "capStyle",  label: "市值风格", lcol: true, fmt: v => v, help: "按最新Top30持仓市值分布归纳的风格标签。" },
+  { key: "capStyle",  label: "市值风格", lcol: true, fmt: v => htmlText(v), help: "按最新Top30持仓市值分布归纳的风格标签。" },
   { key: "tags",      label: "标签", lcol: true, sortable: false,
     fmt: (_, r) => [r.env_tag, r.time_tag]
       .filter(t => t && t !== "—")
-      .map(t => `<span class="ftag ftag-${t}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}" tabindex="0">${htmlText(t)}</span>`)
+      .map(t => `<span class="ftag ftag-${htmlAttr(t)}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}" tabindex="0">${htmlText(t)}</span>`)
       .join(" ") || "—",
     help: "辅助标签由市场环境表现和近12个月RankIC变化生成；悬停标签可查看触发口径。" },
-  { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => v, help: "最新Top30持仓中权重靠前的三个行业，用于观察行业集中度。" },
+  { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => htmlText(v), help: "最新Top30持仓中权重靠前的三个行业，用于观察行业集中度。" },
 ];
 
 let _rankState = { rows: null, sortKey: "score", desc: true, checked: new Set(),
@@ -5416,7 +5449,7 @@ function drawRankTable() {
   sorted.forEach((r, i) => {
     r._rank = i + 1;
     const topCls = (sortKey === "score" && desc && i < 5) ? "top-rank" : "";
-    const chk = `<td class="lcol"><input type="checkbox" class="rank-chk" data-code="${r.code}" aria-label="选择因子 ${htmlAttr(r.code)} ${htmlAttr(r.name_cn || "")}" ${_rankState.checked.has(r.code) ? "checked" : ""}></td>`;
+    const chk = `<td class="lcol"><input type="checkbox" class="rank-chk" data-code="${htmlAttr(r.code)}" aria-label="选择因子 ${htmlAttr(r.code)} ${htmlAttr(r.name_cn || "")}" ${_rankState.checked.has(r.code) ? "checked" : ""}></td>`;
     const tds = RANK_COLS.map(c => {
       const cls = (c.lcol ? "lcol " : "") + (c.cls || "");
       let val;
@@ -5478,7 +5511,17 @@ function rankSendTo(mode) {
     return;
   }
   if (mode === "compare") {
-    state.compareFactors = codes.map(code => ({ code, n: state.compareDefaultN, side, scoreMode, constraintMode }));
+    const advancedRequested = side !== 1 || scoreMode !== "raw" || constraintMode !== "none";
+    if (advancedRequested && !hasAdvancedCompareSnapshots()) {
+      alert(`${compareAdvancedUnavailableMessage()}\n\n本次将按默认设置打开对比。`);
+    }
+    state.compareFactors = codes.map(code => ({
+      code,
+      n: state.compareDefaultN,
+      side: hasAdvancedCompareSnapshots() ? side : 1,
+      scoreMode: hasAdvancedCompareSnapshots() ? scoreMode : "raw",
+      constraintMode: hasAdvancedCompareSnapshots() ? constraintMode : "none",
+    }));
   } else {
     let composeScoreMode = scoreMode;
     if (scoreMode === "neutral" && !hasComposeNeutralScores()) {
@@ -5724,7 +5767,7 @@ function comboSummary(combo) {
   const constraintMode = normalizeConstraintMode(combo.constraintMode);
   return cloneComposeFactors(combo.factors)
     .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}${f.thr !== null ? `(${f.op}${f.thr})` : ""}`)
-    .join(" + ") + `，top${combo.N}，${constraintModeLabel(constraintMode)}`;
+    .join(" + ") + `，top${combo.N}，${composeConstraintModeLabel(constraintMode)}`;
 }
 
 function comboDetailHtml(combo) {
@@ -5735,7 +5778,7 @@ function comboDetailHtml(combo) {
   }).join("");
   return `<div class="published-detail">
     ${combo.description ? `<p>${htmlText(combo.description)}</p>` : ""}
-    <p class="published-meta">组合约束：${constraintModeLabel(normalizeConstraintMode(combo.constraintMode))}</p>
+    <p class="published-meta">组合约束：${composeConstraintModeLabel(normalizeConstraintMode(combo.constraintMode))}</p>
     <table class="published-detail-table"><thead><tr><th>因子</th><th>名称</th><th>方向</th><th>口径</th><th>权重</th><th>过滤</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="published-meta">${combo.created_at ? "创建：" + htmlText(combo.created_at) + " · " : ""}ID：${htmlText(combo.id)}</p>
   </div>`;
@@ -6551,7 +6594,7 @@ function comboPublishRequestText(payload) {
     "",
     `组合名称：${payload.name}`,
     `选股数：top${payload.N}`,
-    `组合约束：${constraintModeLabel(payload.constraintMode)}`,
+    `组合约束：${composeConstraintModeLabel(payload.constraintMode)}`,
     "因子：",
     factorLines,
     "",
@@ -6693,20 +6736,23 @@ function renderComposeControls() {
   const usageNotice = usageWarnings.length
     ? `<div class="combo-usage-warning"><b>使用限制</b>${usageWarnings.map(item => `<div>${htmlText(item)}</div>`).join("")}</div>`
     : "";
+  const industryApproximationNotice = constraint === "industry"
+    ? `<div class="capability-note"><b>口径限制</b> ${htmlText(composeIndustryApproximationMessage())}</div>`
+    : "";
   const constraintBtns = `
     <div style="margin:0 0 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">组合约束：</span>
       <button id="cps-constraint-none" class="cpsn-btn cps-constraint-btn${constraint === "none" ? " active" : ""}" data-mode="none">无约束等权</button>
-      <button id="cps-constraint-industry" class="cpsn-btn cps-constraint-btn${constraint === "industry" ? " active" : ""}" data-mode="industry">行业中性</button>
-      <span style="color:#888;font-size:11px">先按合成分数选股，再按申万一级行业目标权重配权</span>
+      <button id="cps-constraint-industry" class="cpsn-btn cps-constraint-btn${constraint === "industry" ? " active" : ""}" data-mode="industry">静态行业约束</button>
+      <span style="color:#888;font-size:11px">先按合成分数选股，再按最新静态申万一级行业近似配权</span>
     </div>`;
-  box.innerHTML = constraintBtns + neutralNotice + usageNotice + state.composeFactors.map((raw, i) => {
+  box.innerHTML = constraintBtns + industryApproximationNotice + neutralNotice + usageNotice + state.composeFactors.map((raw, i) => {
     const f = normalizeComposeFactor(raw);
     state.composeFactors[i] = f;
     const pctw = (f.weight / wsum * 100).toFixed(0);
     return `<div class="cps-frow" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
       <span style="width:10px;height:10px;border-radius:50%;background:${STRAT_COLORS[i % STRAT_COLORS.length]};display:inline-block"></span>
-      <b style="font-size:12px;min-width:72px">${f.code}</b>
+      <b style="font-size:12px;min-width:72px">${htmlText(f.code)}</b>
       <select class="cps-side" data-idx="${i}" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
         <option value="1"${normalizeSide(f.side) === 1 ? " selected" : ""}>默认</option>
         <option value="-1"${normalizeSide(f.side) === -1 ? " selected" : ""}>反向</option>
@@ -6817,7 +6863,11 @@ async function renderCompose() {
       `<h3>合成 Top 股票</h3><div class="empty">首次加载所选因子的历史数据，请稍候…</div>`;
   }
   try {
-    await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
+    const needsDescriptors = normalizeConstraintMode(state.composeConstraintMode) === "industry";
+    await ensureDB({ stockMeta: false, descriptors: needsDescriptors, benchmarks: false, corr: false });
+    if (needsDescriptors && !state.hasDescriptors) {
+      throw new Error("静态行业约束不可用：未能加载stock_descriptors.parquet。请补齐描述表后重试，系统不会把缺失行业当作空持仓继续计算。");
+    }
     if (isComposeRenderStale(renderSeq)) return;
     await ensureComposeData();   // 懒加载合成专用大表
     if (isComposeRenderStale(renderSeq)) return;
@@ -6851,7 +6901,7 @@ async function renderCompose() {
     if (isComposeRenderStale(renderSeq)) return;
     console.error("renderCompose failed:", err);
     document.getElementById("cps-stocks").innerHTML =
-      `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">合成失败：${err.message || err}\n\n${err.stack || ""}</pre>`;
+      `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">合成失败：${htmlText(err.message || err)}\n\n${htmlText(err.stack || "")}</pre>`;
   }
 }
 
@@ -6902,7 +6952,7 @@ async function renderComposeStocks(renderSeq) {
   const condDesc = state.composeFactors.filter(f => f.thr !== null && Number.isFinite(f.thr))
     .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}得分${f.op}${f.thr}`).join(" 且 ");
   if (rows.length === 0) {
-    target.innerHTML = `<h3>合成 Top 股票</h3><div class="empty">无股票满足条件${condDesc ? "：" + condDesc : ""}（过滤可能过严，放宽阈值）</div>`;
+    target.innerHTML = `<h3>合成 Top 股票</h3><div class="empty">无股票满足条件${condDesc ? "：" + htmlText(condDesc) : ""}（过滤可能过严，放宽阈值）</div>`;
     return;
   }
   const dt = rows[0].dt;
@@ -6910,17 +6960,17 @@ async function renderComposeStocks(renderSeq) {
   const wdesc = state.composeFactors.map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}`).join(" + ");
   const fmt = (v, dp = 2) => (v === null || v === undefined ? "—" : Number(v).toFixed(dp));
   const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));
-  let html = `<h3>合成 Top ${state.composeN} 股票（当前最新持仓展示，截面日 ${dt}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
-    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${wdesc}（高斯秩标准化分数加权和）${condDesc ? "；过滤：" + condDesc : ""}；组合约束：${constraintModeLabel(constraint)}。${scopeNote}</p>
+  let html = `<h3>合成 Top ${state.composeN} 股票（当前最新持仓展示，截面日 ${htmlText(dt)}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${htmlText(wdesc)}（高斯秩标准化分数加权和）${condDesc ? "；过滤：" + htmlText(condDesc) : ""}；组合约束：${htmlText(composeConstraintModeLabel(constraint))}。${htmlText(scopeNote)}</p>
     <table class="stock-table"><thead><tr>
       <th>#</th><th>代码</th><th>名称</th><th>得分截面</th><th>展示池日期</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${constraint === "industry" ? "<th>权重</th>" : ""}<th>合成得分</th>
     </tr></thead><tbody>`;
   rows.forEach((r, i) => {
     const as_of_date = holdingAsOfDate(r);
     const pool_date = holdingPoolDate(r);
-    html += `<tr class="stock-row" data-stock="${htmlAttr(r.stock_code)}" data-name="${htmlAttr(r.name || "")}" title="点击看该股各因子打分（为什么入选）"><td>${i + 1}</td><td><button type="button" class="stock-detail-btn" aria-label="查看 ${htmlAttr(r.stock_code)} ${htmlAttr(r.name || "")} 的因子打分">${htmlText(r.stock_code)}</button></td><td>${r.name || ""}</td>
-      <td>${as_of_date}</td><td>${pool_date}</td>
-      <td>${r.industry_sw1 || "—"}</td><td>${fmtMV(r.market_cap)}</td>
+    html += `<tr class="stock-row" data-stock="${htmlAttr(r.stock_code)}" data-name="${htmlAttr(r.name || "")}" title="点击看该股各因子打分（为什么入选）"><td>${i + 1}</td><td><button type="button" class="stock-detail-btn" aria-label="查看 ${htmlAttr(r.stock_code)} ${htmlAttr(r.name || "")} 的因子打分">${htmlText(r.stock_code)}</button></td><td>${htmlText(r.name || "")}</td>
+      <td>${htmlText(as_of_date)}</td><td>${htmlText(pool_date)}</td>
+      <td>${htmlText(r.industry_sw1 || "—")}</td><td>${fmtMV(r.market_cap)}</td>
       <td>${fmt(r.pe, 1)}</td><td>${fmt(r.pb, 2)}</td>${constraint === "industry" ? `<td>${pctText(Number(r.weight))}</td>` : ""}<td>${fmt(r.comp_score, 3)}</td></tr>`;
   });
   target.innerHTML = html + "</tbody></table>";
@@ -6930,7 +6980,7 @@ async function renderComposeBacktest(renderSeq) {
   if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
   document.getElementById("cps-nav-title").textContent =
-    `合成组合净值（top-${state.composeN}，${constraintModeLabel(constraint)}，${constraintHoldText(constraint)}，单边 0.2%，按换手扣成本，起点=1.0；${composeRangeLabel()}）`;
+    `合成组合净值（top-${state.composeN}，${composeConstraintModeLabel(constraint)}，${composeConstraintHoldText(constraint)}，单边 0.2%，按换手扣成本，起点=1.0；${composeRangeLabel()}）`;
   const key = composeConfigKey(state.composeFactors, state.composeN, constraint);
   const fullBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix", constraint);
   if (isComposeRenderStale(renderSeq)) return;
@@ -7000,7 +7050,7 @@ function renderComposeIcDecayUnavailable(message) {
   const chartDiv = document.getElementById("cps-ic-decay-chart");
   const tableDiv = document.getElementById("cps-ic-decay-table");
   if (cpsIcDecayChart) { cpsIcDecayChart.dispose(); cpsIcDecayChart = null; }
-  if (chartDiv) chartDiv.innerHTML = `<div class="empty">${message}</div>`;
+  if (chartDiv) chartDiv.innerHTML = `<div class="empty">${htmlText(message)}</div>`;
   if (tableDiv) tableDiv.innerHTML = "";
 }
 
@@ -7194,7 +7244,7 @@ function renderComposeValidationUnavailable(message) {
   const target = document.getElementById("combo-validation");
   if (comboGroup10Chart) { comboGroup10Chart.dispose(); comboGroup10Chart = null; }
   if (comboRolling36mChart) { comboRolling36mChart.dispose(); comboRolling36mChart = null; }
-  if (target) target.innerHTML = `<div class="empty">${message}</div>`;
+  if (target) target.innerHTML = `<div class="empty">${htmlText(message)}</div>`;
 }
 
 function rankIcStatsFromSeries(series, horizonMonths = 1) {
@@ -8454,7 +8504,7 @@ async function renderComposeValidation(renderSeq) {
               ["10组单调性", signalValue("monotonicity", groupMono, numText(groupMono, 2))],
               ["LS毛年化", signalValue("ann_return", ls?.annual, pctText(ls?.annual))],
               ["LS夏普", signalValue("sharpe", ls?.sharpe, signedNumText(ls?.sharpe, 2))],
-              ["组合约束", constraintModeLabel(payload.constraintMode)],
+              ["组合约束", composeConstraintModeLabel(payload.constraintMode)],
             ])}
           </div>
         </div>
@@ -9293,17 +9343,17 @@ function renderStockDetailBody(scoreRows, metaRow) {
   let head = `<div class="sd-meta">`;
   if (metaRow) {
     const mv = metaRow.market_cap != null ? (Number(metaRow.market_cap) / 1e4).toFixed(0) + " 亿" : "—";
-    head += `<span>申万：${metaRow.industry_sw1 || "—"} / ${metaRow.industry_sw2 || "—"}</span>`
+    head += `<span>申万：${htmlText(metaRow.industry_sw1 || "—")} / ${htmlText(metaRow.industry_sw2 || "—")}</span>`
           + `<span>市值 ${mv}</span><span>PE ${metaRow.pe != null ? Number(metaRow.pe).toFixed(1) : "—"}</span>`
           + `<span>PB ${metaRow.pb != null ? Number(metaRow.pb).toFixed(2) : "—"}</span>`;
   }
   head += `</div><p class="sd-note">每行一个因子：<b>原始值</b>＝因子原始数值（分位类显示为 %）；`
         + `<b>得分z</b>＝横截面标准化（已统一方向，越大越好）；<b>百分位</b>＝该股强于全市场的比例。`
-        + `${active && cat.has(active) ? ` 当前因子 <b>${cat.get(active).name_cn}</b> 已高亮。` : ""}</p>`;
+        + `${active && cat.has(active) ? ` 当前因子 <b>${htmlText(cat.get(active).name_cn)}</b> 已高亮。` : ""}</p>`;
   let bodyHtml = "";
   for (const [l1, arr] of groups) {
     arr.sort((a, b) => b.score - a.score);
-    bodyHtml += `<div class="sd-group"><h4>${l1}（${arr.length}）</h4><table class="sd-table">`
+    bodyHtml += `<div class="sd-group"><h4>${htmlText(l1)}（${arr.length}）</h4><table class="sd-table">`
       + `<thead><tr><th class="sd-name">因子</th><th class="sd-raw">原始值</th>`
       + `<th class="sd-bar">强弱</th><th class="sd-z">得分z</th><th class="sd-pct">百分位</th></tr></thead><tbody>`;
     for (const r of arr) {
@@ -9315,7 +9365,7 @@ function renderStockDetailBody(scoreRows, metaRow) {
         ? (isPct ? (Number(r.raw_value) * 100).toFixed(2) + "%" : Number(r.raw_value).toPrecision(4))
         : "—";
       bodyHtml += `<tr class="sd-row${hl}">`
-        + `<td class="sd-name">${r.name_cn || r.factor_code}<span class="sd-l2">${r.l2}</span></td>`
+        + `<td class="sd-name">${htmlText(r.name_cn || r.factor_code)}<span class="sd-l2">${htmlText(r.l2)}</span></td>`
         + `<td class="sd-raw">${raw}</td>`
         + `<td class="sd-bar"><div class="sd-barwrap"><div class="sd-barfill ${pos ? "pos" : "neg"}" style="width:${pct}%"></div></div></td>`
         + `<td class="sd-z">${r.score.toFixed(2)}</td>`

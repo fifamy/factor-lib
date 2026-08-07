@@ -92,6 +92,9 @@ body.modal-open { overflow: hidden; }
 .combo-usage-warning { margin: 0 0 8px; padding: 7px 9px; color: #6b4b00; background: #fffbeb;
                        border: 1px solid #e8d7a0; border-radius: 5px; font-size: 11px; line-height: 1.5; }
 .combo-usage-warning b { display: block; margin-bottom: 2px; }
+.capability-note { margin: 0 0 8px; padding: 7px 9px; color: #6b4b00; background: #fffbeb;
+                   border: 1px solid #e8d7a0; border-radius: 5px; font-size: 11px; line-height: 1.5; }
+.capability-note b { margin-right: 4px; }
 
 /* 主区跟随页面滚动。 */
 #content { padding: 16px; display: flex; flex-direction: column; gap: 12px;

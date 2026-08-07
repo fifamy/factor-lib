@@ -1,37 +1,37 @@
 {
-  "generated_at": "2026-08-06T08:52:21+00:00",
-  "deploy_version": "20260806165219",
+  "generated_at": "2026-08-07T03:06:45+00:00",
+  "deploy_version": "20260807110639",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "f8d4642786312488b39d3489cdbfae10695ba3d2",
+  "pages_worktree_git_commit_before_sync": "8feb7b14ac089b04e0b99d2ac0f97fc81a39ef8a",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "33c7862f04cb8f9ccd7dc247bcebed57baff36dfe451fd65cb8341dd2c4f9da7",
-      "bytes": 31643
+      "sha256": "4791df88c669b4b59d4ce84df032f21b997f7356c440bb8d6cb1c5b537f2a276",
+      "bytes": 31642
     },
     "app.js": {
-      "sha256": "8e9e9471ccccdb7c9de5a69e4cd949883dfa6c0fdcc9a93a2fef2d880642b348",
-      "bytes": 431997
+      "sha256": "859777f97cb5ac0d9ab3d2d9bb3d1e275b1a0e81b7dbf77283547afc15761996",
+      "bytes": 435450
     },
     "styles.css": {
-      "sha256": "f372f8fce57c6661b20ec841163fb1ea7cac0357e7d744ba9c424a0a82f19af5",
-      "bytes": 36780
+      "sha256": "704c7839fcb7b12f81fed7cea1c75411f3293277ad5545d5cd1cc18eacd0f92b",
+      "bytes": 37016
     },
     "factor_audit.html": {
-      "sha256": "1850c6968e41ccd635a721eaa2981717a1b7a607579eecd139aafcde9e32d973",
-      "bytes": 7374
+      "sha256": "aef18e6465c460b5e0b5d2ef4dab6ea5efe93f4d2c9de7b3975a024f8544fd80",
+      "bytes": 7594
     },
     "factor_audit.js": {
       "sha256": "c35c0bf5a67aab349dad392795fdc1fe789a4dd5d5b32efc1289aa3b06d47b9c",
       "bytes": 56781
     },
     "factor_audit.css": {
-      "sha256": "7187737021ee3c7770aa627e711706b33ebd4ee748d59bcc0afecab5911cc382",
-      "bytes": 17003
+      "sha256": "2fb34ea477773480a6ebccdc24fd41b5734132548e9d9cde01d3e3e9b0a8a1ac",
+      "bytes": 17221
     },
     "data/factor_catalog.json": {
       "sha256": "44af56e09718296b036f7046d541431342c6c1b460e0f59d244fc010457f10c3",
@@ -42,8 +42,8 @@
       "bytes": 4276655
     },
     "data/factor_audit/index.json": {
-      "sha256": "589f74094ec3d3afb8e61c93d089464b905dc266b806b68dfe9e259ed0e23344",
-      "bytes": 235665
+      "sha256": "51c8922bd3a0bba68d3e36b181e80d5e143e1be7144a92005e1784b095fd82ec",
+      "bytes": 242963
     }
   },
   "directory_summaries": {

@@ -275,6 +275,19 @@ def test_compare_fallback_does_not_silently_downgrade_score_constraint_or_side_m
     assert "constraintMode" in source
 
 
+def test_compare_fast_ic_keeps_score_mode_and_slim_release_disables_advanced_controls():
+    source = APP_JS.read_text(encoding="utf-8")
+    fast_ic = _source_between(source, "async function renderCmpIcFast", "async function renderCmpCorr")
+    controls = _source_between(source, "function renderCmpControls", "function compareFallbackBlockedReason")
+
+    assert "scoreMode: normalizeScoreMode(f.scoreMode)" in fast_ic
+    assert "`${item.code}|${item.side}|${item.scoreMode}`" in fast_ic
+    assert "activeScoreSnapshotFor(snap, item.scoreMode)" in fast_ic
+    assert "function hasAdvancedCompareSnapshots()" in source
+    assert "const advancedDisabled = advancedAvailable ? \"\" : \" disabled\"" in controls
+    assert "当前精简发布包未包含完整单因子快照" in source
+
+
 def test_rank_ic_stats_from_series_uses_effective_annualization_scale():
     source = APP_JS.read_text(encoding="utf-8")
     body = _source_between(source, "function rankIcStatsFromSeries", "function comboBacktestRowsForMonths")
@@ -735,6 +748,35 @@ def test_frontend_error_paths_escape_dynamic_error_text():
     assert ".rank-guide" in styles
     assert ".rank-guide-grid" in styles
     assert "table.rank-table th.rank-help" in styles
+    assert "合成失败：${htmlText(err.message || err)}" in source
+
+
+def test_catalog_and_stock_metadata_are_escaped_before_inner_html_rendering():
+    source = APP_JS.read_text(encoding="utf-8")
+
+    for needle in [
+        "${htmlText(label)}",
+        "${htmlText(f.code)}<span class=\"tree-cn\">${htmlText(f.name_cn || \"\")}</span>",
+        "${htmlText(meta.formula)}</pre>",
+        "${htmlText(meta.wind_source)}</p>",
+        "<p>${htmlText(meta.description)}</p>",
+        "<td>${htmlText(r.name || \"\")}</td>",
+        "<td>${htmlText(r.industry_sw1 || \"—\")}</td>",
+        "${htmlText(r.name_cn || r.factor_code)}<span class=\"sd-l2\">${htmlText(r.l2)}</span>",
+    ]:
+        assert needle in source
+
+
+def test_compose_industry_constraint_loads_descriptors_and_discloses_static_approximation():
+    source = APP_JS.read_text(encoding="utf-8")
+    render = _source_between(source, "async function renderCompose()", "async function renderComposeStocks")
+    controls = _source_between(source, "function renderComposeControls", "let _composeLoadedOnce")
+
+    assert 'descriptors: needsDescriptors' in render
+    assert "if (needsDescriptors && !state.hasDescriptors)" in render
+    assert "系统不会把缺失行业当作空持仓继续计算" in render
+    assert "静态行业约束" in controls
+    assert "不等于单因子回测的月末PIT行业中性口径" in source
 
 
 def test_factor_ranking_table_has_accessible_horizontal_scroll_region():
@@ -1027,8 +1069,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.1</title>" in index
-    assert "<b>因子库 v2.0.1</b>" in index
+    assert "<title>因子库 v2.0.2</title>" in index
+    assert "<b>因子库 v2.0.2</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 
@@ -1083,6 +1125,8 @@ def test_deploy_script_targets_formal_factor_lib_pages_repo():
     assert 'cp "$ROOT/docs/2026-06-26_因子检验口径说明.md" "$DEPLOY/docs/"' in text
     pre_publish = (ROOT / "scripts" / "pre_publish_validation.sh").read_text(encoding="utf-8")
     assert "scripts/test_frontend_sql.py" in pre_publish
+    assert "tests/test_word_v2_factors.py" in pre_publish
+    assert "-m slow tests/test_audit_recompute.py" in pre_publish
 
 
 def test_compose_neutral_scores_can_be_disabled_for_slim_pages_artifact():

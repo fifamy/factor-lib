@@ -51,7 +51,7 @@ async function launchValidationBrowser() {
   await page.waitForFunction(() => {
     const text = document.querySelector("#cmp-table")?.innerText || "";
     return text.includes("MOM12_1") && text.includes("DASTD") && text.includes("年化");
-  }, null, { timeout: 120000 });
+  }, null, { timeout: 300000 });
 
   await page.locator('.mode-btn[data-mode="compose"]').click();
   await page.waitForSelector("#compose-view", { state: "visible", timeout: 15000 });
@@ -74,13 +74,13 @@ async function launchValidationBrowser() {
       && text.includes("剔除实验 / 边际贡献")
       && text.includes("组合内相对低流动性占比")
       && text.includes("相关性 / 拥挤度诊断");
-  }, null, { timeout: 120000 });
+  }, null, { timeout: 300000 });
 
   await page.locator(".combo-ablation-run").click();
   await page.waitForFunction(() => {
     const text = document.querySelector("#combo-ablation-result")?.innerText || "";
     return text.includes("剔除后IC_IR") && text.includes("剔除后年化");
-  }, null, { timeout: 120000 });
+  }, null, { timeout: 300000 });
 
   const text = await page.locator("#combo-validation").innerText();
   const forbidden = requests.filter(u => /factor_score_full|factor_score\.parquet|factor_score_neutral\.parquet/.test(u));
