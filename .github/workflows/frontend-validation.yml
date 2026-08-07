@@ -101,5 +101,7 @@ jobs:
           ONLINE_WAIT_TIMEOUT_MS: "900000"
           ONLINE_WAIT_INTERVAL_MS: "15000"
           PLAYWRIGHT_CHROMIUM_CHANNEL: chrome
-          PERF_BUDGET_MULTIPLIER: "3"
+          # GitHub-hosted runners validate the live Pages site over a cold network path.
+          # Keep a 17.5s compose ceiling while retaining the stricter local 3.5s budget.
+          PERF_BUDGET_MULTIPLIER: "5"
         run: node e2e/online_compose_validation.mjs
