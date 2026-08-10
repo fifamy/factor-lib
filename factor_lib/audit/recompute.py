@@ -190,6 +190,172 @@ def _reference_monthly_value(
     )
 
 
+def _reference_latest_event_amounts(
+    events: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 365,
+) -> pl.DataFrame:
+    """Independently select one latest PIT row per stock-event before summing."""
+    if events.is_empty():
+        return pl.DataFrame()
+    events = events.with_row_index("_rowid")
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        start = asof - timedelta(days=window_days - 1)
+        window = events.filter(
+            (pl.col("event_date") >= start) & (pl.col("event_date") <= asof)
+        )
+        has_event_id = pl.col("event_id").fill_null("") != ""
+        keyed = (
+            window.filter(has_event_id)
+            .sort(["stock_code", "event_id", "event_date", "_rowid"])
+            .group_by(["stock_code", "event_id"])
+            .last()
+            .select(window.columns)
+        )
+        unkeyed = (
+            window.filter(~has_event_id)
+            .unique(
+                subset=["stock_code", "event_date", "event_amount"],
+                keep="first",
+                maintain_order=True,
+            )
+        )
+        latest = pl.concat([keyed, unkeyed], how="vertical")
+        part = (
+            latest.group_by("stock_code")
+            .agg(pl.col("event_amount").sum().alias("event_amount"))
+            .with_columns(pl.lit(asof).alias("trade_date"))
+        )
+        if not part.is_empty():
+            parts.append(part)
+    return pl.concat(parts, how="vertical") if parts else pl.DataFrame()
+
+
+def _reference_funding_events(
+    frame: pl.DataFrame,
+    actual_col: str,
+    expected_col: str,
+    event_id_col: str | None,
+) -> pl.DataFrame:
+    if frame.is_empty():
+        return pl.DataFrame()
+    actual = pl.col(actual_col).cast(pl.Float64, strict=False)
+    expected = pl.col(expected_col).cast(pl.Float64, strict=False)
+    event_id = (
+        pl.col(event_id_col).cast(pl.Utf8).str.strip_chars()
+        if event_id_col and event_id_col in frame.columns
+        else pl.lit(None, dtype=pl.Utf8)
+    )
+    return (
+        frame.select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            event_id.alias("event_id"),
+            pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            (
+                pl.when(actual.is_not_null() & actual.is_finite() & (actual > 0))
+                .then(actual)
+                .when(expected.is_not_null() & expected.is_finite() & (expected > 0))
+                .then(expected)
+                .otherwise(None)
+            ).alias("event_amount"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("event_amount").is_not_null()
+            & pl.col("event_amount").is_finite()
+            & (pl.col("event_amount") > 0)
+        )
+    )
+
+
+def _reference_placement_size(
+    placement: pl.DataFrame,
+    valuation: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 365,
+) -> pl.DataFrame:
+    if placement.is_empty() or valuation.is_empty():
+        return pl.DataFrame()
+    events = _reference_funding_events(
+        placement,
+        "S_FELLOW_COLLECTION",
+        "EXP_COLLECTION",
+        "EVENT_ID",
+    )
+    raised = _reference_latest_event_amounts(events, keep_dates, window_days)
+    mv = _reference_monthly_value(
+        valuation, "TRADE_DT", "S_VAL_MV_ARD", keep_dates, "mv"
+    )
+    return (
+        raised.join(mv, on=["trade_date", "stock_code"], how="left")
+        .with_columns(
+            pl.when(pl.col("mv") > 0)
+            .then(pl.col("event_amount") / pl.col("mv"))
+            .otherwise(None)
+            .alias("raw_value")
+        )
+        .filter((pl.col("raw_value") >= 0) & (pl.col("raw_value") <= 5.0))
+        .select([
+            "trade_date",
+            "stock_code",
+            pl.lit("PLACEMENTSIZE").alias("factor_code"),
+            "raw_value",
+        ])
+    )
+
+
+def _reference_refinpress(
+    placement: pl.DataFrame,
+    rights: pl.DataFrame,
+    valuation: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 365,
+) -> pl.DataFrame:
+    if valuation.is_empty():
+        return pl.DataFrame()
+    events = [
+        _reference_funding_events(
+            placement,
+            "S_FELLOW_COLLECTION",
+            "EXP_COLLECTION",
+            "EVENT_ID",
+        ),
+        _reference_funding_events(
+            rights,
+            "S_RIGHTSISSUE_NETCOLLECTION",
+            "S_EXPECTED_FUND_RAISING",
+            None,
+        ),
+    ]
+    events = [frame for frame in events if not frame.is_empty()]
+    if not events:
+        return pl.DataFrame()
+    raised = _reference_latest_event_amounts(
+        pl.concat(events, how="vertical"), keep_dates, window_days
+    )
+    mv = _reference_monthly_value(
+        valuation, "TRADE_DT", "S_VAL_MV_ARD", keep_dates, "mv"
+    )
+    return (
+        raised.join(mv, on=["trade_date", "stock_code"], how="left")
+        .with_columns(
+            pl.when(pl.col("mv") > 0)
+            .then(pl.col("event_amount") / pl.col("mv"))
+            .otherwise(None)
+            .alias("raw_value")
+        )
+        .filter((pl.col("raw_value") >= 0) & (pl.col("raw_value") <= 5.0))
+        .select([
+            "trade_date",
+            "stock_code",
+            pl.lit("REFINPRESS").alias("factor_code"),
+            "raw_value",
+        ])
+    )
+
+
 def _reference_buybackratio(
     buyback: pl.DataFrame,
     price: pl.DataFrame,
@@ -305,21 +471,13 @@ def _reference_mergersize(
         .filter(pl.col("EVENT_ID").is_not_null() & pl.col("stock_code").is_not_null())
         .unique()
     )
-    events = buyers.join(event_value, on="EVENT_ID", how="inner")
-    parts = []
-    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
-        start = asof - timedelta(days=window_days - 1)
-        part = (
-            events.filter((pl.col("event_date") >= start) & (pl.col("event_date") <= asof))
-            .group_by("stock_code")
-            .agg(pl.col("event_value").sum().alias("event_value"))
-            .with_columns(pl.lit(asof).alias("trade_date"))
-        )
-        if not part.is_empty():
-            parts.append(part)
-    if not parts:
+    events = (
+        buyers.join(event_value, on="EVENT_ID", how="inner")
+        .rename({"EVENT_ID": "event_id", "event_value": "event_amount"})
+    )
+    raised = _reference_latest_event_amounts(events, keep_dates, window_days)
+    if raised.is_empty():
         return pl.DataFrame()
-    raised = pl.concat(parts, how="vertical")
     mv = _reference_monthly_value(
         valuation, "TRADE_DT", "S_VAL_MV_ARD", keep_dates, "mv"
     )
@@ -327,7 +485,7 @@ def _reference_mergersize(
         raised.join(mv, on=["trade_date", "stock_code"], how="left")
         .with_columns(
             pl.when(pl.col("mv") > 0)
-            .then(pl.col("event_value") / pl.col("mv"))
+            .then(pl.col("event_amount") / pl.col("mv"))
             .otherwise(None)
             .alias("raw_value")
         )
@@ -515,10 +673,10 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         out = mod.build_placediscount(placement, keep_dates)
     elif code == "PLACEMENTSIZE":
         placement = _read_word_v2_parquet(src, "placement_ext", [
-            "S_INFO_WINDCODE", "ANN_DT", "S_FELLOW_COLLECTION", "EXP_COLLECTION",
+            "S_INFO_WINDCODE", "EVENT_ID", "ANN_DT", "S_FELLOW_COLLECTION", "EXP_COLLECTION",
         ], stocks)
         valuation = _read_word_v2_parquet(src, "valuation_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_VAL_MV_ARD"], stocks)
-        out = mod.build_placement_size(placement, valuation, keep_dates)
+        out = _reference_placement_size(placement, valuation, keep_dates)
     elif code == "MERGERSIZE":
         merger_event = _read_word_v2_parquet(src, "merger_event_ext", [
             "EVENT_ID", "ANN_DATE", "UPDATE_DATE", "TRADE_VALUE", "CASH_PAYMENT", "CRNCY_CODE",
@@ -593,13 +751,13 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             out = mod.build_report_surprise(income, consensus, keep_dates)
     elif code == "REFINPRESS":
         placement = _read_word_v2_parquet(src, "placement_ext", [
-            "S_INFO_WINDCODE", "ANN_DT", "S_FELLOW_COLLECTION", "EXP_COLLECTION",
+            "S_INFO_WINDCODE", "EVENT_ID", "ANN_DT", "S_FELLOW_COLLECTION", "EXP_COLLECTION",
         ], stocks)
         rights = _read_word_v2_parquet(src, "rights_issue_ext", [
             "S_INFO_WINDCODE", "ANN_DT", "S_RIGHTSISSUE_NETCOLLECTION", "S_EXPECTED_FUND_RAISING",
         ], stocks)
         valuation = _read_word_v2_parquet(src, "valuation_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_VAL_MV_ARD"], stocks)
-        out = mod.build_refinance_pressure(placement, rights, valuation, keep_dates)
+        out = _reference_refinpress(placement, rights, valuation, keep_dates)
 
     if not out.is_empty():
         out = out.filter(pl.col("factor_code") == code)
