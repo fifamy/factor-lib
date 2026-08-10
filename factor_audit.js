@@ -101,6 +101,24 @@ function flagChip(f) {
   const [lab, tip] = flagInfo(f);
   return `<span class="fa-flag ${ERROR_FLAGS.has(f) ? "err" : ""}" title="${esc(tip)}">${esc(lab)}</span>`;
 }
+function renderDirectionConsistency(d) {
+  const raw = d.ic?.rank_ic_raw ?? d.ic?.mean_rank_ic;
+  if (raw === null || raw === undefined || !Number.isFinite(Number(raw))) return "（暂无 Raw IC）";
+  const flags = Array.isArray(d.health?.flags) ? d.health.flags : [];
+  const signal = d.ic?.direction_signal || (
+    flags.includes("direction_ic_flip")
+      ? "negative_significant"
+      : Number(raw) < 0 ? "negative_not_significant" : "non_negative"
+  );
+  const rankIcT = d.ic?.rank_ic_t ?? d.health?.metrics?.rank_ic_t;
+  if (signal === "negative_significant") {
+    return ` · Raw RankIC t值 ${fmt(rankIcT)} · <span class="fa-recon-bad">与方向显著不一致</span>`;
+  }
+  if (signal === "negative_not_significant") {
+    return ` · Raw RankIC t值 ${fmt(rankIcT)} · <span class="b-warn">RankIC略负（未达显著）</span>`;
+  }
+  return ` · Raw RankIC t值 ${fmt(rankIcT)} · <span class="fa-recon-ok">与方向一致</span>`;
+}
 
 let ALL = [];
 let filter = "all";
@@ -952,10 +970,7 @@ async function openDetail(code) {
     <div class="fa-block"><h3>分布体检</h3>
       <p>覆盖 ${(Math.max(Number(d.dist.coverage) || 0, 0) * 100).toFixed(0)}%${d.dist.coverage > 1.001 ? '（含超出 Word 股票池样本）' : ''} · 中位 ${fmt(d.dist.median)} · 区间 [${fmt(d.dist.min)}, ${fmt(d.dist.max)}]</p>
       ${spark(d.dist.hist)}
-      <p style="margin-top:8px">Raw RankIC 均值 ${fmt(d.ic.rank_ic_raw ?? d.ic.mean_rank_ic)} · Neutral RankIC 均值 ${fmt(d.ic.rank_ic_neutral)}${
-        (d.ic.rank_ic_raw ?? d.ic.mean_rank_ic) === null ? '（暂无 Raw IC）'
-          : ' · ' + (d.ic.consistent_with_direction === false
-              ? '<span class="fa-recon-bad">与方向不一致</span>' : '与方向一致')}</p>
+      <p style="margin-top:8px">Raw RankIC 均值 ${fmt(d.ic.rank_ic_raw ?? d.ic.mean_rank_ic)} · Neutral RankIC 均值 ${fmt(d.ic.rank_ic_neutral)}${renderDirectionConsistency(d)}</p>
       <div>${(d.health.flags || []).map(flagChip).join("") || '<span class="b-ok">无异常标签</span>'}</div></div>`;
   if (d.formula.doc_tex && window.katex) {
     const el = document.getElementById("fa-doc-eq");
