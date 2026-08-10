@@ -17,14 +17,13 @@ const PARAMETER_MISMATCH_TIP = "Word 参数/窗口/子口径未被系统完整�
 const DATA_HISTORY_TIP = "该因子有效数据起步晚，历史回测只覆盖 Wind 当前可用期；早期月份为空通常不是页面漏算。";
 const PIT_INDUSTRY_TIP = "行业分层、行业中性组合和行业市值中性化均使用月末时点有效的历史申万一级行业 PIT（按 ENTRY_DT/REMOVE_DT 判定）；缺少当月有效映射的股票不参与相应行业计算。";
 const NEUTRALIZATION_SPARSE_TIP = "稀疏中性化质量提示：部分因子-月份可用于行业/市值中性化的有效样本不足 3 个，对应中性化分数为空；Neutral RankIC、回测和分层结论应降低权重，并结合 Raw 口径复核。";
-const DIRECTION_IC_FLIP_TIP = "实测 RankIC 的符号与登记的经济方向长期相反（|t|>2）。这不等同于程序错误，常见原因包括：因子经济方向登记反了、样本期内因子失效或出现反转、样本较短或市场/行业环境导致方向不稳定。建议先看 Raw/Neutral RankIC、样本月数和近期滚动结果，再决定是否调整方向配置。";
+const DIRECTION_IC_FLIP_TIP = "按登记方向统一后的score，其实测RankIC均值仍显著为负（|t|>2），表示“高分预期高收益”在样本期内未成立。这不等同于程序错误，常见原因包括：经济方向登记反了、样本期内因子失效或出现反转、样本较短，或市场/行业环境导致方向不稳定。建议先看Raw/Neutral RankIC、样本月数和近期滚动结果，再决定是否调整方向配置。";
 const UNIVERSE_ALIGNED_TIP = "系统已按 Word 股票池/样本空间规则执行。";
 const UNIVERSE_PROFILE_TIP = "Word 未单列该因子时，系统按分类映射的 Word 公共股票池执行。";
 const ERROR_FLAGS = new Set(["nonfinite", "recon_mismatch", "recon_source_missing"]);
 const SUPABASE_URL = "https://tsyplhfshxzoduynzixk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_6osvaEI8pookLkmkzBUbHQ_kyUU2SKn";
 const REVIEW_TABLE = "factor_reviews";
-const REVIEW_UPSERT_CONFLICT = "on_conflict=factor_code,reviewer_name";
 const REVIEWER_STORAGE_KEY = "fa_reviewer_name";
 const REVIEW_STATUS_LABEL = {
   unreviewed: ["未复核", "rs-none", "还没有任何复核记录"],
@@ -150,10 +149,10 @@ async function supabaseSelect(table, queryText = "") {
     headers: supabaseHeaders(),
   });
 }
-async function supabaseUpsert(table, rows, conflictColumns) {
-  return supabaseFetch(`/rest/v1/${table}?on_conflict=${conflictColumns}`, {
+async function supabaseInsert(table, rows) {
+  return supabaseFetch(`/rest/v1/${table}`, {
     method: "POST",
-    headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=representation" }),
+    headers: supabaseHeaders({ Prefer: "return=representation" }),
     body: JSON.stringify(rows),
   });
 }
@@ -222,6 +221,9 @@ function humanReviewError(error) {
   if (status === 404 || code === "42P01" || (raw.includes("factor_reviews") && raw.includes("schema cache"))) {
     return "复核库尚未初始化：需要先在 Supabase 执行 supabase/schema.sql 中的 factor_reviews 建表 SQL。";
   }
+  if (status === 409 || code === "23505") {
+    return "复核库仍保留旧版唯一约束，无法追加同名历史记录。请在 Supabase 执行最新 supabase/schema.sql 或对应迁移脚本。";
+  }
   if (error instanceof TypeError || raw.includes("Failed to fetch") || raw.includes("NetworkError")) {
     return "无法连接复核库，请确认当前网络可访问 Supabase。";
   }
@@ -243,7 +245,7 @@ async function saveMyReview(factor, values) {
     suggestion: values.suggestion || "",
     system_version: values.system_version || "",
   };
-  const saved = await supabaseUpsert(REVIEW_TABLE, [row], REVIEW_UPSERT_CONFLICT.replace("on_conflict=", ""));
+  const saved = await supabaseInsert(REVIEW_TABLE, [row]);
   return Array.isArray(saved) ? saved[0] : saved;
 }
 function currentReviewerName() {
@@ -341,12 +343,14 @@ function renderReviewPanelHtml(factor, records, errorText) {
     : "";
   const disabledTip = disabled ? `<div class="fa-doc-alert">请先在顶部「我是谁」填写姓名，再保存复核。</div>` : "";
   const errorTip = errorText ? `<div class="fa-formula-alert">复核记录加载失败：${esc(errorText)}。因子展示仍可离线查看；保存需要联网。</div>` : "";
+  const appendOnlyTip = `<div class="fa-append-only-note"><b>只追加记录：</b>每次保存都会新增一条历史记录，已保存内容不能由匿名用户覆盖或删除；同名记录不代表账号身份。</div>`;
   return `
     <div id="fa-review-panel" class="fa-review-panel" data-code="${esc(factor.code)}">
-      <h3>人工复核 / 签字确认</h3>
+      <h3>人工复核 / 追加确认</h3>
       ${categoryTip}
       ${disabledTip}
       ${errorTip}
+      ${appendOnlyTip}
       <div class="fa-review-grid">
         <label><span>${esc(formulaLabel)}</span>${segmentedGroup("formula_verdict", [["pass", "通过"], ["issue", "有问题"], ["unsure", "存疑"]], formulaVerdict, disabled)}</label>
         <label><span>样本空间核对</span>${segmentedGroup("universe_verdict", [["pass", "通过"], ["issue", "有问题"], ["unsure", "存疑"]], universeVerdict, disabled)}</label>
@@ -359,8 +363,8 @@ function renderReviewPanelHtml(factor, records, errorText) {
         <textarea id="fa-review-suggestion" rows="3"${disabled ? " disabled" : ""}>${esc(mine?.suggestion || "")}</textarea>
       </label>
       <div class="fa-review-actions">
-        <button id="fa-save-review" type="button"${disabled ? " disabled" : ""}>保存复核</button>
-        <span id="fa-review-save-status">${mine ? `我的复核已保存于 ${esc(formatTime(mine.updated_at || mine.created_at))}` : ""}</span>
+        <button id="fa-save-review" type="button"${disabled ? " disabled" : ""}>${mine ? "追加复核记录" : "保存首条复核"}</button>
+        <span id="fa-review-save-status">${mine ? `最近一条同名记录保存于 ${esc(formatTime(mine.updated_at || mine.created_at))}` : ""}</span>
       </div>
       <div class="fa-review-others">
         <h4>所有人的复核</h4>

@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-08-10T02:17:53+00:00",
-  "deploy_version": "20260810101744",
+  "generated_at": "2026-08-10T05:26:46+00:00",
+  "deploy_version": "20260810132636",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "f2b0ef3be251231c82f33ff1b7863c66134e02bb",
+  "pages_worktree_git_commit_before_sync": "f1592255de0227a1da22a2c71a0a883689c8d48d",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "d77d28ab289b136bbd7858c443de19d57caa38f955f457f43f703d28fee79ce7",
+      "sha256": "5d5f8041d38fa6872b6b55639c75999365825281d463a311bea60d8fe666e56f",
       "bytes": 31651
     },
     "app.js": {
@@ -22,16 +22,16 @@
       "bytes": 37209
     },
     "factor_audit.html": {
-      "sha256": "41a9e2c30b0e83920d668521a7bc0c830f3f5f97988adb93d09c51de2d012911",
-      "bytes": 7594
+      "sha256": "f66b9169deb129c51bc91f11ad7fa190fe80838f36ae57e5d655974c12609486",
+      "bytes": 7687
     },
     "factor_audit.js": {
-      "sha256": "c35c0bf5a67aab349dad392795fdc1fe789a4dd5d5b32efc1289aa3b06d47b9c",
-      "bytes": 56781
+      "sha256": "2e353051bb1586157c506dedc178423b6adf72092d600468311fcec67275b357",
+      "bytes": 57157
     },
     "factor_audit.css": {
-      "sha256": "2fb34ea477773480a6ebccdc24fd41b5734132548e9d9cde01d3e3e9b0a8a1ac",
-      "bytes": 17221
+      "sha256": "4e93e0f7842598726ad3b19fec98649116bf90df57ad2ef0eccddb44f88c340c",
+      "bytes": 17402
     },
     "data/factor_catalog.json": {
       "sha256": "39d0f39d6d3cec1a08e8b712610c9dd75b21673dbb9d2aba40886aadfeca321e",
@@ -42,8 +42,8 @@
       "bytes": 4276686
     },
     "data/factor_audit/index.json": {
-      "sha256": "40bc635ccefe1ae65adce4296bfdbc234a0a2c25053108c4088b3aa4d2ace60e",
-      "bytes": 243069
+      "sha256": "fccb1c67bfc23f998de83430555480bec5feb11772cb8e75d8817f53532e2423",
+      "bytes": 242144
     }
   },
   "directory_summaries": {

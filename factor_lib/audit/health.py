@@ -113,8 +113,10 @@ def health_check(code: str, meta: dict, factor_raw: pl.DataFrame,
         t = mean / (std / math.sqrt(ic_sub.len())) if std > 0 else 0.0
         metrics["rank_ic_mean"] = round(mean, 4)
         metrics["rank_ic_t"] = round(t, 2)
-        direction = meta.get("direction", 1)
-        if abs(t) > 2 and (mean * direction) < 0:
+        # factor_ic 使用的 score 已在标准化阶段按 direction 统一为“越高越好”。
+        # 因此这里直接检查定向后 RankIC 是否显著为负；再次乘 direction 会把
+        # direction=-1 且实际有效的因子误报为方向疑反。
+        if abs(t) > 2 and mean < 0:
             flags.append("direction_ic_flip")
 
     # recon

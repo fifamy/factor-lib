@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-07 17:58:02",
+  "generated_at": "2026-08-10 13:16:55",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -7481,21 +7481,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "600141.SH",
-        "stock_name": "兴发集团",
-        "raw_value": 0.024667026998463387,
+        "stock_code": "601020.SH",
+        "stock_name": "华钰矿业",
+        "raw_value": 0.01874330992115028,
         "score": 0.0007774902379560195,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.024667，方向处理后的 score=0.000777。",
+          "系统输出 raw_value=0.018743，方向处理后的 score=0.000777。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.024667026998463387,
-            "display": "0.024667",
+            "value": 0.01874330992115028,
+            "display": "0.018743",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -8183,29 +8183,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "600819.SH",
-        "stock_name": "耀皮玻璃",
-        "raw_value": 0.17319857338413783,
-        "score": 0.0017904497242034892,
+        "stock_code": "300050.SZ",
+        "stock_name": "世纪鼎利",
+        "raw_value": 0.10084497736674435,
+        "score": 0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.173199，方向处理后的 score=0.001790。",
+          "系统输出 raw_value=0.100845，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.17319857338413783,
-            "display": "0.173199",
+            "value": 0.10084497736674435,
+            "display": "0.100845",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.0017904497242034892,
-            "display": "0.001790",
+            "value": 0.0,
+            "display": "0.000000",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -8399,29 +8399,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "688387.SH",
-        "stock_name": "信科移动-U",
-        "raw_value": 0.1729334453283265,
-        "score": 0.0017853487224108908,
+        "stock_code": "300050.SZ",
+        "stock_name": "世纪鼎利",
+        "raw_value": 0.10084497736674435,
+        "score": -0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.172933，方向处理后的 score=0.001785。",
+          "系统输出 raw_value=0.100845，方向处理后的 score=-0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.1729334453283265,
-            "display": "0.172933",
+            "value": 0.10084497736674435,
+            "display": "0.100845",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.0017853487224108908,
-            "display": "0.001785",
+            "value": -0.0,
+            "display": "-0.000000",
             "unit": "",
             "note": "用于排序和组合构建"
           }
