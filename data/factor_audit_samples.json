@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-10 14:54:08",
+  "generated_at": "2026-08-11 14:47:36",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -4223,13 +4223,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "600141.SH",
-        "stock_name": "兴发集团",
+        "stock_code": "600233.SH",
+        "stock_name": "圆通速递",
         "raw_value": 0.0,
-        "score": -0.03787059276263197,
+        "score": -0.022754035311285323,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=-0.037871。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=-0.022754。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -4244,8 +4244,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.03787059276263197,
-            "display": "-0.037871",
+            "value": -0.022754035311285323,
+            "display": "-0.022754",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -5077,7 +5077,7 @@
       "system_l1": "事件驱动信息",
       "system_l2": "风险事件类",
       "system_direction": "负向",
-      "system_formula": "LAWSUITAMT = sum(优先正RESULTAMOUNT，0/缺失时回退至正AMOUNT, 近365日公告)。",
+      "system_formula": "LAWSUITAMT = sum(优先正RESULTAMOUNT，0/缺失时回退至正AMOUNT, 近365日公告，全字段精确去重)。",
       "system_wind_source": "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; ANN_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -6985,8 +6985,8 @@
       "system_l1": "事件驱动信息",
       "system_l2": "资本运作类",
       "system_direction": "正向",
-      "system_formula": "INCENTIVESIZE = sum(INC_NUMBERS_RATE, 近365日公告)。",
-      "system_wind_source": "AShareEquityIncentive.INC_NUMBERS_RATE; ANN_DT",
+      "system_formula": "INCENTIVESIZE = sum(每个EQINC_PLAN_EVENT_ID、S_INC_SEQUENCE截至月末近365日内最新可见INC_NUMBERS_RATE)。",
+      "system_wind_source": "AShareEquityIncentive.EQINC_PLAN_EVENT_ID; S_INC_SEQUENCE; INC_NUMBERS_RATE; ANN_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -8129,21 +8129,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "002824.SZ",
-        "stock_name": "和胜股份",
-        "raw_value": 17.17,
+        "stock_code": "688683.SH",
+        "stock_name": "莱尔科技",
+        "raw_value": 15.75,
         "score": 0.006811542548998435,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=17.1700，方向处理后的 score=0.006812。",
+          "系统输出 raw_value=15.7500，方向处理后的 score=0.006812。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 17.17,
-            "display": "17.1700",
+            "value": 15.75,
+            "display": "15.7500",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -8335,7 +8335,7 @@
       "system_l1": "事件驱动信息",
       "system_l2": "风险事件类",
       "system_direction": "负向",
-      "system_formula": "PUNISHAMT = sum(AMOUNT, 近365日公告)。",
+      "system_formula": "PUNISHAMT = sum(AMOUNT, 近365日公告，全字段精确去重)。",
       "system_wind_source": "AShareIllegalEvent.AMOUNT; ANN_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -9769,22 +9769,22 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "002676.SZ",
-        "stock_name": "顺威股份",
-        "raw_value": 120882.56599999999,
+        "stock_code": "301176.SZ",
+        "stock_name": "逸豪新材",
+        "raw_value": 120534.769,
         "score": 0.0,
         "steps": [
           "取 2026-07-06 到 2026-07-31 的近20个交易日。",
           "直接使用Wind实际成交量S_DQ_VOLUME。",
-          "20日均值 = mean(S_DQ_VOLUME) = 120,882.57。",
-          "系统保存 raw_value=120,882.57，score=0.000000。"
+          "20日均值 = mean(S_DQ_VOLUME) = 120,534.77。",
+          "系统保存 raw_value=120,534.77，score=0.000000。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 120882.56599999999,
-            "display": "120,882.57",
+            "value": 120534.769,
+            "display": "120,534.77",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -9823,24 +9823,24 @@
           {
             "field": "S_DQ_AMOUNT",
             "label": "末日成交额 amount",
-            "value": 47950.111,
-            "display": "47,950.11",
+            "value": 443039.158,
+            "display": "443,039.16",
             "unit": "千元",
             "note": "本地 price_panel.amount"
           },
           {
             "field": "S_DQ_ADJCLOSE",
             "label": "末日复权收盘价 adj_close",
-            "value": 23.0213,
-            "display": "23.0213",
+            "value": 38.4368,
+            "display": "38.4368",
             "unit": "元",
             "note": "本地 price_panel.adj_close"
           },
           {
             "field": "volume20_mean",
             "label": "20日实际成交量均值",
-            "value": 120882.56600000002,
-            "display": "120,882.57",
+            "value": 120534.769,
+            "display": "120,534.77",
             "unit": "手",
             "note": "mean(S_DQ_VOLUME)"
           }

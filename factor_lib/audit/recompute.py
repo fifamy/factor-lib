@@ -349,6 +349,130 @@ def _reference_placediscount(
     ])
 
 
+def _reference_incentivesize(
+    incentive: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 365,
+) -> pl.DataFrame:
+    """Independent PIT reference at plan-and-sequence event grain."""
+    required = {
+        "S_INFO_WINDCODE", "EQINC_PLAN_EVENT_ID", "S_INC_SEQUENCE",
+        "ANN_DT", "INC_NUMBERS_RATE",
+    }
+    if incentive.is_empty() or not required.issubset(incentive.columns):
+        return pl.DataFrame()
+    plan_id = pl.col("EQINC_PLAN_EVENT_ID").cast(pl.Utf8).str.strip_chars()
+    sequence = pl.col("S_INC_SEQUENCE").cast(pl.Utf8).str.strip_chars().fill_null("")
+    events = (
+        incentive.select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.when(plan_id.is_not_null() & (plan_id != ""))
+            .then(pl.concat_str([plan_id, sequence], separator="::"))
+            .otherwise(None)
+            .alias("event_id"),
+            pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("INC_NUMBERS_RATE").cast(pl.Float64, strict=False).fill_null(0.0).alias("event_amount"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("event_amount").is_finite()
+        )
+    )
+    values = _reference_latest_event_amounts(events, keep_dates, window_days)
+    if values.is_empty():
+        return pl.DataFrame()
+    return values.select([
+        "trade_date",
+        "stock_code",
+        pl.lit("INCENTIVESIZE").alias("factor_code"),
+        pl.col("event_amount").alias("raw_value"),
+    ])
+
+
+def _reference_punishamt(
+    illegality: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 365,
+) -> pl.DataFrame:
+    """Independent window sum after exact full-row source deduplication."""
+    if illegality.is_empty():
+        return pl.DataFrame()
+    base = (
+        illegality.unique(keep="first", maintain_order=True)
+        .select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("AMOUNT").cast(pl.Float64, strict=False).fill_null(0.0).alias("event_amount"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("event_amount").is_finite()
+        )
+    )
+    return _reference_plain_window_sum(base, keep_dates, "PUNISHAMT", window_days)
+
+
+def _reference_lawsuitamt(
+    lawsuit: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 365,
+) -> pl.DataFrame:
+    """Independent absolute-amount sum after exact full-row source deduplication."""
+    if lawsuit.is_empty():
+        return pl.DataFrame()
+    amount = pl.col("AMOUNT").cast(pl.Float64, strict=False)
+    result_amount = pl.col("RESULTAMOUNT").cast(pl.Float64, strict=False)
+    base = (
+        lawsuit.unique(keep="first", maintain_order=True)
+        .select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.when(result_amount > 0)
+            .then(result_amount)
+            .when(amount > 0)
+            .then(amount)
+            .otherwise(None)
+            .alias("event_amount"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("event_amount").is_not_null()
+            & pl.col("event_amount").is_finite()
+        )
+    )
+    return _reference_plain_window_sum(base, keep_dates, "LAWSUITAMT", window_days)
+
+
+def _reference_plain_window_sum(
+    events: pl.DataFrame,
+    keep_dates: set[str],
+    factor_code: str,
+    window_days: int,
+) -> pl.DataFrame:
+    """Aggregate already-prepared events without calling a production builder."""
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        start = asof - timedelta(days=window_days - 1)
+        part = (
+            events.filter(
+                (pl.col("event_date") >= start) & (pl.col("event_date") <= asof)
+            )
+            .group_by("stock_code")
+            .agg(pl.col("event_amount").sum().alias("raw_value"))
+            .with_columns([
+                pl.lit(asof).alias("trade_date"),
+                pl.lit(factor_code).alias("factor_code"),
+            ])
+            .select(["trade_date", "stock_code", "factor_code", "raw_value"])
+        )
+        if not part.is_empty():
+            parts.append(part)
+    return pl.concat(parts, how="vertical") if parts else pl.DataFrame()
+
+
 def _reference_ratingchg(
     ratings: pl.DataFrame,
     keep_dates: set[str],
@@ -797,17 +921,25 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             keep_dates,
         )
     elif code == "INCENTIVESIZE":
-        incentive = _read_word_v2_parquet(src, "equity_incentive_ext", ["S_INFO_WINDCODE", "ANN_DT", "INC_NUMBERS_RATE"], stocks)
-        out = mod.build_incentivesize(incentive, keep_dates)
+        incentive = _read_word_v2_parquet(src, "equity_incentive_ext", [
+            "S_INFO_WINDCODE", "EQINC_PLAN_EVENT_ID", "S_INC_SEQUENCE", "ANN_DT", "INC_NUMBERS_RATE",
+        ], stocks)
+        out = _reference_incentivesize(incentive, keep_dates)
     elif code == "RISKINVESTCNT":
         investigation = _read_word_v2_parquet(src, "risk_investigation_ext", ["S_INFO_WINDCODE", "STR_ANNDATE"], stocks)
         out = mod.build_riskinvestcnt(investigation, keep_dates)
     elif code == "PUNISHAMT":
-        illegality = _read_word_v2_parquet(src, "risk_illegality_ext", ["S_INFO_WINDCODE", "ANN_DT", "AMOUNT"], stocks)
-        out = mod.build_punishamt(illegality, keep_dates)
+        illegality = _read_word_v2_parquet(src, "risk_illegality_ext", [
+            "S_INFO_WINDCODE", "S_INFO_COMPCODE", "ANN_DT", "ILLEG_TYPE", "SUBJECT_TYPE", "SUBJECT",
+            "RELATION_TYPE", "DISPOSAL_DT", "DISPOSAL_TYPE", "METHOD", "AMOUNT", "BAN_YEAR",
+        ], stocks)
+        out = _reference_punishamt(illegality, keep_dates)
     elif code == "LAWSUITAMT":
-        lawsuit = _read_word_v2_parquet(src, "lawsuit_ext", ["S_INFO_WINDCODE", "ANN_DT", "AMOUNT", "RESULTAMOUNT"], stocks)
-        out = mod.build_lawsuitamt(lawsuit, keep_dates)
+        lawsuit = _read_word_v2_parquet(src, "lawsuit_ext", [
+            "S_INFO_WINDCODE", "S_INFO_COMPCODE", "ANN_DT", "TITLE", "ACCUSER", "DEFENDANT", "PRO_TYPE",
+            "AMOUNT", "CRNCY_CODE", "PROSECUTE_DT", "COURT", "JUDGE_DT", "RESULT", "RESULTAMOUNT", "BRIEFRESULT",
+        ], stocks)
+        out = _reference_lawsuitamt(lawsuit, keep_dates)
     elif code == "AUDITQUAL":
         audit = _read_word_v2_parquet(src, "audit_opinion_ext", [
             "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "S_STMNOTE_AUDIT_CATEGORY",

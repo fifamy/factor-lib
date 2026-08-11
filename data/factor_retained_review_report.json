@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-11 14:05:06+0800",
+  "generated_at": "2026-08-11 16:46:04+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
   "resolution_updated_at": "2026-08-11",
   "summary": {
@@ -807,18 +807,18 @@
         "四个公司事件字段已取得但按稀疏辅助信号使用"
       ],
       "verification_assessment": [
-        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证，当前公式可复算；这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE与计划/序列键、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证。INCENTIVESIZE已按计划与激励序列去重；PUNISHAMT仍缺最终处罚标记与事件ID。这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
       ],
       "reason_not_changed": [
         "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示，仅作为事件辅助信号；不作为默认宽基组合主排序因子。同批补充事件ID、最终处罚标记和违规类型用于增强去重与对账。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示；INCENTIVESIZE仅作为事件辅助信号，PUNISHAMT继续禁止加入新组合。后续仅需为PUNISHAMT补充最终处罚标记和事件ID。"
       ],
       "evidence": [
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
-        "incentive_ext已有INC_NUMBERS_RATE",
-        "risk_illegality_ext已有AMOUNT",
+        "equity_incentive_ext已有INC_NUMBERS_RATE、EQINC_PLAN_EVENT_ID和S_INC_SEQUENCE",
+        "risk_illegality_ext已有AMOUNT但无事件ID/最终处罚标记",
         "risk_investigation_ext已有STR_ANNDATE",
         "各因子覆盖和退化提示见审核分片"
       ],
@@ -1266,26 +1266,34 @@
       ],
       "manual_updated_at": "2026-07-02T09:59:39.308352+00:00",
       "decision_titles": [
-        "四个公司事件字段已取得但按稀疏辅助信号使用"
+        "四个公司事件字段已取得但按稀疏辅助信号使用",
+        "股权激励按计划与激励序列去重"
       ],
       "verification_assessment": [
-        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证，当前公式可复算；这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE与计划/序列键、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证。INCENTIVESIZE已按计划与激励序列去重；PUNISHAMT仍缺最终处罚标记与事件ID。这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。",
+        "equity_incentive_ext的9955行中有2876行为全字段完全重复；唯一业务粒度为7079个(EQINC_PLAN_EVENT_ID, S_INC_SEQUENCE)。原实现未读取事件键，直接加总全部行。仅按计划ID留一行也不正确，因为691个计划有2个合法激励序列，5个计划有3个合法序列。"
       ],
       "reason_not_changed": [
         "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示，仅作为事件辅助信号；不作为默认宽基组合主排序因子。同批补充事件ID、最终处罚标记和违规类型用于增强去重与对账。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示；INCENTIVESIZE仅作为事件辅助信号，PUNISHAMT继续禁止加入新组合。后续仅需为PUNISHAMT补充最终处罚标记和事件ID。",
+        "生产计算改为每个月末对(stock_code, EQINC_PLAN_EVENT_ID, S_INC_SEQUENCE)取近365日内最新可见值，再对合法序列求和；新增不调用生产builder的独立参考和定向重算工具。"
       ],
       "evidence": [
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
-        "incentive_ext已有INC_NUMBERS_RATE",
-        "risk_illegality_ext已有AMOUNT",
+        "equity_incentive_ext已有INC_NUMBERS_RATE、EQINC_PLAN_EVENT_ID和S_INC_SEQUENCE",
+        "risk_illegality_ext已有AMOUNT但无事件ID/最终处罚标记",
         "risk_investigation_ext已有STR_ANNDATE",
-        "各因子覆盖和退化提示见审核分片"
+        "各因子覆盖和退化提示见审核分片",
+        "9955行源数据去除完全重复后为7079行",
+        "6378个计划ID对应7079个计划-序列事件",
+        "2026-07-31修复影响194/692只有值股票，变化样本原值/新值中位数2倍、最大3倍",
+        "粗暴按计划ID去重会另外少算69只股票"
       ],
       "decision_issue_ids": [
-        "field-sparse-event-tables-valid"
+        "field-sparse-event-tables-valid",
+        "calculation-incentivesize-plan-sequence-dedup"
       ],
       "manual_review_available": true
     },
@@ -1338,23 +1346,38 @@
       "l2": "风险事件类",
       "resolution_status": "not_planned",
       "decision_titles": [
+        "诉讼与处罚金额去除全字段精确重复行",
+        "重大诉讼保留绝对金额并显式披露Word市值归一差异",
         "重大诉讼金额按稀疏厚尾风险事件使用"
       ],
       "verification_assessment": [
-        "LAWSUITAMT覆盖率18.05%且源数据对账一致。诉讼金额天然集中在少量事件和公司，因而同时出现coverage_low、outlier和heavy_tail；这些标签描述分布，不代表金额字段或365日聚合错误。"
+        "lawsuit_ext存在6269行全字段完全重复，risk_illegality_ext存在6068行全字段完全重复；原窗口求和会重复计入。两表都没有可靠案件ID，因此不采用可能误合并独立事件的宽松软去重。",
+        "Word要求涉案总额除以诉讼公告当日个股总市值。当前S_VAL_MV_ARD只月末139个截面，而日频S_DQ_MV为流通市值，都不能无偏代替公告日总市值；因此不伪造精确归一口径。",
+        "LAWSUITAMT已对全字段精确重复行去重并使用独立参考对账。诉讼金额天然集中在少量事件和公司，因而仍可出现coverage_low、outlier和heavy_tail；这些标签描述分布，不是删除真实大额记录的依据。"
       ],
       "reason_not_changed": [
-        "稀疏和厚尾符合诉讼事件数据特征，当前没有计算或单位错误证据。"
+        "缺少公告日总市值日频源；用月末总市值或日频流通市值会引入新的公式偏差。",
+        "精确重复已删除；剩余稀疏和厚尾符合诉讼事件数据特征，无证据支持进一步删除非完全相同的记录。"
       ],
       "decision_action": [
-        "保留重大诉讼金额原始事件聚合和分布预警，仅作为风险事件辅助信号；组合检验时披露覆盖率并检查极端事件影响，不删除真实大额记录。"
+        "生产加载保留源表全部业务字段，窗口求和前仅删除全字段完全相同的行；两因子都新增独立参考复算。PUNISHAMT仍保持historical_only/block。",
+        "保留精确去重后近365日绝对金额，在审核页加入formula_mismatch黄灯，并将使用约束降为supplementary_event/warn。待取得公告日总市值后再评估口径迁移。",
+        "保留精确去重后的诉讼金额聚合和分布预警，仅作为风险事件辅助信号；组合检验时披露覆盖率并检查极端事件影响。"
       ],
       "evidence": [
-        "LAWSUITAMT当前为recon=match",
-        "覆盖率18.05%",
-        "当前标签为coverage_low、outlier与heavy_tail"
+        "lawsuit_ext: 81581行/75312唯一全行",
+        "risk_illegality_ext: 155883行/149815唯一全行",
+        "2026-07-31 LAWSUITAMT精确去重影响192/1416只有值股票，变化样本原值/新值中位数1.435倍",
+        "doc_formulas.json明确要求诉讼公告日个股总市值",
+        "valuation_ext仅有2015-01至2026-07的139个月末截面",
+        "wind_dictionary_fields.csv标明S_DQ_MV为流通市值",
+        "LAWSUITAMT修复后使用独立源复算",
+        "源表精确重复6269行已去除",
+        "审核页保留coverage_low、outlier与heavy_tail分布标签"
       ],
       "decision_issue_ids": [
+        "calculation-risk-event-exact-row-dedup",
+        "definition-lawsuit-market-cap-normalization-retained",
         "coverage-lawsuit-amount-retained"
       ]
     },
@@ -2469,26 +2492,33 @@
       ],
       "manual_updated_at": "2026-07-02T07:52:14.831577+00:00",
       "decision_titles": [
-        "四个公司事件字段已取得但按稀疏辅助信号使用"
+        "四个公司事件字段已取得但按稀疏辅助信号使用",
+        "诉讼与处罚金额去除全字段精确重复行"
       ],
       "verification_assessment": [
-        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证，当前公式可复算；这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE与计划/序列键、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证。INCENTIVESIZE已按计划与激励序列去重；PUNISHAMT仍缺最终处罚标记与事件ID。这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。",
+        "lawsuit_ext存在6269行全字段完全重复，risk_illegality_ext存在6068行全字段完全重复；原窗口求和会重复计入。两表都没有可靠案件ID，因此不采用可能误合并独立事件的宽松软去重。"
       ],
       "reason_not_changed": [
         "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示，仅作为事件辅助信号；不作为默认宽基组合主排序因子。同批补充事件ID、最终处罚标记和违规类型用于增强去重与对账。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示；INCENTIVESIZE仅作为事件辅助信号，PUNISHAMT继续禁止加入新组合。后续仅需为PUNISHAMT补充最终处罚标记和事件ID。",
+        "生产加载保留源表全部业务字段，窗口求和前仅删除全字段完全相同的行；两因子都新增独立参考复算。PUNISHAMT仍保持historical_only/block。"
       ],
       "evidence": [
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
-        "incentive_ext已有INC_NUMBERS_RATE",
-        "risk_illegality_ext已有AMOUNT",
+        "equity_incentive_ext已有INC_NUMBERS_RATE、EQINC_PLAN_EVENT_ID和S_INC_SEQUENCE",
+        "risk_illegality_ext已有AMOUNT但无事件ID/最终处罚标记",
         "risk_investigation_ext已有STR_ANNDATE",
-        "各因子覆盖和退化提示见审核分片"
+        "各因子覆盖和退化提示见审核分片",
+        "lawsuit_ext: 81581行/75312唯一全行",
+        "risk_illegality_ext: 155883行/149815唯一全行",
+        "2026-07-31 LAWSUITAMT精确去重影响192/1416只有值股票，变化样本原值/新值中位数1.435倍"
       ],
       "decision_issue_ids": [
-        "field-sparse-event-tables-valid"
+        "field-sparse-event-tables-valid",
+        "calculation-risk-event-exact-row-dedup"
       ],
       "manual_review_available": true
     },
@@ -2856,18 +2886,18 @@
         "四个公司事件字段已取得但按稀疏辅助信号使用"
       ],
       "verification_assessment": [
-        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证，当前公式可复算；这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE与计划/序列键、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证。INCENTIVESIZE已按计划与激励序列去重；PUNISHAMT仍缺最终处罚标记与事件ID。这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
       ],
       "reason_not_changed": [
         "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示，仅作为事件辅助信号；不作为默认宽基组合主排序因子。同批补充事件ID、最终处罚标记和违规类型用于增强去重与对账。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示；INCENTIVESIZE仅作为事件辅助信号，PUNISHAMT继续禁止加入新组合。后续仅需为PUNISHAMT补充最终处罚标记和事件ID。"
       ],
       "evidence": [
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
-        "incentive_ext已有INC_NUMBERS_RATE",
-        "risk_illegality_ext已有AMOUNT",
+        "equity_incentive_ext已有INC_NUMBERS_RATE、EQINC_PLAN_EVENT_ID和S_INC_SEQUENCE",
+        "risk_illegality_ext已有AMOUNT但无事件ID/最终处罚标记",
         "risk_investigation_ext已有STR_ANNDATE",
         "各因子覆盖和退化提示见审核分片"
       ],

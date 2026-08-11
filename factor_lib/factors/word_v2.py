@@ -277,9 +277,9 @@ _DEFS = [
     (
         "INCENTIVESIZE", "事件驱动信息", "股权激励", 1, "激励规模",
         "word_v2", "INCENTIVESIZE", "window_sum",
-        "近 365 日公告股权激励数量占比合计；激励规模越大，管理层绑定程度越高。",
-        "INCENTIVESIZE = sum(INC_NUMBERS_RATE, 近365日公告)。",
-        "AShareEquityIncentive.INC_NUMBERS_RATE; ANN_DT",
+        "近 365 日公告股权激励数量占比合计；同一计划下不同激励序列保留分项，完全重复行不重复加总。",
+        "INCENTIVESIZE = sum(每个EQINC_PLAN_EVENT_ID、S_INC_SEQUENCE截至月末近365日内最新可见INC_NUMBERS_RATE)。",
+        "AShareEquityIncentive.EQINC_PLAN_EVENT_ID; S_INC_SEQUENCE; INC_NUMBERS_RATE; ANN_DT",
         False,
     ),
     (
@@ -293,16 +293,16 @@ _DEFS = [
     (
         "PUNISHAMT", "事件驱动信息", "风险事件", -1, "处罚公告金额",
         "word_v2", "PUNISHAMT", "window_sum",
-        "近 365 日违规处罚金额合计；金额越大风险越高。",
-        "PUNISHAMT = sum(AMOUNT, 近365日公告)。",
+        "近 365 日违规处罚金额合计；全字段完全相同的源行只计一次。",
+        "PUNISHAMT = sum(AMOUNT, 近365日公告，全字段精确去重)。",
         "AShareIllegalEvent.AMOUNT; ANN_DT",
         False,
     ),
     (
         "LAWSUITAMT", "事件驱动信息", "风险事件", -1, "重大诉讼金额",
         "word_v2", "LAWSUITAMT", "window_sum",
-        "近 365 日诉讼涉案/判决金额合计；金额越大风险越高。",
-        "LAWSUITAMT = sum(优先正RESULTAMOUNT，0/缺失时回退至正AMOUNT, 近365日公告)。",
+        "近 365 日诉讼涉案/判决绝对金额合计；全字段完全相同的源行只计一次。",
+        "LAWSUITAMT = sum(优先正RESULTAMOUNT，0/缺失时回退至正AMOUNT, 近365日公告，全字段精确去重)。",
         "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; ANN_DT",
         False,
     ),
