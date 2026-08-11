@@ -46,7 +46,7 @@ _DEFS = [
         "RATINGCHG", "投资者行为信息", "分析师预期", 1, "评级变化",
         "word_v2", "RATINGCHG", "asof_latest",
         "月末取Wind 90日周期最新可见评级上调家数减下调家数；快照水平不跨日累加，超过90日无新快照则为空。",
-        "RATINGCHG = latest(S_WRATING_UPGRADE - S_WRATING_DOWNGRADE, S_WRATING_CYCLE=263002000, age<=90日)。",
+        "RATINGCHG = latest(S_WRATING_UPGRADE - S_WRATING_DOWNGRADE, S_WRATING_CYCLE=263002000, 0<=age<90日)。",
         "AShareStockRatingConsus.S_WRATING_UPGRADE; AShareStockRatingConsus.S_WRATING_DOWNGRADE; S_WRATING_CYCLE; RATING_DT",
         False,
     ),

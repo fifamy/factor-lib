@@ -353,9 +353,9 @@ def _reference_ratingchg(
     ratings: pl.DataFrame,
     keep_dates: set[str],
     cycle: str = "263002000",
-    max_age_days: int = 90,
+    window_days: int = 90,
 ) -> pl.DataFrame:
-    """Independent reference for the latest visible 90-day rating snapshot."""
+    """Independent reference for the latest snapshot in 90 calendar dates."""
     required = {
         "S_INFO_WINDCODE", "RATING_DT", "S_WRATING_CYCLE",
         "S_WRATING_UPGRADE", "S_WRATING_DOWNGRADE",
@@ -380,7 +380,7 @@ def _reference_ratingchg(
     )
     parts = []
     for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
-        start = asof - timedelta(days=max_age_days - 1)
+        start = asof - timedelta(days=window_days - 1)
         latest = (
             base.filter(
                 (pl.col("snapshot_date") >= start)
