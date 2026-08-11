@@ -4213,8 +4213,8 @@
       "system_l1": "投资者行为信息",
       "system_l2": "分析师预期类",
       "system_direction": "正向",
-      "system_formula": "RATINGCHG = sum(S_WRATING_UPGRADE - S_WRATING_DOWNGRADE, 近60日)。",
-      "system_wind_source": "AShareStockRatingConsus.S_WRATING_UPGRADE; AShareStockRatingConsus.S_WRATING_DOWNGRADE; RATING_DT",
+      "system_formula": "RATINGCHG = latest(S_WRATING_UPGRADE - S_WRATING_DOWNGRADE, S_WRATING_CYCLE=263002000, age<=90日)。",
+      "system_wind_source": "AShareStockRatingConsus.S_WRATING_UPGRADE; AShareStockRatingConsus.S_WRATING_DOWNGRADE; S_WRATING_CYCLE; RATING_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -8119,8 +8119,8 @@
       "system_l1": "事件驱动信息",
       "system_l2": "资本运作类",
       "system_direction": "负向",
-      "system_formula": "PLACEDISCOUNT = mean(S_FELLOW_DISCNTRATIO, 近365日公告)。",
-      "system_wind_source": "ASharePlacement.S_FELLOW_DISCNTRATIO; ANN_DT",
+      "system_formula": "PLACEDISCOUNT = mean(每个EVENT_ID月末前最新S_FELLOW_DISCNTRATIO, 近365日公告)。",
+      "system_wind_source": "ASharePlacement.EVENT_ID; S_FELLOW_DISCNTRATIO; ANN_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [

@@ -288,10 +288,10 @@ def amount20(panel, asof):
         name_cn="近20日日均成交量",
         formula="mean(S_DQ_VOLUME, 20)",
         wind_source="AShareEODPrices.S_DQ_VOLUME",
-        description="近20日日均实际成交量；不再用成交额除以复权价格近似，按Word v2流动性口径方向为正。")
+        description="近20日日均实际成交量，停牌等零成交日计入均值；方向正表示可交易性与容量，不代表高成交量必有收益溢价。")
 def volume20(panel, asof):
     h = _hist(panel, asof, 20)
-    out = (h.filter((pl.col("volume") > 0) & pl.col("volume").is_finite())
+    out = (h.filter((pl.col("volume") >= 0) & pl.col("volume").is_finite())
             .group_by("stock_code")
             .agg([pl.col("volume").mean().alias("value"), pl.len().alias("n")])
             .filter(pl.col("n") >= 15))

@@ -238,7 +238,7 @@ def _volume20(win, ctx):
         return None, []
     w = win.tail(20)
     volume = w["volume"].to_numpy().astype(float)
-    volume = volume[np.isfinite(volume) & (volume > 0)]
+    volume = volume[np.isfinite(volume) & (volume >= 0)]
     if len(volume) < 15:
         return None, []
     v = float(volume.mean())

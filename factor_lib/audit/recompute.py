@@ -194,8 +194,9 @@ def _reference_latest_event_amounts(
     events: pl.DataFrame,
     keep_dates: set[str],
     window_days: int = 365,
+    aggregation: str = "sum",
 ) -> pl.DataFrame:
-    """Independently select one latest PIT row per stock-event before summing."""
+    """Independently select one latest PIT row per stock-event before aggregation."""
     if events.is_empty():
         return pl.DataFrame()
     events = events.with_row_index("_rowid")
@@ -222,10 +223,14 @@ def _reference_latest_event_amounts(
             )
         )
         latest = pl.concat([keyed, unkeyed], how="vertical")
-        part = (
-            latest.group_by("stock_code")
-            .agg(pl.col("event_amount").sum().alias("event_amount"))
-            .with_columns(pl.lit(asof).alias("trade_date"))
+        if aggregation == "sum":
+            value_agg = pl.col("event_amount").sum().alias("event_amount")
+        elif aggregation == "mean":
+            value_agg = pl.col("event_amount").mean().alias("event_amount")
+        else:
+            raise ValueError(f"unsupported aggregation: {aggregation}")
+        part = latest.group_by("stock_code").agg(value_agg).with_columns(
+            pl.lit(asof).alias("trade_date")
         )
         if not part.is_empty():
             parts.append(part)
@@ -304,6 +309,97 @@ def _reference_placement_size(
             "raw_value",
         ])
     )
+
+
+def _reference_placediscount(
+    placement: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 365,
+) -> pl.DataFrame:
+    """Independent PIT reference: one latest discount per EVENT_ID, then mean."""
+    if placement.is_empty():
+        return pl.DataFrame()
+    events = (
+        placement.select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("EVENT_ID").cast(pl.Utf8).str.strip_chars().alias("event_id"),
+            pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("S_FELLOW_DISCNTRATIO").cast(pl.Float64, strict=False).alias("event_amount"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("event_amount").is_not_null()
+            & pl.col("event_amount").is_finite()
+        )
+    )
+    values = _reference_latest_event_amounts(
+        events,
+        keep_dates,
+        window_days,
+        aggregation="mean",
+    )
+    if values.is_empty():
+        return pl.DataFrame()
+    return values.select([
+        "trade_date",
+        "stock_code",
+        pl.lit("PLACEDISCOUNT").alias("factor_code"),
+        pl.col("event_amount").alias("raw_value"),
+    ])
+
+
+def _reference_ratingchg(
+    ratings: pl.DataFrame,
+    keep_dates: set[str],
+    cycle: str = "263002000",
+    max_age_days: int = 90,
+) -> pl.DataFrame:
+    """Independent reference for the latest visible 90-day rating snapshot."""
+    required = {
+        "S_INFO_WINDCODE", "RATING_DT", "S_WRATING_CYCLE",
+        "S_WRATING_UPGRADE", "S_WRATING_DOWNGRADE",
+    }
+    if ratings.is_empty() or not required.issubset(ratings.columns):
+        return pl.DataFrame()
+    base = (
+        ratings.with_row_index("_rowid")
+        .select([
+            "_rowid",
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("RATING_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("snapshot_date"),
+            pl.col("S_WRATING_CYCLE").cast(pl.Utf8).str.strip_chars().alias("cycle"),
+            pl.col("S_WRATING_UPGRADE").cast(pl.Float64, strict=False).alias("upgrade"),
+            pl.col("S_WRATING_DOWNGRADE").cast(pl.Float64, strict=False).alias("downgrade"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("snapshot_date").is_not_null()
+            & (pl.col("cycle") == cycle)
+        )
+    )
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        start = asof - timedelta(days=max_age_days - 1)
+        latest = (
+            base.filter(
+                (pl.col("snapshot_date") >= start)
+                & (pl.col("snapshot_date") <= asof)
+            )
+            .sort(["stock_code", "snapshot_date", "_rowid"])
+            .group_by("stock_code")
+            .last()
+            .filter(pl.col("upgrade").is_not_null() | pl.col("downgrade").is_not_null())
+            .select([
+                pl.lit(asof).alias("trade_date"),
+                "stock_code",
+                pl.lit("RATINGCHG").alias("factor_code"),
+                (pl.col("upgrade").fill_null(0.0) - pl.col("downgrade").fill_null(0.0)).alias("raw_value"),
+            ])
+        )
+        if not latest.is_empty():
+            parts.append(latest)
+    return pl.concat(parts, how="vertical") if parts else pl.DataFrame()
 
 
 def _reference_refinpress(
@@ -640,10 +736,15 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
     elif code == "ESTEARNREV":
         consensus = _read_word_v2_parquet(src, "consensus_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_WEST_NETPROFIT_FTM_1M"], stocks)
         out = mod.build_est_earn_rev(consensus, keep_dates)
-    elif code in {"RATINGCHG", "ANALYSTCOVER", "TARGETPRICECHG"}:
+    elif code == "RATINGCHG":
         ratings = _read_word_v2_parquet(src, "analyst_rating_ext", [
             "S_INFO_WINDCODE", "RATING_DT", "S_WRATING_UPGRADE", "S_WRATING_DOWNGRADE",
-            "S_WRATING_INSTNUM", "S_EST_PRICE",
+            "S_WRATING_CYCLE",
+        ], stocks)
+        out = _reference_ratingchg(ratings, keep_dates)
+    elif code in {"ANALYSTCOVER", "TARGETPRICECHG"}:
+        ratings = _read_word_v2_parquet(src, "analyst_rating_ext", [
+            "S_INFO_WINDCODE", "RATING_DT", "S_WRATING_INSTNUM", "S_EST_PRICE",
         ], stocks)
         panel = ctx.get("_price_panel")
         trading_dates = (
@@ -652,7 +753,6 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             else []
         )
         parts = [
-            mod.build_ratingchg(ratings, keep_dates),
             mod.build_analystcover(ratings, keep_dates, trading_dates),
             mod.build_targetpricechg(ratings, keep_dates),
         ]
@@ -669,8 +769,10 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         price = _read_word_v2_parquet(src, "price_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_DQ_MV"], stocks)
         out = _reference_buybackratio(buyback, price, keep_dates)
     elif code == "PLACEDISCOUNT":
-        placement = _read_word_v2_parquet(src, "placement_ext", ["S_INFO_WINDCODE", "ANN_DT", "S_FELLOW_DISCNTRATIO"], stocks)
-        out = mod.build_placediscount(placement, keep_dates)
+        placement = _read_word_v2_parquet(src, "placement_ext", [
+            "S_INFO_WINDCODE", "EVENT_ID", "ANN_DT", "S_FELLOW_DISCNTRATIO",
+        ], stocks)
+        out = _reference_placediscount(placement, keep_dates)
     elif code == "PLACEMENTSIZE":
         placement = _read_word_v2_parquet(src, "placement_ext", [
             "S_INFO_WINDCODE", "EVENT_ID", "ANN_DT", "S_FELLOW_COLLECTION", "EXP_COLLECTION",
