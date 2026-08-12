@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "generated_at": "2026-08-11 16:46:04+0800",
+  "generated_at": "2026-08-12 13:49:06+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
-  "resolution_updated_at": "2026-08-11",
+  "resolution_updated_at": "2026-08-12",
   "summary": {
     "manual_review_record_count": 148,
     "manual_issue_factor_count": 81,
@@ -584,24 +584,31 @@
       ],
       "manual_updated_at": "2026-07-02T09:08:31.419602+00:00",
       "decision_titles": [
-        "高管和大股东增减持字段可得但有效性仅作补充研究"
+        "高管和大股东增减持字段可得但有效性仅作补充研究",
+        "股东与高管增减持去除全字段精确重复行"
       ],
       "verification_assessment": [
-        "holder_trade_ext已包含AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE，当前增减持金额强度公式可以复算；但人工提出“有效性需要再商议”，字段可得并不等于选股有效性已经确认。"
+        "holder_trade_ext已包含AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE，当前增减持金额强度公式可以复算；但人工提出“有效性需要再商议”，字段可得并不等于选股有效性已经确认。",
+        "holder_trade_ext共216477行，其中29497行为全字段完全重复。原实现只读取6个计算字段且直接做近365日窗口求和，会把相同源记录重复计入；同源生产复算也无法发现该问题。表内没有可靠交易事件ID，因此不能按日期、金额或股东名做宽松合并。"
       ],
       "reason_not_changed": [
         "当前争议是信号有效性和使用场景，不是字段或公式错误；删除序列会丢失后续验证样本。"
       ],
       "decision_action": [
-        "保留两个增减持历史序列，继续显示低覆盖和厚尾提示，仅作为事件辅助信号，不作为默认宽基组合主排序因子；有效性结论以滚动期和分组回测另行评估。"
+        "保留两个增减持历史序列，继续显示低覆盖和厚尾提示，仅作为事件辅助信号，不作为默认宽基组合主排序因子；有效性结论以滚动期和分组回测另行评估。",
+        "生产加载14个完整业务字段，在按HOLDER_TYPE筛选和窗口求和前仅删除全字段完全相同的行；MAJORHOLDERCHG与EXECHOLDERCHG新增不调用生产builder的独立参考，并全链路重算。"
       ],
       "evidence": [
         "holder_trade_ext已有AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE",
         "EXECHOLDERCHG当前覆盖率约20.3%并带低覆盖提示",
-        "当前审核复算状态为match"
+        "当前审核复算状态为match",
+        "holder_trade_ext: 216477行/186980唯一全行",
+        "全历史修复影响MAJORHOLDERCHG 44207个键、EXECHOLDERCHG 24342个键",
+        "两因子修复前后键数均分别为177021和112809，无增删键"
       ],
       "decision_issue_ids": [
-        "field-holder-trades-validity"
+        "field-holder-trades-validity",
+        "calculation-holder-trade-exact-row-dedup"
       ],
       "manual_review_available": true
     },
@@ -1616,24 +1623,31 @@
       ],
       "manual_updated_at": "2026-07-02T09:11:37.922194+00:00",
       "decision_titles": [
-        "高管和大股东增减持字段可得但有效性仅作补充研究"
+        "高管和大股东增减持字段可得但有效性仅作补充研究",
+        "股东与高管增减持去除全字段精确重复行"
       ],
       "verification_assessment": [
-        "holder_trade_ext已包含AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE，当前增减持金额强度公式可以复算；但人工提出“有效性需要再商议”，字段可得并不等于选股有效性已经确认。"
+        "holder_trade_ext已包含AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE，当前增减持金额强度公式可以复算；但人工提出“有效性需要再商议”，字段可得并不等于选股有效性已经确认。",
+        "holder_trade_ext共216477行，其中29497行为全字段完全重复。原实现只读取6个计算字段且直接做近365日窗口求和，会把相同源记录重复计入；同源生产复算也无法发现该问题。表内没有可靠交易事件ID，因此不能按日期、金额或股东名做宽松合并。"
       ],
       "reason_not_changed": [
         "当前争议是信号有效性和使用场景，不是字段或公式错误；删除序列会丢失后续验证样本。"
       ],
       "decision_action": [
-        "保留两个增减持历史序列，继续显示低覆盖和厚尾提示，仅作为事件辅助信号，不作为默认宽基组合主排序因子；有效性结论以滚动期和分组回测另行评估。"
+        "保留两个增减持历史序列，继续显示低覆盖和厚尾提示，仅作为事件辅助信号，不作为默认宽基组合主排序因子；有效性结论以滚动期和分组回测另行评估。",
+        "生产加载14个完整业务字段，在按HOLDER_TYPE筛选和窗口求和前仅删除全字段完全相同的行；MAJORHOLDERCHG与EXECHOLDERCHG新增不调用生产builder的独立参考，并全链路重算。"
       ],
       "evidence": [
         "holder_trade_ext已有AVG_PRICE、TRANSACT_QUANTITY、TRANSACT_TYPE和HOLDER_TYPE",
         "EXECHOLDERCHG当前覆盖率约20.3%并带低覆盖提示",
-        "当前审核复算状态为match"
+        "当前审核复算状态为match",
+        "holder_trade_ext: 216477行/186980唯一全行",
+        "全历史修复影响MAJORHOLDERCHG 44207个键、EXECHOLDERCHG 24342个键",
+        "两因子修复前后键数均分别为177021和112809，无增删键"
       ],
       "decision_issue_ids": [
-        "field-holder-trades-validity"
+        "field-holder-trades-validity",
+        "calculation-holder-trade-exact-row-dedup"
       ],
       "manual_review_available": true
     },
@@ -2883,26 +2897,33 @@
       ],
       "manual_updated_at": "2026-07-02T07:52:53.863969+00:00",
       "decision_titles": [
-        "四个公司事件字段已取得但按稀疏辅助信号使用"
+        "四个公司事件字段已取得但按稀疏辅助信号使用",
+        "立案调查计数去除全字段精确重复行"
       ],
       "verification_assessment": [
-        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE与计划/序列键、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证。INCENTIVESIZE已按计划与激励序列去重；PUNISHAMT仍缺最终处罚标记与事件ID。这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE与计划/序列键、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证。INCENTIVESIZE已按计划与激励序列去重；PUNISHAMT仍缺最终处罚标记与事件ID。这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。",
+        "risk_investigation_ext共1711行，其中32行为全字段完全重复。原实现只读取股票与开始公告日并直接计数，导致全历史33个月末键从1误计为2或从2误计为4。表内没有稳定事件ID，同日不同调查原因应继续视为不同记录。"
       ],
       "reason_not_changed": [
         "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示；INCENTIVESIZE仅作为事件辅助信号，PUNISHAMT继续禁止加入新组合。后续仅需为PUNISHAMT补充最终处罚标记和事件ID。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示；INCENTIVESIZE仅作为事件辅助信号，PUNISHAMT继续禁止加入新组合。后续仅需为PUNISHAMT补充最终处罚标记和事件ID。",
+        "生产与独立参考均加载7个完整业务字段，先删除全字段完全重复行，再按STR_ANNDATE统计近60日记录数；不同调查原因或不同业务字段的记录继续分别计数。"
       ],
       "evidence": [
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
         "equity_incentive_ext已有INC_NUMBERS_RATE、EQINC_PLAN_EVENT_ID和S_INC_SEQUENCE",
         "risk_illegality_ext已有AMOUNT但无事件ID/最终处罚标记",
         "risk_investigation_ext已有STR_ANNDATE",
-        "各因子覆盖和退化提示见审核分片"
+        "各因子覆盖和退化提示见审核分片",
+        "risk_investigation_ext: 1711行/1679唯一全行",
+        "精确去重影响全历史33个月末键",
+        "修复前后RISKINVESTCNT均为1640个存盘键"
       ],
       "decision_issue_ids": [
-        "field-sparse-event-tables-valid"
+        "field-sparse-event-tables-valid",
+        "calculation-risk-investigation-exact-row-dedup"
       ],
       "manual_review_available": true
     },

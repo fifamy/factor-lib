@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-11 14:47:36",
+  "generated_at": "2026-08-12 13:37:51",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -4987,8 +4987,8 @@
       "system_l1": "事件驱动信息",
       "system_l2": "风险事件类",
       "system_direction": "负向",
-      "system_formula": "RISKINVESTCNT = count(RiskInvestigation, 近60日公告)。",
-      "system_wind_source": "AShareRiskInvestigation.STR_ANNDATE",
+      "system_formula": "RISKINVESTCNT = count(全字段精确去重后的RiskInvestigation记录, 近60日开始公告)。",
+      "system_wind_source": "AShareRiskInvestigation.STR_ANNDATE; STR_DATE; SUR_INSTITUTE; SUR_REASONS",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -5087,21 +5087,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "300025.SZ",
-        "stock_name": "华星创业",
-        "raw_value": 114271078.0,
+        "stock_code": "300368.SZ",
+        "stock_name": "汇金股份",
+        "raw_value": 110339538.15,
         "score": 0.001042690818982438,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=114,271,078.00，方向处理后的 score=0.001043。",
+          "系统输出 raw_value=110,339,538.15，方向处理后的 score=0.001043。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 114271078.0,
-            "display": "114,271,078.00",
+            "value": 110339538.15,
+            "display": "110,339,538.15",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -6067,7 +6067,7 @@
       "system_l1": "事件驱动信息",
       "system_l2": "股东行为类",
       "system_direction": "正向",
-      "system_formula": "EXECHOLDERCHG = sum(sign(TRANSACT_TYPE) * TRANSACT_QUANTITY * AVG_PRICE, 近365日，HOLDER_TYPE=3) / S_VAL_MV_ARD。",
+      "system_formula": "EXECHOLDERCHG = sum(sign(TRANSACT_TYPE) * TRANSACT_QUANTITY * AVG_PRICE, 近365日，全字段精确去重，HOLDER_TYPE=3) / S_VAL_MV_ARD。",
       "system_wind_source": "AShareMjrHolderTrade.HOLDER_TYPE; TRANSACT_TYPE; TRANSACT_QUANTITY; AVG_PRICE; AShareValuationIndicator.S_VAL_MV_ARD",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -6077,21 +6077,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "000510.SZ",
-        "stock_name": "新金路",
-        "raw_value": -0.0008907720304820246,
+        "stock_code": "002362.SZ",
+        "stock_name": "汉王科技",
+        "raw_value": -0.0008499054553946534,
         "score": 0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=-0.000891，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=-0.000850，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": -0.0008907720304820246,
-            "display": "-0.000891",
+            "value": -0.0008499054553946534,
+            "display": "-0.000850",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -6995,21 +6995,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "688638.SH",
-        "stock_name": "誉辰智能",
-        "raw_value": 1.8666,
+        "stock_code": "301076.SZ",
+        "stock_name": "新瀚新材",
+        "raw_value": 1.5462,
         "score": 0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=1.8666，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=1.5462，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 1.8666,
-            "display": "1.8666",
+            "value": 1.5462,
+            "display": "1.5462",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -7309,7 +7309,7 @@
       "system_l1": "事件驱动信息",
       "system_l2": "股东行为类",
       "system_direction": "正向",
-      "system_formula": "MAJORHOLDERCHG = sum(sign(TRANSACT_TYPE) * TRANSACT_QUANTITY * AVG_PRICE, 近365日) / S_VAL_MV_ARD。",
+      "system_formula": "MAJORHOLDERCHG = sum(sign(TRANSACT_TYPE) * TRANSACT_QUANTITY * AVG_PRICE, 近365日，全字段精确去重) / S_VAL_MV_ARD。",
       "system_wind_source": "AShareMjrHolderTrade.HOLDER_TYPE; TRANSACT_TYPE; TRANSACT_QUANTITY; AVG_PRICE; AShareValuationIndicator.S_VAL_MV_ARD",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -7319,21 +7319,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "300743.SZ",
-        "stock_name": "天地数码",
-        "raw_value": -0.00698970857092969,
+        "stock_code": "300992.SZ",
+        "stock_name": "泰福泵业",
+        "raw_value": -0.006760850731879857,
         "score": 0.0012533144654324165,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=-0.006990，方向处理后的 score=0.001253。",
+          "系统输出 raw_value=-0.006761，方向处理后的 score=0.001253。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": -0.00698970857092969,
-            "display": "-0.006990",
+            "value": -0.006760850731879857,
+            "display": "-0.006761",
             "unit": "",
             "note": "来自当前因子落地结果"
           },

@@ -446,6 +446,90 @@ def _reference_lawsuitamt(
     return _reference_plain_window_sum(base, keep_dates, "LAWSUITAMT", window_days)
 
 
+def _reference_holder_trade_change(
+    holder_trade: pl.DataFrame,
+    valuation: pl.DataFrame,
+    keep_dates: set[str],
+    factor_code: str,
+    holder_type: str,
+    window_days: int = 365,
+) -> pl.DataFrame:
+    """Independent PIT reference for holder trade changes.
+
+    The source has no stable transaction id.  Full-row exact duplicates are
+    removed, while distinct trade details on the same announcement date are
+    retained and summed.
+    """
+    if holder_trade.is_empty() or valuation.is_empty():
+        return pl.DataFrame()
+    deduped = holder_trade.unique(keep="first", maintain_order=True)
+    htype = deduped.get_column("HOLDER_TYPE") if "HOLDER_TYPE" in deduped.columns else None
+    if htype is None:
+        return pl.DataFrame()
+    htype_num = htype.cast(pl.Float64, strict=False)
+    if holder_type == "major":
+        deduped = deduped.filter(htype_num.is_in([1.0, 2.0]))
+    elif holder_type == "executive":
+        deduped = deduped.filter(htype_num == 3.0)
+    else:
+        raise ValueError(f"unknown holder_type: {holder_type}")
+    transact_type = pl.col("TRANSACT_TYPE").cast(pl.Utf8)
+    sign = (
+        pl.when(transact_type.str.contains("增", literal=True)).then(1.0)
+        .when(transact_type.str.contains("减", literal=True)).then(-1.0)
+        .otherwise(None)
+    )
+    events = (
+        deduped.select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            (sign * pl.col("TRANSACT_QUANTITY").cast(pl.Float64, strict=False)
+             * pl.col("AVG_PRICE").cast(pl.Float64, strict=False)).alias("event_amount"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("event_amount").is_not_null()
+            & pl.col("event_amount").is_finite()
+        )
+    )
+    changed = _reference_plain_window_sum(events, keep_dates, factor_code, window_days)
+    if changed.is_empty():
+        return pl.DataFrame()
+    mv = _reference_monthly_value(valuation, "TRADE_DT", "S_VAL_MV_ARD", keep_dates, "mv")
+    return (
+        changed.join(mv, on=["trade_date", "stock_code"], how="left")
+        .with_columns(
+            pl.when(pl.col("mv") > 0)
+            .then(pl.col("raw_value") / pl.col("mv"))
+            .otherwise(None)
+            .alias("raw_value")
+        )
+        .filter(pl.col("raw_value").abs() <= 5.0)
+        .select(["trade_date", "stock_code", "factor_code", "raw_value"])
+    )
+
+
+def _reference_riskinvestcnt(
+    investigation: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 60,
+) -> pl.DataFrame:
+    """Independent count of exact-distinct investigation source records."""
+    if investigation.is_empty():
+        return pl.DataFrame()
+    base = (
+        investigation.unique(keep="first", maintain_order=True)
+        .select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("STR_ANNDATE").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.lit(1.0).alias("event_amount"),
+        ])
+        .filter(pl.col("stock_code").is_not_null() & pl.col("event_date").is_not_null())
+    )
+    return _reference_plain_window_sum(base, keep_dates, "RISKINVESTCNT", window_days)
+
+
 def _reference_plain_window_sum(
     events: pl.DataFrame,
     keep_dates: set[str],
@@ -926,8 +1010,11 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         ], stocks)
         out = _reference_incentivesize(incentive, keep_dates)
     elif code == "RISKINVESTCNT":
-        investigation = _read_word_v2_parquet(src, "risk_investigation_ext", ["S_INFO_WINDCODE", "STR_ANNDATE"], stocks)
-        out = mod.build_riskinvestcnt(investigation, keep_dates)
+        investigation = _read_word_v2_parquet(src, "risk_investigation_ext", [
+            "S_INFO_WINDCODE", "COMP_ID", "STR_ANNDATE", "END_ANNDATE", "STR_DATE",
+            "SUR_INSTITUTE", "SUR_REASONS",
+        ], stocks)
+        out = _reference_riskinvestcnt(investigation, keep_dates)
     elif code == "PUNISHAMT":
         illegality = _read_word_v2_parquet(src, "risk_illegality_ext", [
             "S_INFO_WINDCODE", "S_INFO_COMPCODE", "ANN_DT", "ILLEG_TYPE", "SUBJECT_TYPE", "SUBJECT",
@@ -947,10 +1034,13 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         out = mod.build_auditqual(audit, keep_dates)
     elif code in {"MAJORHOLDERCHG", "EXECHOLDERCHG"}:
         holder_trade = _read_word_v2_parquet(src, "holder_trade_ext", [
-            "S_INFO_WINDCODE", "ANN_DT", "HOLDER_TYPE", "TRANSACT_TYPE", "TRANSACT_QUANTITY", "AVG_PRICE",
+            "S_INFO_WINDCODE", "ANN_DT", "TRANSACT_STARTDATE", "TRANSACT_ENDDATE",
+            "HOLDER_NAME", "HOLDER_TYPE", "TRANSACT_TYPE", "TRANSACT_QUANTITY",
+            "TRANSACT_QUANTITY_RATIO", "HOLDER_QUANTITY_NEW", "HOLDER_QUANTITY_NEW_RATIO",
+            "AVG_PRICE", "IS_RESTRICTED", "TRADE_DETAIL",
         ], stocks)
         valuation = _read_word_v2_parquet(src, "valuation_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_VAL_MV_ARD"], stocks)
-        out = mod.build_holder_trade_change(
+        out = _reference_holder_trade_change(
             holder_trade,
             valuation,
             keep_dates,
