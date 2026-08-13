@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-12 13:49:06+0800",
+  "generated_at": "2026-08-13 09:55:04+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
   "resolution_updated_at": "2026-08-12",
   "summary": {
@@ -11,8 +11,8 @@
     "reclassified_fixed_count": 4,
     "reclassified_pending_count": 0,
     "status_counts": {
-      "fixed": 32,
-      "none": 23,
+      "fixed": 34,
+      "none": 21,
       "not_planned": 91
     },
     "missing_problem_count": 3,
@@ -22,7 +22,7 @@
     "current_decision_gap_count": 0,
     "legacy_cohort_factor_count": 55,
     "current_retained_factor_count": 91,
-    "current_no_action_factor_count": 23,
+    "current_no_action_factor_count": 21,
     "report_row_status_counts": {
       "not_planned": 91,
       "fixed": 4
@@ -334,24 +334,31 @@
       ],
       "manual_updated_at": "2026-07-02T06:33:34.999965+00:00",
       "decision_titles": [
-        "十四个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射",
+        "分红年度聚合去除全字段精确重复行"
       ],
       "verification_assessment": [
-        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。",
+        "dividend_ext存在2754行全字段完全重复，原年度现金分红聚合会把重复源记录再次加总；不同分红批次必须继续分别计入。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。",
+        "生产与独立参考加载17个完整业务字段，年度汇总前仅删除全字段完全相同的记录；补充不同DIVIDEND_BATCH继续计入的回归测试。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置",
+        "DIVPAYOUT全历史共同键修正23863个，新增376个合法键",
+        "DIVGROWTH全历史共同键修正42932个，净新增55个合法键",
+        "DIVSTREAK因只判断年度现金分红是否为正，数值未变化"
       ],
       "decision_issue_ids": [
-        "field-pit-financial-valid"
+        "field-pit-financial-valid",
+        "calculation-dividend-exact-row-dedup"
       ],
       "manual_review_available": true
     },
@@ -372,25 +379,32 @@
       ],
       "manual_updated_at": "2026-07-02T06:35:38.575917+00:00",
       "decision_titles": [
-        "分红率保留年度分红除以TTM净利润口径并披露两类期配差异"
+        "分红率保留年度分红除以TTM净利润口径并披露两类期配差异",
+        "分红年度聚合去除全字段精确重复行"
       ],
       "verification_assessment": [
-        "当前DIVPAYOUT使用截至月末最新已公告年度现金分红总额除以当前归母净利润TTM。它与Word的“滚动12个月现金分红总额/滚动12个月归母净利润”相比，分子由滚动12个月变为最新年度；与人工建议的“年度现金分红/年度归母净利润”相比，分母由年度利润变为当前TTM利润。三者期配不同，不能表述为公式一致。当前口径表达最近年度分红相对当前盈利能力的负担或意愿，是可解释但不同的研究信号。"
+        "当前DIVPAYOUT使用截至月末最新已公告年度现金分红总额除以当前归母净利润TTM。它与Word的“滚动12个月现金分红总额/滚动12个月归母净利润”相比，分子由滚动12个月变为最新年度；与人工建议的“年度现金分红/年度归母净利润”相比，分母由年度利润变为当前TTM利润。三者期配不同，不能表述为公式一致。当前口径表达最近年度分红相对当前盈利能力的负担或意愿，是可解释但不同的研究信号。",
+        "dividend_ext存在2754行全字段完全重复，原年度现金分红聚合会把重复源记录再次加总；不同分红批次必须继续分别计入。"
       ],
       "reason_not_changed": [
         "底层分红与TTM净利润字段均已取得，当前公式可复算；争议是分子分母期配选择，不是字段缺失或计算错误。"
       ],
       "decision_action": [
-        "本轮保留现有历史序列，在审核页标记formula_mismatch=warn，并明确写为“最新年度现金分红/当前归母净利润TTM”。若后续需要严格Word滚动12个月口径或人工年度对齐口径，应新增独立因子并完成重叠期比较，不直接覆盖当前序列。"
+        "本轮保留现有历史序列，在审核页标记formula_mismatch=warn，并明确写为“最新年度现金分红/当前归母净利润TTM”。若后续需要严格Word滚动12个月口径或人工年度对齐口径，应新增独立因子并完成重叠期比较，不直接覆盖当前序列。",
+        "生产与独立参考加载17个完整业务字段，年度汇总前仅删除全字段完全相同的记录；补充不同DIVIDEND_BATCH继续计入的回归测试。"
       ],
       "evidence": [
         "Word公式为滚动12个月现金分红总额/滚动12个月归母净利润",
         "当前公式为latest(年度现金分红总额)/S_DFA_NETPROFIT_TTM",
         "人工建议为年度现金分红/年度归母净利润",
-        "Wind字典TOT_CASH_DVD为现金分红总额，S_DFA_NETPROFIT_TTM为前推12个月归母净利润"
+        "Wind字典TOT_CASH_DVD为现金分红总额，S_DFA_NETPROFIT_TTM为前推12个月归母净利润",
+        "DIVPAYOUT全历史共同键修正23863个，新增376个合法键",
+        "DIVGROWTH全历史共同键修正42932个，净新增55个合法键",
+        "DIVSTREAK因只判断年度现金分红是否为正，数值未变化"
       ],
       "decision_issue_ids": [
-        "definition-divpayout-period-alignment"
+        "definition-divpayout-period-alignment",
+        "calculation-dividend-exact-row-dedup"
       ],
       "manual_review_available": true
     },
@@ -411,24 +425,31 @@
       ],
       "manual_updated_at": "2026-07-02T06:36:57.906749+00:00",
       "decision_titles": [
-        "十四个财务候选字段已完成字典与本地数据映射"
+        "十四个财务候选字段已完成字典与本地数据映射",
+        "分红年度聚合去除全字段精确重复行"
       ],
       "verification_assessment": [
-        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。"
+        "十四个因子的人工候选变量已逐项对应到Wind数据字典正式字段，当前公式所需字段已存在于本地PIT、财务报表、分红、一致预期或估值数据中。LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG因存在候选字段错误、期配或构造口径差异，已拆成独立处置，不再用本条模板概括。",
+        "dividend_ext存在2754行全字段完全重复，原年度现金分红聚合会把重复源记录再次加总；不同分红批次必须继续分别计入。"
       ],
       "reason_not_changed": [
         "人工建议所需变量已下载，且当前公式已使用已核验的正式字段或可等价复算的明细分项；不需要为终端函数别名重复下载同一数据。"
       ],
       "decision_action": [
-        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。"
+        "保留已验证的十四个因子当前口径；人工建议、数据字典字段和本地文件字段的逐项对照继续记录在候选变量核验与下载清单。",
+        "生产与独立参考加载17个完整业务字段，年度汇总前仅删除全字段完全相同的记录；补充不同DIVIDEND_BATCH继续计入的回归测试。"
       ],
       "evidence": [
         "候选变量映射记录已逐项核对Wind数据字典",
         "FWDPE已使用AShareConsensusRollingData.EST_PE",
-        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置"
+        "LNMV、DIVPAYOUT、ROA、NPGROWTH、ARRATIO和RDEXPRATIOCHG已拆为独立处置",
+        "DIVPAYOUT全历史共同键修正23863个，新增376个合法键",
+        "DIVGROWTH全历史共同键修正42932个，净新增55个合法键",
+        "DIVSTREAK因只判断年度现金分红是否为正，数值未变化"
       ],
       "decision_issue_ids": [
-        "field-pit-financial-valid"
+        "field-pit-financial-valid",
+        "calculation-dividend-exact-row-dedup"
       ],
       "manual_review_available": true
     },

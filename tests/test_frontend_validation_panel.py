@@ -1071,8 +1071,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.4</title>" in index
-    assert "<b>因子库 v2.0.4</b>" in index
+    assert "<title>因子库 v2.0.5</title>" in index
+    assert "<b>因子库 v2.0.5</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

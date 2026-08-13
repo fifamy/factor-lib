@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-12 13:37:51",
+  "generated_at": "2026-08-13 09:53:32",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -1738,7 +1738,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "分红回报类",
       "system_direction": "正向",
-      "system_formula": "DIVPAYOUT = latest(年度现金分红总额) / S_DFA_NETPROFIT_TTM；分红总额优先取正TOT_CASH_DVD，0/缺失时依次回退至正OTHER_TOT_CASH_DVD、正CASH_DVD_PER_SH_PRE_TAX×TOT_SHR；净利润<=0置缺失。",
+      "system_formula": "DIVPAYOUT = latest(年度现金分红总额) / S_DFA_NETPROFIT_TTM；分红源表先按完整业务字段精确去重，分红总额优先取正TOT_CASH_DVD，0/缺失时依次回退至正OTHER_TOT_CASH_DVD、正CASH_DVD_PER_SH_PRE_TAX×TOT_SHR；净利润<=0置缺失。",
       "system_wind_source": "AShareDividend.TOT_CASH_DVD; OTHER_TOT_CASH_DVD; CASH_DVD_PER_SH_PRE_TAX; TOT_SHR; PITFinancialFactor.S_DFA_NETPROFIT_TTM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1748,29 +1748,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "300973.SZ",
-        "stock_name": "立高食品",
-        "raw_value": 0.41607685756225604,
-        "score": 0.0,
+        "stock_code": "002367.SZ",
+        "stock_name": "康力电梯",
+        "raw_value": 0.4017455633046967,
+        "score": 0.00035284745589009026,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.416077，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=0.401746，方向处理后的 score=0.000353。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.41607685756225604,
-            "display": "0.416077",
+            "value": 0.4017455633046967,
+            "display": "0.401746",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.0,
-            "display": "0.000000",
+            "value": 0.00035284745589009026,
+            "display": "0.000353",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -1792,7 +1792,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "分红回报类",
       "system_direction": "正向",
-      "system_formula": "DIVSTREAK = 连续年度现金分红总额>0 的年数，按公告可得日 as-of 取最新；分红总额按TOT_CASH_DVD、OTHER_TOT_CASH_DVD、CASH_DVD_PER_SH_PRE_TAX×TOT_SHR的正值顺序回退。",
+      "system_formula": "DIVSTREAK = 连续年度现金分红总额>0 的年数，分红源表先按完整业务字段精确去重，再按公告可得日 as-of 取最新；分红总额按TOT_CASH_DVD、OTHER_TOT_CASH_DVD、CASH_DVD_PER_SH_PRE_TAX×TOT_SHR的正值顺序回退。",
       "system_wind_source": "AShareDividend.TOT_CASH_DVD; OTHER_TOT_CASH_DVD; CASH_DVD_PER_SH_PRE_TAX; TOT_SHR; REPORT_PERIOD; ANN_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1846,7 +1846,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "分红回报类",
       "system_direction": "正向",
-      "system_formula": "DIVGROWTH = 年度现金分红总额 / 上一年度现金分红总额 - 1；分红总额按TOT_CASH_DVD、OTHER_TOT_CASH_DVD、CASH_DVD_PER_SH_PRE_TAX×TOT_SHR的正值顺序回退；上一年度<=0置缺失。",
+      "system_formula": "DIVGROWTH = 年度现金分红总额 / 上一年度现金分红总额 - 1；分红源表先按完整业务字段精确去重，分红总额按TOT_CASH_DVD、OTHER_TOT_CASH_DVD、CASH_DVD_PER_SH_PRE_TAX×TOT_SHR的正值顺序回退；上一年度<=0置缺失。",
       "system_wind_source": "AShareDividend.TOT_CASH_DVD; OTHER_TOT_CASH_DVD; CASH_DVD_PER_SH_PRE_TAX; TOT_SHR; REPORT_PERIOD; ANN_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1856,13 +1856,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "300784.SZ",
-        "stock_name": "利安科技",
+        "stock_code": "300840.SZ",
+        "stock_name": "酷特智能",
         "raw_value": 0.0,
-        "score": -0.0015247136531909267,
+        "score": -0.003659319516568948,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=-0.001525。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=-0.003659。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -1877,8 +1877,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.0015247136531909267,
-            "display": "-0.001525",
+            "value": -0.003659319516568948,
+            "display": "-0.003659",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -7039,7 +7039,7 @@
       "system_l1": "投资者行为信息",
       "system_l2": "筹码结构类",
       "system_direction": "正向",
-      "system_formula": "INSTHOLD = clip(sum(S_HOLDER_PCT), 0, 100)，按股票、报告期汇总机构持仓，汇总后截断至[0,100]，月末取最新公告报告期。",
+      "system_formula": "INSTHOLD = clip(sum(S_HOLDER_PCT), 0, 100)，源表先按完整业务字段精确去重，再按股票、报告期汇总机构持仓，汇总后截断至[0,100]，月末取最新公告报告期。",
       "system_wind_source": "AShareinstHolderDerData.S_HOLDER_PCT; REPORT_PERIOD; ANN_DATE",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -7049,21 +7049,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "603337.SH",
-        "stock_name": "杰克科技",
-        "raw_value": 5.717578,
+        "stock_code": "688180.SH",
+        "stock_name": "君实生物-U",
+        "raw_value": 3.537416,
         "score": 0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=5.7176，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=3.5374，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 5.717578,
-            "display": "5.7176",
+            "value": 3.537416,
+            "display": "3.5374",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -9381,7 +9381,7 @@
       "system_l1": "投资者行为信息",
       "system_l2": "筹码结构类",
       "system_direction": "正向",
-      "system_formula": "TOP10HOLD = clip(sum(S_HOLDER_PCT), 0, 100)，按股票、公告日和报告期汇总前十大股东，汇总后截断至[0,100]，月末取最新公告报告期。",
+      "system_formula": "TOP10HOLD = clip(sum(S_HOLDER_PCT), 0, 100)，源表先按完整业务字段精确去重，再按股票、公告日和报告期汇总前十大股东，汇总后截断至[0,100]，月末取最新公告报告期。",
       "system_wind_source": "AShareInsideHolder.S_HOLDER_PCT; REPORT_PERIOD; ANN_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -9391,21 +9391,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "603766.SH",
-        "stock_name": "隆鑫通用",
-        "raw_value": 54.33,
+        "stock_code": "603900.SH",
+        "stock_name": "莱绅通灵",
+        "raw_value": 54.010000000000005,
         "score": 0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=54.3300，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=54.0100，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 54.33,
-            "display": "54.3300",
+            "value": 54.010000000000005,
+            "display": "54.0100",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -9597,8 +9597,8 @@
       "system_l1": "事件驱动信息",
       "system_l2": "供给冲击类",
       "system_direction": "负向",
-      "system_formula": "UNLOCKMVRATIO = sum(S_SHARE_LST × 10,000, 未来90日) / (FREE_SHARES_TODAY × 10,000)，且ANN_DT不晚于月末。",
-      "system_wind_source": "AShareFreeFloatCalendar.ANN_DT; S_INFO_LISTDATE; S_SHARE_LST; S_SHARE_LST_IS_ANN; AShareEODPrices.FREE_SHARES_TODAY",
+      "system_formula": "UNLOCKMVRATIO优先使用月度PIT字段UNLOCK_SHARES_90D / (FREE_SHARES_TODAY × 10,000)；缺少月度PIT表时，按ANN_DT不晚于月末筛选事件，再计算sum(S_SHARE_LST × 10,000, 未来90日) / (FREE_SHARES_TODAY × 10,000)。",
+      "system_wind_source": "unlock_monthly_pit_90d.UNLOCK_SHARES_90D; AShareFreeFloatCalendar.ANN_DT; S_INFO_LISTDATE; S_SHARE_LST; S_SHARE_LST_IS_ANN; AShareEODPrices.FREE_SHARES_TODAY",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [

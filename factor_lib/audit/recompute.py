@@ -530,6 +530,223 @@ def _reference_riskinvestcnt(
     return _reference_plain_window_sum(base, keep_dates, "RISKINVESTCNT", window_days)
 
 
+def _reference_insthold(
+    institution: pl.DataFrame,
+    keep_dates: set[str],
+) -> pl.DataFrame:
+    """Independent latest-report-period institutional holding reference."""
+    if institution.is_empty():
+        return pl.DataFrame()
+    base = (
+        institution.unique(keep="first", maintain_order=True)
+        .select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("ANN_DATE").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("REPORT_PERIOD").cast(pl.Int64, strict=False).alias("report_period"),
+            pl.col("S_HOLDER_PCT").cast(pl.Float64, strict=False).alias("holder_pct"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("report_period").is_not_null()
+            & pl.col("holder_pct").is_not_null()
+            & pl.col("holder_pct").is_finite()
+        )
+    )
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        visible = base.filter(pl.col("event_date") <= asof)
+        if visible.is_empty():
+            continue
+        latest_period = visible.group_by("stock_code").agg(
+            pl.col("report_period").max().alias("_latest_period")
+        )
+        part = (
+            visible.join(latest_period, on="stock_code", how="inner")
+            .filter(pl.col("report_period") == pl.col("_latest_period"))
+            .group_by("stock_code")
+            .agg(pl.col("holder_pct").sum().clip(0.0, 100.0).alias("raw_value"))
+            .with_columns([
+                pl.lit(asof).alias("trade_date"),
+                pl.lit("INSTHOLD").alias("factor_code"),
+            ])
+            .select(["trade_date", "stock_code", "factor_code", "raw_value"])
+        )
+        if not part.is_empty():
+            parts.append(part)
+    return pl.concat(parts, how="vertical") if parts else pl.DataFrame()
+
+
+def _reference_top10hold(
+    inside_holder: pl.DataFrame,
+    keep_dates: set[str],
+) -> pl.DataFrame:
+    """Independent latest disclosed top-ten holding reference."""
+    if inside_holder.is_empty():
+        return pl.DataFrame()
+    snapshots = (
+        inside_holder.unique(keep="first", maintain_order=True)
+        .with_row_index("_rowid")
+        .select([
+            "_rowid",
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("REPORT_PERIOD").cast(pl.Int64, strict=False).alias("report_period"),
+            pl.col("S_HOLDER_PCT").cast(pl.Float64, strict=False).alias("holder_pct"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("report_period").is_not_null()
+            & pl.col("holder_pct").is_not_null()
+            & pl.col("holder_pct").is_finite()
+        )
+        .group_by(["stock_code", "event_date", "report_period"])
+        .agg([
+            pl.col("holder_pct").sum().clip(0.0, 100.0).alias("raw_value"),
+            pl.col("_rowid").max().alias("_rowid"),
+        ])
+    )
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        latest = (
+            snapshots.filter(pl.col("event_date") <= asof)
+            .sort(["stock_code", "event_date", "report_period", "_rowid"])
+            .group_by("stock_code", maintain_order=True)
+            .last()
+            .with_columns([
+                pl.lit(asof).alias("trade_date"),
+                pl.lit("TOP10HOLD").alias("factor_code"),
+            ])
+            .select(["trade_date", "stock_code", "factor_code", "raw_value"])
+        )
+        if not latest.is_empty():
+            parts.append(latest)
+    return pl.concat(parts, how="vertical") if parts else pl.DataFrame()
+
+
+def _reference_dividend_factors(
+    dividend: pl.DataFrame,
+    pit_financial: pl.DataFrame,
+    keep_dates: set[str],
+) -> pl.DataFrame:
+    """Independent annual dividend reference after exact full-row deduplication."""
+    if dividend.is_empty():
+        return pl.DataFrame()
+    required = [
+        "ANN_DT", "DVD_ANN_DT", "S_DIV_PRELANDATE", "EX_DT", "DVD_PAYOUT_DT",
+        "TOT_CASH_DVD", "OTHER_TOT_CASH_DVD", "CASH_DVD_PER_SH_PRE_TAX", "TOT_SHR",
+    ]
+    missing = [column for column in required if column not in dividend.columns]
+    if missing:
+        dividend = dividend.with_columns([pl.lit(None).alias(column) for column in missing])
+
+    def positive(expr: pl.Expr) -> pl.Expr:
+        return pl.when(expr.is_not_null() & expr.is_finite() & (expr > 0)).then(expr).otherwise(None)
+
+    total = pl.col("TOT_CASH_DVD").cast(pl.Float64, strict=False)
+    other = pl.col("OTHER_TOT_CASH_DVD").cast(pl.Float64, strict=False)
+    per_share = pl.col("CASH_DVD_PER_SH_PRE_TAX").cast(pl.Float64, strict=False)
+    shares = pl.col("TOT_SHR").cast(pl.Float64, strict=False)
+    events = (
+        dividend.unique(keep="first", maintain_order=True)
+        .select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.coalesce([
+                pl.col(column).cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False)
+                for column in ["ANN_DT", "DVD_ANN_DT", "S_DIV_PRELANDATE", "EX_DT", "DVD_PAYOUT_DT"]
+            ]).alias("event_date"),
+            pl.col("REPORT_PERIOD").cast(pl.Int64, strict=False).alias("report_period"),
+            pl.coalesce([
+                positive(total), positive(other), positive(per_share * shares),
+            ]).alias("cash_div"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("report_period").is_not_null()
+            & (pl.col("cash_div") > 0)
+            & pl.col("cash_div").is_finite()
+        )
+        .with_columns((pl.col("report_period") // 10000).cast(pl.Int64).alias("report_year"))
+        .group_by(["stock_code", "report_year"])
+        .agg([
+            pl.col("cash_div").sum().alias("cash_div"),
+            pl.col("event_date").max().alias("event_date"),
+            pl.col("report_period").max().alias("report_period"),
+        ])
+        .sort(["stock_code", "report_year"])
+    )
+    annual_rows = []
+    for stock, group in events.group_by("stock_code", maintain_order=True):
+        stock_code = stock[0] if isinstance(stock, tuple) else stock
+        streak = 0
+        previous_year = None
+        previous_cash = None
+        for row in group.sort("report_year").iter_rows(named=True):
+            year = int(row["report_year"])
+            cash = float(row["cash_div"])
+            streak = streak + 1 if previous_year is not None and year == previous_year + 1 else 1
+            growth = cash / previous_cash - 1.0 if previous_cash and previous_year == year - 1 else None
+            annual_rows.append({
+                "stock_code": stock_code,
+                "event_date": row["event_date"],
+                "report_period": row["report_period"],
+                "cash_div": cash,
+                "div_streak": float(streak),
+                "div_growth": growth,
+            })
+            previous_year = year
+            previous_cash = cash
+    if not annual_rows:
+        return pl.DataFrame()
+    annual = pl.DataFrame(annual_rows)
+    latest_parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        latest = (
+            annual.filter(pl.col("event_date") <= asof)
+            .sort(["stock_code", "event_date", "report_period"])
+            .group_by("stock_code", maintain_order=True)
+            .last()
+            .with_columns(pl.lit(asof).alias("trade_date"))
+        )
+        if not latest.is_empty():
+            latest_parts.append(latest)
+    if not latest_parts:
+        return pl.DataFrame()
+    latest = pl.concat(latest_parts, how="vertical")
+    outputs = [
+        latest.select([
+            "trade_date", "stock_code", pl.lit("DIVSTREAK").alias("factor_code"),
+            pl.col("div_streak").alias("raw_value"),
+        ]),
+        latest.filter(pl.col("div_growth").abs() <= 20.0).select([
+            "trade_date", "stock_code", pl.lit("DIVGROWTH").alias("factor_code"),
+            pl.col("div_growth").alias("raw_value"),
+        ]),
+    ]
+    if not pit_financial.is_empty():
+        profit = _reference_monthly_value(
+            pit_financial, "TRADE_DT", "S_DFA_NETPROFIT_TTM", keep_dates, "net_profit_ttm"
+        )
+        payout = (
+            latest.select(["trade_date", "stock_code", "cash_div"])
+            .join(profit, on=["trade_date", "stock_code"], how="left")
+            .with_columns(
+                pl.when(pl.col("net_profit_ttm") > 0)
+                .then(pl.col("cash_div") / pl.col("net_profit_ttm"))
+                .otherwise(None)
+                .alias("raw_value")
+            )
+            .filter((pl.col("raw_value") >= 0) & (pl.col("raw_value") <= 5.0))
+            .select([
+                "trade_date", "stock_code", pl.lit("DIVPAYOUT").alias("factor_code"), "raw_value",
+            ])
+        )
+        outputs.append(payout)
+    return pl.concat(outputs, how="vertical")
+
+
 def _reference_plain_window_sum(
     events: pl.DataFrame,
     keep_dates: set[str],
@@ -880,11 +1097,14 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         )
     elif code in {"DIVPAYOUT", "DIVSTREAK", "DIVGROWTH"}:
         dividend = _read_word_v2_parquet(src, "dividend_ext", [
-            "S_INFO_WINDCODE", "ANN_DT", "DVD_ANN_DT", "S_DIV_PRELANDATE", "EX_DT", "DVD_PAYOUT_DT",
-            "REPORT_PERIOD", "TOT_CASH_DVD", "OTHER_TOT_CASH_DVD", "CASH_DVD_PER_SH_PRE_TAX", "TOT_SHR",
+            "S_INFO_WINDCODE", "S_DIV_PROGRESS", "STK_DVD_PER_SH",
+            "CASH_DVD_PER_SH_PRE_TAX", "CASH_DVD_PER_SH_AFTER_TAX", "EX_DT",
+            "DVD_PAYOUT_DT", "S_DIV_PRELANDATE", "DVD_ANN_DT", "ANN_DT", "REPORT_PERIOD",
+            "IS_TRANSFER", "TOT_CASH_DVD", "OTHER_TOT_CASH_DVD", "TOT_SHR",
+            "DIVIDEND_BATCH", "IS_SPEC_DIVIDEND",
         ], stocks)
         pit = _read_word_v2_parquet(src, "pit_financial_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_DFA_NETPROFIT_TTM"], stocks)
-        out = mod.build_dividend_factors(dividend, pit, keep_dates)
+        out = _reference_dividend_factors(dividend, pit, keep_dates)
     elif code in {"SUSPENDDAYS", "LIMITUPDAYS", "LIMITDOWNDAYS", "ONEBOARDDAYS"}:
         price = _read_word_v2_parquet(src, "price_ext", [
             "S_INFO_WINDCODE", "TRADE_DT", "S_DQ_OPEN", "S_DQ_HIGH", "S_DQ_LOW",
@@ -911,14 +1131,20 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             )
     elif code == "INSTHOLD":
         institution = _read_word_v2_parquet(src, "institution_holding_ext", [
-            "S_INFO_WINDCODE", "REPORT_PERIOD", "S_HOLDER_PCT", "ANN_DATE",
+            "S_INFO_WINDCODE", "REPORT_PERIOD", "S_HOLDER_COMPCODE", "S_HOLDER_NAME",
+            "S_HOLDER_HOLDERCATEGORY", "S_HOLDER_QUANTITY", "S_HOLDER_PCT", "ANN_DATE",
+            "S_FLOAT_A_SHR",
         ], stocks)
-        out = mod.build_inst_hold(institution, keep_dates)
+        out = _reference_insthold(institution, keep_dates)
     elif code == "TOP10HOLD":
         inside_holder = _read_word_v2_parquet(src, "inside_holder_ext", [
-            "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "S_HOLDER_PCT",
+            "S_INFO_WINDCODE", "ANN_DT", "S_HOLDER_ENDDATE", "REPORT_PERIOD",
+            "S_HOLDER_NAME", "S_HOLDER_ANAME", "S_HOLDER_HOLDERCATEGORY", "S_HOLDER_NAT",
+            "S_HOLDER_QUANTITY", "S_HOLDER_PCT", "S_HOLDER_RESTRICTEDQUANTITY",
+            "S_HOLDER_SHARECATEGORY", "S_HOLDER_SHARECATEGORYNAME", "S_HOLDER_SEQUENCE",
+            "S_HOLDER_MEMO", "S_INFO_COMPCODE",
         ], stocks)
-        out = mod.build_top10_holder(inside_holder, keep_dates)
+        out = _reference_top10hold(inside_holder, keep_dates)
     elif code == "UNLOCKPRESS":
         unlock_monthly = _read_word_v2_parquet(
             FACTOR_UNLOCK_SRC,
