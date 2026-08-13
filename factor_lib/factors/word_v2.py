@@ -189,8 +189,8 @@ _DEFS = [
     (
         "HOLDERAVGCHG", "投资者行为信息", "筹码结构", 1, "人均持股变化",
         "word_v2", "HOLDERAVGCHG", "mom_pct",
-        "流通股本/股东户数的月度变化率；人均持股上升代表筹码趋于集中。",
-        "HOLDERAVGCHG = (FREE_SHARES_TODAY / latest(S_HOLDER_NUM)) / lag1(...) - 1。",
+        "流通股本/股东户数的月度变化率；同日户数冲突时不猜测修订顺序并置空，人均持股上升代表筹码趋于集中。",
+        "HOLDERAVGCHG = (FREE_SHARES_TODAY / latest(S_HOLDER_NUM)) / lag1(...) - 1；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空。",
         "AShareHolderNumber.S_HOLDER_NUM; AShareEODPrices.FREE_SHARES_TODAY",
         False,
     ),
@@ -221,9 +221,9 @@ _DEFS = [
     (
         "ANALYSTCOVER", "投资者行为信息", "分析师预期", 1, "近20日评级机构覆盖数",
         "word_v2", "ANALYSTCOVER", "asof_latest",
-        "月末前20个交易日内最新评级机构覆盖数；窗口内无观测则为空。",
-        "ANALYSTCOVER = latest(S_WRATING_INSTNUM, 过去20个交易日)。",
-        "AShareStockRatingConsus.S_WRATING_INSTNUM; RATING_DT",
+        "月末前20个交易日内Wind 90日周期的最新评级机构覆盖数；窗口内无观测则为空。",
+        "ANALYSTCOVER = latest(S_WRATING_INSTNUM, S_WRATING_CYCLE=263002000, 过去20个交易日)。",
+        "AShareStockRatingConsus.S_WRATING_INSTNUM; S_WRATING_CYCLE; RATING_DT",
         False,
     ),
     (
@@ -237,9 +237,9 @@ _DEFS = [
     (
         "TARGETPRICECHG", "投资者行为信息", "分析师预期", 1, "目标价调整幅度",
         "word_v2", "TARGETPRICECHG", "mom_pct",
-        "月末前最新目标价相对上月变化率；上调越多越好。",
-        "TARGETPRICECHG = latest(S_EST_PRICE) / lag1(latest(S_EST_PRICE)) - 1。",
-        "AShareStockRatingConsus.S_EST_PRICE; RATING_DT",
+        "Wind 90日周期月末前最新目标价相对上月变化率；上调越多越好。",
+        "TARGETPRICECHG = latest(S_EST_PRICE, S_WRATING_CYCLE=263002000) / lag1(latest(S_EST_PRICE, S_WRATING_CYCLE=263002000)) - 1。",
+        "AShareStockRatingConsus.S_EST_PRICE; S_WRATING_CYCLE; RATING_DT",
         False,
     ),
     (

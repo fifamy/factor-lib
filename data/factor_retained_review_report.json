@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "generated_at": "2026-08-13 09:55:04+0800",
+  "generated_at": "2026-08-13 15:57:21+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
-  "resolution_updated_at": "2026-08-12",
+  "resolution_updated_at": "2026-08-13",
   "summary": {
     "manual_review_record_count": 148,
     "manual_issue_factor_count": 81,
@@ -832,26 +832,33 @@
       ],
       "manual_updated_at": "2026-07-02T07:50:21.896462+00:00",
       "decision_titles": [
-        "四个公司事件字段已取得但按稀疏辅助信号使用"
+        "四个公司事件字段已取得但按稀疏辅助信号使用",
+        "Word v2写盘增加注册表白名单并消除财务重述双生成路径"
       ],
       "verification_assessment": [
-        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE与计划/序列键、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证。INCENTIVESIZE已按计划与激励序列去重；PUNISHAMT仍缺最终处罚标记与事件ID。这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。"
+        "FINRESTATEMENT所需S_CHANGE_ITEMCODE、INCENTIVESIZE所需INC_NUMBERS_RATE与计划/序列键、PUNISHAMT所需AMOUNT及RISKINVESTCNT所需STR_ANNDATE均已在本地事件明细表中验证。INCENTIVESIZE已按计划与激励序列去重；PUNISHAMT仍缺最终处罚标记与事件ID。这些因子覆盖率低或截面退化，不能因字段已取得就视为默认可用。",
+        "build_all会生成未注册的ORDERIMB，FINRESTATEMENT又可能在build_all与build_missing_42各生成一次；当前数据布局尚未造成存盘孤儿或重复键，但后续源文件位置变化会触发潜伏问题。"
       ],
       "reason_not_changed": [
         "人工意见所指核心字段已存在，当前无需重复下载终端别名；剩余问题是使用限制和明细增强，不构成覆盖现有序列的依据。"
       ],
       "decision_action": [
-        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示；INCENTIVESIZE仅作为事件辅助信号，PUNISHAMT继续禁止加入新组合。后续仅需为PUNISHAMT补充最终处罚标记和事件ID。"
+        "保留四个事件因子及历史记录，在审核页持续展示低覆盖、退化和稀疏提示；INCENTIVESIZE仅作为事件辅助信号，PUNISHAMT继续禁止加入新组合。后续仅需为PUNISHAMT补充最终处罚标记和事件ID。",
+        "main拼接两条构建路径后、替换factor_raw前按Word v2注册表白名单过滤，ORDERIMB不能写盘；FINRESTATEMENT只保留build_missing_42中的正式调用。"
       ],
       "evidence": [
         "accounting_change_ext已有S_CHANGE_ITEMCODE和ANN_DATE",
         "equity_incentive_ext已有INC_NUMBERS_RATE、EQINC_PLAN_EVENT_ID和S_INC_SEQUENCE",
         "risk_illegality_ext已有AMOUNT但无事件ID/最终处罚标记",
         "risk_investigation_ext已有STR_ANNDATE",
-        "各因子覆盖和退化提示见审核分片"
+        "各因子覆盖和退化提示见审核分片",
+        "ORDERIMB不在146因子注册表",
+        "FINRESTATEMENT所需company_security_map_ext位于missing_42目录",
+        "新增白名单回归测试确认ORDERIMB被删除"
       ],
       "decision_issue_ids": [
-        "field-sparse-event-tables-valid"
+        "field-sparse-event-tables-valid",
+        "workflow-word-v2-output-guard"
       ],
       "manual_review_available": true
     },
@@ -1111,24 +1118,31 @@
       "l2": "筹码结构类",
       "resolution_status": "not_planned",
       "decision_titles": [
-        "两个人均持股变化代码近乎同序列"
+        "两个人均持股变化代码近乎同序列",
+        "股东户数同日多值改为保守置空"
       ],
       "verification_assessment": [
-        "HOLDERAVGCHG与HOLDERCONCCHG均由PER_HOLDER相对上月的变化构造，底层含义相同，得分相关系数为0.999953。微小差异不足以支持组合重复计权。"
+        "HOLDERAVGCHG与HOLDERCONCCHG均由PER_HOLDER相对上月的变化构造，底层含义相同，得分相关系数为0.999953。微小差异不足以支持组合重复计权。",
+        "holder_ext只有股票、公告日和股东户数，缺少报告期与更细公告时点。同一股票同一ANN_DT存在多个不同正S_HOLDER_NUM时，原实现按文件行序取last，结果依赖不可审计的物理行序。"
       ],
       "reason_not_changed": [
         "用户明确要求本轮不删除因子；保留兼容代码与认定独立信号是两回事。"
       ],
       "decision_action": [
-        "按用户决定保留两个代码和历史序列；组合层继续硬拦截二者同时入选，新研究只选其中一个人均持股变化信号。"
+        "按用户决定保留两个代码和历史序列；组合层继续硬拦截二者同时入选，新研究只选其中一个人均持股变化信号。",
+        "同一股票同一ANN_DT先统计不同正户数；只有唯一值时才作为可用快照，存在多个不同正值时该公告日置空。HOLDERAVGCHG新增不调用生产builder的独立参考并定向重算。"
       ],
       "evidence": [
         "两因子底层均为PER_HOLDER月度变化",
         "PER_HOLDER由FREE_SHARES_TODAY/S_HOLDER_NUM生成",
-        "HOLDERAVGCHG/HOLDERCONCCHG得分相关系数0.999953"
+        "HOLDERAVGCHG/HOLDERCONCCHG得分相关系数0.999953",
+        "350648个股票公告日组中46550组存在不同正户数",
+        "截至2026-07-31的最新公告日有1941只股票冲突",
+        "定向重算删除117424个无法判定的历史键且共同键数值不变"
       ],
       "decision_issue_ids": [
-        "redundancy-holderavgchg-holderconcchg"
+        "redundancy-holderavgchg-holderconcchg",
+        "calculation-holderavgchg-same-day-conflict"
       ]
     },
     {
@@ -3248,25 +3262,32 @@
       "l2": "分析师预期类",
       "resolution_status": "not_planned",
       "decision_titles": [
-        "调研与目标价信号按有限覆盖样本使用"
+        "调研与目标价信号按有限覆盖样本使用",
+        "分析师覆盖与目标价变化固定Wind 90日周期"
       ],
       "verification_assessment": [
-        "SURVEYCNT、SURVEYINSTCNT和TARGETPRICECHG覆盖率分别为30.34%、30.25%和22.24%，均已对账一致。低覆盖主要来自事件披露和分析师覆盖本身的选择性，不应把未披露或无覆盖样本机械填为零。"
+        "SURVEYCNT、SURVEYINSTCNT和TARGETPRICECHG覆盖率分别为30.34%、30.25%和22.24%，均已对账一致。低覆盖主要来自事件披露和分析师覆盖本身的选择性，不应把未披露或无覆盖样本机械填为零。",
+        "analyst_rating_ext同日并存30/90/180日周期。原ANALYSTCOVER与TARGETPRICECHG未筛选S_WRATING_CYCLE，按文件行序取last并混用周期，结果可能随源表行序变化。"
       ],
       "reason_not_changed": [
         "低覆盖是数据生成机制和适用范围限制，补零会把未知状态误写成无事件或无变化。"
       ],
       "decision_action": [
-        "保留三个因子及coverage_low提示，仅在有调研或分析师覆盖的适用样本中使用；宽基组合中须同步报告有效样本比例，不作为全市场默认主排序因子。"
+        "保留三个因子及coverage_low提示，仅在有调研或分析师覆盖的适用样本中使用；宽基组合中须同步报告有效样本比例，不作为全市场默认主排序因子。",
+        "与RATINGCHG统一固定S_WRATING_CYCLE=263002000。ANALYSTCOVER仍要求最新快照位于过去20个交易日，TARGETPRICECHG仍要求相邻自然月月末值；两因子均新增不调用生产builder的独立参考并定向重算。"
       ],
       "evidence": [
         "三个因子当前均为recon=match",
         "SURVEYCNT覆盖率30.34%",
         "SURVEYINSTCNT覆盖率30.25%",
-        "TARGETPRICECHG覆盖率22.24%"
+        "TARGETPRICECHG覆盖率22.24%",
+        "源表同日多行组全部跨30/90/180日周期",
+        "定向重算使ANALYSTCOVER 103070个共同键数值变化",
+        "定向重算使TARGETPRICECHG 66428个共同键数值变化并新增73033个合法90日周期键"
       ],
       "decision_issue_ids": [
-        "coverage-attention-signals-retained"
+        "coverage-attention-signals-retained",
+        "calculation-analyst-cycle-alignment"
       ]
     },
     {

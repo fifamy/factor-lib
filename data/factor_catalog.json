@@ -531,7 +531,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "近期转弱"
   },
   {
@@ -651,7 +651,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "全天候型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2525,8 +2525,8 @@
     "l1": "投资者行为信息",
     "l2": "筹码结构类",
     "direction": 1,
-    "description": "流通股本/股东户数的月度变化率；人均持股上升代表筹码趋于集中。",
-    "formula": "HOLDERAVGCHG = (FREE_SHARES_TODAY / latest(S_HOLDER_NUM)) / lag1(...) - 1。",
+    "description": "流通股本/股东户数的月度变化率；同日户数冲突时不猜测修订顺序并置空，人均持股上升代表筹码趋于集中。",
+    "formula": "HOLDERAVGCHG = (FREE_SHARES_TODAY / latest(S_HOLDER_NUM)) / lag1(...) - 1；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空。",
     "wind_source": "AShareHolderNumber.S_HOLDER_NUM; AShareEODPrices.FREE_SHARES_TODAY",
     "v2_status": "computed",
     "positive_only": false,
@@ -2610,9 +2610,9 @@
     "l1": "投资者行为信息",
     "l2": "关注度类",
     "direction": 1,
-    "description": "月末前20个交易日内最新评级机构覆盖数；窗口内无观测则为空。",
-    "formula": "ANALYSTCOVER = latest(S_WRATING_INSTNUM, 过去20个交易日)。",
-    "wind_source": "AShareStockRatingConsus.S_WRATING_INSTNUM; RATING_DT",
+    "description": "月末前20个交易日内Wind 90日周期的最新评级机构覆盖数；窗口内无观测则为空。",
+    "formula": "ANALYSTCOVER = latest(S_WRATING_INSTNUM, S_WRATING_CYCLE=263002000, 过去20个交易日)。",
+    "wind_source": "AShareStockRatingConsus.S_WRATING_INSTNUM; S_WRATING_CYCLE; RATING_DT",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
@@ -2655,9 +2655,9 @@
     "l1": "投资者行为信息",
     "l2": "分析师预期类",
     "direction": 1,
-    "description": "月末前最新目标价相对上月变化率；上调越多越好。",
-    "formula": "TARGETPRICECHG = latest(S_EST_PRICE) / lag1(latest(S_EST_PRICE)) - 1。",
-    "wind_source": "AShareStockRatingConsus.S_EST_PRICE; RATING_DT",
+    "description": "Wind 90日周期月末前最新目标价相对上月变化率；上调越多越好。",
+    "formula": "TARGETPRICECHG = latest(S_EST_PRICE, S_WRATING_CYCLE=263002000) / lag1(latest(S_EST_PRICE, S_WRATING_CYCLE=263002000)) - 1。",
+    "wind_source": "AShareStockRatingConsus.S_EST_PRICE; S_WRATING_CYCLE; RATING_DT",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
@@ -2666,7 +2666,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {

@@ -15,6 +15,7 @@ from factor_lib.audit.sampling import (
     sample_missing_units,
     sample_units,
 )
+from factor_lib.monthly_lag import with_strict_month_lag
 from factor_lib.audit.source_recheck import recheck_external
 
 SAMPLE_K = 200
@@ -827,6 +828,174 @@ def _reference_ratingchg(
     return pl.concat(parts, how="vertical") if parts else pl.DataFrame()
 
 
+def _reference_holderavgchg(
+    holder: pl.DataFrame,
+    price: pl.DataFrame,
+    keep_dates: set[str],
+) -> pl.DataFrame:
+    """Independent reference that rejects ambiguous same-day holder counts."""
+    if holder.is_empty() or price.is_empty():
+        return pl.DataFrame()
+    holder_base = (
+        holder.select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("S_HOLDER_NUM").cast(pl.Float64, strict=False).alias("holder_num"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & (pl.col("holder_num") > 0)
+        )
+        .group_by(["stock_code", "event_date"])
+        .agg([
+            pl.col("holder_num").n_unique().alias("n_values"),
+            pl.col("holder_num").first().alias("holder_num"),
+        ])
+        .with_columns(
+            pl.when(pl.col("n_values") == 1)
+            .then(pl.col("holder_num"))
+            .otherwise(None)
+            .alias("holder_num")
+        )
+    )
+    free = _reference_monthly_value(
+        price, "TRADE_DT", "FREE_SHARES_TODAY", keep_dates, "free_shares"
+    )
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        latest = (
+            holder_base.filter(pl.col("event_date") <= asof)
+            .sort(["stock_code", "event_date"])
+            .group_by("stock_code")
+            .last()
+            .select(["stock_code", "holder_num"])
+            .with_columns(pl.lit(asof).alias("trade_date"))
+        )
+        if not latest.is_empty():
+            parts.append(latest)
+    if not parts:
+        return pl.DataFrame()
+    per_holder = (
+        pl.concat(parts, how="vertical")
+        .join(free, on=["trade_date", "stock_code"], how="left")
+        .filter((pl.col("free_shares") > 0) & pl.col("free_shares").is_finite())
+        .with_columns((pl.col("free_shares") / pl.col("holder_num")).alias("per_holder"))
+        .pipe(with_strict_month_lag, "per_holder", lag_col="prev_per_holder")
+        .with_columns(
+            pl.when(pl.col("prev_per_holder") > 0)
+            .then(pl.col("per_holder") / pl.col("prev_per_holder") - 1.0)
+            .otherwise(None)
+            .alias("raw_value")
+        )
+        .filter(pl.col("raw_value").abs() <= 20.0)
+    )
+    return per_holder.select([
+        "trade_date", "stock_code", pl.lit("HOLDERAVGCHG").alias("factor_code"), "raw_value",
+    ])
+
+
+def _reference_analystcover(
+    ratings: pl.DataFrame,
+    keep_dates: set[str],
+    trading_dates: list[date],
+    cycle: str = "263002000",
+) -> pl.DataFrame:
+    """Independent 20-trading-day latest coverage snapshot for one cycle."""
+    required = {"S_INFO_WINDCODE", "RATING_DT", "S_WRATING_INSTNUM", "S_WRATING_CYCLE"}
+    if ratings.is_empty() or not trading_dates or not required.issubset(ratings.columns):
+        return pl.DataFrame()
+    base = (
+        ratings.with_row_index("_rowid")
+        .select([
+            "_rowid",
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("RATING_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("S_WRATING_CYCLE").cast(pl.Utf8).str.strip_chars().alias("rating_cycle"),
+            pl.col("S_WRATING_INSTNUM").cast(pl.Float64, strict=False).alias("raw_value"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & pl.col("raw_value").is_not_null()
+            & (pl.col("rating_cycle") == cycle)
+        )
+    )
+    calendar = sorted(set(trading_dates))
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        available = [value for value in calendar if value <= asof]
+        if len(available) < 20:
+            continue
+        cutoff = available[-20]
+        latest = (
+            base.filter((pl.col("event_date") >= cutoff) & (pl.col("event_date") <= asof))
+            .sort(["stock_code", "event_date", "_rowid"])
+            .group_by("stock_code")
+            .last()
+            .select([
+                pl.lit(asof).alias("trade_date"), "stock_code",
+                pl.lit("ANALYSTCOVER").alias("factor_code"), "raw_value",
+            ])
+        )
+        if not latest.is_empty():
+            parts.append(latest)
+    return pl.concat(parts, how="vertical") if parts else pl.DataFrame()
+
+
+def _reference_targetpricechg(
+    ratings: pl.DataFrame,
+    keep_dates: set[str],
+    cycle: str = "263002000",
+) -> pl.DataFrame:
+    """Independent adjacent-month change of the latest 90-day target-price level."""
+    required = {"S_INFO_WINDCODE", "RATING_DT", "S_EST_PRICE", "S_WRATING_CYCLE"}
+    if ratings.is_empty() or not required.issubset(ratings.columns):
+        return pl.DataFrame()
+    base = (
+        ratings.with_row_index("_rowid")
+        .select([
+            "_rowid",
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("RATING_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("S_WRATING_CYCLE").cast(pl.Utf8).str.strip_chars().alias("rating_cycle"),
+            pl.col("S_EST_PRICE").cast(pl.Float64, strict=False).alias("target_price"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("event_date").is_not_null()
+            & (pl.col("rating_cycle") == cycle)
+        )
+    )
+    parts = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        latest = (
+            base.filter(pl.col("event_date") <= asof)
+            .sort(["stock_code", "event_date", "_rowid"])
+            .group_by("stock_code")
+            .last()
+            .select(["stock_code", "target_price"])
+            .with_columns(pl.lit(asof).alias("trade_date"))
+        )
+        if not latest.is_empty():
+            parts.append(latest)
+    if not parts:
+        return pl.DataFrame()
+    changed = (
+        pl.concat(parts, how="vertical")
+        .pipe(with_strict_month_lag, "target_price", lag_col="prev_target_price")
+        .with_columns(
+            pl.when((pl.col("target_price") > 0) & (pl.col("prev_target_price") > 0))
+            .then(pl.col("target_price") / pl.col("prev_target_price") - 1.0)
+            .otherwise(None)
+            .alias("raw_value")
+        )
+    )
+    return changed.select([
+        "trade_date", "stock_code", pl.lit("TARGETPRICECHG").alias("factor_code"), "raw_value",
+    ]).filter(pl.col("raw_value").is_not_null() & pl.col("raw_value").is_finite())
+
+
 def _reference_refinpress(
     placement: pl.DataFrame,
     rights: pl.DataFrame,
@@ -1115,7 +1284,7 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         price = _read_word_v2_parquet(src, "price_ext", ["S_INFO_WINDCODE", "TRADE_DT", "FREE_SHARES_TODAY"], stocks)
         if code == "HOLDERAVGCHG":
             holder = _read_word_v2_parquet(src, "holder_ext", ["S_INFO_WINDCODE", "ANN_DT", "S_HOLDER_NUM"], stocks)
-            out = mod.build_holder_avg_chg(holder, price, keep_dates)
+            out = _reference_holderavgchg(holder, price, keep_dates)
         else:
             unlock_monthly = _read_word_v2_parquet(
                 FACTOR_UNLOCK_SRC,
@@ -1179,6 +1348,7 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
     elif code in {"ANALYSTCOVER", "TARGETPRICECHG"}:
         ratings = _read_word_v2_parquet(src, "analyst_rating_ext", [
             "S_INFO_WINDCODE", "RATING_DT", "S_WRATING_INSTNUM", "S_EST_PRICE",
+            "S_WRATING_CYCLE",
         ], stocks)
         panel = ctx.get("_price_panel")
         trading_dates = (
@@ -1186,11 +1356,10 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             if isinstance(panel, pl.DataFrame) and "trade_date" in panel.columns
             else []
         )
-        parts = [
-            mod.build_analystcover(ratings, keep_dates, trading_dates),
-            mod.build_targetpricechg(ratings, keep_dates),
-        ]
-        out = pl.concat([p for p in parts if not p.is_empty()], how="vertical") if any(not p.is_empty() for p in parts) else out
+        if code == "ANALYSTCOVER":
+            out = _reference_analystcover(ratings, keep_dates, trading_dates)
+        else:
+            out = _reference_targetpricechg(ratings, keep_dates)
     elif code == "SURVEYCNT":
         survey = _read_word_v2_parquet(src, "survey_ext", ["EVENT_ID", "S_INFO_WINDCODE", "S_SURVEYDATE"], stocks)
         out = mod.build_surveycnt(survey, keep_dates)

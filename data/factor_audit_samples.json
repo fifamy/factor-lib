@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-13 09:53:32",
+  "generated_at": "2026-08-13 11:31:38",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -5365,8 +5365,8 @@
       "system_l1": "投资者行为信息",
       "system_l2": "关注度类",
       "system_direction": "正向",
-      "system_formula": "ANALYSTCOVER = latest(S_WRATING_INSTNUM, 过去20个交易日)。",
-      "system_wind_source": "AShareStockRatingConsus.S_WRATING_INSTNUM; RATING_DT",
+      "system_formula": "ANALYSTCOVER = latest(S_WRATING_INSTNUM, S_WRATING_CYCLE=263002000, 过去20个交易日)。",
+      "system_wind_source": "AShareStockRatingConsus.S_WRATING_INSTNUM; S_WRATING_CYCLE; RATING_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -6715,7 +6715,7 @@
       "system_l1": "投资者行为信息",
       "system_l2": "筹码结构类",
       "system_direction": "正向",
-      "system_formula": "HOLDERAVGCHG = (FREE_SHARES_TODAY / latest(S_HOLDER_NUM)) / lag1(...) - 1。",
+      "system_formula": "HOLDERAVGCHG = (FREE_SHARES_TODAY / latest(S_HOLDER_NUM)) / lag1(...) - 1；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空。",
       "system_wind_source": "AShareHolderNumber.S_HOLDER_NUM; AShareEODPrices.FREE_SHARES_TODAY",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -9327,8 +9327,8 @@
       "system_l1": "投资者行为信息",
       "system_l2": "分析师预期类",
       "system_direction": "正向",
-      "system_formula": "TARGETPRICECHG = latest(S_EST_PRICE) / lag1(latest(S_EST_PRICE)) - 1。",
-      "system_wind_source": "AShareStockRatingConsus.S_EST_PRICE; RATING_DT",
+      "system_formula": "TARGETPRICECHG = latest(S_EST_PRICE, S_WRATING_CYCLE=263002000) / lag1(latest(S_EST_PRICE, S_WRATING_CYCLE=263002000)) - 1。",
+      "system_wind_source": "AShareStockRatingConsus.S_EST_PRICE; S_WRATING_CYCLE; RATING_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [

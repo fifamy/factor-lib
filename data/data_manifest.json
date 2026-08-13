@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-13 09:41:55",
+  "generated_at": "2026-08-13 15:41:11",
   "factor_count": 146,
   "backtest_start_month": "2015-02",
   "backtest_end_month": "2026-07",
@@ -30,17 +30,17 @@
     "source": "data/factor_score_neutral.parquet",
     "has_quality_column": true,
     "warning_level": "warning",
-    "total_rows": 57042347,
+    "total_rows": 56968742,
     "quality_counts": {
-      "missing_input": 412141,
-      "ok": 56630054,
-      "insufficient_sample": 152
+      "missing_input": 412118,
+      "insufficient_sample": 152,
+      "ok": 56556472
     },
     "insufficient_sample_rows": 152,
     "affected_factors": 8,
     "affected_factor_months": 135,
     "min_insufficient_valid_count": 1,
-    "missing_input_rows": 412141,
+    "missing_input_rows": 412118,
     "regression_failed_rows": 0,
     "warning": "中性化质量提示：8 个因子、135 个因子-月份存在有效样本不足 3 个，相关中性化分数为空；对应 RankIC、回测和分层结果应降低结论权重。"
   },

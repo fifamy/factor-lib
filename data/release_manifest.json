@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-08-13T02:00:48+00:00",
-  "deploy_version": "20260813100038",
+  "generated_at": "2026-08-13T08:01:27+00:00",
+  "deploy_version": "20260813160117",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "ca12a199bc239f364cc07d6a6d6bfb93fcbac6d9",
+  "pages_worktree_git_commit_before_sync": "dd201eb5966e948d28373404c73614a3a6b7c0ee",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "9db67ebfa0a779417d77afa504e94ec2e68a292352c0208cf5b6d9013f35c26b",
+      "sha256": "ca12c08a4bd84139ad67ae4e0319ff5c9d473bed31f793b29e38afae8321a70e",
       "bytes": 31651
     },
     "app.js": {
@@ -22,7 +22,7 @@
       "bytes": 37209
     },
     "factor_audit.html": {
-      "sha256": "ffc0b33cd66730c45b8cc2a8a161411937583fc4258eb9f0428fe2360e51a274",
+      "sha256": "a0cd6794484ac96402f998e62b36d73115befc7c73d8d0413be6ec9ff60edf87",
       "bytes": 7687
     },
     "factor_audit.js": {
@@ -34,24 +34,24 @@
       "bytes": 17402
     },
     "data/factor_catalog.json": {
-      "sha256": "59eac0d0cae30511b080c6038813e2a12ef4b06d91b911d897c2a7a76c18c2ec",
-      "bytes": 118327
+      "sha256": "e6ce0535339bdd7bd753e94f20f49def792e9d88a6e77a20de538ff76046f652",
+      "bytes": 118636
     },
     "data/factor_ranking_snapshot.json": {
-      "sha256": "b0009c730a152f9dd700505ccafaf4351457e087abebd713d542ae8d49ab3217",
-      "bytes": 4276468
+      "sha256": "5c6f96b06d511ab4c1bbe9451f0a9bbb8300c9de374c3993bfc286a9380f3b77",
+      "bytes": 4276449
     },
     "data/factor_audit/index.json": {
-      "sha256": "a84d9ce020d9f47f33db8f5bdbf3d3bc5412cfde673e1881b20d76fbb42c80fb",
-      "bytes": 246678
+      "sha256": "968e04f61a3b491d6d0a8339dc0d9c03bd310a1e4e3ae4cb42da2dd88e17941b",
+      "bytes": 247818
     }
   },
   "directory_summaries": {
     "data/compose_scores": {
       "exists": true,
       "file_count": 146,
-      "bytes": 436179617,
-      "sha256": "a960638c625a091125980c46bd3a4d5fc1e6c91ac1ebe40654ec0eb25754acfb"
+      "bytes": 435768587,
+      "sha256": "81a152af724d650886f3be82cec20f1eb670597cadb210298fefcc5fa84be1e7"
     },
     "data/compose_scores_neutral": {
       "exists": false,
@@ -62,8 +62,8 @@
     "data/backtests": {
       "exists": true,
       "file_count": 146,
-      "bytes": 29258065,
-      "sha256": "02c2a4288b2e7045a51709043f701e07280223904db1ce8085fb19d2bd9930c2"
+      "bytes": 29258340,
+      "sha256": "7bc38a4aa1a1314448fcc52c83ced23bcb03cf0ab2b971df6a7d3ea9ba84903e"
     },
     "data/backtests_neutral": {
       "exists": false,
@@ -74,8 +74,8 @@
     "data/factor_ics": {
       "exists": true,
       "file_count": 146,
-      "bytes": 967341,
-      "sha256": "18193004666c545be547732a16a009939dd56693188326a00bbbfcf09c908602"
+      "bytes": 967352,
+      "sha256": "cefc850b40c083c538256a0210cc5fd650c120df6a075904a6f44a1080c4d519"
     },
     "data/factor_ics_neutral": {
       "exists": false,
