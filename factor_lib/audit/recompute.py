@@ -49,6 +49,13 @@ FACTOR_UNLOCK_SRC = (
 )
 _WORD_V2_MODULE = None
 _DERIVED_MODULE = None
+INDEPENDENT_WORD_V2_AUDIT_CODES = {
+    "CAPEXGROWTH",
+    "LIMITUPDAYS",
+    "MARGINBUYRATIO",
+    "SURVEYCNT",
+    "UNLOCKPRESS",
+}
 
 
 def _close(ref, stored, rel_tol: float = REL_TOL) -> bool:
@@ -167,6 +174,312 @@ def _parse_month_key(value: str) -> date | None:
         return date(int(key[:4]), int(key[4:6]), int(key[6:8]))
     except ValueError:
         return None
+
+
+def _reference_float(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _reference_source_date(value) -> date | None:
+    if isinstance(value, date):
+        return value
+    if value is None:
+        return None
+    key = str(value).strip().replace("-", "")
+    return _parse_month_key(key[:8])
+
+
+def _reference_factor_frame(rows: list[dict], code: str) -> pl.DataFrame:
+    if not rows:
+        return pl.DataFrame()
+    return pl.DataFrame(rows).select([
+        pl.col("trade_date").cast(pl.Date),
+        pl.col("stock_code").cast(pl.Utf8),
+        pl.lit(code).alias("factor_code"),
+        pl.col("raw_value").cast(pl.Float64),
+    ])
+
+
+def _reference_limitupdays(
+    price: pl.DataFrame,
+    keep_dates: set[str],
+    window: int = 60,
+) -> pl.DataFrame:
+    """Independent observation-window count of limit-up trading days."""
+    if price.is_empty():
+        return pl.DataFrame()
+    wanted = set(filter(None, (_parse_month_key(value) for value in keep_dates)))
+    grouped: dict[str, list[tuple[date, int, float]]] = {}
+    for rowid, row in enumerate(price.iter_rows(named=True)):
+        stock = str(row.get("S_INFO_WINDCODE") or "").strip()
+        trade_date = _reference_source_date(row.get("TRADE_DT"))
+        if not stock or trade_date is None:
+            continue
+        status = _reference_float(row.get("UP_DOWN_LIMIT_STATUS"))
+        grouped.setdefault(stock, []).append(
+            (trade_date, rowid, 1.0 if status == 1.0 else 0.0)
+        )
+
+    rows = []
+    for stock, observations in grouped.items():
+        observations.sort(key=lambda item: (item[0], item[1]))
+        rolling: list[float] = []
+        rolling_sum = 0.0
+        for trade_date, _, hit in observations:
+            rolling.append(hit)
+            rolling_sum += hit
+            if len(rolling) > window:
+                rolling_sum -= rolling.pop(0)
+            if trade_date in wanted:
+                rows.append({
+                    "trade_date": trade_date,
+                    "stock_code": stock,
+                    "raw_value": rolling_sum,
+                })
+    return _reference_factor_frame(rows, "LIMITUPDAYS")
+
+
+def _reference_unlockpress(
+    unlock_monthly: pl.DataFrame,
+    keep_dates: set[str],
+) -> pl.DataFrame:
+    """Independent exact-month extraction of the PIT 90-day unlock ratio."""
+    if unlock_monthly.is_empty():
+        return pl.DataFrame()
+    wanted = set(filter(None, (_parse_month_key(value) for value in keep_dates)))
+    rows = []
+    for row in unlock_monthly.iter_rows(named=True):
+        stock = str(row.get("S_INFO_WINDCODE") or "").strip()
+        trade_date = _reference_source_date(row.get("TRADE_DT"))
+        value = _reference_float(row.get("UNLOCK_RATIO_90D"))
+        if stock and trade_date in wanted and value is not None and value >= 0:
+            rows.append({
+                "trade_date": trade_date,
+                "stock_code": stock,
+                "raw_value": value,
+            })
+    return _reference_factor_frame(rows, "UNLOCKPRESS")
+
+
+def _reference_marginbuyratio(
+    margin: pl.DataFrame,
+    price: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 60,
+) -> pl.DataFrame:
+    """Independent ratio over the latest N dates in the sampled price calendar."""
+    if margin.is_empty() or price.is_empty():
+        return pl.DataFrame()
+
+    margin_by_key: dict[tuple[str, date], list[float]] = {}
+    for row in margin.iter_rows(named=True):
+        stock = str(row.get("S_INFO_WINDCODE") or "").strip()
+        trade_date = _reference_source_date(row.get("TRADE_DT"))
+        if not stock or trade_date is None:
+            continue
+        value = _reference_float(row.get("S_MARGIN_PURCHWITHBORROWMONEY"))
+        margin_by_key.setdefault((stock, trade_date), []).append(value or 0.0)
+
+    price_by_date: dict[date, list[tuple[str, float]]] = {}
+    for row in price.iter_rows(named=True):
+        stock = str(row.get("S_INFO_WINDCODE") or "").strip()
+        trade_date = _reference_source_date(row.get("TRADE_DT"))
+        if not stock or trade_date is None:
+            continue
+        amount = _reference_float(row.get("S_DQ_AMOUNT"))
+        price_by_date.setdefault(trade_date, []).append(
+            (stock, (amount or 0.0) * 1000.0)
+        )
+
+    ordered_calendar = sorted(price_by_date)
+    rows = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        window = [value for value in ordered_calendar if value <= asof][-window_days:]
+        totals: dict[str, list[float]] = {}
+        for trade_date in window:
+            for stock, amount in price_by_date[trade_date]:
+                margin_values = margin_by_key.get((stock, trade_date), [0.0])
+                for margin_value in margin_values:
+                    total = totals.setdefault(stock, [0.0, 0.0])
+                    total[0] += margin_value
+                    total[1] += amount
+        for stock, (numerator, denominator) in totals.items():
+            if denominator > 0:
+                rows.append({
+                    "trade_date": asof,
+                    "stock_code": stock,
+                    "raw_value": numerator / denominator,
+                })
+    return _reference_factor_frame(rows, "MARGINBUYRATIO")
+
+
+def _reference_capexgrowth(
+    cashflow: pl.DataFrame,
+    keep_dates: set[str],
+) -> pl.DataFrame:
+    """Independent PIT reconstruction of annualized capex TTM growth."""
+    if cashflow.is_empty():
+        return pl.DataFrame()
+
+    latest: dict[tuple[str, int], tuple[date, int, float]] = {}
+    for rowid, row in enumerate(cashflow.iter_rows(named=True)):
+        stock = str(row.get("S_INFO_WINDCODE") or "").strip()
+        event_date = _reference_source_date(row.get("ANN_DT"))
+        try:
+            report_period = int(row.get("REPORT_PERIOD"))
+        except (TypeError, ValueError):
+            continue
+        direct = _reference_float(row.get("CASH_PAY_ACQ_CONST_FIOLTA"))
+        fallback = _reference_float(row.get("STOT_CASH_OUTFLOWS_INV_ACT"))
+        capex = direct if direct is not None and direct > 0 else fallback
+        if not stock or event_date is None or capex is None or capex <= 0:
+            continue
+        key = (stock, report_period)
+        candidate = (event_date, rowid, capex)
+        if key not in latest or candidate[:2] > latest[key][:2]:
+            latest[key] = candidate
+
+    ttm: dict[tuple[str, int], tuple[date, float]] = {}
+    for (stock, report_period), (event_date, _, capex) in latest.items():
+        year, mmdd = divmod(report_period, 10000)
+        if mmdd == 1231:
+            value = capex
+        else:
+            prev_same = latest.get((stock, (year - 1) * 10000 + mmdd))
+            prev_year_end = latest.get((stock, (year - 1) * 10000 + 1231))
+            if prev_same is None or prev_year_end is None:
+                continue
+            value = capex - prev_same[2] + prev_year_end[2]
+        if math.isfinite(value) and value > 0:
+            ttm[(stock, report_period)] = (event_date, value)
+
+    growth_events: dict[str, list[tuple[date, int, float]]] = {}
+    for (stock, report_period), (event_date, value) in ttm.items():
+        year, mmdd = divmod(report_period, 10000)
+        previous = ttm.get((stock, (year - 1) * 10000 + mmdd))
+        if previous is None or previous[1] <= 0:
+            continue
+        growth = value / previous[1] - 1.0
+        if math.isfinite(growth) and abs(growth) <= 20.0:
+            growth_events.setdefault(stock, []).append(
+                (event_date, report_period, growth)
+            )
+
+    rows = []
+    asof_dates = sorted(filter(None, (_parse_month_key(value) for value in keep_dates)))
+    for stock, events in growth_events.items():
+        events.sort(key=lambda item: (item[0], item[1]))
+        for asof in asof_dates:
+            visible = [item for item in events if item[0] <= asof]
+            if visible:
+                rows.append({
+                    "trade_date": asof,
+                    "stock_code": stock,
+                    "raw_value": visible[-1][2],
+                })
+    return _reference_factor_frame(rows, "CAPEXGROWTH")
+
+
+def _reference_surveycnt(
+    survey: pl.DataFrame,
+    keep_dates: set[str],
+    window_days: int = 60,
+) -> pl.DataFrame:
+    """Independent calendar-window count after stock-event deduplication."""
+    if survey.is_empty():
+        return pl.DataFrame()
+    latest_event: dict[tuple[str, str], date] = {}
+    for row in survey.iter_rows(named=True):
+        stock = str(row.get("S_INFO_WINDCODE") or "").strip()
+        event_id = str(row.get("EVENT_ID") or "").strip()
+        event_date = _reference_source_date(row.get("S_SURVEYDATE"))
+        if not stock or not event_id or event_date is None:
+            continue
+        key = (stock, event_id)
+        if key not in latest_event or event_date > latest_event[key]:
+            latest_event[key] = event_date
+
+    rows = []
+    for asof in sorted(filter(None, (_parse_month_key(value) for value in keep_dates))):
+        start = asof - timedelta(days=window_days - 1)
+        counts: dict[str, int] = {}
+        for (stock, _), event_date in latest_event.items():
+            if start <= event_date <= asof:
+                counts[stock] = counts.get(stock, 0) + 1
+        for stock, count in counts.items():
+            rows.append({
+                "trade_date": asof,
+                "stock_code": stock,
+                "raw_value": float(count),
+            })
+    return _reference_factor_frame(rows, "SURVEYCNT")
+
+
+def _independent_word_v2_reference(
+    code: str,
+    src: Path,
+    stocks: set[str],
+    keep_dates: set[str],
+) -> pl.DataFrame | None:
+    if code == "LIMITUPDAYS":
+        price = _read_word_v2_parquet(
+            src,
+            "price_ext",
+            ["S_INFO_WINDCODE", "TRADE_DT", "UP_DOWN_LIMIT_STATUS"],
+            stocks,
+        )
+        return _reference_limitupdays(price, keep_dates)
+    if code == "UNLOCKPRESS":
+        unlock_monthly = _read_word_v2_parquet(
+            FACTOR_UNLOCK_SRC,
+            "unlock_monthly_pit_90d",
+            ["TRADE_DT", "S_INFO_WINDCODE", "UNLOCK_RATIO_90D"],
+            stocks,
+        )
+        return _reference_unlockpress(unlock_monthly, keep_dates)
+    if code == "MARGINBUYRATIO":
+        margin = _read_word_v2_parquet(
+            src,
+            "margin_trading_ext",
+            ["S_INFO_WINDCODE", "TRADE_DT", "S_MARGIN_PURCHWITHBORROWMONEY"],
+            stocks,
+        )
+        price = _read_word_v2_parquet(
+            src,
+            "price_ext",
+            ["S_INFO_WINDCODE", "TRADE_DT", "S_DQ_AMOUNT"],
+            stocks,
+        )
+        return _reference_marginbuyratio(margin, price, keep_dates)
+    if code == "CAPEXGROWTH":
+        cashflow = _read_word_v2_parquet(
+            src,
+            "cashflow_statement_ext",
+            [
+                "S_INFO_WINDCODE",
+                "ANN_DT",
+                "REPORT_PERIOD",
+                "CASH_PAY_ACQ_CONST_FIOLTA",
+                "STOT_CASH_OUTFLOWS_INV_ACT",
+            ],
+            stocks,
+        )
+        return _reference_capexgrowth(cashflow, keep_dates)
+    if code == "SURVEYCNT":
+        survey = _read_word_v2_parquet(
+            src,
+            "survey_ext",
+            ["EVENT_ID", "S_INFO_WINDCODE", "S_SURVEYDATE"],
+            stocks,
+        )
+        return _reference_surveycnt(survey, keep_dates)
+    return None
 
 
 def _reference_monthly_value(
@@ -1202,6 +1515,17 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
     if cache_key in cache:
         return cache[cache_key]
 
+    independent = _independent_word_v2_reference(code, src, stocks, keep_dates)
+    if independent is not None:
+        if not independent.is_empty():
+            independent = independent.filter(pl.col("factor_code") == code)
+            if stocks:
+                independent = independent.filter(
+                    pl.col("stock_code").is_in(sorted(stocks))
+                )
+        cache[cache_key] = independent
+        return independent
+
     mod = _load_word_v2_loader()
     out = pl.DataFrame({"trade_date": [], "stock_code": [], "factor_code": [], "raw_value": []})
     if code == "FWDPE":
@@ -1237,11 +1561,6 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
     elif code == "ORCAGR3Y":
         pit = _read_word_v2_parquet(src, "pit_financial_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_DFA_OR_TTM"], stocks)
         out = mod.build_orcagr3y(pit, keep_dates)
-    elif code == "CAPEXGROWTH":
-        cashflow = _read_word_v2_parquet(src, "cashflow_statement_ext", [
-            "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "CASH_PAY_ACQ_CONST_FIOLTA", "STOT_CASH_OUTFLOWS_INV_ACT",
-        ], stocks)
-        out = mod.build_capex_growth(cashflow, keep_dates)
     elif code in {"INTDEBTRATIO", "GOODWILLRATIO", "ARRATIO"}:
         balance = _read_word_v2_parquet(src, "balance_statement_ext", [
             "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "TOT_ASSETS", "ST_BORROW",
@@ -1274,7 +1593,7 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         ], stocks)
         pit = _read_word_v2_parquet(src, "pit_financial_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_DFA_NETPROFIT_TTM"], stocks)
         out = _reference_dividend_factors(dividend, pit, keep_dates)
-    elif code in {"SUSPENDDAYS", "LIMITUPDAYS", "LIMITDOWNDAYS", "ONEBOARDDAYS"}:
+    elif code in {"SUSPENDDAYS", "LIMITDOWNDAYS", "ONEBOARDDAYS"}:
         price = _read_word_v2_parquet(src, "price_ext", [
             "S_INFO_WINDCODE", "TRADE_DT", "S_DQ_OPEN", "S_DQ_HIGH", "S_DQ_LOW",
             "S_DQ_CLOSE", "S_DQ_AMOUNT", "S_DQ_TRADESTATUS", "UP_DOWN_LIMIT_STATUS",
@@ -1314,28 +1633,11 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             "S_HOLDER_MEMO", "S_INFO_COMPCODE",
         ], stocks)
         out = _reference_top10hold(inside_holder, keep_dates)
-    elif code == "UNLOCKPRESS":
-        unlock_monthly = _read_word_v2_parquet(
-            FACTOR_UNLOCK_SRC,
-            "unlock_monthly_pit_90d",
-            [
-                "TRADE_DT", "S_INFO_WINDCODE", "UNLOCK_SHARES_90D",
-                "UNLOCK_RATIO_90D",
-            ],
-            stocks,
-        )
-        out = mod.build_unlock_pressure_monthly(unlock_monthly, keep_dates)
     elif code == "MARGINBALCHG":
         margin = _read_word_v2_parquet(src, "margin_trading_ext", [
             "S_INFO_WINDCODE", "TRADE_DT", "S_MARGIN_TRADINGBALANCE",
         ], stocks)
         out = mod.build_marginbalchg(margin, keep_dates)
-    elif code == "MARGINBUYRATIO":
-        margin = _read_word_v2_parquet(src, "margin_trading_ext", [
-            "S_INFO_WINDCODE", "TRADE_DT", "S_MARGIN_PURCHWITHBORROWMONEY",
-        ], stocks)
-        price = _read_word_v2_parquet(src, "price_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_DQ_AMOUNT"], stocks)
-        out = mod.build_marginbuyratio(margin, price, keep_dates)
     elif code == "ESTEARNREV":
         consensus = _read_word_v2_parquet(src, "consensus_ext", ["S_INFO_WINDCODE", "TRADE_DT", "S_WEST_NETPROFIT_FTM_1M"], stocks)
         out = mod.build_est_earn_rev(consensus, keep_dates)
@@ -1360,9 +1662,6 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             out = _reference_analystcover(ratings, keep_dates, trading_dates)
         else:
             out = _reference_targetpricechg(ratings, keep_dates)
-    elif code == "SURVEYCNT":
-        survey = _read_word_v2_parquet(src, "survey_ext", ["EVENT_ID", "S_INFO_WINDCODE", "S_SURVEYDATE"], stocks)
-        out = mod.build_surveycnt(survey, keep_dates)
     elif code == "SURVEYINSTCNT":
         survey = _read_word_v2_parquet(src, "survey_ext", ["EVENT_ID", "S_INFO_WINDCODE", "S_SURVEYDATE"], stocks)
         participants = _read_word_v2_parquet(src, "survey_participant_ext", ["EVENT_ID", "S_INSTITUTIONCODE"], None)
