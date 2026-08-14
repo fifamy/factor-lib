@@ -31,11 +31,11 @@ _DEFS = [
      "近20交易日(机构+大户)净流入 / 近20日总成交额；主力资金净买入越强越好。"),
     # ---- 3.2 筹码结构类 ----
     ("HOLDERCHG", "筹码结构", -1, "股东户数变化", "holdernum", "S_HOLDER_NUM", "mom_pct",
-     "股东户数月度变化率；户数减少=筹码集中(通常利好)，方向负。"),
+     "股东户数月度变化率；同一公告日多个不同正户数时该日置空；户数减少=筹码集中(通常利好)，方向负。"),
     ("HOLDERCONC", "筹码结构", 1, "户均持股(集中度)", "holderconc", "PER_HOLDER", "level",
-     "户均流通股 = 流通股本 / 股东户数；越高=散户越少、筹码越集中，正向。"),
+     "户均流通股 = 流通股本 / 股东户数；同一公告日多个不同正户数时该日置空；越高=散户越少、筹码越集中，正向。"),
     ("HOLDERCONCCHG", "筹码结构", 1, "筹码集中度变化", "holderconc", "PER_HOLDER", "mom_pct",
-     "户均持股的月度变化率；上升=筹码进一步集中，正向。"),
+     "户均持股的月度变化率；同一公告日多个不同正户数时该日置空；上升=筹码进一步集中，正向。"),
 ]
 
 _WIND_TABLE = {
@@ -47,10 +47,23 @@ _WIND_TABLE = {
 
 _TRANSFORM_DESC = {"level": "当月值", "mom_diff": "月度差分", "mom_pct": "月度变化率"}
 
+_FORMULA_SUFFIX = {
+    "HOLDERCHG": "；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空",
+    "HOLDERCONC": "；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空",
+    "HOLDERCONCCHG": "；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空",
+}
+
 for code, l2, direction, name_cn, sfile, sfield, transform, desc in _DEFS:
     register_external(
         code=code, l1="投资者行为信息", l2=l2, direction=direction, name_cn=name_cn,
         source_file=sfile, source_field=sfield, description=desc, transform=transform,
-        formula=f"{name_cn} = {_WIND_TABLE[sfile]}.{sfield}（{_TRANSFORM_DESC[transform]}）",
+        formula=(
+            f"{name_cn} = {_WIND_TABLE[sfile]}.{sfield}（{_TRANSFORM_DESC[transform]}）"
+            + (
+                f"{_FORMULA_SUFFIX[code]}。"
+                if code in _FORMULA_SUFFIX
+                else ""
+            )
+        ),
         wind_source=f"{_WIND_TABLE[sfile]}.{sfield}",
     )

@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "generated_at": "2026-08-13 15:57:21+0800",
+  "generated_at": "2026-08-14 13:18:01+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
-  "resolution_updated_at": "2026-08-13",
+  "resolution_updated_at": "2026-08-14",
   "summary": {
     "manual_review_record_count": 148,
     "manual_issue_factor_count": 81,
@@ -1122,7 +1122,7 @@
         "股东户数同日多值改为保守置空"
       ],
       "verification_assessment": [
-        "HOLDERAVGCHG与HOLDERCONCCHG均由PER_HOLDER相对上月的变化构造，底层含义相同，得分相关系数为0.999953。微小差异不足以支持组合重复计权。",
+        "HOLDERAVGCHG与HOLDERCONCCHG均由PER_HOLDER相对上月的变化构造，底层含义相同。同日冲突规则统一后，原始共同键完全一致，得分相关系数为0.999999759；历史条数相差192条仅由HOLDERAVGCHG额外执行|chg|<=20过滤所致。该差异不足以支持组合重复计权。",
         "holder_ext只有股票、公告日和股东户数，缺少报告期与更细公告时点。同一股票同一ANN_DT存在多个不同正S_HOLDER_NUM时，原实现按文件行序取last，结果依赖不可审计的物理行序。"
       ],
       "reason_not_changed": [
@@ -1134,8 +1134,9 @@
       ],
       "evidence": [
         "两因子底层均为PER_HOLDER月度变化",
-        "PER_HOLDER由FREE_SHARES_TODAY/S_HOLDER_NUM生成",
-        "HOLDERAVGCHG/HOLDERCONCCHG得分相关系数0.999953",
+        "PER_HOLDER由FREE_SHARES_TODAY/S_HOLDER_NUM生成，同日多个不同正户数置空",
+        "最新截面两因子均为3229条",
+        "原始得分相关0.999999759（n=362531），中性化得分相关0.999480583（n=362457）",
         "350648个股票公告日组中46550组存在不同正户数",
         "截至2026-07-31的最新公告日有1941只股票冲突",
         "定向重算删除117424个无法判定的历史键且共同键数值不变"
@@ -1157,24 +1158,33 @@
       "l2": "筹码结构类",
       "resolution_status": "not_planned",
       "decision_titles": [
-        "股东户数与融资余额变化保留滚动方向预警"
+        "股东户数与融资余额变化保留滚动方向预警",
+        "持有人结构三因子统一同日冲突置空口径"
       ],
       "verification_assessment": [
-        "HOLDERCHG覆盖率98.64%，MARGINBALCHG覆盖率52.40%，两者均对账一致。方向预警说明变化类信号在不同市场阶段的横截面关系不稳定；MARGINBALCHG另有厚尾和极端值，但没有非有限值或源数据对账错误。"
+        "HOLDERCHG覆盖率98.64%，MARGINBALCHG覆盖率52.40%，两者均对账一致。方向预警说明变化类信号在不同市场阶段的横截面关系不稳定；MARGINBALCHG另有厚尾和极端值，但没有非有限值或源数据对账错误。",
+        "HOLDERCHG、HOLDERCONC和HOLDERCONCCHG原由下载阶段的_pit_align_holder对同一股票同一ANN_DT取last，与2026-08-13已修复的HOLDERAVGCHG保守规则不一致，仍可将物理行序选中的冲突户数传播至历史月度序列。"
       ],
       "reason_not_changed": [
         "当前问题属于时变有效性和覆盖边界，不是字段、单位或计算公式错误。"
       ],
       "decision_action": [
-        "保留现有变化定义与方向约定，继续展示方向、厚尾和覆盖提示；组合使用前按滚动窗口和覆盖样本检验稳定性，不把缺失样本填成无变化。"
+        "保留现有变化定义与方向约定，继续展示方向、厚尾和覆盖提示；组合使用前按滚动窗口和覆盖样本检验稳定性，不把缺失样本填成无变化。",
+        "正式下载器、兼容下载器和独立重建脚本统一为：先过滤非正户数，同一股票同一ANN_DT只有一个不同正S_HOLDER_NUM时接受该快照，多个不同正值时当日置空且不回退到旧快照。已覆盖重建三因子及全部下游产物。"
       ],
       "evidence": [
         "HOLDERCHG与MARGINBALCHG当前均为recon=match",
         "HOLDERCHG覆盖率98.64%",
-        "MARGINBALCHG覆盖率52.40%且存在outlier、heavy_tail提示"
+        "MARGINBALCHG覆盖率52.40%且存在outlier、heavy_tail提示",
+        "定向重建后HOLDERCHG由582525条降至461284条，共同键数值不变",
+        "HOLDERCONC由561919条重建为476576条，HOLDERCONCCHG由556437条重建为438854条",
+        "2026-07-31最新截面HOLDERCHG/HOLDERCONC/HOLDERCONCCHG分别为3404/3339/3229条",
+        "冲突样例688785.SH和001220.SZ在三因子最新截面均不存在",
+        "全量审计三因子均为recon=match、health=ok"
       ],
       "decision_issue_ids": [
-        "validation-holder-margin-change-retained"
+        "validation-holder-margin-change-retained",
+        "calculation-holder-structure-same-day-conflict-alignment"
       ]
     },
     {
@@ -1194,24 +1204,33 @@
       ],
       "manual_updated_at": "2026-07-10T06:27:49.413041+00:00",
       "decision_titles": [
-        "户均流通股公式已经落实人工建议"
+        "户均流通股公式已经落实人工建议",
+        "持有人结构三因子统一同日冲突置空口径"
       ],
       "verification_assessment": [
-        "当前HOLDERCONC直接使用PER_HOLDER；下载脚本仅在股东户数大于0且自由流通股本非空时，按FREE_SHARES_TODAY/S_HOLDER_NUM计算PER_HOLDER，与人工建议的户均流通股公式一致。水平值反映月末户均流通股规模，变化率由HOLDERAVGCHG和HOLDERCONCCHG另行表达。"
+        "当前HOLDERCONC直接使用PER_HOLDER；下载与重建脚本仅在股东户数大于0、自由流通股本非空且同一股票同一公告日仅有一个不同正户数时，按FREE_SHARES_TODAY/S_HOLDER_NUM计算PER_HOLDER。水平值反映月末户均流通股规模，变化率由HOLDERAVGCHG和HOLDERCONCCHG另行表达。",
+        "HOLDERCHG、HOLDERCONC和HOLDERCONCCHG原由下载阶段的_pit_align_holder对同一股票同一ANN_DT取last，与2026-08-13已修复的HOLDERAVGCHG保守规则不一致，仍可将物理行序选中的冲突户数传播至历史月度序列。"
       ],
       "reason_not_changed": [
-        "人工建议的公式已经在数据下载和因子加载环节实现，当前不存在需要覆盖历史序列的计算差异。"
+        "户均流通股公式本身无需改变；2026-08-14已按可审计的同日唯一正户数规则覆盖重建历史序列。"
       ],
       "decision_action": [
-        "保留HOLDERCONC现有水平值和历史序列；审核页明确展示FREE_SHARES_TODAY/S_HOLDER_NUM，不再引用与本因子无关的估值文献或重复因子相关矩阵。"
+        "保留HOLDERCONC户均流通股水平值定义；同日出现多个不同正S_HOLDER_NUM时该公告日置空，且不回退到更早冲突前快照。审核页明确展示FREE_SHARES_TODAY/S_HOLDER_NUM及冲突置空规则。",
+        "正式下载器、兼容下载器和独立重建脚本统一为：先过滤非正户数，同一股票同一ANN_DT只有一个不同正S_HOLDER_NUM时接受该快照，多个不同正值时当日置空且不回退到旧快照。已覆盖重建三因子及全部下游产物。"
       ],
       "evidence": [
-        "资料/download_factor_data_to_20260531.py按FREE_SHARES_TODAY/S_HOLDER_NUM生成PER_HOLDER",
-        "S_HOLDER_NUM<=0或FREE_SHARES_TODAY缺失时不计算",
-        "HOLDERCONC读取PER_HOLDER水平值"
+        "资料/download_factor_library_full_to_20260731.py按FREE_SHARES_TODAY/S_HOLDER_NUM生成PER_HOLDER",
+        "S_HOLDER_NUM<=0、FREE_SHARES_TODAY缺失或同日存在多个不同正户数时不计算",
+        "2026-08-14重建后HOLDERCONC历史476576条、最新截面3339条",
+        "定向重建后HOLDERCHG由582525条降至461284条，共同键数值不变",
+        "HOLDERCONC由561919条重建为476576条，HOLDERCONCCHG由556437条重建为438854条",
+        "2026-07-31最新截面HOLDERCHG/HOLDERCONC/HOLDERCONCCHG分别为3404/3339/3229条",
+        "冲突样例688785.SH和001220.SZ在三因子最新截面均不存在",
+        "全量审计三因子均为recon=match、health=ok"
       ],
       "decision_issue_ids": [
-        "definition-holderconc-per-holder"
+        "definition-holderconc-per-holder",
+        "calculation-holder-structure-same-day-conflict-alignment"
       ],
       "manual_review_available": true
     },
@@ -1229,11 +1248,13 @@
       "manual_updated_at": "2026-07-10T06:29:05.034751+00:00",
       "decision_titles": [
         "户均持股变化别名保留但不得与同源因子重复计权",
-        "两个人均持股变化代码近乎同序列"
+        "两个人均持股变化代码近乎同序列",
+        "持有人结构三因子统一同日冲突置空口径"
       ],
       "verification_assessment": [
-        "HOLDERCONCCHG与HOLDERAVGCHG均由PER_HOLDER相对上月变化构造，本地得分相关系数为0.999953，属于近乎同序列的兼容代码，不应被当作两个独立信号。",
-        "HOLDERAVGCHG与HOLDERCONCCHG均由PER_HOLDER相对上月的变化构造，底层含义相同，得分相关系数为0.999953。微小差异不足以支持组合重复计权。"
+        "HOLDERCONCCHG与HOLDERAVGCHG均由PER_HOLDER相对上月变化构造。同日冲突规则统一后，两者在438662个原始共同键上完全相同；HOLDERCONCCHG另有192条绝对变化率大于20的历史记录，因HOLDERAVGCHG的|chg|<=20过滤而不存在于后者。得分相关系数为0.999999759，仍属近乎同序列的兼容代码。",
+        "HOLDERAVGCHG与HOLDERCONCCHG均由PER_HOLDER相对上月的变化构造，底层含义相同。同日冲突规则统一后，原始共同键完全一致，得分相关系数为0.999999759；历史条数相差192条仅由HOLDERAVGCHG额外执行|chg|<=20过滤所致。该差异不足以支持组合重复计权。",
+        "HOLDERCHG、HOLDERCONC和HOLDERCONCCHG原由下载阶段的_pit_align_holder对同一股票同一ANN_DT取last，与2026-08-13已修复的HOLDERAVGCHG保守规则不一致，仍可将物理行序选中的冲突户数传播至历史月度序列。"
       ],
       "reason_not_changed": [
         "用户明确要求本轮不删除因子；保留代码不等于认可其为独立信号，重复使用风险已经由组合约束控制。",
@@ -1241,19 +1262,27 @@
       ],
       "decision_action": [
         "按用户决定保留HOLDERCONCCHG历史序列和代码兼容性；组合层继续禁止与HOLDERAVGCHG同时入选或重复计权。",
-        "按用户决定保留两个代码和历史序列；组合层继续硬拦截二者同时入选，新研究只选其中一个人均持股变化信号。"
+        "按用户决定保留两个代码和历史序列；组合层继续硬拦截二者同时入选，新研究只选其中一个人均持股变化信号。",
+        "正式下载器、兼容下载器和独立重建脚本统一为：先过滤非正户数，同一股票同一ANN_DT只有一个不同正S_HOLDER_NUM时接受该快照，多个不同正值时当日置空且不回退到旧快照。已覆盖重建三因子及全部下游产物。"
       ],
       "evidence": [
         "HOLDERCONCCHG与HOLDERAVGCHG均读取PER_HOLDER月度变化",
-        "两因子得分相关系数0.999953",
+        "原始共同键438662个且数值完全一致，HOLDERCONCCHG另有192个未截断极端变化键",
+        "原始得分相关0.999999759（n=362531），中性化得分相关0.999480583（n=362457）",
         "config/factor_usage_constraints.json已设置硬拦截",
         "两因子底层均为PER_HOLDER月度变化",
-        "PER_HOLDER由FREE_SHARES_TODAY/S_HOLDER_NUM生成",
-        "HOLDERAVGCHG/HOLDERCONCCHG得分相关系数0.999953"
+        "PER_HOLDER由FREE_SHARES_TODAY/S_HOLDER_NUM生成，同日多个不同正户数置空",
+        "最新截面两因子均为3229条",
+        "定向重建后HOLDERCHG由582525条降至461284条，共同键数值不变",
+        "HOLDERCONC由561919条重建为476576条，HOLDERCONCCHG由556437条重建为438854条",
+        "2026-07-31最新截面HOLDERCHG/HOLDERCONC/HOLDERCONCCHG分别为3404/3339/3229条",
+        "冲突样例688785.SH和001220.SZ在三因子最新截面均不存在",
+        "全量审计三因子均为recon=match、health=ok"
       ],
       "decision_issue_ids": [
         "redundancy-holderconcchg-alias-retained",
-        "redundancy-holderavgchg-holderconcchg"
+        "redundancy-holderavgchg-holderconcchg",
+        "calculation-holder-structure-same-day-conflict-alignment"
       ],
       "manual_review_available": true
     },

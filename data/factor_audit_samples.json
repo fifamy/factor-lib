@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-13 11:31:38",
+  "generated_at": "2026-08-14 10:46:34",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -5375,13 +5375,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "601163.SH",
-        "stock_name": "三角轮胎",
+        "stock_code": "603588.SH",
+        "stock_name": "高能环境",
         "raw_value": 2.0,
-        "score": -0.04192461739849808,
+        "score": -0.11431495367709395,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=2.0000，方向处理后的 score=-0.041925。",
+          "系统输出 raw_value=2.0000，方向处理后的 score=-0.114315。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -5396,8 +5396,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.04192461739849808,
-            "display": "-0.041925",
+            "value": -0.11431495367709395,
+            "display": "-0.114315",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -6725,13 +6725,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "600649.SH",
-        "stock_name": "城投控股",
+        "stock_code": "600728.SH",
+        "stock_name": "佳都科技",
         "raw_value": 0.0,
-        "score": -0.16685036399850214,
+        "score": -0.19591518731450958,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=-0.166850。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=-0.195915。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -6746,8 +6746,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.16685036399850214,
-            "display": "-0.166850",
+            "value": -0.19591518731450958,
+            "display": "-0.195915",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -6769,7 +6769,7 @@
       "system_l1": "投资者行为信息",
       "system_l2": "筹码结构类",
       "system_direction": "负向",
-      "system_formula": "股东户数变化 = AShareHolderNumber（ANN_DT PIT 对齐）.S_HOLDER_NUM（月度变化率）",
+      "system_formula": "股东户数变化 = AShareHolderNumber（ANN_DT PIT 对齐）.S_HOLDER_NUM（月度变化率）；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空。",
       "system_wind_source": "AShareHolderNumber（ANN_DT PIT 对齐）.S_HOLDER_NUM",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -6823,7 +6823,7 @@
       "system_l1": "投资者行为信息",
       "system_l2": "筹码结构类",
       "system_direction": "正向",
-      "system_formula": "户均持股(集中度) = AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER（当月值）",
+      "system_formula": "户均持股(集中度) = AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER（当月值）；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空。",
       "system_wind_source": "AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -6877,7 +6877,7 @@
       "system_l1": "投资者行为信息",
       "system_l2": "筹码结构类",
       "system_direction": "正向",
-      "system_formula": "筹码集中度变化 = AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER（月度变化率）",
+      "system_formula": "筹码集中度变化 = AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER（月度变化率）；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空。",
       "system_wind_source": "AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -9337,13 +9337,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "300872.SZ",
-        "stock_name": "天阳科技",
+        "stock_code": "301028.SZ",
+        "stock_name": "鼎熔岩",
         "raw_value": 0.0,
-        "score": 0.07652446796097469,
+        "score": 0.08847257025280351,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=0.076524。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=0.088473。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -9358,8 +9358,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.07652446796097469,
-            "display": "0.076524",
+            "value": 0.08847257025280351,
+            "display": "0.088473",
             "unit": "",
             "note": "用于排序和组合构建"
           }

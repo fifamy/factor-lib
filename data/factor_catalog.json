@@ -65,7 +65,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "short_term_momentum_reversal_alias",
+        "reason": "两者是同一短端收益路径的正反写法，当前历史得分绝对相关性约0.966，不得同时计权。"
+      }
+    ],
     "env_tag": "全天候型",
     "time_tag": "近期转弱"
   },
@@ -108,7 +113,7 @@
     "combo_exclusion_groups": [
       {
         "id": "turnover_level_alias",
-        "reason": "当前历史得分相关性0.9995，默认不得同时计权。"
+        "reason": "STOM与TURN20当前历史得分相关性约0.9995，TURNVOL20与二者相关性约0.935，默认不得同时计权。"
       }
     ],
     "env_tag": "熊市防御型",
@@ -170,7 +175,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "earnings_yield_pe_alias",
+        "reason": "两者在登记方向处理后均表达低估值，当前历史得分相关性约0.947，不得同时计权。"
+      }
+    ],
     "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
@@ -250,7 +260,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "earnings_yield_pe_alias",
+        "reason": "两者在登记方向处理后均表达低估值，当前历史得分相关性约0.947，不得同时计权。"
+      }
+    ],
     "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
@@ -307,8 +322,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "ROA、ROIC与ROE当前历史得分相关性约0.91~0.96，且1个月RankIC均接近0；作为质量信号使用时建议三者只选一个，并人工确认增量价值。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
@@ -327,8 +342,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "ROA、ROIC与ROE当前历史得分相关性约0.91~0.96，且1个月RankIC均接近0；作为质量信号使用时建议三者只选一个，并人工确认增量价值。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
@@ -347,8 +362,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "ROA、ROIC与ROE当前历史得分相关性约0.91~0.96，且1个月RankIC均接近0；作为质量信号使用时建议三者只选一个，并人工确认增量价值。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
@@ -387,8 +402,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "NETMGN与OPMGN当前历史得分相关性约0.98，且1个月RankIC均接近0；作为利润率信号使用时建议只选一个，并人工确认增量价值。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
@@ -407,8 +422,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "NETMGN与OPMGN当前历史得分相关性约0.98，且1个月RankIC均接近0；作为利润率信号使用时建议只选一个，并人工确认增量价值。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
@@ -510,7 +525,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "leverage_monotonic_alias",
+        "reason": "三者反映同一资本结构，LEVERAGE与EQMULT、DEBT2EQ的当前历史得分相关性分别约0.998和0.994，不得同时计权。"
+      }
+    ],
     "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
@@ -727,8 +747,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "CURRENT、QUICK与CASHRATIO当前历史得分相关性约0.90~0.97，且1个月RankIC均接近0；作为流动性比率信号使用时建议三者只选一个。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
@@ -747,8 +767,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "CURRENT、QUICK与CASHRATIO当前历史得分相关性约0.90~0.97，且1个月RankIC均接近0；作为流动性比率信号使用时建议三者只选一个。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
@@ -767,8 +787,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "CURRENT、QUICK与CASHRATIO当前历史得分相关性约0.90~0.97，且1个月RankIC均接近0；作为流动性比率信号使用时建议三者只选一个。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
@@ -813,7 +833,7 @@
     "combo_exclusion_groups": [
       {
         "id": "leverage_monotonic_alias",
-        "reason": "两者为同一资本结构的单调变换，当前得分完全一致，不得同时计权。"
+        "reason": "三者反映同一资本结构，LEVERAGE与EQMULT、DEBT2EQ的当前历史得分相关性分别约0.998和0.994，不得同时计权。"
       }
     ],
     "env_tag": "牛市进攻型",
@@ -838,7 +858,7 @@
     "combo_exclusion_groups": [
       {
         "id": "leverage_monotonic_alias",
-        "reason": "两者为同一资本结构的单调变换，当前得分完全一致，不得同时计权。"
+        "reason": "三者反映同一资本结构，LEVERAGE与EQMULT、DEBT2EQ的当前历史得分相关性分别约0.998和0.994，不得同时计权。"
       }
     ],
     "env_tag": "牛市进攻型",
@@ -981,7 +1001,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "持续低效"
   },
   {
@@ -1045,7 +1065,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "short_term_momentum_reversal_alias",
+        "reason": "两者是同一短端收益路径的正反写法，当前历史得分绝对相关性约0.966，不得同时计权。"
+      }
+    ],
     "env_tag": "全天候型",
     "time_tag": "近期转强"
   },
@@ -1273,7 +1298,7 @@
     "combo_exclusion_groups": [
       {
         "id": "turnover_level_alias",
-        "reason": "当前历史得分相关性0.9995，默认不得同时计权。"
+        "reason": "STOM与TURN20当前历史得分相关性约0.9995，TURNVOL20与二者相关性约0.935，默认不得同时计权。"
       }
     ],
     "env_tag": "熊市防御型",
@@ -1570,8 +1595,8 @@
     "l1": "投资者行为信息",
     "l2": "筹码结构类",
     "direction": -1,
-    "description": "股东户数月度变化率；户数减少=筹码集中(通常利好)，方向负。",
-    "formula": "股东户数变化 = AShareHolderNumber（ANN_DT PIT 对齐）.S_HOLDER_NUM（月度变化率）",
+    "description": "股东户数月度变化率；同一公告日多个不同正户数时该日置空；户数减少=筹码集中(通常利好)，方向负。",
+    "formula": "股东户数变化 = AShareHolderNumber（ANN_DT PIT 对齐）.S_HOLDER_NUM（月度变化率）；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空。",
     "wind_source": "AShareHolderNumber（ANN_DT PIT 对齐）.S_HOLDER_NUM",
     "v2_status": "computed",
     "positive_only": false,
@@ -1590,8 +1615,8 @@
     "l1": "投资者行为信息",
     "l2": "筹码结构类",
     "direction": 1,
-    "description": "户均流通股 = 流通股本 / 股东户数；越高=散户越少、筹码越集中，正向。",
-    "formula": "户均持股(集中度) = AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER（当月值）",
+    "description": "户均流通股 = 流通股本 / 股东户数；同一公告日多个不同正户数时该日置空；越高=散户越少、筹码越集中，正向。",
+    "formula": "户均持股(集中度) = AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER（当月值）；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空。",
     "wind_source": "AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER",
     "v2_status": "computed",
     "positive_only": false,
@@ -1610,8 +1635,8 @@
     "l1": "投资者行为信息",
     "l2": "筹码结构类",
     "direction": 1,
-    "description": "户均持股的月度变化率；上升=筹码进一步集中，正向。",
-    "formula": "筹码集中度变化 = AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER（月度变化率）",
+    "description": "户均持股的月度变化率；同一公告日多个不同正户数时该日置空；上升=筹码进一步集中，正向。",
+    "formula": "筹码集中度变化 = AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER（月度变化率）；同一股票同一ANN_DT仅接受唯一正S_HOLDER_NUM，存在多个不同正值时该公告日置空。",
     "wind_source": "AShareHolderNumber + price_panel（户均流通股，本地算）.PER_HOLDER",
     "v2_status": "computed",
     "positive_only": false,
@@ -1645,7 +1670,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "revenue_cagr_3y_alias",
+        "reason": "两者分别使用营业总收入与营业收入构造三年CAGR，当前历史得分相关性约0.993，不得同时计权。"
+      }
+    ],
     "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
@@ -1890,7 +1920,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "turnover_level_alias",
+        "reason": "STOM与TURN20当前历史得分相关性约0.9995，TURNVOL20与二者相关性约0.935，默认不得同时计权。"
+      }
+    ],
     "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
@@ -1928,7 +1963,7 @@
     "is_event": true,
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
-    "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。",
+    "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。与EXPOP当前历史得分相关性约0.92，不建议二者同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
@@ -1988,7 +2023,7 @@
     "is_event": true,
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
-    "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。",
+    "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。与EXPDEDNP当前历史得分相关性约0.92，不建议二者同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
@@ -2235,7 +2270,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "revenue_cagr_3y_alias",
+        "reason": "两者分别使用营业总收入与营业收入构造三年CAGR，当前历史得分相关性约0.993，不得同时计权。"
+      }
+    ],
     "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
@@ -2598,7 +2638,7 @@
     "is_event": false,
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
-    "usage_note": "已按ANN_DT完成月末PIT重算；当前源表为快照而非修订历史，早期预测版本可能被最终公告覆盖，历史覆盖偏保守，建议作为稀疏解禁压力辅助信号。",
+    "usage_note": "已按ANN_DT完成月末PIT重算；当前源表为快照而非修订历史，早期预测版本可能被最终公告覆盖，历史覆盖偏保守，建议作为稀疏解禁压力辅助信号。与UNLOCKMVRATIO当前历史得分相关性约0.95，不建议二者同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
@@ -2968,7 +3008,7 @@
     "is_event": false,
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
-    "usage_note": "已按ANN_DT完成月末PIT重算；当前源表为快照而非修订历史，早期预测版本可能被最终公告覆盖，历史覆盖偏保守，建议作为稀疏供给冲击辅助信号。",
+    "usage_note": "已按ANN_DT完成月末PIT重算；当前源表为快照而非修订历史，早期预测版本可能被最终公告覆盖，历史覆盖偏保守，建议作为稀疏供给冲击辅助信号。与UNLOCKPRESS当前历史得分相关性约0.95，不建议二者同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
