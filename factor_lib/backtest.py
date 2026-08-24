@@ -1,4 +1,4 @@
-"""月末调仓 + 等权持有 + 双边成本的回测内核。"""
+"""月末调仓 + 等权持有 + 按换手扣交易成本的回测内核。"""
 from __future__ import annotations
 
 import polars as pl
@@ -113,8 +113,18 @@ def _nav_from_weighted_holdings(
     turnover_df = pl.DataFrame(turnovers)
 
     out = port_ret.join(turnover_df, on="trade_date", how="left")
+    # Charge long-only costs against the capital that remains after the
+    # holding-period return.  Additive subtraction can push a total loss
+    # below -100% (for example -1.0 - 0.002) and create an impossible negative
+    # NAV.  The multiplicative convention preserves the economic lower bound:
+    # gross == -1.0 always implies net == -1.0.
     out = out.with_columns(
-        (pl.col("port_ret_gross") - pl.col("trading_cost")).alias("port_ret")
+        pl.max_horizontal(
+            pl.lit(-1.0),
+            (1.0 + pl.col("port_ret_gross"))
+            * (1.0 - pl.col("trading_cost"))
+            - 1.0,
+        ).alias("port_ret")
     )
     out = out.sort("trade_date").with_columns(
         (1.0 + pl.col("port_ret")).cum_prod().alias("nav")
@@ -351,7 +361,7 @@ def run_quantile_backtests(
     """按截面分位构造 Q1..Qn 与最高-最低多空组合。
 
     Q1 是最低分数组，Qn 是最高分数组；因子方向已经体现在 score 上。
-    多空组合 LS = Qn - Q1，收益使用两个腿分别扣成本后的净收益相减。
+    多空组合 LS = Qn - Q1，并按两个腿的换手分别承担成本。
     """
     if n_quantiles < 2:
         raise ValueError("n_quantiles must be at least 2")

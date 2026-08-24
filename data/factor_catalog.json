@@ -22,7 +22,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "反向恶化"
   },
   {
     "code": "RSTR252",
@@ -47,7 +47,7 @@
       }
     ],
     "env_tag": "牛市进攻型",
-    "time_tag": "近期失效"
+    "time_tag": "反向恶化"
   },
   {
     "code": "REV1M",
@@ -62,8 +62,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前原始值为过去21日正向对数收益，并通过direction=-1表达反转；与Word直接把负号写入因子值的表达不同。组合使用时不得再次手工取反，且与MOM20属于同一路径的正反写法，仍不得同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -87,8 +87,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前采用252日窗口并按sqrt(252)年化，与Word所述250日窗口及sqrt(250)年化略有不同。与DOWNVOL当前历史得分相关性约0.956，但总波动率与下行波动率的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
@@ -132,12 +132,12 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前以全A股市值加权收益作为市场代理，与Word所述外部市场指数基准不同；不能直接解释为特定指数Beta，使用前须确认基准口径。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "近期转强"
+    "time_tag": "反向改善"
   },
   {
     "code": "DOWNBETA",
@@ -172,8 +172,8 @@
     "positive_only": true,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "与PE_DED当前历史得分相关性约0.926，但净利润与扣非净利润估值口径不同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -282,8 +282,8 @@
     "positive_only": true,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "与PE当前历史得分相关性约0.926，但扣非净利润与净利润估值口径不同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
@@ -387,7 +387,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "NETMGN",
@@ -462,8 +462,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "与OPGROWTH当前历史得分相关性约0.921，但净利润增长与营业利润增长的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
@@ -482,8 +482,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "与NPGROWTH当前历史得分相关性约0.921，但营业利润增长与净利润增长的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
@@ -522,8 +522,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "与TANG2ASSET当前历史得分相关性约0.903，但杠杆与有形资产结构的经济含义不同；不新增硬性互斥，同时计权前须复核边际信息、共线性和权重。LEVERAGE与EQMULT、DEBT2EQ的既有同义硬拦截仍保留。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -772,7 +772,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "CASHRATIO",
@@ -852,8 +852,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "与TANG2ASSET当前历史得分相关性约0.901，但权益乘数与有形资产结构的经济含义不同；不新增硬性互斥，同时计权前须复核边际信息、共线性和权重。EQMULT与LEVERAGE、DEBT2EQ的既有同义硬拦截仍保留。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -897,8 +897,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "与LEVERAGE、EQMULT当前历史得分相关性分别约0.903、0.901，但有形资产结构与杠杆的经济含义不同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
@@ -1002,7 +1002,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "REV5D",
@@ -1037,8 +1037,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均为负；当前为60日绝对收益，与Word所述相对市场收益口径不同。组合使用前必须人工复核方向、基准、滚动有效性和权重。MOM60与RELRET60为当前得分别名，仍不得同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -1047,7 +1047,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "反向恶化"
   },
   {
     "code": "MOM20",
@@ -1062,8 +1062,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均为负，负值收窄不等于恢复正向有效；组合使用前必须人工复核方向、滚动有效性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -1072,7 +1072,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "time_tag": "反向改善"
   },
   {
     "code": "PRICEZ",
@@ -1147,8 +1147,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "与DASTD当前历史得分相关性约0.956，但下行波动率与总波动率的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
@@ -1187,12 +1187,12 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均持续为负；组合使用前必须人工复核方向、极端月影响、滚动有效性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "持续反向"
   },
   {
     "code": "RETKURT",
@@ -1207,12 +1207,12 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均为负，负值收窄不等于恢复正向有效；组合使用前必须人工复核方向、极端月影响、滚动有效性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "time_tag": "反向改善"
   },
   {
     "code": "BIGDOWN",
@@ -1247,8 +1247,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前计算20日成交额的对数均值，与Word所述成交额算术均值口径不同；截面排序通常保持单调，但原始量级不可互换。与MFLOW20当前得分完全一致，仍不得同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -1277,7 +1277,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "持续反向"
   },
   {
     "code": "TURN20",
@@ -1357,8 +1357,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前为个股120日时间序列换手率分位，再做月度截面标准化；与Word所述当月截面分位口径不同，使用和解释时须明确区分。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
@@ -1567,7 +1567,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "MAINFLOW",
@@ -1587,7 +1587,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "HOLDERCHG",
@@ -1602,8 +1602,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "低基数、上市初期或股东户数修订可能产生极端原始比率；正式得分已做截面排序，但组合使用前仍须检查原始极端值和覆盖期，建议仅作为辅助信号。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
@@ -1652,7 +1652,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "GRCAGR3Y",
@@ -1677,7 +1677,7 @@
       }
     ],
     "env_tag": "牛市进攻型",
-    "time_tag": "近期转强"
+    "time_tag": "近期转正"
   },
   {
     "code": "PBPCTL",
@@ -1712,8 +1712,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均为负；组合使用前必须人工复核方向、滚动有效性和权重。RELRET60与MOM60为当前得分别名，仍不得同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -1722,7 +1722,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "反向恶化"
   },
   {
     "code": "RELPEIND",
@@ -1777,12 +1777,12 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均持续为负；组合使用前必须人工复核方向、行业中性化口径、滚动有效性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "持续反向"
   },
   {
     "code": "GLVR60",
@@ -2007,7 +2007,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "time_tag": "近期转正"
   },
   {
     "code": "EXPOP",
@@ -2107,12 +2107,12 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均为负，且近期反向程度扩大；组合使用前必须人工复核方向、滚动有效性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "反向恶化"
   },
   {
     "code": "PEPCTL",
@@ -2252,7 +2252,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转强"
   },
   {
     "code": "ORCAGR3Y",
@@ -2277,7 +2277,7 @@
       }
     ],
     "env_tag": "牛市进攻型",
-    "time_tag": "近期转强"
+    "time_tag": "近期转正"
   },
   {
     "code": "CAPEXGROWTH",
@@ -2337,7 +2337,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "GOODWILLRATIO",
@@ -2372,8 +2372,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前以期末应收账款构造比率，与Word所述期初期末平均应收账款口径不同；周转质量比较前须确认分母时点口径。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
@@ -2392,12 +2392,12 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前采用最新可见年度现金分红除以当前TTM净利润，与Word所述滚动12个月分红和滚动12个月净利润口径不同；跨期解释前须确认窗口匹配。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "time_tag": "近期反转"
   },
   {
     "code": "DIVSTREAK",
@@ -2417,7 +2417,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "DIVGROWTH",
@@ -2472,12 +2472,12 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均持续为负；作为收益排序因子时必须人工复核方向、滚动有效性和权重，不得仅依赖登记的“数值越大越好”方向。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "持续反向"
   },
   {
     "code": "LIMITDOWNDAYS",
@@ -2532,12 +2532,12 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均为负，负值收窄不等于恢复正向有效；组合使用前必须人工复核方向、滚动有效性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "近期转强"
+    "time_tag": "反向改善"
   },
   {
     "code": "MARGINBUYRATIO",
@@ -2582,7 +2582,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "INSTHOLD",
@@ -2642,7 +2642,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "ANALYSTCOVER",
@@ -2812,7 +2812,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "RISKINVESTCNT",
@@ -2852,7 +2852,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "持续反向"
   },
   {
     "code": "LAWSUITAMT",
@@ -2952,7 +2952,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "PROFITNOTICEBEAT",
@@ -3012,7 +3012,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "REFINPRESS",
@@ -3027,8 +3027,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "当前登记方向下全样本与近期RankIC均持续为负；组合使用前必须人工复核方向、事件稀疏性、滚动有效性和权重。与PLACEMENTSIZE当前为高度重合信号，仍不得同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -3037,6 +3037,6 @@
       }
     ],
     "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型"
+    "time_tag": "持续反向"
   }
 ]

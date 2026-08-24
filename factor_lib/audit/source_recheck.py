@@ -136,12 +136,31 @@ def recheck_external(
     k: int = 200,
     candidate_units: pl.DataFrame | None = None,
 ) -> dict:
+    """Compare external-source values without conflating value and key coverage.
+
+    ``status`` describes values on shared keys only. ``coverage_status`` and
+    ``coverage_differences`` describe one-sided keys independently.  Therefore
+    an exact shared-key comparison can remain ``match`` when the reference has
+    additional observations; ``mismatch`` is reserved for a numeric difference.
+    """
     field = meta["source_field"]
     sfile = meta["source_file"]
     transform = meta.get("transform", "level")
-    base = {"status": "na", "method": "source_recheck", "n_checked": 0, "n_match": 0,
-            "n_stored_only": 0, "n_ref_only": 0,
-            "max_abs_diff": 0.0, "tol": REL_TOL, "mismatches": []}
+    base = {
+        "status": "na",
+        "coverage_status": "not_checked",
+        "method": "source_recheck",
+        "n_checked": 0,
+        "n_value_checked": 0,
+        "n_match": 0,
+        "n_value_mismatch": 0,
+        "n_stored_only": 0,
+        "n_ref_only": 0,
+        "max_abs_diff": 0.0,
+        "tol": REL_TOL,
+        "mismatches": [],
+        "coverage_differences": [],
+    }
     if transform == "mv_ebitda_asof":
         ref_df = _mv_ebitda_asof_reference(src_dir, factor_raw, candidate_units)
         if ref_df.is_empty():
@@ -227,9 +246,10 @@ def recheck_external(
         (r["stock_code"], r["trade_date"]): r["ref"]
         for r in ref_df.select(["stock_code", "trade_date", "ref"]).to_dicts()
     }
-    n_check = n_match = n_stored_only = n_ref_only = 0
+    n_check = n_value_check = n_match = n_value_mismatch = n_stored_only = n_ref_only = 0
     max_diff = 0.0
     mism = []
+    coverage_differences = []
     for stock, asof in units:
         stored_v = stored.get((stock, asof))
         ref_v = ref.get((stock, asof))
@@ -238,30 +258,62 @@ def recheck_external(
         n_check += 1
         if stored_v is None:
             n_ref_only += 1
-            if len(mism) < 5:
-                mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
-                             "ref": ref_v, "stored": None, "abs_diff": None})
+            if len(coverage_differences) < 5:
+                coverage_differences.append({
+                    "stock_code": stock,
+                    "trade_date": asof.isoformat(),
+                    "side": "reference_extra",
+                    "ref": ref_v,
+                    "stored": None,
+                })
             continue
         if ref_v is None:
             n_stored_only += 1
-            if len(mism) < 5:
-                mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
-                             "ref": None, "stored": stored_v, "abs_diff": None})
+            if len(coverage_differences) < 5:
+                coverage_differences.append({
+                    "stock_code": stock,
+                    "trade_date": asof.isoformat(),
+                    "side": "stored_extra",
+                    "ref": None,
+                    "stored": stored_v,
+                })
             continue
+        n_value_check += 1
         if _close(ref_v, stored_v):
             n_match += 1
         else:
+            n_value_mismatch += 1
             d = abs(ref_v - stored_v)
             max_diff = max(max_diff, d)
             if len(mism) < 5:
                 mism.append({"stock_code": stock, "trade_date": asof.isoformat(),
                              "ref": ref_v, "stored": stored_v, "abs_diff": d})
-    base.update(n_checked=n_check, n_match=n_match, n_stored_only=n_stored_only,
-                n_ref_only=n_ref_only, max_abs_diff=max_diff, mismatches=mism)
+    if n_stored_only and n_ref_only:
+        coverage_status = "both_extra"
+    elif n_stored_only:
+        coverage_status = "stored_extra"
+    elif n_ref_only:
+        coverage_status = "reference_extra"
+    else:
+        coverage_status = "match"
+    base.update(
+        n_checked=n_check,
+        n_value_checked=n_value_check,
+        n_match=n_match,
+        n_value_mismatch=n_value_mismatch,
+        n_stored_only=n_stored_only,
+        n_ref_only=n_ref_only,
+        max_abs_diff=max_diff,
+        mismatches=mism,
+        coverage_status=coverage_status,
+        coverage_differences=coverage_differences,
+    )
     if n_check == 0:
         base["status"] = "source_missing"
-    elif n_match == n_check:
+    elif n_value_mismatch:
+        base["status"] = "mismatch"
+    elif n_value_check:
         base["status"] = "match"
     else:
-        base["status"] = "mismatch"
+        base["status"] = "no_overlap"
     return base

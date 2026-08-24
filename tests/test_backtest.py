@@ -82,7 +82,28 @@ def test_initial_long_only_position_charges_single_side_cost():
 
     assert abs(nav["turnover"].item() - 1.0) < 1e-12
     assert abs(nav["port_ret_gross"].item() - 0.10) < 1e-12
-    assert abs(nav["port_ret"].item() - 0.098) < 1e-12
+    assert abs(nav["port_ret"].item() - ((1.0 + 0.10) * (1.0 - 0.002) - 1.0)) < 1e-12
+
+
+def test_long_only_total_loss_with_cost_stops_at_zero_nav():
+    score = pl.DataFrame({
+        "trade_date": [date(2025, 1, 31)],
+        "stock_code": ["A"],
+        "score": [1.0],
+    })
+    monthly_ret = pl.DataFrame({
+        "trade_date": [date(2025, 1, 31)],
+        "return_date": [date(2025, 2, 28)],
+        "stock_code": ["A"],
+        "fwd_return": [None],
+    }, schema_overrides={"fwd_return": pl.Float64})
+
+    nav = run_topn_backtest(score, monthly_ret, top_n=1, cost_per_side=0.002)
+
+    assert nav["port_ret_gross"].item() == -1.0
+    assert nav["port_ret"].item() == -1.0
+    assert nav["nav"].item() == 0.0
+    assert nav.filter((pl.col("port_ret") < -1.0) | (pl.col("nav") < 0.0)).is_empty()
 
 
 def test_initial_group_long_short_charges_one_side_per_leg():
@@ -245,7 +266,32 @@ def test_industry_neutral_script_initial_position_charges_single_side_cost():
 
     row = nav.row(0, named=True)
     assert abs(row["turnover"] - 1.0) < 1e-12
-    assert abs(row["port_ret"] - 0.098) < 1e-12
+    assert abs(row["port_ret"] - ((1.0 + 0.10) * (1.0 - 0.002) - 1.0)) < 1e-12
+
+
+def test_industry_neutral_script_total_loss_with_cost_stops_at_zero_nav():
+    module = load_industry_neutral_backtest_script()
+    holdings = pl.DataFrame({
+        "trade_date": [date(2025, 1, 31)],
+        "top_n": [1],
+        "stock_code": ["A"],
+        "weight": [1.0],
+        "industry_sw1": ["行业A"],
+    })
+    monthly_ret = pl.DataFrame({
+        "trade_date": [date(2025, 1, 31)],
+        "return_date": [date(2025, 2, 28)],
+        "stock_code": ["A"],
+        "fwd_return": [None],
+    }, schema_overrides={"fwd_return": pl.Float64})
+
+    nav = module.nav_from_weighted_holdings_all_topn(
+        holdings, monthly_ret, cost_per_side=0.002
+    )
+
+    row = nav.row(0, named=True)
+    assert row["port_ret"] == -1.0
+    assert row["nav"] == 0.0
 
 
 def test_industry_neutral_script_batch_holdings_match_single_topn_reference():

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>因子库 v2.0.6</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260814142842">
+  <link rel="stylesheet" href="styles.css?v=20260824105035">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -20,7 +20,7 @@
   <header id="topbar">
     <span><b>因子库 v2.0.6</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260814142842" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260824105035" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -74,7 +74,7 @@
           <div class="empty">从左侧选择一个因子</div>
         </div>
         <div class="panel">
-          <h3 id="nav-title">组合净值（月末等权调仓，0.2% 双边成本）</h3>
+          <h3 id="nav-title">组合净值（月末等权调仓，单边 0.2%，按换手扣费）</h3>
           <div id="nav-chart"></div>
         </div>
         <div class="panel">
@@ -318,7 +318,7 @@
           <h3>因子排行榜</h3>
           <p style="color:#666;font-size:12px">所有因子按<b>综合得分</b>排名。综合分 = 因子有效性(50%) + 实战业绩(50%)，
             各分项指标在全因子截面标准化后加权；方向已统一（数值越大越好）。</p>
-          <p style="color:#999;font-size:11px;margin-top:2px">业绩口径：top-30 等权、月末调仓、0.2% 双边成本。
+          <p style="color:#999;font-size:11px;margin-top:2px">业绩口径：top-30 等权、月末调仓、单边 0.2%，按换手扣费。
             有效性：RankIC 均值 + IC_IR（信号稳定性）。点击列头可改排序（如点“最大回撤”看最抗跌、点“年化”看最赚钱），勾选因子后可一键带入对比 / 合成。</p>
           <div class="rank-guide">
             <div class="rank-guide-title">排行榜怎么看</div>
@@ -401,12 +401,17 @@
               </div>
               <div class="rank-explainer-section">
                 <b>时效标签</b>
-                <p>用近12个月RankIC均值与全样本RankIC均值比较，阈值为±0.012；全样本与近期RankIC都低于约1%时，优先标记为低效或失效。该标签只说明近期相对变化，不等同于买卖建议。</p>
+                <p>用近12个月RankIC均值与全样本RankIC均值比较：先以±0.01区分正向、低效和反向，再以0.012判断近期变化。标签同时保留方向，“反向改善”不表示已恢复正向有效。该标签不等同于买卖建议。</p>
                 <div class="rank-explainer-tags">
-                  <span class="ftag ftag-长期稳定型" data-help="近12个月RankIC与全样本RankIC差异不超过±0.012，且全样本不属于低效。" aria-label="长期稳定型：近12个月RankIC与全样本RankIC差异不超过±0.012，且全样本不属于低效。" tabindex="0">长期稳定型</span>
-                  <span class="ftag ftag-近期转强" data-help="近12个月RankIC均值比全样本RankIC均值高0.012以上。" aria-label="近期转强：近12个月RankIC均值比全样本RankIC均值高0.012以上。" tabindex="0">近期转强</span>
-                  <span class="ftag ftag-近期转弱" data-help="近12个月RankIC均值比全样本RankIC均值低0.012以上，但近期RankIC仍高于低效阈值。" aria-label="近期转弱：近12个月RankIC均值比全样本RankIC均值低0.012以上，但近期RankIC仍高于低效阈值。" tabindex="0">近期转弱</span>
-                  <span class="ftag ftag-近期失效" data-help="近12个月RankIC均值明显低于全样本，且近期RankIC已接近或低于低效阈值。" aria-label="近期失效：近12个月RankIC均值明显低于全样本，且近期RankIC已接近或低于低效阈值。" tabindex="0">近期失效</span>
+                  <span class="ftag ftag-长期稳定型" data-help="全样本和近12个月RankIC均明确为正，且变化较小。" aria-label="长期稳定型：全样本和近12个月RankIC均明确为正，且变化较小。" tabindex="0">长期稳定型</span>
+                  <span class="ftag ftag-近期转强" data-help="近期RankIC为正且明显增强，或从低效区进入正向区。" aria-label="近期转强：近期RankIC为正且明显增强。" tabindex="0">近期转强</span>
+                  <span class="ftag ftag-近期转弱" data-help="近期RankIC仍为正，但明显弱于全样本。" aria-label="近期转弱：近期RankIC仍为正，但明显弱于全样本。" tabindex="0">近期转弱</span>
+                  <span class="ftag ftag-近期失效" data-help="全样本RankIC为正，近期已回落到低效区。" aria-label="近期失效：全样本RankIC为正，近期已回落到低效区。" tabindex="0">近期失效</span>
+                  <span class="ftag ftag-持续反向" data-help="全样本和近期RankIC均明确为负，登记方向持续相反。" aria-label="持续反向：登记方向下RankIC持续为负。" tabindex="0">持续反向</span>
+                  <span class="ftag ftag-反向改善" data-help="RankIC仍为负或低效，但反向程度收窄；不表示已转正。" aria-label="反向改善：RankIC仍未恢复正向有效。" tabindex="0">反向改善</span>
+                  <span class="ftag ftag-反向恶化" data-help="近期负RankIC比全样本更低。" aria-label="反向恶化：近期负RankIC比全样本更低。" tabindex="0">反向恶化</span>
+                  <span class="ftag ftag-近期转正" data-help="全样本RankIC为负，近期已明确转正。" aria-label="近期转正：全样本RankIC为负，近期已明确转正。" tabindex="0">近期转正</span>
+                  <span class="ftag ftag-近期反转" data-help="全样本为正向或低效，近期RankIC已明确为负。" aria-label="近期反转：近期RankIC已明确为负。" tabindex="0">近期反转</span>
                   <span class="ftag ftag-持续低效" data-help="全样本与近12个月RankIC都接近0，历史排序信息较弱。" aria-label="持续低效：全样本与近12个月RankIC都接近0，历史排序信息较弱。" tabindex="0">持续低效</span>
                 </div>
               </div>
@@ -454,7 +459,7 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260814142842"></script>
-  <script type="module" src="app.js?v=20260814142842"></script>
+  <script src="app_holding_scope.js?v=20260824105035"></script>
+  <script type="module" src="app.js?v=20260824105035"></script>
 </body>
 </html>

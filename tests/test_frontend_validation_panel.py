@@ -1,11 +1,13 @@
 from pathlib import Path
 import json
 import math
+import re
 import subprocess
 
 import pytest
 
 from factor_lib.validation import summarize_return_series
+from scripts.factor_tags import TIME_TAGS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -245,6 +247,7 @@ def test_frontend_ranking_and_combo_validation_keep_missing_forward_returns_in_s
     assert 'COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS observed_return_count' in group_validation
     assert 'COUNT(*) - COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS missing_return_count' in group_validation
     assert 'COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) > 0' in group_validation
+    assert "OR MAX(return_date) IS NOT NULL" in group_validation
 
 
 def test_compare_respects_snapshot_capability_and_normalizes_duckdb_bigints():
@@ -306,18 +309,19 @@ def test_compose_backtest_keeps_missing_returns_and_charges_initial_single_side_
 
     assert "function memberForwardReturn" in source
     assert "function tradingCostForTurnover" in source
+    assert "function netLongOnlyReturn" in source
     assert "function weightedTurnover" in source
     assert "isValidForwardReturn(h.ret)" in build
     assert "memberForwardReturn(h.ret)" in build
     assert "memberForwardReturn(h.ret)" in weighted
-    assert "tradingCostForTurnover(turnover, !prev)" in build
-    assert "tradingCostForTurnover(turnover, !prev)" in weighted
-    assert "tradingCostForTurnover(turnover, !prev)" in optimizer
+    assert "netLongOnlyReturn(gross, turnover, !prev)" in build
+    assert "netLongOnlyReturn(gross, turnover, !prev)" in weighted
+    assert "netLongOnlyReturn(gross, turnover, !prev)" in optimizer
     assert "if (r.fwd_return != null) o.rets.push" not in build
     assert "WHERE fwd_return IS NOT NULL" not in matrix_sql
 
 
-def test_compose_backtest_excludes_only_periods_with_no_valid_forward_return():
+def test_compose_backtest_distinguishes_completed_invalid_and_unfinished_periods():
     source = APP_JS.read_text(encoding="utf-8")
     helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
     build = _source_between(source, "function buildBacktestFromRows", "function industryNeutralPickRows")
@@ -333,13 +337,107 @@ def test_compose_backtest_excludes_only_periods_with_no_valid_forward_return():
         "  { signal_dt: '2026-05', dt: '2026-06-30', stock_code: 'B', fwd_return: null },",
         "  { signal_dt: '2026-06', dt: '2026-07-31', stock_code: 'A', fwd_return: null },",
         "  { signal_dt: '2026-06', dt: '2026-07-31', stock_code: 'B', fwd_return: null },",
+        "  { signal_dt: '2026-07', dt: '2026-07-31', stock_code: 'A', fwd_return: null },",
+        "  { signal_dt: '2026-07', dt: '2026-07-31', stock_code: 'B', fwd_return: null },",
         "];",
         "const bt = buildBacktestFromRows(rows, 2);",
         "console.log(JSON.stringify({ returns: bt.retArr, x: bt.x }));",
     ])
 
-    assert result["returns"] == pytest.approx([-0.452])
-    assert result["x"] == ["2026-05", "2026-06-30"]
+    assert result["returns"] == pytest.approx([-0.4511, -1.0])
+    assert result["x"] == ["2026-05", "2026-06-30", "2026-07-31"]
+
+
+def test_frontend_weighted_and_optimizer_paths_keep_signal_and_return_months_separate():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+    metrics = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
+    industry_paths = _source_between(source, "function industryNeutralPickRows", "function matrixBacktestSql")
+    optimizer = _source_between(source, "function backtestWeights", "async function optimizeWeights")
+    optimize_ui = _source_between(source, "async function optimizeWeights", "function bindComposeButtons")
+
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0.002;",
+        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MAX_VALID_FORWARD_RETURN = 5.0;",
+        helpers,
+        metrics,
+        industry_paths,
+        optimizer,
+        "const weightedRows = [",
+        "  { signal_dt: '2026-06', dt: '2026-07-31', stock_code: 'A', weight: 1, fwd_return: null },",
+        "  { signal_dt: '2026-07', dt: '2026-07-31', stock_code: 'A', weight: 1, fwd_return: null },",
+        "];",
+        "const weightedBt = buildWeightedBacktestFromRows(weightedRows);",
+        "const grouped = groupIndustryNeutralRowsByMonth([",
+        "  { signal_dt: '2026-06', dt: '2026-07-31', stock_code: 'A', cs: 1, industry_sw1: '行业A', fwd_return: null },",
+        "  { signal_dt: '2026-07', dt: '2026-07-31', stock_code: 'B', cs: 1, industry_sw1: '行业A', fwd_return: null },",
+        "], 1);",
+        "const monthsArr = [",
+        "  { signalDt: '2026-06', returnDt: '2026-07', stocks: [{ code: 'A', scores: [1], ret: null }] },",
+        "  { signalDt: '2026-07', returnDt: '2026-07', stocks: [{ code: 'A', scores: [1], ret: null }] },",
+        "];",
+        "const optimized = backtestWeights(monthsArr, [1], 1, []);",
+        "console.log(JSON.stringify({ weightedReturns: weightedBt.retArr, weightedX: weightedBt.x, groupedSignals: grouped.map(r => r.signal_dt), optimizedNavEnd: optimized.navEnd }));",
+    ])
+
+    assert result["weightedReturns"] == [-1.0]
+    assert result["weightedX"] == ["2026-06", "2026-07-31"]
+    assert result["groupedSignals"] == ["2026-06", "2026-07"]
+    assert result["optimizedNavEnd"] == 0
+    assert "strftime(m.trade_date,'%Y-%m') AS signal_ym" in optimize_ui
+    assert "AS return_ym" in optimize_ui
+
+
+def test_compose_long_only_total_loss_never_creates_negative_nav():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0.002;",
+        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MAX_VALID_FORWARD_RETURN = 5.0;",
+        helpers,
+        "const net = netLongOnlyReturn(-1, 1, true);",
+        "console.log(JSON.stringify({ net, nav: 1 * (1 + net) }));",
+    ])
+
+    assert result == {"net": -1, "nav": 0}
+
+
+def test_compose_matrix_build_uses_primary_key_joins_instead_of_long_table_pivot():
+    source = APP_JS.read_text(encoding="utf-8")
+    builder = _source_between(source, "function composeMatrixBuildSql", "function composeConfigKey")
+    ensure_base = _source_between(source, "async function ensureComposeBase", "function toggleComposeFactor")
+
+    assert "INNER JOIN" in builder
+    assert "trade_date" in builder and "stock_code" in builder
+    assert "COUNT(DISTINCT" not in ensure_base
+    assert "MAX(CASE WHEN factor_code" not in ensure_base
+    assert "composeMatrixBuildSql(shards)" in ensure_base
+    assert 'i === 0 ? ",\\n                 return_date,\\n                 fwd_return"' in builder
+    assert "COALESCE" not in builder
+
+
+def test_homepage_does_not_wait_for_remote_combo_library():
+    source = APP_JS.read_text(encoding="utf-8")
+    init_body = _source_between(source, "async function init()", "async function loadCatalog")
+    critical_loads = init_body.split("]);", 1)[0]
+
+    assert "loadCatalog()" in critical_loads
+    assert "loadDataManifest()" in critical_loads
+    assert "loadPublishedCombos()" not in critical_loads
+    assert 'loadPublishedCombos().then(() =>' in init_body
+    assert 'if (state.mode === "library") renderComboLibrary()' in init_body
+
+
+def test_compose_backtest_only_joins_industry_descriptors_when_requested():
+    source = APP_JS.read_text(encoding="utf-8")
+    matrix_sql = _source_between(source, "function matrixBacktestSql", "async function comboBacktest")
+
+    assert 'const needsIndustry = normalizeConstraintMode(constraintMode) === "industry"' in matrix_sql
+    assert 'needsIndustry ? "LEFT JOIN stock_descriptors' in matrix_sql
+    assert 'needsIndustry ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1"' in matrix_sql
 
 
 def test_compose_ic_and_portfolio_sql_share_valid_forward_return_rule():
@@ -1182,3 +1280,25 @@ def test_online_compose_validation_script_exists_and_checks_live_site():
     assert "comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth)" in text
     assert "factor_corr_neutral" in text
     assert '"online-compose-validation": "node online_compose_validation.mjs"' in package_json
+
+
+def test_time_tag_filters_and_help_keep_rank_ic_direction():
+    source = APP_JS.read_text(encoding="utf-8")
+    html = (ROOT / "frontend/index.html").read_text(encoding="utf-8")
+
+    for tag in ["持续反向", "反向改善", "反向恶化", "近期转正", "近期反转"]:
+        assert tag in source
+        assert tag in html
+    assert "反向改善”不表示已恢复正向有效" in html
+
+
+def test_frontend_time_tag_enum_exactly_matches_backend_and_has_help():
+    source = APP_JS.read_text(encoding="utf-8")
+    match = re.search(r"const TIME_TAGS = (\[.*?\]);", source, flags=re.DOTALL)
+    assert match is not None
+    frontend_tags = re.findall(r'"([^"]+)"', match.group(1))
+
+    assert len(frontend_tags) == len(set(frontend_tags))
+    assert set(frontend_tags) == set(TIME_TAGS)
+    for tag in TIME_TAGS:
+        assert f'"{tag}":' in source

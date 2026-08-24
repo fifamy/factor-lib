@@ -3,6 +3,7 @@ from datetime import date
 import polars as pl
 
 from factor_lib.monthly_returns import make_forward_returns, valid_forward_return_expr
+from scripts._monthly_returns import monthly_forward_return
 
 
 def test_forward_returns_keep_extreme_losses_and_reject_skipped_calendar_months():
@@ -31,6 +32,27 @@ def test_valid_forward_return_expr_uses_shared_extreme_return_bounds():
     out = df.with_columns(valid_forward_return_expr().alias("valid"))["valid"].to_list()
 
     assert out == [False, False, False, True, True, True, False, False]
+
+
+def test_backtest_monthly_returns_mask_extremes_with_shared_bounds():
+    panel = pl.DataFrame(
+        {
+            "stock_code": ["LOW", "LOW", "OK", "OK", "HIGH", "HIGH"],
+            "trade_date": [date(2024, 1, 31), date(2024, 2, 29)] * 3,
+            "adj_close": [100.0, 4.0, 100.0, 6.0, 1.0, 7.0],
+        }
+    )
+
+    _, monthly_ret = monthly_forward_return(panel)
+    first_month = monthly_ret.filter(pl.col("trade_date") == date(2024, 1, 31))
+    got = {row["stock_code"]: row for row in first_month.iter_rows(named=True)}
+
+    assert got["LOW"]["fwd_return"] is None
+    assert got["LOW"]["has_forward_return"] is False
+    assert abs(got["OK"]["fwd_return"] + 0.94) < 1e-12
+    assert got["OK"]["has_forward_return"] is True
+    assert got["HIGH"]["fwd_return"] is None
+    assert got["HIGH"]["has_forward_return"] is False
 
 
 def test_forward_returns_expose_and_invalidate_suspended_return_months():

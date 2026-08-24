@@ -308,6 +308,12 @@ table.rank-table td.score-cell { font-weight: 600; color: #1a4d80; }
 .ftag-近期转弱 { background: #fae8c8; color: #7d4f0a; }
 .ftag-近期失效 { background: #fbe0d4; color: #9c3c13; }
 .ftag-持续低效 { background: #e6e6e6; color: #4b5563; }
+.ftag-持续反向 { background: #f8d7da; color: #842029; }
+.ftag-反向改善 { background: #fae8c8; color: #7d4f0a; }
+.ftag-反向恶化 { background: #f3c8cc; color: #7a1720; }
+.ftag-近期转正 { background: #d6f0f2; color: #14636b; }
+.ftag-近期反转 { background: #fbe0d4; color: #9c3c13; }
+.ftag-数据不足 { background: #e6e6e6; color: #4b5563; }
 /* 标签筛选 chip（可点） */
 .tagfilter { cursor: pointer; border: 1px solid transparent; }
 .tagfilter, button.ftag { font: inherit; }

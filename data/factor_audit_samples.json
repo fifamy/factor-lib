@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-14 10:46:34",
+  "generated_at": "2026-08-24 10:13:45",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -6779,13 +6779,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "600285.SH",
-        "stock_name": "羚锐制药",
+        "stock_code": "600470.SH",
+        "stock_name": "六国化工",
         "raw_value": 0.0,
-        "score": -0.07112274802522717,
+        "score": -0.1006713933789423,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=-0.071123。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=-0.100671。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -6800,8 +6800,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.07112274802522717,
-            "display": "-0.071123",
+            "value": -0.1006713933789423,
+            "display": "-0.100671",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -6833,29 +6833,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "603218.SH",
-        "stock_name": "日月股份",
-        "raw_value": 0.8202551994051114,
-        "score": 0.0,
+        "stock_code": "600138.SH",
+        "stock_name": "中青旅",
+        "raw_value": 0.8156032273207371,
+        "score": 0.00040931227051319816,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.820255，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=0.815603，方向处理后的 score=0.000409。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.8202551994051114,
-            "display": "0.820255",
+            "value": 0.8156032273207371,
+            "display": "0.815603",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.0,
-            "display": "0.000000",
+            "value": 0.00040931227051319816,
+            "display": "0.000409",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -6887,13 +6887,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "600649.SH",
-        "stock_name": "城投控股",
+        "stock_code": "600728.SH",
+        "stock_name": "佳都科技",
         "raw_value": 0.0,
-        "score": -0.16685036399850214,
+        "score": -0.19591518731450958,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=-0.166850。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=-0.195915。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -6908,8 +6908,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.16685036399850214,
-            "display": "-0.166850",
+            "value": -0.19591518731450958,
+            "display": "-0.195915",
             "unit": "",
             "note": "用于排序和组合构建"
           }

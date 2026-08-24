@@ -208,7 +208,14 @@ def nav_from_weighted_holdings_all_topn(
             pl.col("turnover").fill_null(0.0),
             pl.col("trading_cost").fill_null(0.0),
         ])
-        .with_columns((pl.col("port_ret_gross") - pl.col("trading_cost")).alias("port_ret"))
+        .with_columns(
+            pl.max_horizontal(
+                pl.lit(-1.0),
+                (1.0 + pl.col("port_ret_gross"))
+                * (1.0 - pl.col("trading_cost"))
+                - 1.0,
+            ).alias("port_ret")
+        )
         .sort(["top_n", "trade_date"])
         .with_columns((1.0 + pl.col("port_ret")).cum_prod().over("top_n").alias("nav"))
         .select(["trade_date", "return_date", "top_n", "port_ret", "turnover", "nav"])

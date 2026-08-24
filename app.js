@@ -120,14 +120,23 @@ const COST_SCENARIOS = [
 ];
 
 async function init() {
-  await loadCatalog();
-  await loadDataManifest();
-  await loadPublishedCombos();
+  // 首屏只依赖 catalog/manifest；线上组合库包含外部 Supabase 请求，不能阻塞因子树。
+  await Promise.all([
+    loadCatalog(),
+    loadDataManifest(),
+  ]);
   loadMyCombos();
   renderTree();
   bindFactorSearch();
   renderTopMeta();
-  runWhenIdle(() => scheduleDuckDbWarmup(0), 5000, 3000);
+  // 合成模式依赖 DuckDB-Wasm。首屏就绪后尽早在 Worker 中预热，
+  // 避免用户第一次进入合成模式才下载和实例化 Wasm。
+  runWhenIdle(() => scheduleDuckDbWarmup(0), 500, 1500);
+  // catalog 就绪后再校验组合代码，避免与 loadCatalog 并发产生空 catalog 竞态；
+  // 组合库页面自身已有加载态，完成后按需刷新，不延迟首页可交互时间。
+  loadPublishedCombos().then(() => {
+    if (state.mode === "library") renderComboLibrary();
+  }).catch(err => console.warn("background combo library load failed:", err));
 }
 
 async function loadCatalog() {
@@ -2168,6 +2177,16 @@ function memberForwardReturn(value) {
   return isValidForwardReturn(value) ? Number(value) : -1.0;
 }
 
+function isCompletedForwardPeriod(signalDate, returnDate) {
+  const monthId = value => {
+    const match = String(value ?? "").match(/^(\d{4})-(\d{1,2})/);
+    return match ? Number(match[1]) * 12 + Number(match[2]) : null;
+  };
+  const signalMonth = monthId(signalDate);
+  const returnMonth = monthId(returnDate);
+  return signalMonth !== null && returnMonth === signalMonth + 1;
+}
+
 function isValidForwardReturn(value) {
   if (value === null || value === undefined || value === "") return false;
   const n = Number(value);
@@ -2188,6 +2207,14 @@ function forwardReturnSql(column = "fwd_return") {
 function tradingCostForTurnover(turnover, isInitialPosition) {
   const t = Number.isFinite(Number(turnover)) ? Math.max(0, Number(turnover)) : 0;
   return (isInitialPosition ? COST_PER_SIDE : 2 * COST_PER_SIDE) * t;
+}
+
+function netLongOnlyReturn(grossReturn, turnover, isInitialPosition) {
+  const gross = Number(grossReturn);
+  if (!Number.isFinite(gross)) return null;
+  const cost = tradingCostForTurnover(turnover, isInitialPosition);
+  // 费用在持有期末资产上按比例扣减。若持仓已完全损失，不再减出负资产。
+  return Math.max(-1.0, (1 + gross) * (1 - cost) - 1);
 }
 
 function weightedTurnover(currentWeights, previousWeights) {
@@ -4793,17 +4820,27 @@ let _rankState = { rows: null, sortKey: "score", desc: true, checked: new Set(),
 let _rankRenderSeq = 0;
 
 const ENV_TAGS = ["牛市进攻型", "熊市防御型", "全天候型", "震荡占优型"];
-const TIME_TAGS = ["长期稳定型", "近期转强", "近期转弱", "近期失效", "持续低效"];
+const TIME_TAGS = [
+  "长期稳定型", "近期转强", "近期转弱", "近期失效",
+  "持续反向", "反向改善", "反向恶化", "近期转正", "近期反转",
+  "持续低效", "数据不足",
+];
 const TAG_HELP = {
   "牛市进攻型": "沪深300滚动3个月涨幅超过5%的月份中，Top30月均超额收益相对更突出。",
   "熊市防御型": "沪深300滚动3个月跌幅超过5%的月份中，Top30月均超额收益相对更突出。",
   "震荡占优型": "沪深300滚动3个月涨跌在±5%以内的月份中，Top30月均超额收益相对更突出。",
   "全天候型": "牛市、熊市、震荡三类环境中的相对优势都不突出；不代表无风险。",
-  "长期稳定型": "近12个月RankIC与全样本RankIC差异不超过±0.012，且全样本不属于低效。",
-  "近期转强": "近12个月RankIC均值比全样本RankIC均值高0.012以上。",
-  "近期转弱": "近12个月RankIC均值比全样本RankIC均值低0.012以上，但近期RankIC仍高于低效阈值。",
-  "近期失效": "近12个月RankIC均值明显低于全样本，且近期RankIC已接近或低于低效阈值。",
-  "持续低效": "全样本与近12个月RankIC都接近0，历史排序信息较弱。"
+  "长期稳定型": "全样本和近12个月RankIC均明确为正，且差异不超过±0.012。",
+  "近期转强": "近12个月RankIC明确为正，且比全样本高0.012以上，或由低效区进入正向区。",
+  "近期转弱": "近12个月RankIC仍明确为正，但比全样本低0.012以上。",
+  "近期失效": "全样本RankIC为正，近12个月已回落至接近0的低效区。",
+  "持续反向": "全样本和近12个月RankIC均低于-0.01，登记方向持续与未来收益排序相反。",
+  "反向改善": "RankIC仍为负或刚回到低效区，但反向程度较全样本收窄；不代表已恢复正向有效。",
+  "反向恶化": "全样本和近12个月RankIC均为负，且近期比全样本更低0.012以上。",
+  "近期转正": "全样本RankIC为负，近12个月已跨过正向阈值；需继续检查样本外稳定性。",
+  "近期反转": "全样本为正向或低效，近12个月RankIC已低于-0.01，方向发生反转。",
+  "持续低效": "全样本与近12个月RankIC都接近0，历史排序信息较弱。",
+  "数据不足": "近期有效RankIC月数不足6个，不生成强弱或方向结论。"
 };
 
 function tagHelpText(tag) {
@@ -5605,6 +5642,41 @@ function composeScoreReadExpr(items) {
   return `read_parquet([${paths}])`;
 }
 
+function composeMatrixBuildSql(shards) {
+  if (!shards.length) return null;
+  const filePath = (item) => {
+    const key = item.key || composeShardKey(item.code, item.scoreMode);
+    return _composeFilePaths.get(key) || composeScorePath(item.code, item.scoreMode);
+  };
+  // 所有因子分片的前瞻收益均来自同一 monthly_return 主键表；只从首个分片
+  // 读取 return_date/fwd_return，避免其余分片重复解码两列完全相同的数据。
+  const ctes = shards.map((item, i) => `s${i} AS (
+          SELECT trade_date,
+                 stock_code,
+                 score AS f${i}${i === 0 ? ",\n                 return_date,\n                 fwd_return" : ""}
+          FROM read_parquet('${filePath(item)}')
+          WHERE score IS NOT NULL
+        )`).join(",\n        ");
+  const joins = shards.slice(1).map((_, i) => {
+    const n = i + 1;
+    return `INNER JOIN s${n}
+          ON s${n}.trade_date = s0.trade_date
+         AND s${n}.stock_code = s0.stock_code`;
+  }).join("\n        ");
+  const scoreColumns = shards.map((_, i) => `s${i}.f${i}`).join(", ");
+  // 每个分片只含一个因子；直接按主键内连接，避免对全量长表
+  // 执行 UNION + CASE + GROUP BY + COUNT(DISTINCT)。语义仍是只保留所有因子均有分数的共同键。
+  return `CREATE OR REPLACE TABLE cps_matrix AS
+      WITH ${ctes}
+      SELECT s0.trade_date,
+             s0.return_date,
+             s0.stock_code,
+             ${scoreColumns},
+             s0.fwd_return
+      FROM s0
+      ${joins}`;
+}
+
 function composeConfigKey(factors = state.composeFactors, N = state.composeN, constraintMode = state.composeConstraintMode) {
   const norm = cloneComposeFactors(factors).sort((a, b) => a.code.localeCompare(b.code));
   return JSON.stringify({ N, constraintMode: normalizeConstraintMode(constraintMode), factors: norm });
@@ -5669,34 +5741,9 @@ async function ensureComposeBase() {
     } else {
       await ensureComposeFiles(shards);
       // 只读取选中因子的历史分片。后续所有合成查询不再碰远程 parquet。
-      const scoreCols = shards.map((item, i) =>
-        `MAX(CASE WHEN factor_code = '${item.code}' AND score_mode = '${item.scoreMode}' THEN score END) AS f${i}`
-      ).join(",\n               ");
-      const matrixCols = shards.map((_, i) => `w.f${i}`).join(", ");
-      await state.db.query(`
-        CREATE OR REPLACE TABLE cps_matrix AS
-        WITH src AS (
-          SELECT trade_date, return_date, stock_code, factor_code, score, fwd_return,
-                 CASE WHEN filename LIKE '%compose_scores_neutral/%' THEN 'neutral' ELSE 'raw' END AS score_mode
-          FROM read_parquet([${shards.map(item => {
-            const key = item.key || composeShardKey(item.code, item.scoreMode);
-            return `'${_composeFilePaths.get(key) || composeScorePath(item.code, item.scoreMode)}'`;
-          }).join(",")}], filename=true)
-          WHERE score IS NOT NULL
-        ),
-        wide AS (
-          SELECT trade_date, stock_code,
-                 ${scoreCols},
-                 MAX(return_date) AS return_date,
-                 MAX(fwd_return) AS fwd_return,
-                 COUNT(DISTINCT factor_code || '|' || score_mode) AS factor_count
-          FROM src
-          GROUP BY trade_date, stock_code
-        )
-        SELECT w.trade_date, w.return_date, w.stock_code, ${matrixCols}, w.fwd_return
-        FROM wide w
-        WHERE w.factor_count = ${shards.length}
-      `);
+      const matrixStarted = performance.now();
+      await state.db.query(composeMatrixBuildSql(shards));
+      console.log(`合成矩阵 ${shards.length} 因子构建 ${(performance.now() - matrixStarted).toFixed(0)}ms`);
       await state.db.query(`
         CREATE OR REPLACE TABLE cps_latest_matrix AS
         SELECT * FROM cps_matrix WHERE trade_date = (SELECT MAX(trade_date) FROM cps_matrix)
@@ -6891,12 +6938,17 @@ async function renderCompose() {
     }
     await ensureComposeBase();   // 因子集变了才重建窄表；权重/阈值/N 变则复用缓存
     if (isComposeRenderStale(renderSeq)) return;
+    // 先交付用户当前要看的持仓和 KPI。IC 衰减/完整检验会扫描多次历史矩阵，
+    // 如果与关键查询同时提交到单一 DuckDB 连接，会让 Top 股票排在重型查询之后。
     await Promise.all([
       renderComposeStocks(renderSeq),
       renderComposeBacktest(renderSeq),
+    ]);
+    if (isComposeRenderStale(renderSeq)) return;
+    Promise.all([
       renderComposeIcDecay(renderSeq),
       renderComposeValidation(renderSeq),
-    ]);
+    ]).catch(err => console.warn("合成延后检验失败:", err));
   } catch (err) {
     if (isComposeRenderStale(renderSeq)) return;
     console.error("renderCompose failed:", err);
@@ -7388,9 +7440,13 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
              COUNT(*) - COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS missing_return_count
       FROM ranked
       GROUP BY trade_date, grp
-      -- 尚无任何有效远期收益的未完成月不进入绩效；已完成月内的缺失成员仍按 -100% 惩罚。
+      -- 未完成月且尚无任何有效远期收益时不进入绩效；
+      -- 已完成月即使整组收益无效，仍按缺失=-100% 惩罚。
       HAVING COUNT(*) >= 5
-         AND COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) > 0
+         AND (
+           COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) > 0
+           OR MAX(return_date) IS NOT NULL
+         )
     )
     SELECT signal_month, return_date, grp, port_ret, n, observed_return_count, missing_return_count
     FROM monthly
@@ -8586,7 +8642,10 @@ function buildBacktestFromRows(rows, N) {
     o.holdings.push({ stock_code: r.stock_code, ret: r.fwd_return });
   }
   const periods = [...byMonth.values()]
-    .filter(o => o.returnDt && o.holdings.length && o.holdings.some(h => isValidForwardReturn(h.ret)))
+    .filter(o => o.returnDt && o.holdings.length && (
+      o.holdings.some(h => isValidForwardReturn(h.ret))
+      || isCompletedForwardPeriod(o.signalDt, o.returnDt)
+    ))
     .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1; const x = [], navArr = [1], retArr = [];
   if (periods.length) x.push(periods[0].signalDt);
@@ -8595,7 +8654,7 @@ function buildBacktestFromRows(rows, N) {
     const gross = o.holdings.reduce((s, h) => s + weight * memberForwardReturn(h.ret), 0);
     const cur = new Map(o.holdings.map(h => [h.stock_code, weight]));
     const turnover = weightedTurnover(cur, prev);
-    const net = gross - tradingCostForTurnover(turnover, !prev);
+    const net = netLongOnlyReturn(gross, turnover, !prev);
     nav *= (1 + net);
     x.push(o.returnDt);
     navArr.push(nav);
@@ -8643,23 +8702,28 @@ function industryNeutralPickRows(candidates, N) {
 function buildWeightedBacktestFromRows(rows) {
   const byMonth = new Map();
   for (const r of rows) {
-    const key = r.dt;
+    const key = r.signal_dt || monthOfLabel(r.dt);
     if (!byMonth.has(key)) {
       byMonth.set(key, {
-        signalDt: r.signal_dt || monthOfLabel(r.dt),
-        returnDt: r.dt,
+        signalDt: key,
+        returnDt: r.dt || key,
         holdings: new Map(),
       });
     }
+    const period = byMonth.get(key);
+    if (r.dt && String(r.dt) > String(period.returnDt)) period.returnDt = String(r.dt);
     const w = Number(r.weight);
     if (!Number.isFinite(w) || w <= 0) continue;
-    byMonth.get(key).holdings.set(r.stock_code, {
+    period.holdings.set(r.stock_code, {
       weight: w,
       ret: r.fwd_return,
     });
   }
   const periods = [...byMonth.values()]
-    .filter(o => [...o.holdings.values()].some(h => isValidForwardReturn(h.ret)))
+    .filter(o => (
+      [...o.holdings.values()].some(h => isValidForwardReturn(h.ret))
+      || isCompletedForwardPeriod(o.signalDt, o.returnDt)
+    ))
     .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1;
   const x = [], navArr = [1], retArr = [];
@@ -8671,7 +8735,7 @@ function buildWeightedBacktestFromRows(rows) {
     }
     const cur = new Map([...o.holdings.entries()].map(([code, h]) => [code, h.weight]));
     const turnover = weightedTurnover(cur, prev);
-    const net = gross - tradingCostForTurnover(turnover, !prev);
+    const net = netLongOnlyReturn(gross, turnover, !prev);
     nav *= (1 + net);
     x.push(o.returnDt);
     navArr.push(nav);
@@ -8684,16 +8748,16 @@ function buildWeightedBacktestFromRows(rows) {
 function groupIndustryNeutralRowsByMonth(rows, N) {
   const byMonth = new Map();
   for (const r of rows || []) {
-    const key = r.dt;
+    const key = r.signal_dt || monthOfLabel(r.dt);
     if (!byMonth.has(key)) byMonth.set(key, []);
     byMonth.get(key).push(r);
   }
   const out = [];
-  for (const [dt, arr] of byMonth.entries()) {
+  for (const arr of byMonth.values()) {
     const picked = industryNeutralPickRows(arr, N);
-    for (const r of picked) out.push({ ...r, dt });
+    for (const r of picked) out.push(r);
   }
-  return out.sort((a, b) => String(a.dt).localeCompare(String(b.dt)) || String(a.stock_code).localeCompare(String(b.stock_code)));
+  return out.sort((a, b) => String(a.signal_dt || a.dt).localeCompare(String(b.signal_dt || b.dt)) || String(a.stock_code).localeCompare(String(b.stock_code)));
 }
 
 function matrixBacktestSql(factors, N, baseTable, constraintMode = state.composeConstraintMode) {
@@ -8711,12 +8775,15 @@ function matrixBacktestSql(factors, N, baseTable, constraintMode = state.compose
   }
   const scoreExpr = terms.length ? terms.join(" + ") : "0";
   const condSql = conds.length ? "AND " + conds.join(" AND ") : "";
+  const needsIndustry = normalizeConstraintMode(constraintMode) === "industry";
+  const industrySelect = needsIndustry ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1";
+  const industryJoin = needsIndustry ? "LEFT JOIN stock_descriptors d ON d.stock_code = m.stock_code" : "";
   return `
     WITH scored AS (
       SELECT m.trade_date, m.return_date, m.stock_code, m.fwd_return, ROUND(${scoreExpr}, 6) AS cs,
-             d.industry_sw1
+             ${industrySelect}
       FROM ${baseTable} m
-      LEFT JOIN stock_descriptors d ON d.stock_code = m.stock_code
+      ${industryJoin}
       WHERE TRUE ${condSql}
     ),
     ranked AS (
@@ -9060,13 +9127,14 @@ function backtestWeights(monthsArr, weights, N, conds) {
     });
     scored.sort((a, b) => b.comp - a.comp || String(a.code).localeCompare(String(b.code)));
     const picks = scored.slice(0, N);
-    // 末期信号月尚无任何已实现远期收益时，不把该未完成月解释为组合全损。
-    if (!picks.some(p => isValidForwardReturn(p.ret))) continue;
+    // 末期信号月尚无下一自然月端点时跳过；已完成但全员收益无效的持有期仍按缺失=-100%处理。
+    if (!picks.some(p => isValidForwardReturn(p.ret))
+        && !isCompletedForwardPeriod(mo.signalDt, mo.returnDt)) continue;
     const weight = 1 / picks.length;
     const gross = picks.reduce((s, p) => s + weight * memberForwardReturn(p.ret), 0);
     const cur = new Map(picks.map(p => [p.code, weight]));
     const turnover = weightedTurnover(cur, prev);
-    const net = gross - tradingCostForTurnover(turnover, !prev);
+    const net = netLongOnlyReturn(gross, turnover, !prev);
     nav *= (1 + net); navArr.push(nav); retArr.push(net); prev = cur;
   }
   return computeMetrics(retArr, navArr);
@@ -9109,7 +9177,8 @@ async function optimizeWeights() {
         ) WHERE rk <= 500
       `).join("\nUNION\n")}
     )
-    SELECT strftime(COALESCE(m.return_date, m.trade_date),'%Y-%m') AS ym,
+    SELECT strftime(m.trade_date,'%Y-%m') AS signal_ym,
+           strftime(COALESCE(m.return_date, m.trade_date),'%Y-%m') AS return_ym,
            m.stock_code,
            ${scoreCols},
            m.fwd_return
@@ -9118,11 +9187,17 @@ async function optimizeWeights() {
     WHERE ${scorePresenceSql}
     ORDER BY m.trade_date
   `);
-  // 组织成 months[ym] = { stocks: [{code, scores:[按codes顺序], ret}] }，仅保留所有因子都有得分的股
-  const tmp = new Map();   // ym -> Map(code -> {scores:[], ret, cnt})
+  // 组织成 months[signal_ym]，信号月与收益月分开保留，避免把
+  // 已完成持有期与末期未完成信号月合并。
+  const tmp = new Map();   // signal_ym -> Map(code -> {scores:[], ret, cnt})
+  const returnMonthBySignal = new Map();
   for (const r of res.toArray()) {
-    if (!tmp.has(r.ym)) tmp.set(r.ym, new Map());
-    const mm = tmp.get(r.ym);
+    if (!tmp.has(r.signal_ym)) tmp.set(r.signal_ym, new Map());
+    const mm = tmp.get(r.signal_ym);
+    const previousReturnMonth = returnMonthBySignal.get(r.signal_ym);
+    if (!previousReturnMonth || String(r.return_ym) > String(previousReturnMonth)) {
+      returnMonthBySignal.set(r.signal_ym, r.return_ym);
+    }
     if (!mm.has(r.stock_code)) {
       mm.set(r.stock_code, {
         scores: codes.map((_, i) => r[`f${i}`]),
@@ -9132,12 +9207,17 @@ async function optimizeWeights() {
     }
   }
   const monthsArr = [];
-  for (const [ym, mm] of tmp) {
-    if (state.composeStart && ym < state.composeStart) continue;
-    if (state.composeEnd && ym > state.composeEnd) continue;
+  for (const [signalYm, mm] of tmp) {
+    if (state.composeStart && signalYm < state.composeStart) continue;
+    if (state.composeEnd && signalYm > state.composeEnd) continue;
     const stocks = [];
     for (const [code, o] of mm) if (o.cnt === nF) stocks.push({ code, scores: o.scores, ret: o.ret });
-    if (stocks.length >= state.composeN) monthsArr.push({ ym, stocks });
+    if (stocks.length >= state.composeN) monthsArr.push({
+      ym: signalYm,
+      signalDt: signalYm,
+      returnDt: returnMonthBySignal.get(signalYm) || signalYm,
+      stocks,
+    });
   }
   monthsArr.sort((a, b) => a.ym < b.ym ? -1 : 1);
 
