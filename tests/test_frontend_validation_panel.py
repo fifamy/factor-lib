@@ -1284,7 +1284,7 @@ def test_online_compose_validation_script_exists_and_checks_live_site():
 
 def test_time_tag_filters_and_help_keep_rank_ic_direction():
     source = APP_JS.read_text(encoding="utf-8")
-    html = (ROOT / "frontend/index.html").read_text(encoding="utf-8")
+    html = INDEX_HTML.read_text(encoding="utf-8")
 
     for tag in ["持续反向", "反向改善", "反向恶化", "近期转正", "近期反转"]:
         assert tag in source
