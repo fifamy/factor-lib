@@ -48,13 +48,34 @@ def load_industry_map(
     trade_dates: list,
     history_path: str | Path = DEFAULT_HISTORY_PATH,
     static_path: str | Path | None = None,
+    *,
+    allow_static_fallback: bool = False,
 ) -> pl.DataFrame:
-    """Prefer PIT history; use the static descriptor only as an explicit fallback."""
+    """Load PIT industry history, failing closed unless fallback is explicit.
+
+    Production research must not silently substitute today's industry for a
+    missing historical classification file.  ``allow_static_fallback`` exists
+    only for explicitly-labelled exploratory tools and defaults to ``False``.
+    """
     history_file = Path(history_path)
     if history_file.exists():
-        return build_pit_industry_map(pl.read_parquet(history_file), trade_dates)
+        history = pl.read_parquet(history_file)
+        if history.is_empty():
+            raise ValueError(f"PIT industry history is empty: {history_file}")
+        out = build_pit_industry_map(history, trade_dates)
+        if trade_dates and out.is_empty():
+            raise ValueError(
+                f"PIT industry history produced no mappings for requested dates: {history_file}"
+            )
+        return out
+    if not allow_static_fallback:
+        raise FileNotFoundError(
+            f"PIT industry history not found: {history_file}; static fallback is disabled"
+        )
     if static_path is None:
-        raise FileNotFoundError(f"industry history not found: {history_file}")
+        raise FileNotFoundError(
+            f"PIT industry history not found: {history_file}; no explicit static fallback was provided"
+        )
     static_file = Path(static_path)
     if not static_file.exists():
         raise FileNotFoundError(f"stock descriptors not found: {static_file}")

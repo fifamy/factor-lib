@@ -28,8 +28,8 @@ const COMPOSE_SCORE_DIR = DATA_DIR + "compose_scores/";
 const COMPOSE_SCORE_NEUTRAL_DIR = DATA_DIR + "compose_scores_neutral/";
 const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
 const COST_PER_SIDE = 0.002;
-const MIN_VALID_FORWARD_RETURN = -0.95;
-const MAX_VALID_FORWARD_RETURN = 5.0;
+const MIN_VALID_FORWARD_RETURN = -1.0;
+const EXTREME_FORWARD_RETURN_WARNING = 5.0;
 const SUPABASE_URL = "https://tsyplhfshxzoduynzixk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_6osvaEI8pookLkmkzBUbHQ_kyUU2SKn";
 let _myComboIdSeq = 0;
@@ -1354,9 +1354,9 @@ async function factorSideRankedRows(code, side, maxRank = 100) {
     const res = await state.db.query(`
       WITH ranked AS (
         SELECT trade_date, return_date, stock_code, fwd_return,
-               ROW_NUMBER() OVER (
+               RANK() OVER (
                  PARTITION BY trade_date
-                 ORDER BY score * ${sideN} DESC, stock_code
+                 ORDER BY score * ${sideN} DESC
                ) AS rk
         FROM read_parquet('${path}')
         WHERE score IS NOT NULL
@@ -1366,7 +1366,7 @@ async function factorSideRankedRows(code, side, maxRank = 100) {
              stock_code, fwd_return, rk
       FROM ranked
       WHERE rk <= ${maxRank}
-      ORDER BY trade_date, rk
+      ORDER BY trade_date, rk, stock_code
     `);
     const rows = res.toArray();
     _singleSideRankCache.set(key, rows);
@@ -2131,7 +2131,9 @@ function computeMetrics(rets, navs) {
 }
 
 function metricsFromReturns(rets) {
-  const clean = (rets || []).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+  const clean = (rets || [])
+    .filter(v => v !== null && v !== undefined && Number.isFinite(Number(v)))
+    .map(v => Math.max(-1, Number(v)));
   if (!clean.length) return null;
   const navs = [1];
   for (const r of clean) navs.push(navs[navs.length - 1] * (1 + r));
@@ -2174,7 +2176,7 @@ function rankIcStats(months, values, side = 1, horizonMonths = 1) {
 }
 
 function memberForwardReturn(value) {
-  return isValidForwardReturn(value) ? Number(value) : -1.0;
+  return isValidForwardReturn(value) ? Number(value) : null;
 }
 
 function isCompletedForwardPeriod(signalDate, returnDate) {
@@ -2190,18 +2192,37 @@ function isCompletedForwardPeriod(signalDate, returnDate) {
 function isValidForwardReturn(value) {
   if (value === null || value === undefined || value === "") return false;
   const n = Number(value);
-  return Number.isFinite(n) && n > MIN_VALID_FORWARD_RETURN && n < MAX_VALID_FORWARD_RETURN;
+  return Number.isFinite(n) && n >= MIN_VALID_FORWARD_RETURN;
 }
 
 function validForwardReturnSql(column = "fwd_return") {
-  return `${column} IS NOT NULL AND ${column} > ${MIN_VALID_FORWARD_RETURN} AND ${column} < ${MAX_VALID_FORWARD_RETURN}`;
+  return `${column} IS NOT NULL AND ${column} >= ${MIN_VALID_FORWARD_RETURN}`;
 }
 
 function forwardReturnSql(column = "fwd_return") {
   return `CASE
     WHEN ${validForwardReturnSql(column)} THEN CAST(${column} AS DOUBLE)
-    ELSE -1.0
+    ELSE NULL
   END`;
+}
+
+function equalWeightReturnFromObserved(holdings) {
+  const observed = (holdings || [])
+    .map(h => memberForwardReturn(h.ret))
+    .filter(v => v !== null);
+  return observed.length ? observed.reduce((s, v) => s + v, 0) / observed.length : null;
+}
+
+function weightedReturnFromObserved(holdings) {
+  let weighted = 0, observedWeight = 0;
+  for (const h of holdings || []) {
+    const ret = memberForwardReturn(h.ret);
+    const weight = Number(h.weight);
+    if (ret === null || !Number.isFinite(weight) || weight <= 0) continue;
+    weighted += weight * ret;
+    observedWeight += weight;
+  }
+  return observedWeight > 0 ? weighted / observedWeight : null;
 }
 
 function tradingCostForTurnover(turnover, isInitialPosition) {
@@ -2215,6 +2236,11 @@ function netLongOnlyReturn(grossReturn, turnover, isInitialPosition) {
   const cost = tradingCostForTurnover(turnover, isInitialPosition);
   // 费用在持有期末资产上按比例扣减。若持仓已完全损失，不再减出负资产。
   return Math.max(-1.0, (1 + gross) * (1 - cost) - 1);
+}
+
+function limitedLiabilityReturn(value) {
+  const ret = Number(value);
+  return Number.isFinite(ret) ? Math.max(-1, ret) : null;
 }
 
 function weightedTurnover(currentWeights, previousWeights) {
@@ -2378,7 +2404,7 @@ function sideBacktestFromSnapshot(snap, side, n) {
   const signalLabels = labelsByIndexes(signalMonthsFromSnapshot(snap), idxs);
   const x = labelsFromReturnDates(returnLabels, signalLabels);
   const sideN = normalizeSide(side);
-  const retArr = sliceByIndexes(bt.ret, idxs).map(v => v * sideN);
+  const retArr = sliceByIndexes(bt.ret, idxs).map(v => limitedLiabilityReturn(v * sideN));
   return { x, retArr, navArr: alignReturnsToChart(retArr, x) };
 }
 
@@ -2391,7 +2417,7 @@ function navFromReturnsForChart(rets) {
       out.push(null);
       continue;
     }
-    nav *= 1 + value;
+    nav *= 1 + Math.max(-1, value);
     out.push(+nav.toFixed(6));
   }
   return out;
@@ -2418,8 +2444,8 @@ function quantilePayloadForSide(snap, side) {
     ret[`Q${i}`] = q.ret[src] || [];
   }
   ret.LS = sideN === 1
-    ? (q.ret.LS || [])
-    : (q.ret.LS || []).map(v => v === null || v === undefined ? v : -Number(v));
+    ? (q.ret.LS || []).map(v => v === null || v === undefined ? v : limitedLiabilityReturn(v))
+    : (q.ret.LS || []).map(v => v === null || v === undefined ? v : limitedLiabilityReturn(-Number(v)));
   return {
     months: q.months || [],
     signal_months: q.signal_months || q.months || [],
@@ -2821,13 +2847,15 @@ function neutralizationQualityWarnings(snap) {
     return ["当前中性化快照尚未携带 neutralization_quality 字段，请重跑中性化与快照导出后再使用中性口径结论"];
   }
   const sparseRows = Number(quality.insufficient_sample_rows || 0);
+  const rankDeficientRows = Number(quality.rank_deficient_rows || 0);
   const failedRows = Number(quality.regression_failed_rows || 0);
   const warnings = [];
   if (sparseRows > 0) {
     const months = Number(quality.affected_factor_months || 0);
     const scope = months > 0 ? `${numText(months, 0)} 个因子-月份` : "部分因子-月份";
-    warnings.push(`${scope}中性化有效样本不足 3 个，对应中性化分数为空`);
+    warnings.push(`${scope}中性化回归剩余自由度不足，对应中性化分数为空`);
   }
+  if (rankDeficientRows > 0) warnings.push(`存在 ${numText(rankDeficientRows, 0)} 条中性化设计矩阵秩不足记录，对应分数为空`);
   if (failedRows > 0) warnings.push(`存在 ${numText(failedRows, 0)} 条中性化回归失败记录`);
   if (!warnings.length && quality.warning_level === "warning" && quality.warning) warnings.push(quality.warning);
   return [...new Set(warnings)];
@@ -2836,7 +2864,7 @@ function neutralizationQualityWarnings(snap) {
 function renderNeutralizationQualityWarning(snap) {
   const warnings = neutralizationQualityWarnings(snap);
   if (!warnings.length) return "";
-  return `<div class="validation-short-sample"><b>中性化质量</b><span>${warnings.map(htmlText).join("；")}。稀疏截面下的 RankIC、回测和分层结论应降低权重，并结合原始口径复核。</span></div>`;
+  return `<div class="validation-short-sample"><b>中性化质量</b><span>${warnings.map(htmlText).join("；")}。这些截面的 RankIC、回测和分层结果不应纳入结论。</span></div>`;
 }
 
 function renderValidationUnavailable(message) {
@@ -2923,8 +2951,8 @@ function group10PayloadForSide(snap, side) {
     annReturns[dst] = snapshotNumber(g.annReturns?.[label]);
   });
   returns.LS = sideN === 1
-    ? (g.returns.LS || [])
-    : (g.returns.LS || []).map(v => v === null || v === undefined ? v : -Number(v));
+    ? (g.returns.LS || []).map(v => v === null || v === undefined ? v : limitedLiabilityReturn(v))
+    : (g.returns.LS || []).map(v => v === null || v === undefined ? v : limitedLiabilityReturn(-Number(v)));
   nav.LS = navFromReturnsForChart(returns.LS || []).slice(1);
   return {
     groups,
@@ -5224,7 +5252,7 @@ async function factorTop3Industries() {
     ),
     ranked AS (
       SELECT e.factor_code, COALESCE(d.industry_sw1,'未分类') AS ind,
-             ROW_NUMBER() OVER (PARTITION BY e.factor_code ORDER BY e.score DESC) AS rk
+             RANK() OVER (PARTITION BY e.factor_code ORDER BY e.score DESC) AS rk
       FROM dedup e
       LEFT JOIN stock_descriptors d USING(stock_code)
       WHERE e.srn = 1
@@ -5257,7 +5285,7 @@ async function factorMarketCap() {
     ),
     ranked AS (
       SELECT e.factor_code, d.market_cap AS mc,
-             ROW_NUMBER() OVER (PARTITION BY e.factor_code ORDER BY e.score DESC) AS rk
+             RANK() OVER (PARTITION BY e.factor_code ORDER BY e.score DESC) AS rk
       FROM dedup e
       LEFT JOIN stock_descriptors d USING(stock_code)
       WHERE e.srn = 1
@@ -7427,7 +7455,12 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
     ),
     ranked AS (
       SELECT trade_date, return_date, stock_code, fwd_return, cs,
-             NTILE(10) OVER (PARTITION BY trade_date ORDER BY cs ASC, stock_code) AS grp
+             CAST(FLOOR((
+               RANK() OVER (PARTITION BY trade_date ORDER BY cs ASC)
+               + COUNT(*) OVER (PARTITION BY trade_date)
+               - RANK() OVER (PARTITION BY trade_date ORDER BY cs DESC)
+               - 1
+             ) * 5.0 / COUNT(*) OVER (PARTITION BY trade_date)) AS INTEGER) + 1 AS grp
       FROM scored
     ),
     monthly AS (
@@ -7440,13 +7473,8 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
              COUNT(*) - COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS missing_return_count
       FROM ranked
       GROUP BY trade_date, grp
-      -- 未完成月且尚无任何有效远期收益时不进入绩效；
-      -- 已完成月即使整组收益无效，仍按缺失=-100% 惩罚。
       HAVING COUNT(*) >= 5
-         AND (
-           COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) > 0
-           OR MAX(return_date) IS NOT NULL
-         )
+         AND COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) > 0
     )
     SELECT signal_month, return_date, grp, port_ret, n, observed_return_count, missing_return_count
     FROM monthly
@@ -7487,7 +7515,7 @@ async function comboGroupValidation(factors, startMonth = null, endMonth = null)
     byMonth.get(r.signal_month)[r.group] = r.port_ret;
   }
   const lsReturns = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([_, g]) => (Number.isFinite(g.G10) && Number.isFinite(g.G1)) ? g.G10 - g.G1 : null)
+    .map(([_, g]) => (Number.isFinite(g.G10) && Number.isFinite(g.G1)) ? Math.max(-1, g.G10 - g.G1) : null)
     .filter(v => v !== null);
   return {
     groups,
@@ -7714,7 +7742,7 @@ function crowdingHoldingValuesSql(codes) {
 async function comboCrowdingFactorExposures(holdings) {
   const factorDefs = [
     { code: "ABTURN", label: "异常换手率", high: 0.5 },
-    { code: "TURNPCTL", label: "换手率历史分位", high: 0.7 },
+    { code: "TURNPCTL", label: "换手率截面分位", high: 0.7 },
     { code: "HIGHMOMTURN", label: "高动量+高换手", high: 0.5 },
     { code: "TURN20D120", label: "短长换手比", high: 0.5 },
   ];
@@ -8642,16 +8670,13 @@ function buildBacktestFromRows(rows, N) {
     o.holdings.push({ stock_code: r.stock_code, ret: r.fwd_return });
   }
   const periods = [...byMonth.values()]
-    .filter(o => o.returnDt && o.holdings.length && (
-      o.holdings.some(h => isValidForwardReturn(h.ret))
-      || isCompletedForwardPeriod(o.signalDt, o.returnDt)
-    ))
+    .filter(o => o.returnDt && o.holdings.some(h => isValidForwardReturn(h.ret)))
     .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1; const x = [], navArr = [1], retArr = [];
   if (periods.length) x.push(periods[0].signalDt);
   for (const o of periods) {
     const weight = 1 / Math.max(1, o.holdings.length);
-    const gross = o.holdings.reduce((s, h) => s + weight * memberForwardReturn(h.ret), 0);
+    const gross = equalWeightReturnFromObserved(o.holdings);
     const cur = new Map(o.holdings.map(h => [h.stock_code, weight]));
     const turnover = weightedTurnover(cur, prev);
     const net = netLongOnlyReturn(gross, turnover, !prev);
@@ -8685,18 +8710,20 @@ function industryNeutralPickRows(candidates, N) {
   const quotaByIndustry = new Map(quotas.filter(q => q.quota > 0).map(q => [q.industry, q]));
   const rows = [];
   for (const q of quotaByIndustry.values()) {
-    const picked = valid
+    const ranked = valid
       .filter(r => r.industry_sw1 === q.industry)
-      .sort((a, b) => Number(b.cs ?? b.comp_score) - Number(a.cs ?? a.comp_score) || String(a.stock_code).localeCompare(String(b.stock_code)))
-      .slice(0, q.quota);
+      .sort((a, b) => Number(b.cs ?? b.comp_score) - Number(a.cs ?? a.comp_score) || String(a.stock_code).localeCompare(String(b.stock_code)));
+    const boundaryScore = ranked[q.quota - 1]?.cs ?? ranked[q.quota - 1]?.comp_score;
+    const picked = boundaryScore === undefined
+      ? []
+      : ranked.filter(r => Number(r.cs ?? r.comp_score) >= Number(boundaryScore));
     const weight = picked.length ? q.targetWeight / picked.length : 0;
     picked.forEach(r => rows.push({ ...r, weight }));
   }
   const sumW = rows.reduce((s, r) => s + (Number(r.weight) || 0), 0) || 1;
   return rows
     .map(r => ({ ...r, weight: (Number(r.weight) || 0) / sumW }))
-    .sort((a, b) => Number(b.cs ?? b.comp_score) - Number(a.cs ?? a.comp_score) || String(a.stock_code).localeCompare(String(b.stock_code)))
-    .slice(0, N);
+    .sort((a, b) => Number(b.cs ?? b.comp_score) - Number(a.cs ?? a.comp_score) || String(a.stock_code).localeCompare(String(b.stock_code)));
 }
 
 function buildWeightedBacktestFromRows(rows) {
@@ -8720,19 +8747,13 @@ function buildWeightedBacktestFromRows(rows) {
     });
   }
   const periods = [...byMonth.values()]
-    .filter(o => (
-      [...o.holdings.values()].some(h => isValidForwardReturn(h.ret))
-      || isCompletedForwardPeriod(o.signalDt, o.returnDt)
-    ))
+    .filter(o => [...o.holdings.values()].some(h => isValidForwardReturn(h.ret)))
     .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1;
   const x = [], navArr = [1], retArr = [];
   if (periods.length) x.push(periods[0].signalDt);
   for (const o of periods) {
-    let gross = 0;
-    for (const h of o.holdings.values()) {
-      gross += h.weight * memberForwardReturn(h.ret);
-    }
+    const gross = weightedReturnFromObserved([...o.holdings.values()]);
     const cur = new Map([...o.holdings.entries()].map(([code, h]) => [code, h.weight]));
     const turnover = weightedTurnover(cur, prev);
     const net = netLongOnlyReturn(gross, turnover, !prev);
@@ -8788,13 +8809,14 @@ function matrixBacktestSql(factors, N, baseTable, constraintMode = state.compose
     ),
     ranked AS (
       SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1,
-             ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY cs DESC, stock_code) AS rk
+             RANK() OVER (PARTITION BY trade_date ORDER BY cs DESC) AS rk
       FROM scored
     )
     SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
            stock_code, fwd_return, cs, industry_sw1
-    FROM ranked WHERE rk <= ${normalizeConstraintMode(constraintMode) === "industry" ? Math.max(900, N * 30) : N} ORDER BY trade_date, rk`;
+    FROM ranked WHERE rk <= ${normalizeConstraintMode(constraintMode) === "industry" ? Math.max(900, N * 30) : N}
+    ORDER BY trade_date, rk, stock_code`;
 }
 
 // 给定组合配置 + 基表 → 逐月净值/收益（口径同 renderComposeBacktest）。
@@ -8845,7 +8867,7 @@ async function comboBacktest(factors, N, baseTable, constraintMode = state.compo
     ),
     ranked AS (
       SELECT c.trade_date, c.return_date, c.stock_code, c.fwd_return, c.cs, c.industry_sw1,
-             ROW_NUMBER() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC, c.stock_code) AS rk
+             RANK() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC) AS rk
       FROM comp c
       ${cond.join}
       WHERE c.cnt = ${nF}
@@ -8853,7 +8875,8 @@ async function comboBacktest(factors, N, baseTable, constraintMode = state.compo
     SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
            stock_code, fwd_return, cs, industry_sw1
-    FROM ranked WHERE rk <= ${normalizedConstraint === "industry" ? Math.max(900, N * 30) : N} ORDER BY trade_date, rk`);
+    FROM ranked WHERE rk <= ${normalizedConstraint === "industry" ? Math.max(900, N * 30) : N}
+    ORDER BY trade_date, rk, stock_code`);
   const rows = res.toArray();
   return normalizedConstraint === "industry"
     ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(rows, N))
@@ -9126,12 +9149,11 @@ function backtestWeights(monthsArr, weights, N, conds) {
       return { code: s.code, comp: roundCompositeScoreForRanking(c), ret: s.ret };
     });
     scored.sort((a, b) => b.comp - a.comp || String(a.code).localeCompare(String(b.code)));
-    const picks = scored.slice(0, N);
-    // 末期信号月尚无下一自然月端点时跳过；已完成但全员收益无效的持有期仍按缺失=-100%处理。
-    if (!picks.some(p => isValidForwardReturn(p.ret))
-        && !isCompletedForwardPeriod(mo.signalDt, mo.returnDt)) continue;
+    const boundaryScore = scored[N - 1]?.comp;
+    const picks = boundaryScore === undefined ? [] : scored.filter(s => s.comp >= boundaryScore);
+    if (!picks.some(p => isValidForwardReturn(p.ret))) continue;
     const weight = 1 / picks.length;
-    const gross = picks.reduce((s, p) => s + weight * memberForwardReturn(p.ret), 0);
+    const gross = equalWeightReturnFromObserved(picks);
     const cur = new Map(picks.map(p => [p.code, weight]));
     const turnover = weightedTurnover(cur, prev);
     const net = netLongOnlyReturn(gross, turnover, !prev);
@@ -9171,7 +9193,7 @@ async function optimizeWeights() {
       ${state.composeFactors.map((f, i) => `
         SELECT trade_date, stock_code FROM (
           SELECT trade_date, stock_code,
-                 ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY ${effectiveScoreSql(`f${matrixIndexes[i]}`, f.side)} DESC) AS rk
+                 RANK() OVER (PARTITION BY trade_date ORDER BY ${effectiveScoreSql(`f${matrixIndexes[i]}`, f.side)} DESC) AS rk
           FROM cps_matrix
           WHERE f${matrixIndexes[i]} IS NOT NULL
         ) WHERE rk <= 500

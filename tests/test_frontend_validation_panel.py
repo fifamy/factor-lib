@@ -228,7 +228,7 @@ def test_combo_ic_decay_sql_uses_calendar_month_self_join_not_physical_lead():
     assert "WHERE m.fwd_return IS NOT NULL" not in body
 
 
-def test_frontend_ranking_and_combo_validation_keep_missing_forward_returns_in_sample_space():
+def test_frontend_ranking_keeps_missing_members_but_portfolio_uses_observed_returns_only():
     source = APP_JS.read_text(encoding="utf-8")
     side_rank = _source_between(source, "async function factorSideRankedRows", "async function factorSideBacktest")
     group_validation = _source_between(source, "async function comboGroupValidation", "function renderComboContributionTable")
@@ -247,7 +247,8 @@ def test_frontend_ranking_and_combo_validation_keep_missing_forward_returns_in_s
     assert 'COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS observed_return_count' in group_validation
     assert 'COUNT(*) - COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) AS missing_return_count' in group_validation
     assert 'COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) > 0' in group_validation
-    assert "OR MAX(return_date) IS NOT NULL" in group_validation
+    assert "OR MAX(return_date) IS NOT NULL" not in group_validation
+    assert "ELSE NULL" in source
 
 
 def test_compare_respects_snapshot_capability_and_normalizes_duckdb_bigints():
@@ -300,7 +301,7 @@ def test_rank_ic_stats_from_series_uses_effective_annualization_scale():
     assert "Math.sqrt(12)" not in body
 
 
-def test_compose_backtest_keeps_missing_returns_and_charges_initial_single_side_cost():
+def test_compose_backtest_reweights_observed_returns_and_charges_initial_single_side_cost():
     source = APP_JS.read_text(encoding="utf-8")
     build = _source_between(source, "function buildBacktestFromRows", "function industryNeutralPickRows")
     weighted = _source_between(source, "function buildWeightedBacktestFromRows", "function matrixBacktestSql")
@@ -312,8 +313,8 @@ def test_compose_backtest_keeps_missing_returns_and_charges_initial_single_side_
     assert "function netLongOnlyReturn" in source
     assert "function weightedTurnover" in source
     assert "isValidForwardReturn(h.ret)" in build
-    assert "memberForwardReturn(h.ret)" in build
-    assert "memberForwardReturn(h.ret)" in weighted
+    assert "equalWeightReturnFromObserved(o.holdings)" in build
+    assert "weightedReturnFromObserved([...o.holdings.values()])" in weighted
     assert "netLongOnlyReturn(gross, turnover, !prev)" in build
     assert "netLongOnlyReturn(gross, turnover, !prev)" in weighted
     assert "netLongOnlyReturn(gross, turnover, !prev)" in optimizer
@@ -321,14 +322,14 @@ def test_compose_backtest_keeps_missing_returns_and_charges_initial_single_side_
     assert "WHERE fwd_return IS NOT NULL" not in matrix_sql
 
 
-def test_compose_backtest_distinguishes_completed_invalid_and_unfinished_periods():
+def test_compose_backtest_reweights_partial_missing_and_skips_all_missing_periods():
     source = APP_JS.read_text(encoding="utf-8")
     helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
     build = _source_between(source, "function buildBacktestFromRows", "function industryNeutralPickRows")
 
     result = _frontend_eval_json([
         "const COST_PER_SIDE = 0.002;",
-        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
         "const MAX_VALID_FORWARD_RETURN = 5.0;",
         helpers,
         build,
@@ -344,8 +345,8 @@ def test_compose_backtest_distinguishes_completed_invalid_and_unfinished_periods
         "console.log(JSON.stringify({ returns: bt.retArr, x: bt.x }));",
     ])
 
-    assert result["returns"] == pytest.approx([-0.4511, -1.0])
-    assert result["x"] == ["2026-05", "2026-06-30", "2026-07-31"]
+    assert result["returns"] == pytest.approx([0.0978])
+    assert result["x"] == ["2026-05", "2026-06-30"]
 
 
 def test_frontend_weighted_and_optimizer_paths_keep_signal_and_return_months_separate():
@@ -358,7 +359,7 @@ def test_frontend_weighted_and_optimizer_paths_keep_signal_and_return_months_sep
 
     result = _frontend_eval_json([
         "const COST_PER_SIDE = 0.002;",
-        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
         "const MAX_VALID_FORWARD_RETURN = 5.0;",
         helpers,
         metrics,
@@ -378,13 +379,13 @@ def test_frontend_weighted_and_optimizer_paths_keep_signal_and_return_months_sep
         "  { signalDt: '2026-07', returnDt: '2026-07', stocks: [{ code: 'A', scores: [1], ret: null }] },",
         "];",
         "const optimized = backtestWeights(monthsArr, [1], 1, []);",
-        "console.log(JSON.stringify({ weightedReturns: weightedBt.retArr, weightedX: weightedBt.x, groupedSignals: grouped.map(r => r.signal_dt), optimizedNavEnd: optimized.navEnd }));",
+        "console.log(JSON.stringify({ weightedReturns: weightedBt.retArr, weightedX: weightedBt.x, groupedSignals: grouped.map(r => r.signal_dt), optimizedNavEnd: optimized?.navEnd ?? null }));",
     ])
 
-    assert result["weightedReturns"] == [-1.0]
-    assert result["weightedX"] == ["2026-06", "2026-07-31"]
+    assert result["weightedReturns"] == []
+    assert result["weightedX"] == []
     assert result["groupedSignals"] == ["2026-06", "2026-07"]
-    assert result["optimizedNavEnd"] == 0
+    assert result["optimizedNavEnd"] is None
     assert "strftime(m.trade_date,'%Y-%m') AS signal_ym" in optimize_ui
     assert "AS return_ym" in optimize_ui
 
@@ -395,14 +396,16 @@ def test_compose_long_only_total_loss_never_creates_negative_nav():
 
     result = _frontend_eval_json([
         "const COST_PER_SIDE = 0.002;",
-        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
         "const MAX_VALID_FORWARD_RETURN = 5.0;",
         helpers,
         "const net = netLongOnlyReturn(-1, 1, true);",
-        "console.log(JSON.stringify({ net, nav: 1 * (1 + net) }));",
+        "const limited = limitedLiabilityReturn(-1.4);",
+        "let nav = 1; const path = [limited, 0.5].map(r => (nav *= 1 + r));",
+        "console.log(JSON.stringify({ net, nav: 1 * (1 + net), limited, path }));",
     ])
 
-    assert result == {"net": -1, "nav": 0}
+    assert result == {"net": -1, "nav": 0, "limited": -1, "path": [0, 0]}
 
 
 def test_compose_matrix_build_uses_primary_key_joins_instead_of_long_table_pivot():
@@ -440,6 +443,45 @@ def test_compose_backtest_only_joins_industry_descriptors_when_requested():
     assert 'needsIndustry ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1"' in matrix_sql
 
 
+def test_frontend_topn_and_groups_are_tie_aware_in_every_compose_path():
+    source = APP_JS.read_text(encoding="utf-8")
+    side_rank = _source_between(source, "async function factorSideRankedRows", "async function factorSideBacktest")
+    matrix_sql = _source_between(source, "function matrixBacktestSql", "async function comboBacktest")
+    group_validation = _source_between(source, "async function comboGroupValidation", "function renderComboContributionTable")
+    industry_picker = _source_between(source, "function industryNeutralPickRows", "function buildWeightedBacktestFromRows")
+    optimizer = _source_between(source, "function backtestWeights", "async function optimizeWeights")
+
+    assert "RANK() OVER" in side_rank and "ROW_NUMBER() OVER" not in side_rank
+    assert "RANK() OVER" in matrix_sql and "ROW_NUMBER() OVER" not in matrix_sql
+    assert "NTILE(10)" not in group_validation
+    assert group_validation.count("RANK() OVER") >= 2
+    assert "boundaryScore" in industry_picker
+    assert "boundaryScore" in optimizer
+    assert ".slice(0, N)" not in optimizer
+
+
+def test_frontend_industry_neutral_picker_includes_quota_boundary_ties():
+    source = APP_JS.read_text(encoding="utf-8")
+    picker = _source_between(source, "function industryNeutralPickRows", "function buildWeightedBacktestFromRows")
+    result = _frontend_eval_json([
+        picker,
+        "const rows = [",
+        "  { stock_code: 'A1', industry_sw1: 'A', cs: 9 },",
+        "  { stock_code: 'A2', industry_sw1: 'A', cs: 8 },",
+        "  { stock_code: 'A3', industry_sw1: 'A', cs: 8 },",
+        "  { stock_code: 'B1', industry_sw1: 'B', cs: 7 },",
+        "  { stock_code: 'B2', industry_sw1: 'B', cs: 6 },",
+        "  { stock_code: 'B3', industry_sw1: 'B', cs: 5 },",
+        "];",
+        "const picked = industryNeutralPickRows(rows, 3);",
+        "console.log(JSON.stringify(picked.map(r => [r.stock_code, r.weight])));",
+    ])
+    weights = dict(result)
+    assert set(weights) == {"A1", "A2", "A3", "B1"}
+    assert math.isclose(sum(weights.values()), 1.0, rel_tol=0, abs_tol=1e-12)
+    assert math.isclose(weights["A2"], 1 / 6, rel_tol=0, abs_tol=1e-12)
+
+
 def test_compose_ic_and_portfolio_sql_share_valid_forward_return_rule():
     source = APP_JS.read_text(encoding="utf-8")
     helpers = _source_between(source, "function memberForwardReturn", "function tradingCostForTurnover")
@@ -452,7 +494,7 @@ def test_compose_ic_and_portfolio_sql_share_valid_forward_return_rule():
     assert "fwd_return < ${MAX_VALID_FORWARD_RETURN}" not in ic_sql
 
 
-def test_optimal_weight_backtest_matches_compose_kpi_turnover_cost_and_tie_break():
+def test_optimal_weight_backtest_matches_compose_kpi_turnover_cost_and_tie_inclusion():
     source = APP_JS.read_text(encoding="utf-8")
     helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
     metrics = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
@@ -461,7 +503,7 @@ def test_optimal_weight_backtest_matches_compose_kpi_turnover_cost_and_tie_break
 
     result = _frontend_eval_json([
         "const COST_PER_SIDE = 0.002;",
-        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
         "const MAX_VALID_FORWARD_RETURN = 5.0;",
         helpers,
         metrics,
@@ -469,7 +511,9 @@ def test_optimal_weight_backtest_matches_compose_kpi_turnover_cost_and_tie_break
         optimizer_backtest,
         "const composeRows = [",
         "  { signal_dt: '2026-01', dt: '2026-02-28', stock_code: '000001.SZ', fwd_return: 0.10 },",
+        "  { signal_dt: '2026-01', dt: '2026-02-28', stock_code: '000002.SZ', fwd_return: -0.20 },",
         "  { signal_dt: '2026-02', dt: '2026-03-31', stock_code: '000001.SZ', fwd_return: 0.05 },",
+        "  { signal_dt: '2026-02', dt: '2026-03-31', stock_code: '000002.SZ', fwd_return: -0.10 },",
         "];",
         "const monthsArr = [",
         "  { stocks: [",
@@ -505,7 +549,7 @@ def test_optimal_weight_backtest_rounds_composite_score_like_compose_kpi_sql():
 
     result = _frontend_eval_json([
         "const COST_PER_SIDE = 0.002;",
-        "const MIN_VALID_FORWARD_RETURN = -0.95;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
         "const MAX_VALID_FORWARD_RETURN = 5.0;",
         helpers,
         metrics,
@@ -513,7 +557,9 @@ def test_optimal_weight_backtest_rounds_composite_score_like_compose_kpi_sql():
         optimizer_backtest,
         "const composeRows = [",
         "  { signal_dt: '2026-01', dt: '2026-02-28', stock_code: '000001.SZ', fwd_return: 0.10 },",
+        "  { signal_dt: '2026-01', dt: '2026-02-28', stock_code: '000002.SZ', fwd_return: -0.20 },",
         "  { signal_dt: '2026-02', dt: '2026-03-31', stock_code: '000001.SZ', fwd_return: 0.05 },",
+        "  { signal_dt: '2026-02', dt: '2026-03-31', stock_code: '000002.SZ', fwd_return: -0.10 },",
         "];",
         "const monthsArr = [",
         "  { stocks: [",
@@ -713,8 +759,9 @@ def test_validation_panel_warns_sparse_neutralization_quality():
     assert "function renderNeutralizationQualityWarning" in source
     assert "state.dataManifest?.neutralization_quality" in source
     assert "insufficient_sample" in source
+    assert "rank_deficient_rows" in source
     assert "中性化质量" in source
-    assert "有效样本不足" in source
+    assert "剩余自由度不足" in source
 
 
 def test_validation_panel_renders_planned_visual_charts_and_extra_metrics():
@@ -1169,8 +1216,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.6</title>" in index
-    assert "<b>因子库 v2.0.6</b>" in index
+    assert "<title>因子库 v2.0.7</title>" in index
+    assert "<b>因子库 v2.0.7</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

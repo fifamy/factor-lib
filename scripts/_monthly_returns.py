@@ -25,7 +25,10 @@ def monthly_forward_return(panel: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFr
             ]
         )
         .select(
-            ["trade_date", "return_date", "stock_code", "fwd_return", "has_forward_return"]
+            [
+                "trade_date", "entry_date", "return_date", "stock_code", "fwd_return",
+                "has_forward_return", "valid_return_reason", "return_quality_flag",
+            ]
         )
     )
     return month_end, monthly_ret

@@ -49,7 +49,8 @@ def factor(code: str, l1: str, l2: str, direction: int, description: str = "",
 def register_external(code: str, l1: str, l2: str, direction: int,
                       name_cn: str, source_file: str, source_field: str,
                       description: str = "", formula: str = "", wind_source: str = "",
-                      positive_only: bool = False, transform: str = "level"):
+                      positive_only: bool = False, transform: str = "level",
+                      input_positive_only: bool = False):
     """登记一个「外部已算」因子（Wind 直接给出的字段值，无计算函数）。
 
     这类因子（PE/ROE/成长等）的原始值来自下载的 CSV（source_file 的 source_field 列），
@@ -59,6 +60,9 @@ def register_external(code: str, l1: str, l2: str, direction: int,
     positive_only：估值类比率（PE/PS/PB/EV2EBITDA/PCF…）分母为负（亏损/负净资产/负现金流）
     时，比率本身没有"便宜/贵"的含义，负 PE 不是低估值而是公司亏钱。标记此项后，
     03_normalize 在标准化前把原始值 ≤0 置为缺失（不参与排序、不进 top）。
+
+    input_positive_only：仅用于派生估值因子，表示底层 PE/PB 输入必须为正。
+    派生差值本身可以为负，因此不能误用 ``positive_only`` 过滤输出。
     """
     if direction not in (-1, 1):
         raise ValueError(f"direction 必须是 +1 或 -1，得到 {direction}")
@@ -70,6 +74,7 @@ def register_external(code: str, l1: str, l2: str, direction: int,
         "name_cn": name_cn, "source_file": source_file, "source_field": source_field,
         "formula": formula, "wind_source": wind_source,
         "positive_only": positive_only,
+        "input_positive_only": input_positive_only,
         # transform: 取值方式。"level"=直接用字段值；"mom_diff"=逐股月度差分（本期−上期）；
         #            "mom_pct"=逐股月度变化率。差分类由 02d_load_investor_factors 处理。
         "transform": transform,

@@ -150,8 +150,8 @@ def _dastd(win, ctx):
     if len(p) < 253:
         return None, []
     r = np.diff(np.log(p[-253:]))
-    v = float(np.std(r, ddof=1) * math.sqrt(252))
-    return v, [f"253个复权价格端点→252个日对数收益；std(收益,252)×√252 = {v:.6f}"]
+    v = float(np.std(r, ddof=1) * math.sqrt(250))
+    return v, [f"253个复权价格端点→252个日对数收益；std(收益,252)×√250 = {v:.6f}"]
 
 
 @_ref("DOWNVOL")
@@ -220,16 +220,16 @@ def _bigdown(win, ctx):
 # ---------- 流动性 liquidity ----------
 @_ref("AMOUNT20")
 def _amount20(win, ctx):
-    # 生产端允许上市历史不足 20 日的股票进入计算，但至少要有 15 个交易日。
+    if win.height < 20:
+        return None, []
     a = win.tail(20)["amount"].to_numpy().astype(float)
     a = a[np.isfinite(a)]
-    if len(a) < 15:
+    if len(a) != 20:
         return None, []
     m = a.mean()
     if m <= 0:
         return None, []
-    v = float(math.log(m))
-    return v, [f"ln(mean(amount,20)={m:.2f}) = {v:.6f}"]
+    return float(m), [f"mean(amount,20) = {m:.6f}"]
 
 
 @_ref("VOLUME20")
@@ -239,7 +239,7 @@ def _volume20(win, ctx):
     w = win.tail(20)
     volume = w["volume"].to_numpy().astype(float)
     volume = volume[np.isfinite(volume) & (volume >= 0)]
-    if len(volume) < 15:
+    if len(volume) != 20:
         return None, []
     v = float(volume.mean())
     return v, [f"mean(S_DQ_VOLUME,20) = {v:.6f}"]
@@ -250,6 +250,9 @@ def _turn20(win, ctx):
     if win.height < 20:
         return None, []
     t = _turnover(win.tail(20))
+    t = t[np.isfinite(t)]
+    if len(t) != 20:
+        return None, []
     v = float(np.nanmean(t))
     return v, [f"mean(turnover,20) = {v:.6f}"]
 
@@ -276,9 +279,11 @@ def _stom(win, ctx):
 def _amtvol(win, ctx):
     """近20日成交额变异系数std/mean (ddof=1)。"""
     h = _market_extra_hist(win, 20, ctx)
-    if h.height < 15:
+    if h.height != 20:
         return None, []
     a = h["amount"].to_numpy().astype(float)
+    if not np.isfinite(a).all():
+        return None, []
     mu = a.mean()
     if mu <= 0:
         return None, []
@@ -300,14 +305,48 @@ def _turnvol(win, ctx):
 
 @_ref("TURNPCTL")
 def _turnpctl(win, ctx):
-    """末日换手率在近120日内的历史分位 = (turnover<=末日).sum()/n。"""
-    t = _turnover(win.tail(120))
-    t = t[np.isfinite(t)]
-    if len(t) < 60:
+    """120日日均换手率在同日截面的平均秩分位。"""
+    panel = ctx.get("_price_panel")
+    asof = ctx.get("_asof")
+    stock = win["stock_code"][0] if "stock_code" in win.columns and win.height else None
+    if panel is None or asof is None or stock is None:
         return None, []
-    last = t[-1]
-    v = float((t <= last).sum() / len(t))
-    return v, [f"换手率历史分位(120d) = {v:.6f}"]
+    cache = ctx.setdefault("_turnpctl_cross_section_cache", {})
+    if asof not in cache:
+        h = (
+            panel.filter(pl.col("trade_date") <= asof)
+            .sort(["stock_code", "trade_date"])
+            .with_columns(
+                pl.col("trade_date").rank("ordinal", descending=True).over("stock_code").alias("_rk")
+            )
+            .filter(pl.col("_rk") <= 120)
+            .with_columns(
+                pl.when((pl.col("market_cap") > 0) & pl.col("market_cap").is_finite())
+                .then(pl.col("amount") / pl.col("market_cap") / 10.0)
+                .otherwise(None)
+                .alias("turnover")
+            )
+            .group_by("stock_code")
+            .agg([
+                pl.col("turnover").mean().alias("turnover_120d"),
+                pl.col("turnover").count().alias("n"),
+                pl.col("trade_date").max().alias("latest_trade_date"),
+            ])
+            .filter(
+                (pl.col("n") == 120)
+                & (pl.col("latest_trade_date") == pl.lit(asof))
+                & pl.col("turnover_120d").is_finite()
+            )
+            .with_columns(
+                (pl.col("turnover_120d").rank("average") / pl.len()).alias("value")
+            )
+        )
+        cache[asof] = h.select(["stock_code", "value"])
+    row = cache[asof].filter(pl.col("stock_code") == stock)
+    if row.is_empty():
+        return None, []
+    v = float(row["value"][0])
+    return v, [f"120日日均换手率的同日截面平均秩分位 = {v:.6f}"]
 
 
 @_ref("PVCORR")
@@ -330,9 +369,8 @@ def _pvcorr(win, ctx):
 @_ref("UPVOLRATIO")
 def _upvolratio(win, ctx):
     """近20日上涨日成交额占比：上涨日(r>0)成交额/全部成交额。"""
-    # 价格窗口最多取 21 行以形成 20 个收益观测；新上市股票按生产端规则
-    # 可使用更短窗口，但必须至少形成 15 个有效收益观测。
-    if win.height < 16:
+    # 20 个日收益必须有 21 个价格端点。
+    if win.height < 21:
         return None, []
     w = win.tail(21)
     p = w["adj_close"].to_numpy().astype(float)
@@ -342,7 +380,7 @@ def _upvolratio(win, ctx):
     valid = np.isfinite(r) & np.isfinite(a)
     r = r[valid]
     a = a[valid]
-    if len(r) < 15:
+    if len(r) != 20:
         return None, []
     tot = a.sum()
     if tot <= 0:

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import polars as pl
 
+from factor_lib.monthly_returns import valid_forward_return_expr
+
 
 def _empty_nav() -> pl.DataFrame:
     return pl.DataFrame(
@@ -40,6 +42,43 @@ def _empty_group_backtest() -> pl.DataFrame:
     )
 
 
+def assert_backtest_economic_invariants(
+    frame: pl.DataFrame,
+    *,
+    context: str = "backtest",
+    group_columns: list[str] | None = None,
+    tolerance: float = 1e-12,
+) -> None:
+    """Fail a build when a limited-liability wealth series is impossible."""
+    if frame.is_empty():
+        return
+    required = {"port_ret", "nav"}
+    missing = required - set(frame.columns)
+    if missing:
+        raise ValueError(f"{context}: missing invariant columns {sorted(missing)}")
+    invalid = frame.filter(
+        (pl.col("port_ret").is_finite() & (pl.col("port_ret") < -1.0 - tolerance))
+        | (pl.col("nav").is_finite() & (pl.col("nav") < -tolerance))
+    )
+    if not invalid.is_empty():
+        sample = invalid.select([c for c in ["trade_date", "portfolio", "top_n", "port_ret", "nav"] if c in invalid.columns]).head(3).to_dicts()
+        raise ValueError(f"{context}: limited-liability invariant failed: {sample}")
+
+    keys = group_columns or [c for c in ["factor_code", "portfolio", "top_n"] if c in frame.columns]
+    groups = frame.partition_by(keys, as_dict=False) if keys else [frame]
+    for group in groups:
+        ordered = group.sort("trade_date") if "trade_date" in group.columns else group
+        zero_seen = False
+        for value in ordered["nav"].to_list():
+            if value is None:
+                continue
+            nav = float(value)
+            if zero_seen and nav > tolerance:
+                raise ValueError(f"{context}: NAV revived after reaching zero")
+            if nav <= tolerance:
+                zero_seen = True
+
+
 def _nav_from_selected(
     selected: pl.DataFrame,
     monthly_ret: pl.DataFrame,
@@ -70,21 +109,37 @@ def _nav_from_weighted_holdings(
     held = held.with_columns(
         [
             pl.col("return_date").max().over("trade_date").alias("_period_return_date"),
-            pl.when(pl.col("fwd_return").is_not_null())
-            .then(pl.col("fwd_return"))
-            .otherwise(-1.0)
-            .alias("_member_return"),
+            valid_forward_return_expr().alias("_has_valid_return"),
         ]
     ).filter(pl.col("_period_return_date").is_not_null())
     if held.is_empty():
         return _empty_nav()
     port_ret = (
-        held.with_columns((pl.col("weight") * pl.col("_member_return")).alias("_ret"))
+        held.with_columns([
+            pl.when(pl.col("_has_valid_return"))
+            .then(pl.col("weight") * pl.col("fwd_return"))
+            .otherwise(None)
+            .alias("_ret"),
+            pl.when(pl.col("_has_valid_return"))
+            .then(pl.col("weight"))
+            .otherwise(0.0)
+            .alias("_observed_weight"),
+        ])
         .group_by("trade_date")
         .agg([
             pl.col("_period_return_date").max().alias("return_date"),
-            pl.col("_ret").sum().alias("port_ret_gross"),
+            pl.col("_ret").sum().alias("_observed_weighted_return"),
+            pl.col("_observed_weight").sum().alias("_observed_weight"),
         ])
+        # Invalid, suspended, or otherwise missing members are excluded and
+        # the remaining observable holdings are renormalized.  A completed
+        # period with no observable member return is omitted, not fabricated
+        # as a -100% portfolio loss.
+        .filter(pl.col("_observed_weight") > 0)
+        .with_columns(
+            (pl.col("_observed_weighted_return") / pl.col("_observed_weight")).alias("port_ret_gross")
+        )
+        .select(["trade_date", "return_date", "port_ret_gross"])
         .sort("trade_date")
     )
 
@@ -193,7 +248,10 @@ def build_industry_neutral_holdings(score: pl.DataFrame, top_n: int) -> pl.DataF
             ind_group = (
                 group.filter(pl.col("industry_sw1") == q["industry_sw1"])
                 .sort(["score", "stock_code"], descending=[True, False])
-                .head(q["quota"])
+                .with_columns(
+                    pl.col("score").rank(method="min", descending=True).alias("_score_rank")
+                )
+                .filter(pl.col("_score_rank") <= q["quota"])
             )
             picked = ind_group.height
             if picked == 0:
@@ -236,14 +294,20 @@ def run_topn_backtests(
 ) -> dict[int, pl.DataFrame]:
     """一次排序后批量计算多个 top_n 组合，结果与逐个 run_topn_backtest 一致。"""
     ranked = (
-        score.sort(["trade_date", "score"], descending=[False, True])
+        score.drop_nulls("score")
+        .sort(["trade_date", "score", "stock_code"], descending=[False, True, False])
         .with_columns(
-            pl.col("score").cum_count().over("trade_date").alias("rank")
+            # Competition rank includes every stock tied at the requested
+            # boundary.  stock_code only stabilizes row order; it never breaks
+            # an economically identical score tie.
+            pl.col("score").rank(method="min", descending=True).over("trade_date").alias("rank")
         )
     )
 
     out = {}
     for top_n in top_ns:
+        if top_n <= 0:
+            raise ValueError("top_n must be positive")
         selected = (
             ranked.filter(pl.col("rank") <= top_n)
             .select(["trade_date", "stock_code"])
@@ -271,15 +335,18 @@ def run_group_backtests(
 
     ranked = (
         score.drop_nulls("score")
-        .sort(["trade_date", "score"], descending=[False, True])
+        .sort(["trade_date", "score", "stock_code"], descending=[False, False, False])
         .with_columns([
-            pl.col("score").cum_count().over("trade_date").alias("rank"),
+            # Average rank maps an entire score tie to one bucket.  Buckets may
+            # therefore be uneven or empty, which is preferable to inventing a
+            # cross-sectional ordering that the factor does not contain.
+            pl.col("score").rank(method="average").over("trade_date").alias("rank"),
             pl.len().over("trade_date").alias("n_in_month"),
         ])
         .with_columns(
             (
-                pl.lit(n_groups)
-                - ((((pl.col("rank") - 1) * n_groups) / pl.col("n_in_month")).floor().cast(pl.Int64))
+                ((((pl.col("rank") - 1) * n_groups) / pl.col("n_in_month")).floor().cast(pl.Int64))
+                + 1
             ).alias("group_no")
         )
     )
@@ -324,7 +391,10 @@ def run_group_backtests(
         top.join(bottom, on="trade_date", how="inner")
         .with_columns([
             pl.max_horizontal(["return_date_top", "return_date_bottom"]).alias("return_date"),
-            (pl.col("port_ret_gross_top") - pl.col("port_ret_gross_bottom")).alias("port_ret_gross"),
+            pl.max_horizontal(
+                pl.lit(-1.0),
+                pl.col("port_ret_gross_top") - pl.col("port_ret_gross_bottom"),
+            ).alias("port_ret_gross"),
             (pl.col("turnover_top") + pl.col("turnover_bottom")).alias("turnover"),
         ])
         .with_columns([
@@ -334,9 +404,9 @@ def run_group_backtests(
             .alias("trading_cost"),
         ])
         .with_columns([
-            (
-                pl.col("port_ret_gross")
-                - pl.col("trading_cost")
+            pl.max_horizontal(
+                pl.lit(-1.0),
+                pl.col("port_ret_gross") - pl.col("trading_cost"),
             ).alias("port_ret"),
         ])
         .sort("trade_date")

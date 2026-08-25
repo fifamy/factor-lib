@@ -326,6 +326,10 @@ def _reference_capexgrowth(
     """Independent PIT reconstruction of annualized capex TTM growth."""
     if cashflow.is_empty():
         return pl.DataFrame()
+    if "STATEMENT_TYPE" in cashflow.columns:
+        cashflow = cashflow.filter(
+            pl.col("STATEMENT_TYPE").cast(pl.Int64, strict=False) == 408001000
+        )
 
     latest: dict[tuple[str, int], tuple[date, int, float]] = {}
     for rowid, row in enumerate(cashflow.iter_rows(named=True)):
@@ -375,13 +379,24 @@ def _reference_capexgrowth(
     asof_dates = sorted(filter(None, (_parse_month_key(value) for value in keep_dates)))
     for stock, events in growth_events.items():
         events.sort(key=lambda item: (item[0], item[1]))
+        current: tuple[date, int, float] | None = None
+        event_idx = 0
         for asof in asof_dates:
-            visible = [item for item in events if item[0] <= asof]
-            if visible:
+            while event_idx < len(events) and events[event_idx][0] <= asof:
+                candidate = events[event_idx]
+                # A late amendment/backfill for an older report period must
+                # not replace a newer period that was already public.  This
+                # is the report-state part of the production PIT rule; a
+                # later event may replace the state only for the same or a
+                # newer report period.
+                if current is None or candidate[1] >= current[1]:
+                    current = candidate
+                event_idx += 1
+            if current is not None:
                 rows.append({
                     "trade_date": asof,
                     "stock_code": stock,
-                    "raw_value": visible[-1][2],
+                    "raw_value": current[2],
                 })
     return _reference_factor_frame(rows, "CAPEXGROWTH")
 
@@ -465,6 +480,7 @@ def _independent_word_v2_reference(
                 "S_INFO_WINDCODE",
                 "ANN_DT",
                 "REPORT_PERIOD",
+                "STATEMENT_TYPE",
                 "CASH_PAY_ACQ_CONST_FIOLTA",
                 "STOT_CASH_OUTFLOWS_INV_ACT",
             ],
@@ -730,19 +746,21 @@ def _reference_punishamt(
 
 def _reference_lawsuitamt(
     lawsuit: pl.DataFrame,
+    price: pl.DataFrame,
     keep_dates: set[str],
     window_days: int = 365,
 ) -> pl.DataFrame:
-    """Independent absolute-amount sum after exact full-row source deduplication."""
-    if lawsuit.is_empty():
+    """Independent PIT sum of CNY lawsuit amount / announcement-date total MV."""
+    if lawsuit.is_empty() or price.is_empty():
         return pl.DataFrame()
     amount = pl.col("AMOUNT").cast(pl.Float64, strict=False)
     result_amount = pl.col("RESULTAMOUNT").cast(pl.Float64, strict=False)
-    base = (
+    events = (
         lawsuit.unique(keep="first", maintain_order=True)
         .select([
             pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
             pl.col("ANN_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("event_date"),
+            pl.col("CRNCY_CODE").cast(pl.Utf8).str.strip_chars().str.to_uppercase().alias("currency"),
             pl.when(result_amount > 0)
             .then(result_amount)
             .when(amount > 0)
@@ -753,9 +771,41 @@ def _reference_lawsuitamt(
         .filter(
             pl.col("stock_code").is_not_null()
             & pl.col("event_date").is_not_null()
+            & (pl.col("currency") == "CNY")
             & pl.col("event_amount").is_not_null()
             & pl.col("event_amount").is_finite()
         )
+    )
+    market_value = (
+        price.select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("TRADE_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("mv_date"),
+            (
+                pl.col("S_DQ_CLOSE").cast(pl.Float64, strict=False)
+                * pl.col("TOT_SHR_TODAY").cast(pl.Float64, strict=False)
+            ).alias("total_mv_cny"),
+        ])
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("mv_date").is_not_null()
+            & pl.col("total_mv_cny").is_finite()
+            & (pl.col("total_mv_cny") > 0)
+        )
+        .sort(["stock_code", "mv_date"])
+        .unique(subset=["stock_code", "mv_date"], keep="last", maintain_order=True)
+    )
+    base = (
+        events.sort(["stock_code", "event_date"])
+        .join_asof(
+            market_value,
+            left_on="event_date",
+            right_on="mv_date",
+            by="stock_code",
+            strategy="backward",
+        )
+        .filter(pl.col("total_mv_cny").is_not_null())
+        .with_columns((pl.col("event_amount") / pl.col("total_mv_cny")).alias("event_amount"))
+        .select(["stock_code", "event_date", "event_amount"])
     )
     return _reference_plain_window_sum(base, keep_dates, "LAWSUITAMT", window_days)
 
@@ -1542,7 +1592,7 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
                 "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "RD_EXPENSE",
             ], stocks)
         income = _read_word_v2_parquet(src, "income_statement_ext", [
-            "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "TOT_OPER_REV", "OPER_REV",
+            "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "STATEMENT_TYPE", "TOT_OPER_REV", "OPER_REV",
         ], stocks)
         pit = _read_word_v2_parquet(src, "pit_financial_ext", [
             "S_INFO_WINDCODE", "TRADE_DT", "S_DFA_OR_TTM",
@@ -1563,7 +1613,7 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
         out = mod.build_orcagr3y(pit, keep_dates)
     elif code in {"INTDEBTRATIO", "GOODWILLRATIO", "ARRATIO"}:
         balance = _read_word_v2_parquet(src, "balance_statement_ext", [
-            "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "TOT_ASSETS", "ST_BORROW",
+            "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "STATEMENT_TYPE", "TOT_ASSETS", "ST_BORROW",
             "NON_CUR_LIAB_DUE_WITHIN_1Y", "LT_BORROW", "BONDS_PAYABLE", "LEASE_LIAB", "INT_PAYABLE",
             "GOODWILL", "ACCT_RCV", "NOTES_RCV",
         ], stocks)
@@ -1720,7 +1770,13 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             "S_INFO_WINDCODE", "S_INFO_COMPCODE", "ANN_DT", "TITLE", "ACCUSER", "DEFENDANT", "PRO_TYPE",
             "AMOUNT", "CRNCY_CODE", "PROSECUTE_DT", "COURT", "JUDGE_DT", "RESULT", "RESULTAMOUNT", "BRIEFRESULT",
         ], stocks)
-        out = _reference_lawsuitamt(lawsuit, keep_dates)
+        price = _read_word_v2_parquet(
+            src,
+            "price_ext",
+            ["S_INFO_WINDCODE", "TRADE_DT", "S_DQ_CLOSE", "TOT_SHR_TODAY"],
+            stocks,
+        )
+        out = _reference_lawsuitamt(lawsuit, price, keep_dates)
     elif code == "AUDITQUAL":
         audit = _read_word_v2_parquet(src, "audit_opinion_ext", [
             "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "S_STMNOTE_AUDIT_CATEGORY",
@@ -1764,7 +1820,7 @@ def _word_v2_reference_code(code: str, factor_raw: pl.DataFrame, ctx: dict, src_
             out = mod.build_profit_notice_surprise(notice, consensus, keep_dates)
         else:
             income = _read_word_v2_parquet(src, "income_statement_ext", [
-                "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "NET_PROFIT_EXCL_MIN_INT_INC",
+                "S_INFO_WINDCODE", "ANN_DT", "REPORT_PERIOD", "STATEMENT_TYPE", "NET_PROFIT_EXCL_MIN_INT_INC",
             ], stocks)
             out = mod.build_report_surprise(income, consensus, keep_dates)
     elif code == "REFINPRESS":
@@ -1808,6 +1864,11 @@ def numpy_recon(code: str, factor_raw: pl.DataFrame, panel: pl.DataFrame, ctx: d
     n_check = n_match = n_stored_only = n_ref_only = 0
     max_diff = 0.0
     mism = []
+    if code == "TURNPCTL":
+        ctx.setdefault("_price_panel", panel)
+        # ``ref_ctx`` below is a shallow copy; pre-create the nested cache so
+        # all sampled units share cross-sectional results by as-of date.
+        ctx.setdefault("_turnpctl_cross_section_cache", {})
     for stock, asof in units:
         stored = _finite_or_none(stored_lut.get((stock, asof)))
         win = price_window_upto(panel, stock, asof, win_n, panel_index=panel_index)
@@ -1899,7 +1960,11 @@ def _derived_pbpctl(factor_raw: pl.DataFrame) -> pl.DataFrame:
     import math
 
     pb = (
-        factor_raw.filter(pl.col("factor_code") == "PB")
+        factor_raw.filter(
+            (pl.col("factor_code") == "PB")
+            & (pl.col("raw_value") > 0)
+            & pl.col("raw_value").is_finite()
+        )
         .with_columns((pl.col("trade_date").dt.year() * 12 + pl.col("trade_date").dt.month()).alias("_month_id"))
         .sort(["stock_code", "trade_date"])
     )
@@ -1967,7 +2032,11 @@ def _relret_table(panel: pl.DataFrame, month_ends: list, by_industry: bool) -> p
 def _rel_valuation_table(factor_raw: pl.DataFrame, base_code: str) -> pl.DataFrame:
     desc = _industry_map()
     g = (
-        factor_raw.filter(pl.col("factor_code") == base_code)
+        factor_raw.filter(
+            (pl.col("factor_code") == base_code)
+            & (pl.col("raw_value") > 0)
+            & pl.col("raw_value").is_finite()
+        )
         .join(desc, on="stock_code", how="left")
         .filter(pl.col("industry_sw1").is_not_null() & pl.col("raw_value").is_not_null())
         .with_columns(
@@ -2017,12 +2086,10 @@ def derived_reference_table(code: str, factor_raw: pl.DataFrame, panel: pl.DataF
                 code,
                 industry_map,
             ).select(["trade_date", "stock_code", "raw_value"])
-    elif code == "RELRETIND":
-        out = _relret_table(panel, month_ends, by_industry=True)
-    elif code == "RELPEIND":
-        out = _rel_valuation_table(factor_raw, "PE")
-    elif code == "RELPBIND":
-        out = _rel_valuation_table(factor_raw, "PB")
+    elif code in {"RELRETIND", "RELPEIND", "RELPBIND"}:
+        raise FileNotFoundError(
+            f"{code} audit requires PIT industry history and index inputs; static fallback is disabled"
+        )
     else:
         out = pl.DataFrame({"trade_date": [], "stock_code": [], "raw_value": []})
     cache[code] = out

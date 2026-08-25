@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.stats import pearsonr, spearmanr
 
-from factor_lib.monthly_returns import MAX_VALID_FORWARD_RETURN, MIN_VALID_FORWARD_RETURN
+from factor_lib.monthly_returns import MIN_VALID_FORWARD_RETURN
 
 
 def compute_ic_for_cross_section(score: np.ndarray, fwd_return: np.ndarray) -> tuple[float, float]:
@@ -22,8 +22,7 @@ def compute_ic_for_cross_section(score: np.ndarray, fwd_return: np.ndarray) -> t
     mask = (
         np.isfinite(score)
         & np.isfinite(fwd_return)
-        & (fwd_return > MIN_VALID_FORWARD_RETURN)
-        & (fwd_return < MAX_VALID_FORWARD_RETURN)
+        & (fwd_return >= MIN_VALID_FORWARD_RETURN)
     )
     if mask.sum() < 3:
         return float("nan"), float("nan")

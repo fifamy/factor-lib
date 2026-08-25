@@ -1,8 +1,9 @@
 """生成行业/市值中性化后的 factor_score_neutral。
 
 口径：
-  raw_value -> positive_only 过滤 -> 申万一级行业 + log(市值) 回归残差
-  -> rank_to_normal -> 方向统一。
+  raw_value -> positive_only 过滤 -> rank_to_normal
+  -> 申万一级行业 + log(市值) 回归残差
+  -> 线性 z-score -> 方向统一。
 
 用法：
     python scripts/03b_neutralize.py [--raw ...] [--descriptors ...] [--out ...]
@@ -19,7 +20,13 @@ from factor_lib.factors import momentum, volatility, liquidity, beta, company, m
 from factor_lib.industry import load_industry_map
 from factor_lib.monthly_returns import month_end_panel
 from factor_lib.registry import FACTOR_REGISTRY
-from factor_lib.normalize import apply_direction, neutralize_by_industry_size, rank_to_normal
+from factor_lib.normalize import (
+    apply_direction,
+    cross_section_zscore,
+    neutralization_design_stats,
+    neutralize_by_industry_size,
+    rank_to_normal,
+)
 from factor_lib.universe import word_universe_for_scores
 
 
@@ -28,6 +35,7 @@ NEUTRAL_QUALITY_OK = "ok"
 NEUTRAL_QUALITY_INSUFFICIENT = "insufficient_sample"
 NEUTRAL_QUALITY_MISSING_INPUT = "missing_input"
 NEUTRAL_QUALITY_REGRESSION_FAILED = "regression_failed"
+NEUTRAL_QUALITY_RANK_DEFICIENT = "rank_deficient"
 
 
 def _valid_neutralization_mask(
@@ -50,19 +58,23 @@ def _neutralization_quality(
     industries: np.ndarray,
     market_caps: np.ndarray,
     resid: np.ndarray,
-) -> tuple[list[str], int]:
+) -> tuple[list[str], dict[str, int]]:
     valid = _valid_neutralization_mask(values, industries, market_caps)
-    valid_count = int(valid.sum())
+    stats = neutralization_design_stats(values, industries, market_caps)
+    valid_count = stats["valid_count"]
     quality = np.full(len(values), NEUTRAL_QUALITY_MISSING_INPUT, dtype=object)
-    if valid_count < 3:
+    if valid_count < 3 or stats["residual_dof"] <= 0:
         quality[valid] = NEUTRAL_QUALITY_INSUFFICIENT
-        return quality.tolist(), valid_count
+        return quality.tolist(), stats
+    if stats["design_rank"] < stats["parameter_count"]:
+        quality[valid] = NEUTRAL_QUALITY_RANK_DEFICIENT
+        return quality.tolist(), stats
 
     resid = np.asarray(resid, dtype=float)
     finite_resid = np.isfinite(resid)
     quality[valid & finite_resid] = NEUTRAL_QUALITY_OK
     quality[valid & ~finite_resid] = NEUTRAL_QUALITY_REGRESSION_FAILED
-    return quality.tolist(), valid_count
+    return quality.tolist(), stats
 
 
 def _neutralize_group(group: pl.DataFrame) -> pl.DataFrame:
@@ -77,16 +89,21 @@ def _neutralize_group(group: pl.DataFrame) -> pl.DataFrame:
     if entry.get("positive_only"):
         std_in[std_in <= 0] = np.nan
 
-    resid = neutralize_by_industry_size(std_in, industries, market_caps)
-    quality, valid_count = _neutralization_quality(std_in, industries, market_caps, resid)
-    z = rank_to_normal(resid)
-    score = apply_direction(z, direction)
+    # rank 是非线性变换，必须先于中性化回归；回归后只做线性
+    # 标准化，否则会把已消除的行业/市值暴露重新引入最终 score。
+    ranked = rank_to_normal(std_in)
+    resid = neutralize_by_industry_size(ranked, industries, market_caps)
+    quality, stats = _neutralization_quality(ranked, industries, market_caps, resid)
+    score = apply_direction(cross_section_zscore(resid), direction)
 
     return group.select(["trade_date", "stock_code", "factor_code"]).with_columns([
         pl.Series("raw_value", vals, nan_to_null=True),
         pl.Series("score", score, nan_to_null=True),
         pl.Series("neutralization_quality", quality, dtype=pl.Utf8),
-        pl.Series("neutralization_valid_count", np.full(len(vals), valid_count, dtype=np.int32)),
+        pl.Series("neutralization_valid_count", np.full(len(vals), stats["valid_count"], dtype=np.int32)),
+        pl.Series("neutralization_parameter_count", np.full(len(vals), stats["parameter_count"], dtype=np.int32)),
+        pl.Series("neutralization_design_rank", np.full(len(vals), stats["design_rank"], dtype=np.int32)),
+        pl.Series("neutralization_residual_dof", np.full(len(vals), stats["residual_dof"], dtype=np.int32)),
     ])
 
 

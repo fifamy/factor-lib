@@ -8,7 +8,7 @@ from pathlib import Path
 
 from factor_lib.normalize import (
     winsorize_3mad, cross_section_zscore, rank_to_normal, apply_direction,
-    neutralize_by_industry_size,
+    neutralization_design_stats, neutralize_by_industry_size,
 )
 
 
@@ -135,18 +135,20 @@ def test_neutralize_by_industry_size_removes_sw1_and_size_exposure():
 
 
 def test_neutralize_by_industry_size_keeps_invalid_rows_nan():
-    values = np.array([1.0, 2.0, 4.0, 3.0, np.nan, 5.0])
-    industries = np.array(["银行", "银行", "医药", None, "医药", "医药"], dtype=object)
-    market_caps = np.array([100.0, 200.0, 500.0, 300.0, 400.0, np.nan])
+    values = np.array([1.0, 2.0, 4.0, 5.0, 7.0, 8.0, 3.0, np.nan, 9.0])
+    industries = np.array([
+        "银行", "银行", "银行", "医药", "医药", "医药", None, "医药", "医药",
+    ], dtype=object)
+    market_caps = np.array([100.0, 200.0, 500.0, 120.0, 240.0, 600.0, 300.0, 400.0, np.nan])
 
     resid = neutralize_by_industry_size(values, industries, market_caps)
 
     assert np.isfinite(resid[0])
     assert np.isfinite(resid[1])
-    assert np.isfinite(resid[2])
-    assert np.isnan(resid[3])
-    assert np.isnan(resid[4])
-    assert np.isnan(resid[5])
+    assert np.isfinite(resid[:6]).all()
+    assert np.isnan(resid[6])
+    assert np.isnan(resid[7])
+    assert np.isnan(resid[8])
 
 
 def test_neutralize_by_industry_size_sparse_sample_is_missing_not_demeaned():
@@ -157,6 +159,48 @@ def test_neutralize_by_industry_size_sparse_sample_is_missing_not_demeaned():
     resid = neutralize_by_industry_size(values, industries, market_caps)
 
     assert np.all(np.isnan(resid))
+
+
+def test_neutralize_saturated_risk_event_section_is_missing_not_machine_noise():
+    """类 RISKINVESTCNT 稀疏截面：样本数恰好等于设计矩阵秩时不得产生分数。"""
+    values = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+    industries = np.array(["A", "B", "C", "D", "D"], dtype=object)
+    market_caps = np.array([100.0, 120.0, 140.0, 160.0, 220.0])
+
+    stats = neutralization_design_stats(values, industries, market_caps)
+    resid = neutralize_by_industry_size(values, industries, market_caps)
+
+    assert stats == {
+        "valid_count": 5,
+        "parameter_count": 5,
+        "design_rank": 5,
+        "residual_dof": 0,
+    }
+    assert np.isnan(resid).all()
+
+
+def test_final_neutral_score_keeps_industry_and_size_exposure_zero_after_scaling():
+    """回归之后只允许线性标准化，最终 score 必须仍与行业和 logMV 正交。"""
+    rng = np.random.default_rng(20260824)
+    industries = np.repeat(np.array(["A", "B", "C", "D"], dtype=object), 25)
+    market_caps = np.exp(rng.uniform(8.0, 14.0, size=industries.size))
+    effects = {"A": -2.0, "B": 0.5, "C": 1.0, "D": 3.0}
+    values = (
+        np.array([effects[ind] for ind in industries])
+        + 1.8 * np.log(market_caps)
+        + rng.standard_t(df=3, size=industries.size)
+    )
+
+    ranked = rank_to_normal(values)
+    final_score = cross_section_zscore(
+        neutralize_by_industry_size(ranked, industries, market_caps)
+    )
+    valid = np.isfinite(final_score)
+
+    assert valid.all()
+    assert abs(float(np.corrcoef(final_score, np.log(market_caps))[0, 1])) < 1e-10
+    for industry in np.unique(industries):
+        assert abs(float(np.mean(final_score[industries == industry]))) < 1e-10
 
 
 def test_03_normalize_script(tmp_path):
@@ -301,6 +345,13 @@ def test_03b_neutralize_script_uses_sw1_and_market_cap(tmp_path):
     valid_scores = [v for k, v in score.items() if k != "G"]
     assert all(v is not None for v in valid_scores)
     assert max(valid_scores) > min(valid_scores)
+    valid_out = out.filter(pl.col("stock_code") != "G").join(desc, on="stock_code", how="left")
+    score_arr = valid_out["score"].to_numpy()
+    log_mv = np.log(valid_out["market_cap"].to_numpy())
+    assert abs(float(np.corrcoef(score_arr, log_mv)[0, 1])) < 1e-10
+    for industry in valid_out["industry_sw1"].unique().to_list():
+        industry_scores = valid_out.filter(pl.col("industry_sw1") == industry)["score"].to_numpy()
+        assert abs(float(np.mean(industry_scores))) < 1e-10
 
 
 def test_03b_neutralize_marks_sparse_sample_quality(tmp_path):
@@ -334,9 +385,47 @@ def test_03b_neutralize_marks_sparse_sample_quality(tmp_path):
     out = pl.read_parquet(out_path).sort("stock_code")
     assert "neutralization_quality" in out.columns
     assert "neutralization_valid_count" in out.columns
+    assert "neutralization_residual_dof" in out.columns
     assert out["score"].null_count() == 2
     assert out["neutralization_valid_count"].to_list() == [2, 2]
+    assert out["neutralization_residual_dof"].to_list() == [0, 0]
     assert set(out["neutralization_quality"].to_list()) == {"insufficient_sample"}
+
+
+def test_03b_neutralize_marks_saturated_event_section_insufficient(tmp_path):
+    """即使有 5 个样本，剩余自由度为 0 也必须置空并显式披露。"""
+    from datetime import date
+
+    raw = pl.DataFrame({
+        "trade_date": [date(2025, 1, 31)] * 5,
+        "stock_code": ["A", "B", "C", "D", "E"],
+        "factor_code": ["RISKINVESTCNT"] * 5,
+        "raw_value": [1.0, 3.0, 2.0, 5.0, 4.0],
+    })
+    desc = pl.DataFrame({
+        "stock_code": ["A", "B", "C", "D", "E"],
+        "industry_sw1": ["I1", "I2", "I3", "I4", "I4"],
+        "market_cap": [100.0, 120.0, 140.0, 160.0, 220.0],
+    })
+    raw_path = tmp_path / "factor_raw.parquet"
+    desc_path = tmp_path / "stock_descriptors.parquet"
+    out_path = tmp_path / "factor_score_neutral.parquet"
+    raw.write_parquet(raw_path)
+    desc.write_parquet(desc_path)
+
+    subprocess.run(
+        [sys.executable, "scripts/03b_neutralize.py", "--raw", str(raw_path),
+         "--descriptors", str(desc_path), "--out", str(out_path)],
+        check=True,
+    )
+
+    out = pl.read_parquet(out_path)
+    assert out["score"].null_count() == 5
+    assert set(out["neutralization_quality"].to_list()) == {"insufficient_sample"}
+    assert set(out["neutralization_valid_count"].to_list()) == {5}
+    assert set(out["neutralization_parameter_count"].to_list()) == {5}
+    assert set(out["neutralization_design_rank"].to_list()) == {5}
+    assert set(out["neutralization_residual_dof"].to_list()) == {0}
 
 
 def test_03b_neutralize_uses_panel_month_end_market_cap_not_static_descriptor(tmp_path):

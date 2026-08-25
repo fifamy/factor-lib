@@ -12,13 +12,13 @@ _DEFS = [
     ("GRCAGR3Y", "公司内生信息", "成长", 1, "营收3年复合增速", "grcagr3y",
      "营业总收入(TTM) 近3年复合年增速 = (今值/36月前值)^(1/3) − 1；持续高成长。"),
     ("PBPCTL", "公司内生信息", "估值", -1, "PB历史分位", "pbpctl",
-     "市净率 PB 在自身过去36个月的分位（0~1）；分位越低=相对自身越便宜，方向负。"),
+     "仅对 PB>0 的有经济含义样本，计算市净率在自身过去36个月的分位（0~1）；分位越低=相对自身越便宜，方向负。"),
     ("RELRET60", "市场交易信息", "动量", 1, "相对市场收益", "relret60",
      "个股近60交易日收益 − 全市场中位收益；跑赢大盘的相对强度。"),
     ("RELPEIND", "公司内生信息", "估值", -1, "行业相对PE", "relpeind",
-     "个股PE − 历史时点所属申万一级行业同截面中位PE；相对行业越便宜越好，方向负。"),
+     "仅使用 PE>0 样本：个股PE − 历史时点所属申万一级行业同截面正PE中位数；相对行业越便宜越好，方向负。"),
     ("RELPBIND", "公司内生信息", "估值", -1, "行业相对PB", "relpbind",
-     "个股PB − 历史时点所属申万一级行业同截面中位PB；相对行业越便宜越好，方向负。"),
+     "仅使用 PB>0 样本：个股PB − 历史时点所属申万一级行业同截面正PB中位数；相对行业越便宜越好，方向负。"),
     ("RELRETIND", "市场交易信息", "动量", 1, "相对行业收益", "relretind",
      "个股近60交易日收益 − 历史时点所属申万一级行业指数同期收益；相对行业的强度。"),
 ]
@@ -28,4 +28,5 @@ for code, l1, l2, direction, name_cn, key, desc in _DEFS:
         code=code, l1=l1, l2=l2, direction=direction, name_cn=name_cn,
         source_file=key, source_field=key, description=desc, transform="derived",
         formula=desc, wind_source="派生（已有数据计算）",
+        input_positive_only=code in {"PBPCTL", "RELPEIND", "RELPBIND"},
     )

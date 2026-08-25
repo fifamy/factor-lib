@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-24 10:13:45",
+  "generated_at": "2026-08-25 14:21:43",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -226,7 +226,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "市净率 PB 在自身过去36个月的分位（0~1）；分位越低=相对自身越便宜，方向负。",
+      "system_formula": "仅对 PB>0 的有经济含义样本，计算市净率在自身过去36个月的分位（0~1）；分位越低=相对自身越便宜，方向负。",
       "system_wind_source": "派生（已有数据计算）",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -236,13 +236,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "300740.SZ",
-        "stock_name": "水羊股份",
+        "stock_code": "301378.SZ",
+        "stock_name": "通达海",
         "raw_value": 0.4444444444444444,
-        "score": 0.002027607678196014,
+        "score": -0.0022838301359676886,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.444444，方向处理后的 score=0.002028。",
+          "系统输出 raw_value=0.444444，方向处理后的 score=-0.002284。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -257,8 +257,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.002027607678196014,
-            "display": "0.002028",
+            "value": -0.0022838301359676886,
+            "display": "-0.002284",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -1064,21 +1064,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "000001.SZ",
-        "stock_name": "平安银行",
-        "raw_value": 0.09738430583501012,
+        "stock_code": "001896.SZ",
+        "stock_name": "豫能控股",
+        "raw_value": -0.07616988725064944,
         "score": 0.0002535020531430268,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.097384，方向处理后的 score=0.000254。",
+          "系统输出 raw_value=-0.076170，方向处理后的 score=0.000254。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.09738430583501012,
-            "display": "0.097384",
+            "value": -0.07616988725064944,
+            "display": "-0.076170",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -1424,13 +1424,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "000852.SZ",
-        "stock_name": "石化机械",
+        "stock_code": "000501.SZ",
+        "stock_name": "武商集团",
         "raw_value": 0.0,
-        "score": 0.6250200044766866,
+        "score": 0.6646564938791818,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=0.625020。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=0.664656。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -1445,8 +1445,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.6250200044766866,
-            "display": "0.625020",
+            "value": 0.6646564938791818,
+            "display": "0.664656",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -1630,7 +1630,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "运营效率类",
       "system_direction": "负向",
-      "system_formula": "ARRATIO = (ACCT_RCV + NOTES_RCV) / S_DFA_OR_TTM；两个应收分项都缺失时置缺失，仅其中一项缺失时将该分项按0合并；资产负债表取月末前最新公告，收入使用同月 PITFinancialFactor。",
+      "system_formula": "ARRATIO = average(AR_begin, AR_end) / S_DFA_OR_TTM，AR=ACCT_RCV+NOTES_RCV；期初使用不晚于当期公告日可见的上年末合并报表余额，期初或期末缺失则置缺失；收入使用同月 PITFinancialFactor。",
       "system_wind_source": "AShareBalanceSheet.ACCT_RCV; AShareBalanceSheet.NOTES_RCV; PITFinancialFactor.S_DFA_OR_TTM; ANN_DT",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -1640,21 +1640,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "002209.SZ",
-        "stock_name": "达意隆",
-        "raw_value": 0.2500770220627358,
+        "stock_code": "002855.SZ",
+        "stock_name": "捷荣技术",
+        "raw_value": 0.25416089179884654,
         "score": -0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.250077，方向处理后的 score=-0.000000。",
+          "系统输出 raw_value=0.254161，方向处理后的 score=-0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.2500770220627358,
-            "display": "0.250077",
+            "value": 0.25416089179884654,
+            "display": "0.254161",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -1748,21 +1748,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "002367.SZ",
-        "stock_name": "康力电梯",
-        "raw_value": 0.4017455633046967,
+        "stock_code": "603808.SH",
+        "stock_name": "歌力思",
+        "raw_value": 0.4013564135017869,
         "score": 0.00035284745589009026,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.401746，方向处理后的 score=0.000353。",
+          "系统输出 raw_value=0.401356，方向处理后的 score=0.000353。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.4017455633046967,
-            "display": "0.401746",
+            "value": 0.4013564135017869,
+            "display": "0.401356",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -1805,10 +1805,10 @@
         "stock_code": "601778.SH",
         "stock_name": "晶科科技",
         "raw_value": 5.0,
-        "score": -0.034706159161826663,
+        "score": -0.0349652655330578,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=5.0000，方向处理后的 score=-0.034706。",
+          "系统输出 raw_value=5.0000，方向处理后的 score=-0.034965。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -1823,8 +1823,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.034706159161826663,
-            "display": "-0.034706",
+            "value": -0.0349652655330578,
+            "display": "-0.034965",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -1856,13 +1856,13 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "300840.SZ",
-        "stock_name": "酷特智能",
+        "stock_code": "300753.SZ",
+        "stock_name": "爱朋医疗",
         "raw_value": 0.0,
-        "score": -0.003659319516568948,
+        "score": -0.0018292116315984334,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.000000，方向处理后的 score=-0.003659。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=-0.001829。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
@@ -1877,8 +1877,8 @@
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.003659319516568948,
-            "display": "-0.003659",
+            "value": -0.0018292116315984334,
+            "display": "-0.001829",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -2224,8 +2224,8 @@
       "system_l1": "市场交易信息",
       "system_l2": "波动风险类",
       "system_direction": "负向",
-      "system_formula": "DASTD = std(r_d, 过去 252 个日对数收益) × √252\n其中 r_d = ln(P_t / P_{t-1})，需要 253 个复权收盘价端点，年化波动率。",
-      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE（复权收盘价）",
+      "system_formula": "DASTD = std(log_return, 252) * sqrt(250)",
+      "system_wind_source": "AShareEODPrices.S_DQ_ADJCLOSE",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -2236,19 +2236,19 @@
         "trade_date": "2026-07-31",
         "stock_code": "601608.SH",
         "stock_name": "中信重工",
-        "raw_value": 0.47649328705801586,
+        "raw_value": 0.47459867403960526,
         "score": -0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.476493，方向处理后的 score=-0.000000。",
+          "系统输出 raw_value=0.474599，方向处理后的 score=-0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.47649328705801586,
-            "display": "0.476493",
+            "value": 0.47459867403960526,
+            "display": "0.474599",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -2692,7 +2692,7 @@
       "system_l1": "市场交易信息",
       "system_l2": "流动性类",
       "system_direction": "负向",
-      "system_formula": "ln(mean(S_DQ_AMOUNT, 20))",
+      "system_formula": "mean(S_DQ_AMOUNT, 20)",
       "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT",
       "catalog_v2_status": "computed",
       "detail_url": "data/factor_audit_details/AMOUNT20.json",
@@ -2704,20 +2704,20 @@
         "trade_date": "2026-07-31",
         "stock_code": "301596.SZ",
         "stock_name": "瑞迪智驱",
-        "raw_value": 11.966343988858814,
+        "raw_value": 157368.26725,
         "score": -0.0,
         "steps": [
           "取 2026-07-06 到 2026-07-31 的近20个交易日。",
           "20日成交额均值 = 157,368.27。",
-          "AMOUNT20 = ln(20日成交额均值) = 11.9663。",
-          "系统保存 raw_value=11.9663，score=-0.000000。"
+          "AMOUNT20 = 20日成交额算术均值 = 157,368.27。",
+          "系统保存 raw_value=157,368.27，score=-0.000000。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 11.966343988858814,
-            "display": "11.9663",
+            "value": 157368.26725,
+            "display": "157,368.27",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -2771,18 +2771,10 @@
           },
           {
             "field": "amount20_mean",
-            "label": "20日成交额均值",
+            "label": "20日成交额算术均值",
             "value": 157368.26725000003,
             "display": "157,368.27",
             "unit": "千元",
-            "note": ""
-          },
-          {
-            "field": "ln_amount20_mean",
-            "label": "ln(20日成交额均值)",
-            "value": 11.966343988858814,
-            "display": "11.9663",
-            "unit": "",
             "note": ""
           }
         ]
@@ -3516,7 +3508,7 @@
       "system_l1": "市场交易信息",
       "system_l2": "拥挤度类",
       "system_direction": "负向",
-      "system_formula": "rank_pct(TURN_t, 最长120日)，至少60个有效换手日；TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
+      "system_formula": "rank_pct(mean(TURN, 120), 同日全部有120日有效观测的股票)；TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
       "system_wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
       "catalog_v2_status": "computed",
       "detail_url": "data/factor_audit_details/TURNPCTL.json",
@@ -3526,32 +3518,32 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "688669.SH",
-        "stock_name": "聚石化学",
-        "raw_value": 0.525,
-        "score": -0.0106463182273858,
+        "stock_code": "600903.SH",
+        "stock_name": "贵州燃气",
+        "raw_value": 0.5217727888523321,
+        "score": -0.0,
         "steps": [
           "取 2026-01-30 到 2026-07-31 的近120个交易日。",
           "每日 turnover = amount / S_DQ_MV / 10。",
-          "末日 turnover=0.033936。",
-          "不高于末日 turnover 的交易日数 = 63。",
-          "TURNPCTL = 63/120 = 0.525000。",
-          "系统保存 raw_value=0.525000，score=-0.010646。"
+          "本股120日平均 turnover=0.029300。",
+          "同日完整样本股票数 = 5167。",
+          "TURNPCTL = 同日120日平均换手率截面平均秩/样本数 = 0.521773。",
+          "系统保存 raw_value=0.521773，score=-0.000000。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.525,
-            "display": "0.525000",
+            "value": 0.5217727888523321,
+            "display": "0.521773",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.0106463182273858,
-            "display": "-0.010646",
+            "value": -0.0,
+            "display": "-0.000000",
             "unit": "",
             "note": "用于排序和组合构建"
           },
@@ -3582,42 +3574,50 @@
           {
             "field": "S_DQ_AMOUNT",
             "label": "末日成交额 amount",
-            "value": 241288.49,
-            "display": "241,288.49",
+            "value": 164958.507,
+            "display": "164,958.51",
             "unit": "千元",
             "note": "本地 price_panel.amount"
           },
           {
             "field": "float_mv",
             "label": "流通市值 S_DQ_MV",
-            "value": 711013.3372,
-            "display": "711,013.34",
+            "value": 718178.8129,
+            "display": "718,178.81",
             "unit": "万元",
             "note": "本地 market_cap 字段"
           },
           {
-            "field": "turnover",
-            "label": "末日换手率 turnover",
-            "value": 0.033935859902460355,
-            "display": "0.033936",
+            "field": "turnover_120d",
+            "label": "120日平均换手率",
+            "value": 0.029299920922893075,
+            "display": "0.029300",
             "unit": "",
-            "note": "amount / S_DQ_MV / 10"
+            "note": "mean(turnover,120)"
           },
           {
-            "field": "turnover_rank_count",
-            "label": "不高于末日换手率的天数",
-            "value": 63,
-            "display": "63.0000",
-            "unit": "天",
+            "field": "cross_section_size",
+            "label": "同日完整样本股票数",
+            "value": 5167,
+            "display": "5,167.000",
+            "unit": "只",
+            "note": ""
+          },
+          {
+            "field": "turnover_rank",
+            "label": "120日平均换手率截面秩",
+            "value": 2696.0,
+            "display": "2,696.000",
+            "unit": "",
             "note": ""
           },
           {
             "field": "turnpctl",
-            "label": "历史分位 TURNPCTL",
-            "value": 0.525,
-            "display": "0.525000",
+            "label": "截面分位 TURNPCTL",
+            "value": 0.5217727888523321,
+            "display": "0.521773",
             "unit": "",
-            "note": "turnover_rank_count / window_days"
+            "note": "average_rank / cross_section_size"
           }
         ]
       }
@@ -5077,8 +5077,8 @@
       "system_l1": "事件驱动信息",
       "system_l2": "风险事件类",
       "system_direction": "负向",
-      "system_formula": "LAWSUITAMT = sum(优先正RESULTAMOUNT，0/缺失时回退至正AMOUNT, 近365日公告，全字段精确去重)。",
-      "system_wind_source": "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; ANN_DT",
+      "system_formula": "LAWSUITAMT = sum(event_amount / (S_DQ_CLOSE * TOT_SHR_TODAY), 近365日)；event_amount优先正RESULTAMOUNT，否则正AMOUNT，仅CRNCY_CODE=CNY；公告日无行情时取此前最近交易日，严禁未来回填。",
+      "system_wind_source": "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; CRNCY_CODE; ANN_DT; AShareEODPrices.S_DQ_CLOSE; AShareEODDerivativeIndicator.TOT_SHR_TODAY",
       "catalog_v2_status": "computed",
       "detail_url": "",
       "warnings": [
@@ -5087,29 +5087,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "300368.SZ",
-        "stock_name": "汇金股份",
-        "raw_value": 110339538.15,
-        "score": 0.001042690818982438,
+        "stock_code": "000521.SZ",
+        "stock_name": "长虹美菱",
+        "raw_value": 161.83712792152267,
+        "score": 0.0010657435157906835,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=110,339,538.15，方向处理后的 score=0.001043。",
+          "系统输出 raw_value=161.837，方向处理后的 score=0.001066。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 110339538.15,
-            "display": "110,339,538.15",
+            "value": 161.83712792152267,
+            "display": "161.837",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.001042690818982438,
-            "display": "0.001043",
+            "value": 0.0010657435157906835,
+            "display": "0.001066",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -6130,22 +6130,22 @@
       ],
       "required_data": [],
       "sample": {
-        "trade_date": "2026-04-30",
-        "stock_code": "603019.SH",
-        "stock_name": "中科曙光",
-        "raw_value": 20.88,
+        "trade_date": "2026-02-27",
+        "stock_code": "688676.SH",
+        "stock_name": "金盘科技",
+        "raw_value": 14.89,
         "score": 0.0,
         "steps": [
-          "选取最新截面 2026-04-30 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=20.8800，方向处理后的 score=0.000000。",
+          "选取最新截面 2026-02-27 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=14.8900，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 20.88,
-            "display": "20.8800",
+            "value": 14.89,
+            "display": "14.8900",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -6184,22 +6184,22 @@
       ],
       "required_data": [],
       "sample": {
-        "trade_date": "2026-04-30",
-        "stock_code": "301158.SZ",
-        "stock_name": "德石股份",
-        "raw_value": 18.72,
+        "trade_date": "2026-07-31",
+        "stock_code": "601077.SH",
+        "stock_name": "渝农商行",
+        "raw_value": 11.55,
         "score": 0.0,
         "steps": [
-          "选取最新截面 2026-04-30 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=18.7200，方向处理后的 score=0.000000。",
+          "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=11.5500，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 18.72,
-            "display": "18.7200",
+            "value": 11.55,
+            "display": "11.5500",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -6238,22 +6238,22 @@
       ],
       "required_data": [],
       "sample": {
-        "trade_date": "2026-02-27",
-        "stock_code": "688015.SH",
-        "stock_name": "交控科技",
-        "raw_value": 5.98,
+        "trade_date": "2026-03-31",
+        "stock_code": "688205.SH",
+        "stock_name": "德科立",
+        "raw_value": 3.2,
         "score": 0.0,
         "steps": [
-          "选取最新截面 2026-02-27 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=5.9800，方向处理后的 score=0.000000。",
+          "选取最新截面 2026-03-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
+          "系统输出 raw_value=3.2000，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 5.98,
-            "display": "5.9800",
+            "value": 3.2,
+            "display": "3.2000",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -6293,21 +6293,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-02-27",
-        "stock_code": "300389.SZ",
-        "stock_name": "艾比森",
-        "raw_value": 13.55,
+        "stock_code": "002498.SZ",
+        "stock_name": "汉缆股份",
+        "raw_value": 13.04,
         "score": 0.0,
         "steps": [
           "选取最新截面 2026-02-27 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=13.5500，方向处理后的 score=0.000000。",
+          "系统输出 raw_value=13.0400，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 13.55,
-            "display": "13.5500",
+            "value": 13.04,
+            "display": "13.0400",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -7103,21 +7103,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "688516.SH",
-        "stock_name": "奥特维",
-        "raw_value": 0.3304609186902308,
+        "stock_code": "301550.SZ",
+        "stock_name": "斯菱智驱",
+        "raw_value": 0.35316756314062875,
         "score": -0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.330461，方向处理后的 score=-0.000000。",
+          "系统输出 raw_value=0.353168，方向处理后的 score=-0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.3304609186902308,
-            "display": "0.330461",
+            "value": 0.35316756314062875,
+            "display": "0.353168",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -8237,21 +8237,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "002421.SZ",
-        "stock_name": "达实智能",
-        "raw_value": -0.4910714285714286,
+        "stock_code": "603268.SH",
+        "stock_name": "松发股份",
+        "raw_value": -0.4907007623028439,
         "score": 0.00030915494752839983,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=-0.491071，方向处理后的 score=0.000309。",
+          "系统输出 raw_value=-0.490701，方向处理后的 score=0.000309。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": -0.4910714285714286,
-            "display": "-0.491071",
+            "value": -0.4907007623028439,
+            "display": "-0.490701",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -8443,7 +8443,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "个股PB − 历史时点所属申万一级行业同截面中位PB；相对行业越便宜越好，方向负。",
+      "system_formula": "仅使用 PB>0 样本：个股PB − 历史时点所属申万一级行业同截面正PB中位数；相对行业越便宜越好，方向负。",
       "system_wind_source": "派生（已有数据计算）",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -8453,21 +8453,21 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "601619.SH",
-        "stock_name": "嘉泽新能",
-        "raw_value": -0.0024999999999999467,
+        "stock_code": "601077.SH",
+        "stock_name": "渝农商行",
+        "raw_value": -0.013149999999999995,
         "score": -0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=-0.002500，方向处理后的 score=-0.000000。",
+          "系统输出 raw_value=-0.013150，方向处理后的 score=-0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": -0.0024999999999999467,
-            "display": "-0.002500",
+            "value": -0.013149999999999995,
+            "display": "-0.013150",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
@@ -8497,7 +8497,7 @@
       "system_l1": "公司内生信息",
       "system_l2": "估值类",
       "system_direction": "负向",
-      "system_formula": "个股PE − 历史时点所属申万一级行业同截面中位PE；相对行业越便宜越好，方向负。",
+      "system_formula": "仅使用 PE>0 样本：个股PE − 历史时点所属申万一级行业同截面正PE中位数；相对行业越便宜越好，方向负。",
       "system_wind_source": "派生（已有数据计算）",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -8507,29 +8507,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "601825.SH",
-        "stock_name": "沪农商行",
-        "raw_value": 0.5840499999999995,
-        "score": -0.0,
+        "stock_code": "688676.SH",
+        "stock_name": "金盘科技",
+        "raw_value": 0.0,
+        "score": -0.006895868338182177,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=0.584050，方向处理后的 score=-0.000000。",
+          "系统输出 raw_value=0.000000，方向处理后的 score=-0.006896。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 0.5840499999999995,
-            "display": "0.584050",
+            "value": 0.0,
+            "display": "0.000000",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": -0.0,
-            "display": "-0.000000",
+            "value": -0.006895868338182177,
+            "display": "-0.006896",
             "unit": "",
             "note": "用于排序和组合构建"
           }
@@ -8669,29 +8669,29 @@
       "required_data": [],
       "sample": {
         "trade_date": "2026-07-31",
-        "stock_code": "601800.SH",
-        "stock_name": "中国交建",
-        "raw_value": -0.6189446344715206,
-        "score": 0.00027533263469906765,
+        "stock_code": "002787.SZ",
+        "stock_name": "华源控股",
+        "raw_value": -0.27722012700636944,
+        "score": 0.0,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=-0.618945，方向处理后的 score=0.000275。",
+          "系统输出 raw_value=-0.277220，方向处理后的 score=0.000000。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": -0.6189446344715206,
-            "display": "-0.618945",
+            "value": -0.27722012700636944,
+            "display": "-0.277220",
             "unit": "",
             "note": "来自当前因子落地结果"
           },
           {
             "field": "score",
             "label": "方向处理后标准化分数 score",
-            "value": 0.00027533263469906765,
-            "display": "0.000275",
+            "value": 0.0,
+            "display": "0.000000",
             "unit": "",
             "note": "用于排序和组合构建"
           }

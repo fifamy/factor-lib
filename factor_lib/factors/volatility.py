@@ -13,10 +13,12 @@ from factor_lib.registry import factor
     l1="市场交易信息",
     l2="波动",
     direction=-1,
-    description="过去 252 个日对数收益（需要 253 个复权价格端点）的标准差，乘 √252 年化。"
+    formula="DASTD = std(log_return, 252) * sqrt(250)",
+    wind_source="AShareEODPrices.S_DQ_ADJCLOSE",
+    description="过去 252 个日对数收益（需要 253 个复权价格端点）的标准差，乘 √250 年化。"
 )
 def dastd(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
-    """DASTD: 日收益年化波动率 = std(log_ret_252) × √252。
+    """DASTD: 日收益年化波动率 = std(log_ret_252) × √250。
 
     参数：
         panel: 长面板 (stock_code, trade_date, adj_close, ...)
@@ -37,7 +39,7 @@ def dastd(panel: pl.DataFrame, asof: date) -> pl.DataFrame:
             continue
         recent = prices[-253:]
         log_ret = np.diff(np.log(recent))
-        annual_std = float(np.std(log_ret, ddof=1) * np.sqrt(252))
+        annual_std = float(np.std(log_ret, ddof=1) * np.sqrt(250))
         results.append({"stock_code": code[0], "value": annual_std})
 
     return pl.DataFrame(results)

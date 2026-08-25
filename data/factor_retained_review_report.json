@@ -1,19 +1,19 @@
 {
   "version": 1,
-  "generated_at": "2026-08-24 10:57:18+0800",
+  "generated_at": "2026-08-25 15:16:07+0800",
   "source_review_updated_at": "2026-07-10T06:53:12.888968+00:00",
-  "resolution_updated_at": "2026-08-14",
+  "resolution_updated_at": "2026-08-25",
   "summary": {
     "manual_review_record_count": 148,
     "manual_issue_factor_count": 81,
     "cohort_factor_count": 95,
-    "retained_issue_factor_count": 91,
-    "reclassified_fixed_count": 4,
+    "retained_issue_factor_count": 90,
+    "reclassified_fixed_count": 5,
     "reclassified_pending_count": 0,
     "status_counts": {
-      "fixed": 34,
+      "fixed": 35,
       "none": 21,
-      "not_planned": 91
+      "not_planned": 90
     },
     "missing_problem_count": 3,
     "missing_suggestion_count": 10,
@@ -21,11 +21,11 @@
     "source_missing_suggestion_count": 10,
     "current_decision_gap_count": 0,
     "legacy_cohort_factor_count": 55,
-    "current_retained_factor_count": 91,
+    "current_retained_factor_count": 90,
     "current_no_action_factor_count": 21,
     "report_row_status_counts": {
-      "not_planned": 91,
-      "fixed": 4
+      "not_planned": 90,
+      "fixed": 5
     }
   },
   "factors": [
@@ -1412,7 +1412,7 @@
       "manual_system_versions": [],
       "manual_updated_at": "",
       "manual_review_available": false,
-      "name_cn": "重大诉讼金额",
+      "name_cn": "重大诉讼市值比",
       "l1": "事件驱动信息",
       "l2": "风险事件类",
       "resolution_status": "not_planned",
@@ -3417,10 +3417,10 @@
     },
     {
       "factor_code": "TURNPCTL",
-      "name_cn": "换手率历史分位",
+      "name_cn": "换手率截面分位",
       "l1": "市场交易信息",
       "l2": "拥挤度类",
-      "resolution_status": "not_planned",
+      "resolution_status": "fixed",
       "manual_problem": [],
       "manual_suggestion": [
         "可结合使用，先计算每只个股过去120日时序换手率分位数，再计算所有股票的截面分位。"
@@ -3430,21 +3430,21 @@
       ],
       "manual_updated_at": "2026-07-10T06:20:47.079321+00:00",
       "decision_titles": [
-        "换手率历史分位已在标准化阶段完成两阶段排序"
+        "换手率120日均值改为同日横截面分位"
       ],
       "verification_assessment": [
-        "原始因子先计算每只股票最新换手率在自身120日内的时序分位，标准化阶段再做月度截面高斯秩转换，已经实现人工建议的时序后截面两阶段处理；但Word原式写的是同日股票之间的截面排名，两者不是同一原始因子定义。"
+        "Word原式要求先计算每只股票过去120个有效交易日的日均换手率，再在核对日当日有行情且满足120日有效观测的股票之间计算平均秩分位。时序分位是另一种因子定义，不应继续用于TURNPCTL。"
       ],
       "reason_not_changed": [
-        "当前实现与人工提出的两阶段研究信号一致且可以复算；Word原式对应另一种截面信号，不能直接覆盖当前历史序列。"
+        "已完成修改，无待处理原因。"
       ],
       "decision_action": [
-        "保留当前TURNPCTL时序分位原始值和截面标准化流程，并在审核页持续披露与Word截面分位公式的差异。若后续坚持Word原式，应新增独立的截面换手率分位因子，不得仅靠修改文案把两种定义视为一致。"
+        "已将TURNPCTL统一为120日日均换手率的同日全市场横截面平均秩分位，并使生产计算、独立审计参考和审核样例共用同一股票池边界；已退市或核对日无行情的股票不进入当日排名分母。"
       ],
       "evidence": [
-        "TURNPCTL原始公式rank_pct(TURN_t,120)",
-        "标准化阶段按月截面高斯秩转换",
-        "人工复核建议时序分位后再做截面分位"
+        "TURNPCTL注册公式rank_pct(mean(TURN,120),同日截面)",
+        "Word原式Rank(Turnover_i,t^(N))/S",
+        "独立审计对账按同日股票池重算"
       ],
       "decision_issue_ids": [
         "definition-turnpctl-two-stage"

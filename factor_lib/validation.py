@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import date, datetime
 import math
 
 import numpy as np
@@ -13,27 +14,105 @@ def _finite_array(values: Iterable[float | None]) -> np.ndarray:
     return arr[np.isfinite(arr)]
 
 
+def _coerce_date(value) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value)
+    if len(text) == 7:
+        text += "-01"
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError as exc:
+        raise ValueError(f"invalid return date: {value!r}") from exc
+
+
+def _finite_returns_and_dates(
+    returns: Iterable[float | None],
+    dates: Iterable | None,
+) -> tuple[np.ndarray, list[date] | None]:
+    values = list(returns)
+    if dates is None:
+        return _finite_array(values), None
+    date_values = list(dates)
+    if len(values) != len(date_values):
+        raise ValueError("returns and dates must have the same length")
+
+    finite_returns: list[float] = []
+    finite_dates: list[date] = []
+    for value, dt in zip(values, date_values):
+        numeric = np.nan if value is None else float(value)
+        if not math.isfinite(numeric):
+            continue
+        if dt is None:
+            raise ValueError("a finite return cannot have a missing date")
+        finite_returns.append(numeric)
+        finite_dates.append(_coerce_date(dt))
+    return np.asarray(finite_returns, dtype=float), finite_dates
+
+
+def _calendar_period_span(dates: list[date], periods_per_year: int) -> float:
+    """返回从首个到最后一个收益期的完整日历期数（含首尾）。"""
+    if not dates:
+        return 0.0
+    ordered = sorted(dates)
+    if periods_per_year == 12:
+        keys = [dt.year * 12 + dt.month for dt in ordered]
+        if len(set(keys)) != len(keys):
+            raise ValueError("monthly return dates must be unique by calendar month")
+        return float(keys[-1] - keys[0] + 1)
+
+    if len(set(ordered)) != len(ordered):
+        raise ValueError("return dates must be unique")
+    elapsed_years = (ordered[-1] - ordered[0]).days / 365.2425
+    return max(1.0, elapsed_years * periods_per_year + 1.0)
+
+
+def _observations_per_year(
+    n_observations: int,
+    dates: list[date] | None,
+    periods_per_year: int,
+) -> float:
+    if not dates:
+        return float(periods_per_year)
+    span = _calendar_period_span(dates, periods_per_year)
+    if span <= 0:
+        return float(periods_per_year)
+    return float(periods_per_year) * n_observations / span
+
+
 def annualized_return(
     returns: Iterable[float | None],
     periods_per_year: int = 12,
+    dates: Iterable | None = None,
 ) -> float | None:
-    arr = _finite_array(returns)
+    arr, finite_dates = _finite_returns_and_dates(returns, dates)
     if arr.size == 0:
         return None
     gross = float(np.prod(1.0 + arr))
-    if gross <= 0:
+    if gross < 0:
         return None
-    return gross ** (periods_per_year / arr.size) - 1.0
+    if gross == 0:
+        return -1.0
+    elapsed_periods = (
+        _calendar_period_span(finite_dates, periods_per_year)
+        if finite_dates is not None
+        else float(arr.size)
+    )
+    return gross ** (periods_per_year / elapsed_periods) - 1.0
 
 
 def annualized_vol(
     returns: Iterable[float | None],
     periods_per_year: int = 12,
+    dates: Iterable | None = None,
 ) -> float | None:
-    arr = _finite_array(returns)
+    arr, finite_dates = _finite_returns_and_dates(returns, dates)
     if arr.size < 2:
         return None
-    return float(np.std(arr, ddof=1) * math.sqrt(periods_per_year))
+    frequency = _observations_per_year(int(arr.size), finite_dates, periods_per_year)
+    return float(np.std(arr, ddof=1) * math.sqrt(frequency))
 
 
 def safe_sharpe(ann_return: float | None, ann_vol: float | None) -> float | None:
@@ -134,12 +213,14 @@ def summarize_return_series(
     returns: Iterable[float | None],
     turnovers: Iterable[float | None] | None = None,
     periods_per_year: int = 12,
+    dates: Iterable | None = None,
 ) -> dict[str, float | int | None]:
-    ret_arr = _finite_array(returns)
-    ann_ret = annualized_return(ret_arr, periods_per_year=periods_per_year)
-    ann_vol = annualized_vol(ret_arr, periods_per_year=periods_per_year)
+    ret_arr, finite_dates = _finite_returns_and_dates(returns, dates)
+    ann_ret = annualized_return(ret_arr, periods_per_year=periods_per_year, dates=finite_dates)
+    ann_vol = annualized_vol(ret_arr, periods_per_year=periods_per_year, dates=finite_dates)
     turn_arr = _finite_array(turnovers or [])
     avg_turn = float(np.mean(turn_arr)) if turn_arr.size else None
+    frequency = _observations_per_year(int(ret_arr.size), finite_dates, periods_per_year)
     return {
         "ann_return": ann_ret,
         "ann_vol": ann_vol,
@@ -147,6 +228,6 @@ def summarize_return_series(
         "max_drawdown": max_drawdown(ret_arr),
         "month_win_rate": win_rate(ret_arr),
         "avg_turnover": avg_turn,
-        "ann_turnover": (avg_turn * periods_per_year) if avg_turn is not None else None,
+        "ann_turnover": (avg_turn * frequency) if avg_turn is not None else None,
         "n_months": int(ret_arr.size),
     }

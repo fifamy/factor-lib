@@ -21,8 +21,8 @@
         "reason": "两者使用相同的12-1形成期，仅日收益加权方式不同；RSTR252已转为研究留档，不得与MOM12_1同时计权。"
       }
     ],
-    "env_tag": "全天候型",
-    "time_tag": "反向恶化"
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "RSTR252",
@@ -47,7 +47,7 @@
       }
     ],
     "env_tag": "牛市进攻型",
-    "time_tag": "反向恶化"
+    "time_tag": "反向改善"
   },
   {
     "code": "REV1M",
@@ -63,7 +63,7 @@
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "当前原始值为过去21日正向对数收益，并通过direction=-1表达反转；与Word直接把负号写入因子值的表达不同。组合使用时不得再次手工取反，且与MOM20属于同一路径的正反写法，仍不得同时计权。",
+    "usage_note": "当前原始值为过去21日正向累计对数收益，并通过direction=-1表达反转；与Word把负号写入因子值的定义在截面排序上数学等价。组合使用时不得再次手工取反，且与MOM20属于同一路径的正反写法，仍不得同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -72,7 +72,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "近期失效"
   },
   {
     "code": "DASTD",
@@ -80,19 +80,19 @@
     "l1": "市场交易信息",
     "l2": "波动风险类",
     "direction": -1,
-    "description": "过去 252 个日对数收益（需要 253 个复权价格端点）的标准差，乘 √252 年化。",
-    "formula": "DASTD = std(r_d, 过去 252 个日对数收益) × √252\n其中 r_d = ln(P_t / P_{t-1})，需要 253 个复权收盘价端点，年化波动率。",
-    "wind_source": "AShareEODPrices.S_DQ_ADJCLOSE（复权收盘价）",
+    "description": "过去 252 个日对数收益（需要 253 个复权价格端点）的标准差，乘 √250 年化。",
+    "formula": "DASTD = std(log_return, 252) * sqrt(250)",
+    "wind_source": "AShareEODPrices.S_DQ_ADJCLOSE",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "当前采用252日窗口并按sqrt(252)年化，与Word所述250日窗口及sqrt(250)年化略有不同。与DOWNVOL当前历史得分相关性约0.956，但总波动率与下行波动率的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
+    "usage_note": "当前采用252个日对数收益窗口并按sqrt(250)年化，已对齐Word年化口径。与DOWNVOL当前历史得分相关性约0.956，但总波动率与下行波动率的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "STOM",
@@ -116,8 +116,8 @@
         "reason": "STOM与TURN20当前历史得分相关性约0.9995，TURNVOL20与二者相关性约0.935，默认不得同时计权。"
       }
     ],
-    "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "BETA",
@@ -136,8 +136,8 @@
     "usage_note": "当前以全A股市值加权收益作为市场代理，与Word所述外部市场指数基准不同；不能直接解释为特定指数Beta，使用前须确认基准口径。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
-    "time_tag": "反向改善"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转正"
   },
   {
     "code": "DOWNBETA",
@@ -157,7 +157,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "近期反转"
   },
   {
     "code": "PE",
@@ -182,7 +182,7 @@
       }
     ],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "PB",
@@ -202,7 +202,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "PS",
@@ -221,8 +221,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "DIVYLD",
@@ -242,7 +242,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "EP",
@@ -287,7 +287,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "EV2EBITDA",
@@ -307,7 +307,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "ROE",
@@ -326,7 +326,7 @@
     "usage_note": "ROA、ROIC与ROE当前历史得分相关性约0.91~0.96，且1个月RankIC均接近0；作为质量信号使用时建议三者只选一个，并人工确认增量价值。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -386,8 +386,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "近期反转"
+    "env_tag": "牛市进攻型",
+    "time_tag": "持续低效"
   },
   {
     "code": "NETMGN",
@@ -446,7 +446,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "长期稳定型"
   },
   {
@@ -466,8 +466,8 @@
     "usage_note": "与OPGROWTH当前历史得分相关性约0.921，但净利润增长与营业利润增长的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期转强"
   },
   {
     "code": "OPGROWTH",
@@ -487,7 +487,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "CFOGROWTH",
@@ -551,8 +551,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "近期转弱"
+    "env_tag": "熊市防御型",
+    "time_tag": "近期失效"
   },
   {
     "code": "PCF",
@@ -572,7 +572,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "OCF2OI",
@@ -591,8 +591,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期反转"
   },
   {
     "code": "ACCRUAL",
@@ -611,8 +611,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
-    "time_tag": "近期失效"
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期反转"
   },
   {
     "code": "IMPAIRRISK",
@@ -651,7 +651,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "持续低效"
   },
   {
@@ -671,7 +671,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -691,7 +691,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -711,7 +711,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -731,7 +731,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -752,7 +752,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "QUICK",
@@ -772,7 +772,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "近期反转"
+    "time_tag": "持续低效"
   },
   {
     "code": "CASHRATIO",
@@ -792,7 +792,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "INTCOVER",
@@ -901,8 +901,8 @@
     "usage_note": "与LEVERAGE、EQMULT当前历史得分相关性分别约0.903、0.901，但有形资产结构与杠杆的经济含义不同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "ASSETTURN",
@@ -922,7 +922,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期失效"
   },
   {
     "code": "INVTURN",
@@ -962,7 +962,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "持续低效"
+    "time_tag": "近期反转"
   },
   {
     "code": "CATURN",
@@ -981,7 +981,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1001,7 +1001,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期反转"
   },
   {
@@ -1022,7 +1022,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "time_tag": "近期失效"
   },
   {
     "code": "MOM60",
@@ -1047,7 +1047,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "反向恶化"
+    "time_tag": "反向改善"
   },
   {
     "code": "MOM20",
@@ -1092,7 +1092,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "MA20BIAS",
@@ -1112,7 +1112,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "HLPOS",
@@ -1132,7 +1132,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "DOWNVOL",
@@ -1151,8 +1151,8 @@
     "usage_note": "与DASTD当前历史得分相关性约0.956，但下行波动率与总波动率的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "MAXDD1Y",
@@ -1172,7 +1172,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转强"
   },
   {
     "code": "RETSKEW",
@@ -1212,7 +1212,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "反向改善"
+    "time_tag": "持续反向"
   },
   {
     "code": "BIGDOWN",
@@ -1232,7 +1232,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "AMOUNT20",
@@ -1240,15 +1240,15 @@
     "l1": "市场交易信息",
     "l2": "流动性类",
     "direction": -1,
-    "description": "近 20 日日均成交额（对数）；大盘高流动性历史溢价低，方向负（偏小流动性）。",
-    "formula": "ln(mean(S_DQ_AMOUNT, 20))",
+    "description": "近 20 日日均成交额原值；大盘高流动性历史溢价低，方向负（偏小流动性）。",
+    "formula": "mean(S_DQ_AMOUNT, 20)",
     "wind_source": "AShareEODPrices.S_DQ_AMOUNT",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "当前计算20日成交额的对数均值，与Word所述成交额算术均值口径不同；截面排序通常保持单调，但原始量级不可互换。与MFLOW20当前得分完全一致，仍不得同时计权。",
+    "usage_note": "当前计算完整20个交易日成交额算术均值原值，已对齐Word口径。与MFLOW20的信息重叠度仍需在重算后复核，确认前不得同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -1256,7 +1256,7 @@
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
     ],
-    "env_tag": "震荡占优型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期转弱"
   },
   {
@@ -1301,8 +1301,8 @@
         "reason": "STOM与TURN20当前历史得分相关性约0.9995，TURNVOL20与二者相关性约0.935，默认不得同时计权。"
       }
     ],
-    "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "AMTVOL",
@@ -1321,7 +1321,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1341,28 +1341,28 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "TURNPCTL",
-    "name_cn": "换手率历史分位",
+    "name_cn": "换手率截面分位",
     "l1": "市场交易信息",
     "l2": "拥挤度类",
     "direction": -1,
-    "description": "最新日换手率在最长120个交易日内的历史分位，至少需要60个有效换手日；换手越处高位越拥挤，方向负。",
-    "formula": "rank_pct(TURN_t, 最长120日)，至少60个有效换手日；TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
+    "description": "每只股票计算120日日均换手率，再在当日有完整观测的股票之间计算平均秩截面分位；分位越高越拥挤，方向负。",
+    "formula": "rank_pct(mean(TURN, 120), 同日全部有120日有效观测的股票)；TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
     "wind_source": "AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "当前为个股120日时间序列换手率分位，再做月度截面标准化；与Word所述当月截面分位口径不同，使用和解释时须明确区分。",
+    "usage_note": "当前先计算个股完整120个交易日平均换手率，再做同日全市场截面平均秩分位，已对齐Word截面口径。若需行业截面或其他窗口，应以新因子代码参数化实现。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "PVCORR",
@@ -1402,7 +1402,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "ABTURN",
@@ -1422,7 +1422,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "HIGHMOMTURN",
@@ -1441,8 +1441,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "NPFCST1M",
@@ -1467,7 +1467,7 @@
       }
     ],
     "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转强"
   },
   {
     "code": "NPFCST3M",
@@ -1487,7 +1487,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转强"
   },
   {
     "code": "EPSFCST1M",
@@ -1507,7 +1507,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "SALESFCST1M",
@@ -1546,8 +1546,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "持续低效"
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期转强"
   },
   {
     "code": "FCSTDISP",
@@ -1587,7 +1587,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期反转"
+    "time_tag": "持续低效"
   },
   {
     "code": "HOLDERCHG",
@@ -1606,8 +1606,8 @@
     "usage_note": "低基数、上市初期或股东户数修订可能产生极端原始比率；正式得分已做截面排序，但组合使用前仍须检查原始极端值和覆盖期，建议仅作为辅助信号。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期失效"
   },
   {
     "code": "HOLDERCONC",
@@ -1627,7 +1627,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "HOLDERCONCCHG",
@@ -1651,7 +1651,7 @@
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
     ],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期失效"
   },
   {
@@ -1676,8 +1676,8 @@
         "reason": "两者分别使用营业总收入与营业收入构造三年CAGR，当前历史得分相关性约0.993，不得同时计权。"
       }
     ],
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期转正"
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转强"
   },
   {
     "code": "PBPCTL",
@@ -1685,8 +1685,8 @@
     "l1": "公司内生信息",
     "l2": "估值类",
     "direction": -1,
-    "description": "市净率 PB 在自身过去36个月的分位（0~1）；分位越低=相对自身越便宜，方向负。",
-    "formula": "市净率 PB 在自身过去36个月的分位（0~1）；分位越低=相对自身越便宜，方向负。",
+    "description": "仅对 PB>0 的有经济含义样本，计算市净率在自身过去36个月的分位（0~1）；分位越低=相对自身越便宜，方向负。",
+    "formula": "仅对 PB>0 的有经济含义样本，计算市净率在自身过去36个月的分位（0~1）；分位越低=相对自身越便宜，方向负。",
     "wind_source": "派生（已有数据计算）",
     "v2_status": "computed",
     "positive_only": false,
@@ -1697,7 +1697,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "RELRET60",
@@ -1722,7 +1722,7 @@
       }
     ],
     "env_tag": "全天候型",
-    "time_tag": "反向恶化"
+    "time_tag": "反向改善"
   },
   {
     "code": "RELPEIND",
@@ -1730,8 +1730,8 @@
     "l1": "公司内生信息",
     "l2": "估值类",
     "direction": -1,
-    "description": "个股PE − 历史时点所属申万一级行业同截面中位PE；相对行业越便宜越好，方向负。",
-    "formula": "个股PE − 历史时点所属申万一级行业同截面中位PE；相对行业越便宜越好，方向负。",
+    "description": "仅使用 PE>0 样本：个股PE − 历史时点所属申万一级行业同截面正PE中位数；相对行业越便宜越好，方向负。",
+    "formula": "仅使用 PE>0 样本：个股PE − 历史时点所属申万一级行业同截面正PE中位数；相对行业越便宜越好，方向负。",
     "wind_source": "派生（已有数据计算）",
     "v2_status": "computed",
     "positive_only": false,
@@ -1741,7 +1741,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1750,8 +1750,8 @@
     "l1": "公司内生信息",
     "l2": "估值类",
     "direction": -1,
-    "description": "个股PB − 历史时点所属申万一级行业同截面中位PB；相对行业越便宜越好，方向负。",
-    "formula": "个股PB − 历史时点所属申万一级行业同截面中位PB；相对行业越便宜越好，方向负。",
+    "description": "仅使用 PB>0 样本：个股PB − 历史时点所属申万一级行业同截面正PB中位数；相对行业越便宜越好，方向负。",
+    "formula": "仅使用 PB>0 样本：个股PB − 历史时点所属申万一级行业同截面正PB中位数；相对行业越便宜越好，方向负。",
     "wind_source": "派生（已有数据计算）",
     "v2_status": "computed",
     "positive_only": false,
@@ -1762,7 +1762,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "RELRETIND",
@@ -1782,7 +1782,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续反向"
+    "time_tag": "反向改善"
   },
   {
     "code": "GLVR60",
@@ -1801,7 +1801,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -1822,7 +1822,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "REVSVAR",
@@ -1842,7 +1842,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "KURT60",
@@ -1862,7 +1862,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "time_tag": "持续低效"
   },
   {
     "code": "TURN20D120",
@@ -1882,7 +1882,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "VOL1M60",
@@ -1902,7 +1902,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "TURNVOL20",
@@ -1927,7 +1927,7 @@
       }
     ],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转弱"
   },
   {
     "code": "PSKEW",
@@ -1946,8 +1946,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期转强"
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转弱"
   },
   {
     "code": "EXPDEDNP",
@@ -1966,7 +1966,7 @@
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。与EXPOP当前历史得分相关性约0.92，不建议二者同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -1987,7 +1987,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "近期转强"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "EXPROE",
@@ -2006,8 +2006,8 @@
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "近期转正"
+    "env_tag": "牛市进攻型",
+    "time_tag": "反向改善"
   },
   {
     "code": "EXPOP",
@@ -2026,7 +2026,7 @@
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。与EXPDEDNP当前历史得分相关性约0.92，不建议二者同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期转强"
   },
   {
@@ -2047,7 +2047,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "AROON",
@@ -2067,7 +2067,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期转弱"
+    "time_tag": "近期失效"
   },
   {
     "code": "MFLOW20",
@@ -2091,7 +2091,7 @@
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
     ],
-    "env_tag": "震荡占优型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期转弱"
   },
   {
@@ -2112,7 +2112,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "反向恶化"
+    "time_tag": "反向改善"
   },
   {
     "code": "PEPCTL",
@@ -2132,7 +2132,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "FWDPE",
@@ -2152,7 +2152,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "EV2EBIT",
@@ -2172,7 +2172,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "ROEVOL",
@@ -2211,7 +2211,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2231,8 +2231,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效"
+    "env_tag": "震荡占优型",
+    "time_tag": "近期转强"
   },
   {
     "code": "SURVEYINSTCNT",
@@ -2276,8 +2276,8 @@
         "reason": "两者分别使用营业总收入与营业收入构造三年CAGR，当前历史得分相关性约0.993，不得同时计权。"
       }
     ],
-    "env_tag": "牛市进攻型",
-    "time_tag": "近期转正"
+    "env_tag": "熊市防御型",
+    "time_tag": "近期转强"
   },
   {
     "code": "CAPEXGROWTH",
@@ -2296,7 +2296,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -2316,8 +2316,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
-    "time_tag": "持续低效"
+    "env_tag": "熊市防御型",
+    "time_tag": "近期反转"
   },
   {
     "code": "INTDEBTRATIO",
@@ -2356,7 +2356,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {
@@ -2365,19 +2365,19 @@
     "l1": "公司内生信息",
     "l2": "运营效率类",
     "direction": -1,
-    "description": "公告可得应收票据及应收账款合计占 TTM 营业收入比例；比例越低，收入质量越好。",
-    "formula": "ARRATIO = (ACCT_RCV + NOTES_RCV) / S_DFA_OR_TTM；两个应收分项都缺失时置缺失，仅其中一项缺失时将该分项按0合并；资产负债表取月末前最新公告，收入使用同月 PITFinancialFactor。",
+    "description": "公告可得的期初期末平均应收票据及应收账款合计占 TTM 营业收入比例；比例越低，收入质量越好。",
+    "formula": "ARRATIO = average(AR_begin, AR_end) / S_DFA_OR_TTM，AR=ACCT_RCV+NOTES_RCV；期初使用不晚于当期公告日可见的上年末合并报表余额，期初或期末缺失则置缺失；收入使用同月 PITFinancialFactor。",
     "wind_source": "AShareBalanceSheet.ACCT_RCV; AShareBalanceSheet.NOTES_RCV; PITFinancialFactor.S_DFA_OR_TTM; ANN_DT",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "当前以期末应收账款构造比率，与Word所述期初期末平均应收账款口径不同；周转质量比较前须确认分母时点口径。",
+    "usage_note": "当前使用截至公告日可见的上年末与本期末应收账款、应收票据平均余额除以TTM营业收入，已对齐Word口径；期初值未披露时严格置缺失。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
-    "time_tag": "持续低效"
+    "env_tag": "全天候型",
+    "time_tag": "近期反转"
   },
   {
     "code": "DIVPAYOUT",
@@ -2396,7 +2396,7 @@
     "usage_note": "当前采用最新可见年度现金分红除以当前TTM净利润，与Word所述滚动12个月分红和滚动12个月净利润口径不同；跨期解释前须确认窗口匹配。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期反转"
   },
   {
@@ -2416,7 +2416,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "近期失效"
   },
   {
@@ -2437,7 +2437,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "time_tag": "近期转强"
   },
   {
     "code": "SUSPENDDAYS",
@@ -2456,7 +2456,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "全天候型",
     "time_tag": "持续低效"
   },
   {
@@ -2477,7 +2477,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "持续反向"
+    "time_tag": "反向改善"
   },
   {
     "code": "LIMITDOWNDAYS",
@@ -2496,7 +2496,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "震荡占优型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2516,7 +2516,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "全天候型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2536,7 +2536,7 @@
     "usage_note": "当前登记方向下全样本与近期RankIC均为负，负值收窄不等于恢复正向有效；组合使用前必须人工复核方向、滚动有效性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "全天候型",
     "time_tag": "反向改善"
   },
   {
@@ -2581,7 +2581,7 @@
         "reason": "当前历史得分完全一致，不得同时计权。"
       }
     ],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期失效"
   },
   {
@@ -2602,7 +2602,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "熊市防御型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "TOP10HOLD",
@@ -2621,7 +2621,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "震荡占优型",
     "time_tag": "持续低效"
   },
   {
@@ -2642,7 +2642,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
-    "time_tag": "近期反转"
+    "time_tag": "反向恶化"
   },
   {
     "code": "ANALYSTCOVER",
@@ -2661,8 +2661,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "env_tag": "全天候型",
+    "time_tag": "近期失效"
   },
   {
     "code": "ESTEARNREV",
@@ -2687,7 +2687,7 @@
       }
     ],
     "env_tag": "牛市进攻型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期转强"
   },
   {
     "code": "TARGETPRICECHG",
@@ -2706,7 +2706,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "全天候型",
     "time_tag": "近期转强"
   },
   {
@@ -2727,7 +2727,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "time_tag": "近期失效"
   },
   {
     "code": "PLACEDISCOUNT",
@@ -2747,7 +2747,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期失效"
+    "time_tag": "长期稳定型"
   },
   {
     "code": "PLACEMENTSIZE",
@@ -2771,8 +2771,8 @@
         "reason": "当前历史得分绝对相关性0.9995，默认不得同时计权。"
       }
     ],
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期反转"
   },
   {
     "code": "MERGERSIZE",
@@ -2791,8 +2791,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "长期稳定型"
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期失效"
   },
   {
     "code": "INCENTIVESIZE",
@@ -2811,7 +2811,7 @@
     "usage_note": "稀疏事件辅助信号，不建议单独作为默认主排序因子。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期反转"
   },
   {
@@ -2831,8 +2831,8 @@
     "usage_note": "稀疏风险事件辅助信号，不建议单独作为默认主排序因子。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "近期转强"
+    "env_tag": "牛市进攻型",
+    "time_tag": "反向恶化"
   },
   {
     "code": "PUNISHAMT",
@@ -2851,28 +2851,28 @@
     "usage_note": "人工复核决定退出正式生产并转为研究留档：当前仅有处罚金额，缺少违规类型、最终处罚标记和事件ID，无法可靠排除预处罚、最终处罚及多主体记录的重复统计。保留计算代码和历史数据，但不得加入新组合。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "持续反向"
+    "env_tag": "牛市进攻型",
+    "time_tag": "反向改善"
   },
   {
     "code": "LAWSUITAMT",
-    "name_cn": "重大诉讼金额",
+    "name_cn": "重大诉讼市值比",
     "l1": "事件驱动信息",
     "l2": "风险事件类",
     "direction": -1,
-    "description": "近 365 日诉讼涉案/判决绝对金额合计；全字段完全相同的源行只计一次。",
-    "formula": "LAWSUITAMT = sum(优先正RESULTAMOUNT，0/缺失时回退至正AMOUNT, 近365日公告，全字段精确去重)。",
-    "wind_source": "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; ANN_DT",
+    "description": "近 365 日人民币诉讼事件金额占公告日总市值比合计；非交易日取此前最近交易日，全字段精确去重。",
+    "formula": "LAWSUITAMT = sum(event_amount / (S_DQ_CLOSE * TOT_SHR_TODAY), 近365日)；event_amount优先正RESULTAMOUNT，否则正AMOUNT，仅CRNCY_CODE=CNY；公告日无行情时取此前最近交易日，严禁未来回填。",
+    "wind_source": "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; CRNCY_CODE; ANN_DT; AShareEODPrices.S_DQ_CLOSE; AShareEODDerivativeIndicator.TOT_SHR_TODAY",
     "v2_status": "computed",
     "positive_only": false,
     "is_event": false,
     "usage_status": "supplementary_event",
     "combo_policy": "warn",
-    "usage_note": "稀疏厚尾风险事件辅助信号；当前为近365日诉讼绝对金额且缺少案件ID，与Word的公告日总市值归一口径不同，组合使用时须人工确认。",
+    "usage_note": "稀疏厚尾风险事件辅助信号；当前为近365日人民币诉讼事件金额除以公告日总市值后求和，已对齐Word的PIT市值归一口径。源表缺少稳定案件ID，仅做全字段精确去重；非人民币事件因缺少PIT汇率源而置缺失。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
-    "time_tag": "持续低效"
+    "env_tag": "全天候型",
+    "time_tag": "近期转强"
   },
   {
     "code": "AUDITQUAL",
@@ -2891,8 +2891,8 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
-    "time_tag": "持续低效"
+    "env_tag": "全天候型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "MAJORHOLDERCHG",
@@ -2911,7 +2911,7 @@
     "usage_note": "大股东增减持稀疏事件信号，字段可得不等于有效性已确认。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -2931,8 +2931,8 @@
     "usage_note": "高管增减持稀疏事件信号，字段可得不等于有效性已确认。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
-    "time_tag": "长期稳定型"
+    "env_tag": "牛市进攻型",
+    "time_tag": "近期转强"
   },
   {
     "code": "FINRESTATEMENT",
@@ -2952,7 +2952,7 @@
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "全天候型",
-    "time_tag": "近期反转"
+    "time_tag": "近期失效"
   },
   {
     "code": "PROFITNOTICEBEAT",
@@ -2991,8 +2991,8 @@
     "usage_note": "最新年报与年度预测对比的状态信号，需关注信号龄。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
-    "time_tag": "持续低效"
+    "env_tag": "熊市防御型",
+    "time_tag": "长期稳定型"
   },
   {
     "code": "UNLOCKMVRATIO",
@@ -3037,6 +3037,6 @@
       }
     ],
     "env_tag": "牛市进攻型",
-    "time_tag": "持续反向"
+    "time_tag": "近期转正"
   }
 ]

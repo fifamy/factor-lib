@@ -119,9 +119,23 @@ def _turnover_col() -> pl.Expr:
         description="近 5 个交易日累计对数收益（短期反转：近 5 日涨多的下期倾向回调，方向为负）。")
 def rev5d(panel, asof):
     h = _hist(panel, asof, 5)
-    return (h.group_by("stock_code")
-             .agg(pl.col("ret").sum().alias("value"))
-             .filter(pl.col("value").is_not_null()))
+    return (
+        h.group_by("stock_code")
+        .agg([
+            pl.col("ret").sum().alias("value"),
+            pl.len().alias("n_prices_in_return_window"),
+            pl.col("ret").count().alias("n_returns"),
+        ])
+        # Five daily returns require six price endpoints.  ``_hist(5)`` keeps
+        # the last five return dates; the first return is non-null only when
+        # the preceding sixth price was present in ``_window``.
+        .filter(
+            (pl.col("n_prices_in_return_window") == 5)
+            & (pl.col("n_returns") == 5)
+            & pl.col("value").is_finite()
+        )
+        .select(["stock_code", "value"])
+    )
 
 
 @factor(code="MOM60", l1="市场交易信息", l2="动量", direction=1,
@@ -142,8 +156,8 @@ def mom60(panel, asof):
 def mom20(panel, asof):
     h = _hist(panel, asof, 20)
     out = (h.group_by("stock_code")
-            .agg([pl.col("ret").sum().alias("value"), pl.len().alias("n")]))
-    return out.filter(pl.col("n") >= 15).select(["stock_code", "value"])
+            .agg([pl.col("ret").sum().alias("value"), pl.col("ret").count().alias("n")]))
+    return out.filter((pl.col("n") == 20) & pl.col("value").is_finite()).select(["stock_code", "value"])
 
 
 # ============================== 2.2 均值回复类 ==============================
@@ -159,7 +173,7 @@ def pricez(panel, asof):
                   pl.col("adj_close").mean().alias("mu"),
                   pl.col("adj_close").std().alias("sd"),
                   pl.len().alias("n")])
-            .filter((pl.col("n") >= 15) & (pl.col("sd") > 0))
+            .filter((pl.col("n") == 20) & (pl.col("sd") > 0))
             .with_columns(((pl.col("p") - pl.col("mu")) / pl.col("sd")).alias("value")))
     return out.select(["stock_code", "value"])
 
@@ -174,7 +188,7 @@ def ma20bias(panel, asof):
             .agg([pl.col("adj_close").last().alias("p"),
                   pl.col("adj_close").mean().alias("ma"),
                   pl.len().alias("n")])
-            .filter((pl.col("n") >= 15) & (pl.col("ma") > 0))
+            .filter((pl.col("n") == 20) & (pl.col("ma") > 0))
             .with_columns((pl.col("p") / pl.col("ma") - 1).alias("value")))
     return out.select(["stock_code", "value"])
 
@@ -272,16 +286,15 @@ def bigdown(panel, asof):
 
 @factor(code="AMOUNT20", l1="市场交易信息", l2="流动性", direction=-1,
         name_cn="近20日日均成交额",
-        formula="ln(mean(S_DQ_AMOUNT, 20))",
+        formula="mean(S_DQ_AMOUNT, 20)",
         wind_source="AShareEODPrices.S_DQ_AMOUNT",
-        description="近 20 日日均成交额（对数）；大盘高流动性历史溢价低，方向负（偏小流动性）。")
+        description="近 20 日日均成交额原值；大盘高流动性历史溢价低，方向负（偏小流动性）。")
 def amount20(panel, asof):
     h = _hist(panel, asof, 20)
     out = (h.group_by("stock_code")
-            .agg([pl.col("amount").mean().alias("amt"), pl.len().alias("n")])
-            .filter((pl.col("n") >= 15) & (pl.col("amt") > 0))
-            .with_columns(pl.col("amt").log().alias("value")))
-    return out.select(["stock_code", "value"])
+            .agg([pl.col("amount").mean().alias("amt"), pl.col("amount").count().alias("n")])
+            .filter((pl.col("n") == 20) & (pl.col("amt") > 0)))
+    return out.select(["stock_code", pl.col("amt").alias("value")])
 
 
 @factor(code="VOLUME20", l1="市场交易信息", l2="流动性", direction=1,
@@ -294,7 +307,7 @@ def volume20(panel, asof):
     out = (h.filter((pl.col("volume") >= 0) & pl.col("volume").is_finite())
             .group_by("stock_code")
             .agg([pl.col("volume").mean().alias("value"), pl.len().alias("n")])
-            .filter(pl.col("n") >= 15))
+            .filter(pl.col("n") == 20))
     return out.select(["stock_code", "value"])
 
 
@@ -308,8 +321,8 @@ def turn20(panel, asof):
         pl.col("trade_date").rank("ordinal", descending=True).over("stock_code").alias("_rk"))
     h = df.filter(pl.col("_rk") <= 20)
     out = (h.group_by("stock_code")
-            .agg([pl.col("turnover").mean().alias("value"), pl.len().alias("n")])
-            .filter((pl.col("n") >= 15) & pl.col("value").is_finite()))
+            .agg([pl.col("turnover").mean().alias("value"), pl.col("turnover").count().alias("n")])
+            .filter((pl.col("n") == 20) & pl.col("value").is_finite()))
     return out.select(["stock_code", "value"])
 
 
@@ -321,8 +334,8 @@ def amtvol(panel, asof):
     h = _hist(panel, asof, 20)
     out = (h.group_by("stock_code")
             .agg([pl.col("amount").mean().alias("mu"), pl.col("amount").std().alias("sd"),
-                  pl.len().alias("n")])
-            .filter((pl.col("n") >= 15) & (pl.col("mu") > 0))
+                  pl.col("amount").count().alias("n")])
+            .filter((pl.col("n") == 20) & (pl.col("mu") > 0))
             .with_columns((pl.col("sd") / pl.col("mu")).alias("value")))
     return out.select(["stock_code", "value"])
 
@@ -343,23 +356,32 @@ def turnvol(panel, asof):
 
 
 @factor(code="TURNPCTL", l1="市场交易信息", l2="流动性", direction=-1,
-        name_cn="换手率历史分位",
-        formula="rank_pct(TURN_t, 最长120日)，至少60个有效换手日；TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
+        name_cn="换手率截面分位",
+        formula="rank_pct(mean(TURN, 120), 同日全部有120日有效观测的股票)；TURN = S_DQ_AMOUNT / S_DQ_MV / 10。",
         wind_source="AShareEODPrices.S_DQ_AMOUNT; AShareEODDerivativeIndicator.S_DQ_MV",
-        description="最新日换手率在最长120个交易日内的历史分位，至少需要60个有效换手日；换手越处高位越拥挤，方向负。")
+        description="每只股票计算120日日均换手率，再在当日有完整观测的股票之间计算平均秩截面分位；分位越高越拥挤，方向负。")
 def turnpctl(panel, asof):
     h = _hist(panel, asof, 120).with_columns(_turnover_col())
-    h = h.filter(pl.col("turnover").is_not_null())
-    latest = (h.sort(["stock_code", "trade_date"])
-                .group_by("stock_code")
-                .agg([pl.col("turnover").last().alias("latest_turnover"),
-                      pl.len().alias("n")]))
-    ranked = (h.join(latest, on="stock_code")
-                .filter((pl.col("n") >= 60) & (pl.col("turnover") <= pl.col("latest_turnover")))
-                .group_by("stock_code")
-                .agg([pl.len().alias("le_count"), pl.col("n").first().alias("n")])
-                .with_columns((pl.col("le_count") / pl.col("n")).alias("value")))
-    return ranked.select(["stock_code", "value"])
+    base = (
+        h.group_by("stock_code")
+        .agg([
+            pl.col("turnover").mean().alias("turnover_120d"),
+            pl.col("turnover").count().alias("n"),
+            pl.col("trade_date").max().alias("latest_trade_date"),
+        ])
+        # 横截面只能包含 asof 当日仍有行情观测的股票。否则已退市或
+        # 长期无报价股票的历史 120 日均值会污染“同日”排名分母。
+        .filter(
+            (pl.col("n") == 120)
+            & (pl.col("latest_trade_date") == pl.lit(asof))
+            & pl.col("turnover_120d").is_finite()
+        )
+    )
+    if base.is_empty():
+        return pl.DataFrame(schema={"stock_code": pl.Utf8, "value": pl.Float64})
+    return base.with_columns(
+        (pl.col("turnover_120d").rank("average") / pl.len()).alias("value")
+    ).select(["stock_code", "value"])
 
 
 # ============================== 2.7 价量配合类 ==============================
@@ -386,8 +408,14 @@ def upvolratio(panel, asof):
     h = _hist(panel, asof, 20).filter(pl.col("ret").is_not_null())
     out = (h.group_by("stock_code")
             .agg([pl.col("amount").filter(pl.col("ret") > 0).sum().alias("up"),
-                  pl.col("amount").sum().alias("tot"), pl.len().alias("n")])
-            .filter((pl.col("n") >= 15) & (pl.col("tot") > 0))
+                  pl.col("amount").sum().alias("tot"),
+                  pl.col("ret").count().alias("n_returns"),
+                  pl.col("amount").count().alias("n_amount")])
+            .filter(
+                (pl.col("n_returns") == 20)
+                & (pl.col("n_amount") == 20)
+                & (pl.col("tot") > 0)
+            )
             .with_columns((pl.col("up") / pl.col("tot")).alias("value")))
     return out.select(["stock_code", "value"])
 
@@ -432,8 +460,8 @@ def highmomturn(panel, asof):
         .with_columns(pl.col("trade_date").rank("ordinal", descending=True).over("stock_code").alias("_rk"))
         .filter(pl.col("_rk") <= 20)
         .group_by("stock_code")
-        .agg([pl.col("turnover").mean().alias("turn20"), pl.len().alias("n_turn")])
-        .filter((pl.col("n_turn") >= 15) & pl.col("turn20").is_finite())
+        .agg([pl.col("turnover").mean().alias("turn20"), pl.col("turnover").count().alias("n_turn")])
+        .filter((pl.col("n_turn") == 20) & pl.col("turn20").is_finite())
     )
     base = mom.join(turn, on="stock_code", how="inner")
     if base.is_empty():

@@ -122,11 +122,22 @@ def health_check(code: str, meta: dict, factor_raw: pl.DataFrame,
     # recon
     if recon.get("status") in {"mismatch", "source_missing"}:
         flags.append(f"recon_{recon['status']}")
+    if int(recon.get("n_stored_only") or 0) > 0:
+        # 生产多算了参考实现明确不产生的键，应视为阻断性错误。
+        flags.append("recon_coverage_stored_extra")
+    if int(recon.get("n_ref_only") or 0) > 0:
+        # 参考源可以覆盖生产股票池之外的键；必须披露，但不与数值错误等级。
+        flags.append("recon_coverage_reference_extra")
 
     observe_only = {"outlier", "heavy_tail"}
     actionable_flags = [f for f in flags if f.split(":", 1)[0] not in observe_only]
 
-    if "nonfinite" in flags or any(f.startswith("recon_") for f in flags):
+    recon_errors = {
+        "recon_mismatch",
+        "recon_source_missing",
+        "recon_coverage_stored_extra",
+    }
+    if "nonfinite" in flags or any(f in recon_errors for f in flags):
         level = "error"
     elif actionable_flags:
         level = "warn"

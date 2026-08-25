@@ -8,6 +8,7 @@ from datetime import date
 from pathlib import Path
 
 from factor_lib.backtest import (
+    assert_backtest_economic_invariants,
     build_industry_neutral_holdings,
     run_industry_neutral_topn_backtest,
     run_group_backtests,
@@ -95,8 +96,8 @@ def test_long_only_total_loss_with_cost_stops_at_zero_nav():
         "trade_date": [date(2025, 1, 31)],
         "return_date": [date(2025, 2, 28)],
         "stock_code": ["A"],
-        "fwd_return": [None],
-    }, schema_overrides={"fwd_return": pl.Float64})
+        "fwd_return": [-1.0],
+    })
 
     nav = run_topn_backtest(score, monthly_ret, top_n=1, cost_per_side=0.002)
 
@@ -150,7 +151,7 @@ def test_batch_topn_matches_single_topn():
         assert_frame_equal(got, expected)
 
 
-def test_topn_backtest_missing_member_return_is_not_reweighted():
+def test_topn_backtest_missing_member_return_reweights_observed_members():
     score = pl.DataFrame(
         {
             "trade_date": [date(2024, 1, 31), date(2024, 1, 31)],
@@ -170,7 +171,45 @@ def test_topn_backtest_missing_member_return_is_not_reweighted():
 
     nav = run_topn_backtest(score, monthly_ret, top_n=2, cost_per_side=0.0)
 
-    assert abs(nav["port_ret"].item() - (-0.45)) < 1e-12
+    assert abs(nav["port_ret"].item() - 0.10) < 1e-12
+
+
+def test_topn_backtest_all_missing_member_returns_skips_period():
+    signal_date = date(2024, 1, 31)
+    score = pl.DataFrame({
+        "trade_date": [signal_date, signal_date],
+        "stock_code": ["A", "B"],
+        "score": [2.0, 1.0],
+    })
+    monthly_ret = pl.DataFrame({
+        "trade_date": [signal_date, signal_date],
+        "return_date": [date(2024, 2, 29), date(2024, 2, 29)],
+        "stock_code": ["A", "B"],
+        "fwd_return": [None, None],
+    }, schema_overrides={"fwd_return": pl.Float64})
+
+    assert run_topn_backtest(score, monthly_ret, top_n=2, cost_per_side=0.0).is_empty()
+
+
+def test_topn_includes_all_boundary_ties_and_is_row_order_invariant():
+    signal_date = date(2024, 1, 31)
+    score = pl.DataFrame({
+        "trade_date": [signal_date] * 4,
+        "stock_code": ["A", "B", "C", "D"],
+        "score": [2.0, 1.0, 1.0, 1.0],
+    })
+    monthly_ret = pl.DataFrame({
+        "trade_date": [signal_date] * 4,
+        "return_date": [date(2024, 2, 29)] * 4,
+        "stock_code": ["A", "B", "C", "D"],
+        "fwd_return": [0.40, 0.20, -0.20, -0.40],
+    })
+
+    expected = run_topn_backtest(score, monthly_ret, top_n=2, cost_per_side=0.0)
+    shuffled = run_topn_backtest(score.reverse(), monthly_ret.reverse(), top_n=2, cost_per_side=0.0)
+
+    assert abs(expected["port_ret"].item()) < 1e-12
+    assert_frame_equal(expected, shuffled)
 
 
 def test_group_long_short_subtracts_costs_for_both_sides():
@@ -218,6 +257,26 @@ def test_industry_neutral_holdings_allocate_target_industry_weights():
     assert abs(got["A1"] - 0.25) < 1e-12
     assert abs(got["A2"] - 0.25) < 1e-12
     assert abs(got["B1"] - 0.50) < 1e-12
+
+
+def test_industry_neutral_holdings_include_industry_quota_boundary_ties():
+    signal_date = date(2025, 1, 31)
+    score = pl.DataFrame({
+        "trade_date": [signal_date] * 6,
+        "stock_code": ["A1", "A2", "A3", "B1", "B2", "B3"],
+        "score": [9.0, 8.0, 8.0, 7.0, 6.0, 5.0],
+        "industry_sw1": ["A", "A", "A", "B", "B", "B"],
+        "industry_weight": [0.5] * 6,
+    })
+
+    holdings = build_industry_neutral_holdings(score, top_n=3)
+    weights = dict(zip(holdings["stock_code"].to_list(), holdings["weight"].to_list()))
+
+    assert set(weights) == {"A1", "A2", "A3", "B1"}
+    assert abs(weights["A1"] - 1 / 6) < 1e-12
+    assert abs(weights["A2"] - 1 / 6) < 1e-12
+    assert abs(weights["A3"] - 1 / 6) < 1e-12
+    assert abs(weights["B1"] - 0.5) < 1e-12
 
 
 def test_industry_neutral_backtest_uses_stock_weights_for_return():
@@ -282,8 +341,8 @@ def test_industry_neutral_script_total_loss_with_cost_stops_at_zero_nav():
         "trade_date": [date(2025, 1, 31)],
         "return_date": [date(2025, 2, 28)],
         "stock_code": ["A"],
-        "fwd_return": [None],
-    }, schema_overrides={"fwd_return": pl.Float64})
+        "fwd_return": [-1.0],
+    })
 
     nav = module.nav_from_weighted_holdings_all_topn(
         holdings, monthly_ret, cost_per_side=0.002
@@ -294,13 +353,59 @@ def test_industry_neutral_script_total_loss_with_cost_stops_at_zero_nav():
     assert row["nav"] == 0.0
 
 
+def test_group_ties_stay_in_one_bucket_and_long_short_has_limited_liability():
+    signal_dates = [date(2024, 1, 31), date(2024, 2, 29)]
+    score_rows = []
+    ret_rows = []
+    for i, signal_date in enumerate(signal_dates):
+        return_date = date(2024, 2, 29) if i == 0 else date(2024, 3, 31)
+        for code, value, ret in [
+            ("A", 3.0, -1.0),
+            ("B", 2.0, 0.0),
+            ("C", 2.0, 0.5),
+            ("D", 1.0, 4.0),
+        ]:
+            score_rows.append({"trade_date": signal_date, "stock_code": code, "score": value})
+            ret_rows.append({"trade_date": signal_date, "return_date": return_date, "stock_code": code, "fwd_return": ret})
+    out = run_group_backtests(
+        pl.DataFrame(score_rows), pl.DataFrame(ret_rows), n_groups=2, cost_per_side=0.0,
+    )
+    ls = out.filter(pl.col("portfolio") == "LS").sort("trade_date")
+
+    assert ls["port_ret"].to_list() == [-1.0, -1.0]
+    assert ls["nav"].to_list() == [0.0, 0.0]
+    assert out.filter((pl.col("port_ret") < -1) | (pl.col("nav") < 0)).is_empty()
+
+
+def test_economic_invariant_gate_rejects_negative_nav_and_zero_nav_revival():
+    invalid = pl.DataFrame({
+        "trade_date": [date(2024, 1, 31), date(2024, 2, 29)],
+        "factor_code": ["X", "X"],
+        "top_n": [30, 30],
+        "port_ret": [-1.0, 0.5],
+        "nav": [0.0, 0.5],
+    })
+
+    with pytest.raises(ValueError, match="revived"):
+        assert_backtest_economic_invariants(invalid, context="test")
+
+    with pytest.raises(ValueError, match="limited-liability"):
+        assert_backtest_economic_invariants(
+            invalid.with_columns([
+                pl.Series("port_ret", [-1.01, 0.0]),
+                pl.Series("nav", [-0.01, -0.01]),
+            ]),
+            context="test",
+        )
+
+
 def test_industry_neutral_script_batch_holdings_match_single_topn_reference():
     """按行业有序列表切片的批量实现，应与逐个 Top-N 参考实现一致。"""
     module = load_industry_neutral_backtest_script()
     score = pl.DataFrame({
         "trade_date": [date(2025, 1, 31)] * 7 + [date(2025, 2, 28)] * 7,
         "stock_code": ["A1", "A2", "A3", "B1", "B2", "C1", "C2"] * 2,
-        "score": [9.0, 7.0, 1.0, 8.0, 2.0, 6.0, 5.0, 1.0, 8.0, 9.0, 2.0, 7.0, 6.0, 5.0],
+        "score": [9.0, 7.0, 7.0, 8.0, 2.0, 6.0, 5.0, 1.0, 8.0, 8.0, 2.0, 7.0, 6.0, 5.0],
         "industry_sw1": ["行业A", "行业A", "行业A", "行业B", "行业B", "行业C", "行业C"] * 2,
         "industry_weight": [3 / 7, 3 / 7, 3 / 7, 2 / 7, 2 / 7, 2 / 7, 2 / 7] * 2,
     })

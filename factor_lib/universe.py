@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 
 import polars as pl
 
@@ -15,6 +16,10 @@ MARKET_LISTING_CALENDAR_DAYS = 183
 EVENT_LISTING_TRADING_DAYS = 60
 COMPANY_MIN_AVG_AMOUNT_20D = 200.0  # Wind S_DQ_AMOUNT is in thousand CNY; 200 == 200k CNY.
 MARKET_BOTTOM_LIQUIDITY_Q = 0.05
+DEFAULT_ST_HISTORY_PATH = Path(
+    "资料/word_only_factor_data_direct_only_processed/parquet/st_event_ext.parquet"
+)
+_ST_HISTORY_COLUMNS = {"S_INFO_WINDCODE", "S_TYPE_ST", "ENTRY_DT", "REMOVE_DT"}
 
 
 @dataclass(frozen=True)
@@ -121,26 +126,121 @@ def _with_meta_filters(daily: pl.DataFrame, meta: pl.DataFrame | None) -> pl.Dat
     if daily.is_empty():
         return daily
     if meta is None or meta.is_empty():
-        return daily.with_columns([
-            pl.lit(False).alias("is_st"),
-            (pl.col("trade_date") - pl.col("first_trade_date")).dt.total_days().alias("listing_calendar_days"),
-        ])
-    keep_cols = ["stock_code", *([c for c in ["is_st", "list_date"] if c in meta.columns])]
+        return daily.with_columns(
+            (pl.col("trade_date") - pl.col("first_trade_date"))
+            .dt.total_days()
+            .alias("listing_calendar_days")
+        )
+    # ``stock_meta.is_st`` is a latest-name snapshot and must never be applied
+    # to historical dates.  Historical ST eligibility is attached separately
+    # from Wind's entry/removal intervals in ``_with_pit_st_filter``.
+    keep_cols = ["stock_code", *([c for c in ["list_date"] if c in meta.columns])]
     m = meta.select(keep_cols).unique("stock_code")
-    if "is_st" not in m.columns:
-        m = m.with_columns(pl.lit(False).alias("is_st"))
     if "list_date" not in m.columns:
         m = m.with_columns(pl.lit(None).cast(pl.Date).alias("list_date"))
     return (
         daily.join(m, on="stock_code", how="left")
         .with_columns([
-            pl.col("is_st").fill_null(False).alias("is_st"),
             pl.coalesce([pl.col("list_date").cast(pl.Date, strict=False), pl.col("first_trade_date")]).alias("_listing_date"),
         ])
         .with_columns(
             (pl.col("trade_date") - pl.col("_listing_date")).dt.total_days().alias("listing_calendar_days")
         )
         .drop(["list_date", "_listing_date"])
+    )
+
+
+def _load_st_history(
+    st_history: pl.DataFrame | None,
+    st_history_path: str | Path,
+) -> pl.DataFrame:
+    """Load the required PIT ST interval table.
+
+    Passing an explicit DataFrame (including an empty one) is reserved for
+    controlled fixtures.  Production callers omit it and therefore fail with a
+    clear error when the PIT source is unavailable instead of silently falling
+    back to today's stock name.
+    """
+    if st_history is None:
+        path = Path(st_history_path)
+        if not path.exists():
+            raise FileNotFoundError(
+                f"PIT ST history not found: {path}; historical universe cannot use stock_meta.is_st"
+            )
+        st_history = pl.read_parquet(path)
+    if st_history.is_empty():
+        return st_history
+    missing = _ST_HISTORY_COLUMNS - set(st_history.columns)
+    if missing:
+        raise ValueError(f"PIT ST history missing required columns: {sorted(missing)}")
+    return st_history
+
+
+def _st_transitions(st_history: pl.DataFrame) -> pl.DataFrame:
+    """Convert possibly-overlapping ST intervals into per-stock state changes."""
+    if st_history.is_empty():
+        return pl.DataFrame(schema={
+            "stock_code": pl.Utf8,
+            "effective_date": pl.Date,
+            "_active_st_count": pl.Int64,
+        })
+    intervals = (
+        st_history.select([
+            pl.col("S_INFO_WINDCODE").cast(pl.Utf8).str.strip_chars().alias("stock_code"),
+            pl.col("S_TYPE_ST").cast(pl.Utf8).str.strip_chars().alias("st_type"),
+            pl.col("ENTRY_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("entry_date"),
+            pl.col("REMOVE_DT").cast(pl.Utf8).str.strptime(pl.Date, "%Y%m%d", strict=False).alias("remove_date"),
+        ])
+        # Wind R means resumption/relisting, not an ST restriction interval.
+        .filter(
+            pl.col("stock_code").is_not_null()
+            & pl.col("entry_date").is_not_null()
+            & (pl.col("st_type") != "R")
+            & (pl.col("remove_date").is_null() | (pl.col("remove_date") > pl.col("entry_date")))
+        )
+    )
+    entries = intervals.select([
+        "stock_code",
+        pl.col("entry_date").alias("effective_date"),
+        pl.lit(1, dtype=pl.Int64).alias("_delta"),
+    ])
+    removals = intervals.drop_nulls("remove_date").select([
+        "stock_code",
+        pl.col("remove_date").alias("effective_date"),
+        pl.lit(-1, dtype=pl.Int64).alias("_delta"),
+    ])
+    return (
+        pl.concat([entries, removals], how="vertical")
+        .group_by(["stock_code", "effective_date"])
+        .agg(pl.col("_delta").sum())
+        .sort(["stock_code", "effective_date"])
+        .with_columns(
+            pl.col("_delta").cum_sum().over("stock_code").alias("_active_st_count")
+        )
+        .drop("_delta")
+    )
+
+
+def _with_pit_st_filter(daily: pl.DataFrame, st_history: pl.DataFrame) -> pl.DataFrame:
+    if daily.is_empty():
+        return daily.with_columns(pl.lit(False).alias("is_st"))
+    transitions = _st_transitions(st_history)
+    if transitions.is_empty():
+        return daily.with_columns(pl.lit(False).alias("is_st"))
+    return (
+        daily.sort(["stock_code", "trade_date"])
+        .join_asof(
+            transitions,
+            left_on="trade_date",
+            right_on="effective_date",
+            by="stock_code",
+            strategy="backward",
+            check_sortedness=False,
+        )
+        .with_columns(
+            (pl.col("_active_st_count").fill_null(0) > 0).alias("is_st")
+        )
+        .drop(["effective_date", "_active_st_count"])
     )
 
 
@@ -152,17 +252,25 @@ def word_universe_dates(
     panel: pl.DataFrame,
     meta: pl.DataFrame | None,
     profile: WordUniverseProfile,
+    *,
+    st_history: pl.DataFrame | None = None,
+    st_history_path: str | Path = DEFAULT_ST_HISTORY_PATH,
 ) -> pl.DataFrame:
     """Return (trade_date, stock_code) rows passing a Word v2 stock-pool profile."""
     if panel.is_empty():
         return _empty_universe()
-    return _word_universe_dates_from_daily(_prepare_word_daily(panel, meta), profile)
+    return _word_universe_dates_from_daily(
+        _prepare_word_daily(panel, meta, st_history, st_history_path), profile
+    )
 
 
 def word_universe_dates_by_profile(
     panel: pl.DataFrame,
     meta: pl.DataFrame | None,
     profiles: Iterable[WordUniverseProfile],
+    *,
+    st_history: pl.DataFrame | None = None,
+    st_history_path: str | Path = DEFAULT_ST_HISTORY_PATH,
 ) -> dict[str, pl.DataFrame]:
     """Return Word stock-pool eligibility for multiple profiles.
 
@@ -172,7 +280,7 @@ def word_universe_dates_by_profile(
     profile_list = list(profiles)
     if panel.is_empty():
         return {profile.name: _empty_universe() for profile in profile_list}
-    daily = _prepare_word_daily(panel, meta)
+    daily = _prepare_word_daily(panel, meta, st_history, st_history_path)
     out: dict[str, pl.DataFrame] = {}
     for profile in profile_list:
         if profile.name not in out:
@@ -180,8 +288,16 @@ def word_universe_dates_by_profile(
     return out
 
 
-def _prepare_word_daily(panel: pl.DataFrame, meta: pl.DataFrame | None) -> pl.DataFrame:
-    return _with_meta_filters(_with_daily_features(panel), meta)
+def _prepare_word_daily(
+    panel: pl.DataFrame,
+    meta: pl.DataFrame | None,
+    st_history: pl.DataFrame | None = None,
+    st_history_path: str | Path = DEFAULT_ST_HISTORY_PATH,
+) -> pl.DataFrame:
+    history = _load_st_history(st_history, st_history_path)
+    return _with_pit_st_filter(
+        _with_meta_filters(_with_daily_features(panel), meta), history
+    )
 
 
 def _word_universe_dates_from_daily(
@@ -245,9 +361,18 @@ def word_universe_for_factor(
     meta: pl.DataFrame | None,
     code: str,
     factor_meta: dict | None = None,
+    *,
+    st_history: pl.DataFrame | None = None,
+    st_history_path: str | Path = DEFAULT_ST_HISTORY_PATH,
 ) -> pl.DataFrame:
     """Return Word stock-pool eligibility for ``code``."""
-    return word_universe_dates(panel, meta, word_universe_profile_for_factor(code, factor_meta))
+    return word_universe_dates(
+        panel,
+        meta,
+        word_universe_profile_for_factor(code, factor_meta),
+        st_history=st_history,
+        st_history_path=st_history_path,
+    )
 
 
 def word_universe_for_scores(
@@ -255,6 +380,9 @@ def word_universe_for_scores(
     panel: pl.DataFrame,
     meta: pl.DataFrame | None,
     registry: dict[str, dict] | None = None,
+    *,
+    st_history: pl.DataFrame | None = None,
+    st_history_path: str | Path = DEFAULT_ST_HISTORY_PATH,
 ) -> pl.DataFrame:
     """Filter score/raw rows through each factor's Word stock-pool profile."""
     if score.is_empty():
@@ -262,7 +390,7 @@ def word_universe_for_scores(
     if "factor_code" not in score.columns:
         raise ValueError("score must contain factor_code")
     registry = registry or {}
-    daily = _prepare_word_daily(panel, meta)
+    daily = _prepare_word_daily(panel, meta, st_history, st_history_path)
     profiles: dict[str, tuple[WordUniverseProfile, list[str]]] = {}
     for code in score["factor_code"].unique().sort():
         profile = word_universe_profile_for_factor(code, registry.get(code))

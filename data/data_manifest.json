@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-24 09:51:56",
+  "generated_at": "2026-08-25 14:14:13",
   "factor_count": 146,
-  "backtest_start_month": "2015-02",
+  "backtest_start_month": "2015-03",
   "backtest_end_month": "2026-07",
-  "return_end_date": "2026-07-31",
+  "return_end_date": "2026-07-01",
   "stock_universe_rule": "word_v2",
   "backtest_universe": "历史回测、IC、导出按 Word 股票池执行：公司内生类为科创/北交上市满 1 年、其他股票满 6 个月且近 20 日日均成交额不低于 20 万；市场交易/衍生/投资者行为类为上市满 6 个月且剔除近 20 日日均成交额后 5%；事件驱动类为上市满 60 个交易日；均剔除 ST、月末停牌和无成交股票，不按 is_active_latest 过滤。",
   "latest_holdings_universe": "当前最新股票池展示仅用于查看最新可持有/可交易样本：只显示当前 active、非 ST 股票；它不是历史回测持仓，历史回测仍按每月末 Word 股票池和当期可交易状态执行。",
@@ -30,19 +30,20 @@
     "source": "data/factor_score_neutral.parquet",
     "has_quality_column": true,
     "warning_level": "warning",
-    "total_rows": 56702007,
+    "total_rows": 59835980,
     "quality_counts": {
-      "insufficient_sample": 152,
-      "missing_input": 412028,
-      "ok": 56289827
+      "missing_input": 444336,
+      "ok": 59390992,
+      "insufficient_sample": 652
     },
-    "insufficient_sample_rows": 152,
-    "affected_factors": 8,
-    "affected_factor_months": 135,
-    "min_insufficient_valid_count": 1,
-    "missing_input_rows": 412028,
+    "insufficient_sample_rows": 652,
+    "affected_factors": 6,
+    "affected_factor_months": 113,
+    "min_insufficient_valid_count": 2,
+    "missing_input_rows": 444336,
     "regression_failed_rows": 0,
-    "warning": "中性化质量提示：8 个因子、135 个因子-月份存在有效样本不足 3 个，相关中性化分数为空；对应 RankIC、回测和分层结果应降低结论权重。"
+    "rank_deficient_rows": 0,
+    "warning": "中性化质量提示：6 个因子、113 个因子-月份存在剩余自由度不足或设计矩阵秩不足，相关中性化分数为空；对应 RankIC、回测和分层结果不应纳入结论。"
   },
   "industry_classification_source": "wind_sw_pit_history",
   "industry_classification_limitation": "行业分层、行业中性组合和行业市值中性化均按Wind历史行业表的ENTRY_DT/REMOVE_DT判定各月末有效的申万一级行业归属。",

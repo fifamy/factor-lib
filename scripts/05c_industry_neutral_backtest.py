@@ -11,7 +11,9 @@ from pathlib import Path
 
 import polars as pl
 
+from factor_lib.backtest import assert_backtest_economic_invariants
 from factor_lib.factors import momentum, volatility, liquidity, beta, company, market_extra, investor, derived, tech_event, word_v2  # noqa: F401
+from factor_lib.monthly_returns import valid_forward_return_expr
 from factor_lib.industry import load_industry_map
 from factor_lib.registry import FACTOR_REGISTRY
 from factor_lib.universe import word_universe_for_scores
@@ -63,7 +65,12 @@ def build_industry_neutral_holdings_all_topn(score: pl.DataFrame, top_ns: list[i
         score.drop_nulls(["score", "industry_sw1", "industry_weight"])
         .filter(pl.col("industry_weight") > 0)
         .sort(["trade_date", "industry_sw1", "score", "stock_code"], descending=[False, False, True, False])
-        .with_columns(pl.col("score").cum_count().over(["trade_date", "industry_sw1"]).alias("industry_rank"))
+        .with_columns(
+            pl.col("score")
+            .rank(method="min", descending=True)
+            .over(["trade_date", "industry_sw1"])
+            .alias("industry_rank")
+        )
     )
     if ranked.is_empty():
         return empty_holdings()
@@ -102,25 +109,17 @@ def build_industry_neutral_holdings_all_topn(score: pl.DataFrame, top_ns: list[i
         .filter(pl.col("quota") > 0)
         .select(["trade_date", "industry_sw1", "top_n", "target_weight", "quota"])
     )
-    # Do not join every ranked stock to all 100 Top-N quota rows.  That
-    # intermediate is roughly ``ranked.height * len(top_ns)`` even though only
-    # the first ``quota`` stocks of each industry are ultimately retained.
-    # Group the already sorted stock codes into an ordered list, then slice the
-    # list by each quota.  This expands only the final holdings and preserves
-    # the exact ranking/quota semantics of the former implementation.
-    ranked_lists = (
-        ranked.group_by(["trade_date", "industry_sw1"], maintain_order=True)
-        .agg(pl.col("stock_code").alias("_ranked_stocks"))
-    )
+    # Competition rank deliberately includes every stock tied at an industry
+    # quota boundary.  This can produce more than ``top_n`` names; weights are
+    # renormalized below while preserving the industry target allocation.
     selected = (
-        targets_n.join(ranked_lists, on=["trade_date", "industry_sw1"], how="inner")
-        .with_columns(
-            pl.col("_ranked_stocks").list.slice(0, pl.col("quota")).alias("_selected_stocks")
+        targets_n.join(
+            ranked.select(["trade_date", "industry_sw1", "stock_code", "industry_rank"]),
+            on=["trade_date", "industry_sw1"],
+            how="inner",
         )
-        .with_columns(pl.col("_selected_stocks").list.len().alias("selected_count"))
-        .filter(pl.col("selected_count") > 0)
-        .explode("_selected_stocks", empty_as_null=True)
-        .rename({"_selected_stocks": "stock_code"})
+        .filter(pl.col("industry_rank") <= pl.col("quota"))
+        .with_columns(pl.len().over(["trade_date", "top_n", "industry_sw1"]).alias("selected_count"))
     )
     if selected.is_empty():
         return empty_holdings()
@@ -153,7 +152,7 @@ def nav_from_weighted_holdings_all_topn(
     held = holdings.join(monthly_ret, on=["trade_date", "stock_code"], how="left")
     held = held.with_columns([
         pl.col("return_date").max().over(["top_n", "trade_date"]).alias("_period_return_date"),
-        pl.when(pl.col("fwd_return").is_not_null()).then(pl.col("fwd_return")).otherwise(-1.0).alias("_member_return"),
+        valid_forward_return_expr().alias("_has_valid_return"),
     ]).filter(pl.col("_period_return_date").is_not_null())
     if held.is_empty():
         return pl.DataFrame(schema={
@@ -166,14 +165,23 @@ def nav_from_weighted_holdings_all_topn(
         })
     port_ret = (
         held.with_columns([
-            (pl.col("weight") * pl.col("_member_return")).alias("_ret"),
+            pl.when(pl.col("_has_valid_return"))
+            .then(pl.col("weight") * pl.col("fwd_return"))
+            .otherwise(None)
+            .alias("_ret"),
+            pl.when(pl.col("_has_valid_return"))
+            .then(pl.col("weight"))
+            .otherwise(0.0)
+            .alias("_observed_weight"),
         ])
         .group_by(["top_n", "trade_date"])
         .agg([
             pl.col("_period_return_date").max().alias("return_date"),
             pl.col("_ret").sum().alias("_weighted_ret"),
+            pl.col("_observed_weight").sum().alias("_observed_weight"),
         ])
-        .with_columns(pl.col("_weighted_ret").alias("port_ret_gross"))
+        .filter(pl.col("_observed_weight") > 0)
+        .with_columns((pl.col("_weighted_ret") / pl.col("_observed_weight")).alias("port_ret_gross"))
         .select(["top_n", "trade_date", "return_date", "port_ret_gross"])
     )
 
@@ -283,6 +291,7 @@ def main(
         print(f"  Done {code}", flush=True)
 
     out = pl.concat(all_nav) if all_nav else pl.DataFrame()
+    assert_backtest_economic_invariants(out, context="preset_backtest_industry")
     out.write_parquet(out_path)
     holdings = pl.concat(all_holdings) if all_holdings else pl.DataFrame()
     holdings.write_parquet(holdings_out_path)

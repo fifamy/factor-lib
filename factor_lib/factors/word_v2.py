@@ -109,8 +109,8 @@ _DEFS = [
     (
         "ARRATIO", "公司内生信息", "财务质量", -1, "应收账款占收入比例",
         "word_v2", "ARRATIO", "derived",
-        "公告可得应收票据及应收账款合计占 TTM 营业收入比例；比例越低，收入质量越好。",
-        "ARRATIO = (ACCT_RCV + NOTES_RCV) / S_DFA_OR_TTM；两个应收分项都缺失时置缺失，仅其中一项缺失时将该分项按0合并；资产负债表取月末前最新公告，收入使用同月 PITFinancialFactor。",
+        "公告可得的期初期末平均应收票据及应收账款合计占 TTM 营业收入比例；比例越低，收入质量越好。",
+        "ARRATIO = average(AR_begin, AR_end) / S_DFA_OR_TTM，AR=ACCT_RCV+NOTES_RCV；期初使用不晚于当期公告日可见的上年末合并报表余额，期初或期末缺失则置缺失；收入使用同月 PITFinancialFactor。",
         "AShareBalanceSheet.ACCT_RCV; AShareBalanceSheet.NOTES_RCV; PITFinancialFactor.S_DFA_OR_TTM; ANN_DT",
         False,
     ),
@@ -299,11 +299,11 @@ _DEFS = [
         False,
     ),
     (
-        "LAWSUITAMT", "事件驱动信息", "风险事件", -1, "重大诉讼金额",
+        "LAWSUITAMT", "事件驱动信息", "风险事件", -1, "重大诉讼市值比",
         "word_v2", "LAWSUITAMT", "window_sum",
-        "近 365 日诉讼涉案/判决绝对金额合计；全字段完全相同的源行只计一次。",
-        "LAWSUITAMT = sum(优先正RESULTAMOUNT，0/缺失时回退至正AMOUNT, 近365日公告，全字段精确去重)。",
-        "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; ANN_DT",
+        "近 365 日人民币诉讼事件金额占公告日总市值比合计；非交易日取此前最近交易日，全字段精确去重。",
+        "LAWSUITAMT = sum(event_amount / (S_DQ_CLOSE * TOT_SHR_TODAY), 近365日)；event_amount优先正RESULTAMOUNT，否则正AMOUNT，仅CRNCY_CODE=CNY；公告日无行情时取此前最近交易日，严禁未来回填。",
+        "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; CRNCY_CODE; ANN_DT; AShareEODPrices.S_DQ_CLOSE; AShareEODDerivativeIndicator.TOT_SHR_TODAY",
         False,
     ),
     (
