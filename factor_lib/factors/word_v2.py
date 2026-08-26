@@ -302,7 +302,7 @@ _DEFS = [
         "LAWSUITAMT", "事件驱动信息", "风险事件", -1, "重大诉讼市值比",
         "word_v2", "LAWSUITAMT", "window_sum",
         "近 365 日人民币诉讼事件金额占公告日总市值比合计；非交易日取此前最近交易日，全字段精确去重。",
-        "LAWSUITAMT = sum(event_amount / (S_DQ_CLOSE * TOT_SHR_TODAY), 近365日)；event_amount优先正RESULTAMOUNT，否则正AMOUNT，仅CRNCY_CODE=CNY；公告日无行情时取此前最近交易日，严禁未来回填。",
+        "LAWSUITAMT = sum(event_amount / (S_DQ_CLOSE * TOT_SHR_TODAY * 10000), 近365日)；TOT_SHR_TODAY单位为万股，event_amount单位为人民币元；event_amount优先正RESULTAMOUNT，否则正AMOUNT，仅CRNCY_CODE=CNY；公告日无行情时取此前最近交易日，严禁未来回填。",
         "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; CRNCY_CODE; ANN_DT; AShareEODPrices.S_DQ_CLOSE; AShareEODDerivativeIndicator.TOT_SHR_TODAY",
         False,
     ),

@@ -339,6 +339,14 @@ table.stock-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 table.stock-table th { background: #f0f3f7; padding: 6px 8px; text-align: left;
                        border-bottom: 1px solid #ccc; font-weight: 600; }
 table.stock-table td { padding: 4px 8px; border-bottom: 1px solid #eee; }
+.holding-count-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+                      margin: 0 0 9px; padding: 7px 9px; border: 1px solid #d9e1e8;
+                      border-radius: 4px; background: #f7f9fb; color: #56616d;
+                      font-size: 11px; line-height: 1.5; }
+.holding-count-value { color: #234f76; font-weight: 700; white-space: nowrap; }
+.holding-count-note-expanded { border-color: #d7bd83; background: #fff9ec; color: #72581f; }
+.holding-count-note-expanded .holding-count-value { color: #765611; }
+.holding-count-note-underfilled { border-color: #d9c6c6; background: #fff7f7; color: #744; }
 
 #nav-chart { width: 100%; height: 320px; }
 #quantile-chart { width: 100%; height: 320px; }

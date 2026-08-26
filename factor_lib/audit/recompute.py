@@ -750,7 +750,11 @@ def _reference_lawsuitamt(
     keep_dates: set[str],
     window_days: int = 365,
 ) -> pl.DataFrame:
-    """Independent PIT sum of CNY lawsuit amount / announcement-date total MV."""
+    """Independent PIT sum of CNY lawsuit amount / announcement-date total MV.
+
+    Wind ``TOT_SHR_TODAY`` is measured in 10,000 shares, whereas lawsuit
+    ``AMOUNT`` and ``RESULTAMOUNT`` are measured in CNY.
+    """
     if lawsuit.is_empty() or price.is_empty():
         return pl.DataFrame()
     amount = pl.col("AMOUNT").cast(pl.Float64, strict=False)
@@ -783,6 +787,7 @@ def _reference_lawsuitamt(
             (
                 pl.col("S_DQ_CLOSE").cast(pl.Float64, strict=False)
                 * pl.col("TOT_SHR_TODAY").cast(pl.Float64, strict=False)
+                * 10_000.0
             ).alias("total_mv_cny"),
         ])
         .filter(

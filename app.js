@@ -30,6 +30,7 @@ const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
 const COST_PER_SIDE = 0.002;
 const MIN_VALID_FORWARD_RETURN = -1.0;
 const EXTREME_FORWARD_RETURN_WARNING = 5.0;
+const MAX_HOLDING_DETAIL_ROWS = 100;
 const SUPABASE_URL = "https://tsyplhfshxzoduynzixk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_6osvaEI8pookLkmkzBUbHQ_kyUU2SKn";
 let _myComboIdSeq = 0;
@@ -461,6 +462,61 @@ function constraintHoldText(mode = state.singleConstraintMode) {
   return normalizeConstraintMode(mode) === "industry"
     ? "按申万一级行业目标权重持有"
     : "Top 股票等权持有";
+}
+
+function competitionTopNRows(rows, nominalN) {
+  const n = Math.max(1, Number(nominalN) || 1);
+  const ranked = (rows || [])
+    .filter(r => r?.score !== null && r?.score !== undefined && Number.isFinite(Number(r.score)))
+    .slice()
+    .sort((a, b) => Number(b.score) - Number(a.score) || String(a.stock_code).localeCompare(String(b.stock_code)));
+  if (ranked.some(r => r.competition_rank !== null && r.competition_rank !== undefined && Number.isFinite(Number(r.competition_rank)))) {
+    return ranked.filter(r => r.competition_rank !== null && r.competition_rank !== undefined && Number(r.competition_rank) <= n);
+  }
+  if (ranked.length <= n) return ranked;
+  const boundaryScore = Number(ranked[n - 1].score);
+  return ranked.filter(r => Number(r.score) >= boundaryScore);
+}
+
+function snapshotHoldingSelection(snap, nominalN) {
+  const n = Math.max(1, Number(nominalN) || 1);
+  const stats = snap?.holding_stats_by_n?.[String(n)] || null;
+  const exactRows = snap?.top_stocks_by_n?.[String(n)];
+  const baseRows = exactRows || snap?.top_stocks || snap?.top_stocks_by_n?.["100"] || [];
+  const selected = exactRows ? baseRows.slice() : competitionTopNRows(baseRows, n);
+  const actualN = Number.isFinite(Number(stats?.actual_n)) ? Number(stats.actual_n) : selected.length;
+  return {
+    rows: selected.slice(0, MAX_HOLDING_DETAIL_ROWS),
+    stats: {
+      nominal_n: n,
+      actual_n: actualN,
+      displayed_n: Math.min(selected.length, MAX_HOLDING_DETAIL_ROWS),
+      tie_expanded: stats?.tie_expanded === true || actualN > n,
+      underfilled: stats?.underfilled === true || actualN < n,
+    },
+  };
+}
+
+function holdingCountNote(nominalN, rows, stats = null) {
+  const n = Math.max(1, Number(nominalN) || 1);
+  const actualN = Number.isFinite(Number(stats?.actual_n)) ? Number(stats.actual_n) : rows.length;
+  const displayedN = rows.length;
+  let explanation = "实际持股数与名义 TopN 一致。";
+  let tone = "holding-count-note-ok";
+  if (actualN > n) {
+    explanation = `第 ${n} 名存在同分，按竞争秩不拆分边界并列，扩容 ${actualN - n} 只。`;
+    tone = "holding-count-note-expanded";
+  } else if (actualN < n) {
+    explanation = `当前有效股票池不足 ${n} 只，未用缺失股票补足。`;
+    tone = "holding-count-note-underfilled";
+  }
+  const displayNote = displayedN < actualN
+    ? `明细仅展示前 ${displayedN} 只；实际数来自完整持仓/候选集统计，不以展示截断计数。`
+    : `明细展示全部 ${displayedN} 只。`;
+  return `<div class="holding-count-note ${tone}" role="status">
+    <span class="holding-count-value">名义 Top${n} · 实际 ${actualN} 只</span>
+    <span>${explanation}${displayNote}</span>
+  </div>`;
 }
 
 function composeConstraintModeLabel(mode = state.composeConstraintMode) {
@@ -1625,8 +1681,7 @@ async function renderTopStocks(code) {
     WHERE p.rn = 1
       AND COALESCE(m.is_st, FALSE) = FALSE
       AND COALESCE(m.is_active_latest, FALSE) = TRUE
-    ORDER BY p.score DESC
-    LIMIT ${N}
+    ORDER BY p.score DESC, p.stock_code
   ` : `
     WITH latest AS (
       SELECT MAX(trade_date) AS d FROM factor_score WHERE factor_code = '${code}'
@@ -1646,12 +1701,13 @@ async function renderTopStocks(code) {
       AND s.score IS NOT NULL
       AND COALESCE(m.is_st, FALSE) = FALSE
       AND COALESCE(m.is_active_latest, FALSE) = TRUE
-    ORDER BY s.score DESC
-    LIMIT ${N}
+    ORDER BY s.score DESC, s.stock_code
   `;
   const res = await state.db.query(sql);
 
-  const rows = res.toArray();
+  const selectedRows = competitionTopNRows(res.toArray(), N);
+  const holdingStats = { actual_n: selectedRows.length };
+  const rows = selectedRows.slice(0, MAX_HOLDING_DETAIL_ROWS);
   if (rows.length === 0) {
     target.innerHTML = `<h3>${code} · Top ${N} 股票</h3><div class="empty">无数据（该因子该截面无有效得分）</div>`;
     return;
@@ -1677,7 +1733,7 @@ async function renderTopStocks(code) {
         近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。${scopeNote}
       </p>`;
   }
-  let html = head + `
+  let html = head + holdingCountNote(N, rows, holdingStats) + `
     <table class="stock-table">
       <thead><tr>
         <th>#</th><th>代码</th><th>名称</th>
@@ -1712,12 +1768,12 @@ async function renderTopStocks(code) {
   html += "</tbody></table>";
   // 行业分布图容器（用同一份 rows 的申万一级行业聚合，直观看选股集中在哪些行业）
   html += `<div style="margin-top:14px">
-      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">选出股票的行业分布（申万一级，按只数降序）</h4>
+      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">已展示持仓明细的行业分布（申万一级，按只数降序）</h4>
       <div id="top-industry-chart" style="width:100%"></div>
     </div>`;
   // 市值分布图容器（按市值分档，直观看选股偏大盘还是小盘）
   html += `<div style="margin-top:14px">
-      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">选出股票的市值分布（按总市值分档）</h4>
+      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">已展示持仓明细的市值分布（按总市值分档）</h4>
       <div id="top-mktcap-chart" style="width:100%;height:170px"></div>
     </div>`;
   target.innerHTML = html;
@@ -1755,7 +1811,6 @@ async function renderTopStocksDynamic(code) {
     FROM pooled p
     WHERE p.rn = 1
     ORDER BY p.score DESC, p.stock_code
-    LIMIT ${Math.min(Math.max(N * 4, N + 180), 700)}
   ` : `
     WITH latest AS (
       SELECT MAX(trade_date) AS d FROM factor_score WHERE factor_code = '${code}'
@@ -1768,13 +1823,14 @@ async function renderTopStocksDynamic(code) {
       AND s.trade_date = (SELECT d FROM latest)
       AND s.score IS NOT NULL
     ORDER BY score DESC, s.stock_code
-    LIMIT ${Math.min(Math.max(N * 4, N + 180), 700)}
   `;
   const res = await state.db.query(sql);
-  const rows = res.toArray()
+  const eligibleRows = res.toArray()
     .map(r => ({ ...r, meta: metaMap.get(r.stock_code) }))
-    .filter(r => r.meta && !r.meta.is_st && r.meta.is_active_latest)
-    .slice(0, N)
+    .filter(r => r.meta && !r.meta.is_st && r.meta.is_active_latest);
+  const selectedRows = competitionTopNRows(eligibleRows, N);
+  const rows = selectedRows
+    .slice(0, MAX_HOLDING_DETAIL_ROWS)
     .map(r => ({
       ...r,
       name: r.meta.name,
@@ -1785,7 +1841,12 @@ async function renderTopStocksDynamic(code) {
       pb: r.meta.pb,
       avg_amount: r.meta.avg_amount,
     }));
-  renderTopStocksRows(code, rows, { isEvent, side, snapshot: false });
+  renderTopStocksRows(code, rows, {
+    isEvent,
+    side,
+    snapshot: false,
+    holdingStats: { actual_n: selectedRows.length },
+  });
 }
 
 async function renderTopStocksFast(code, snap) {
@@ -1793,22 +1854,18 @@ async function renderTopStocksFast(code, snap) {
   const target = document.getElementById("top-stocks");
   const meta = state.catalog.find(f => f.code === code) || {};
   const isEvent = !!meta.is_event;
-  const rows = (snap.top_stocks_by_n?.[String(N)] || snap.top_stocks_by_n?.["100"] || snap.top_stocks || []).slice(0, N);
-  renderTopStocksRows(code, rows, { isEvent, side: 1, snapshot: true });
+  const selection = snapshotHoldingSelection(snap, N);
+  renderTopStocksRows(code, selection.rows, {
+    isEvent,
+    side: 1,
+    snapshot: true,
+    holdingStats: selection.stats,
+  });
 }
 
 async function renderTopStocksFromSnapshotSide(code, snap, side) {
-  const N = maxN();
-  const meta = state.catalog.find(f => f.code === code) || {};
-  const isEvent = !!meta.is_event;
-  const sideN = normalizeSide(side);
-  const baseRows = snap.top_stocks_by_n?.[String(N)] || snap.top_stocks_by_n?.["100"] || snap.top_stocks || [];
-  const rows = baseRows
-    .map(r => ({ ...r, score: r.score == null ? r.score : Number(r.score) * sideN }))
-    .filter(r => r.score !== null && r.score !== undefined && Number.isFinite(Number(r.score)))
-    .sort((a, b) => Number(b.score) - Number(a.score) || String(a.stock_code).localeCompare(String(b.stock_code)))
-    .slice(0, N);
-  renderTopStocksRows(code, rows, { isEvent, side, snapshot: true });
+  // 默认方向快照只保存高分端，不能翻转后冒充低分端；反向持仓改走完整分数分片。
+  return renderTopStocksDynamic(code);
 }
 
 function renderTopStocksRows(code, rows, opts = {}) {
@@ -1844,7 +1901,7 @@ function renderTopStocksRows(code, rows, opts = {}) {
         近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。${scopeNote}
       </p>`;
   }
-  let html = head + `
+  let html = head + holdingCountNote(N, rows, opts.holdingStats) + `
     <table class="stock-table">
       <thead><tr>
         <th>#</th><th>代码</th><th>名称</th>
@@ -1880,11 +1937,11 @@ function renderTopStocksRows(code, rows, opts = {}) {
   });
   html += "</tbody></table>";
   html += `<div style="margin-top:14px">
-      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">选出股票的行业分布（申万一级，按只数降序）</h4>
+      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">已展示持仓明细的行业分布（申万一级，按只数降序）</h4>
       <div id="top-industry-chart" style="width:100%"></div>
     </div>`;
   html += `<div style="margin-top:14px">
-      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">选出股票的市值分布（按总市值分档）</h4>
+      <h4 style="font-size:12px;color:#444;margin:0 0 4px 0">已展示持仓明细的市值分布（按总市值分档）</h4>
       <div id="top-mktcap-chart" style="width:100%;height:170px"></div>
     </div>`;
   target.innerHTML = html;
@@ -2177,16 +2234,6 @@ function rankIcStats(months, values, side = 1, horizonMonths = 1) {
 
 function memberForwardReturn(value) {
   return isValidForwardReturn(value) ? Number(value) : null;
-}
-
-function isCompletedForwardPeriod(signalDate, returnDate) {
-  const monthId = value => {
-    const match = String(value ?? "").match(/^(\d{4})-(\d{1,2})/);
-    return match ? Number(match[1]) * 12 + Number(match[2]) : null;
-  };
-  const signalMonth = monthId(signalDate);
-  const returnMonth = monthId(returnDate);
-  return signalMonth !== null && returnMonth === signalMonth + 1;
 }
 
 function isValidForwardReturn(value) {

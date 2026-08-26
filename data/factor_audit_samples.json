@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-25 14:21:43",
+  "generated_at": "2026-08-26 08:50:00",
   "summary": {
     "word_factor_count": 110,
     "system_factor_count": 146,
@@ -5077,7 +5077,7 @@
       "system_l1": "事件驱动信息",
       "system_l2": "风险事件类",
       "system_direction": "负向",
-      "system_formula": "LAWSUITAMT = sum(event_amount / (S_DQ_CLOSE * TOT_SHR_TODAY), 近365日)；event_amount优先正RESULTAMOUNT，否则正AMOUNT，仅CRNCY_CODE=CNY；公告日无行情时取此前最近交易日，严禁未来回填。",
+      "system_formula": "LAWSUITAMT = sum(event_amount / (S_DQ_CLOSE * TOT_SHR_TODAY * 10000), 近365日)；TOT_SHR_TODAY单位为万股，event_amount单位为人民币元；event_amount优先正RESULTAMOUNT，否则正AMOUNT，仅CRNCY_CODE=CNY；公告日无行情时取此前最近交易日，严禁未来回填。",
       "system_wind_source": "AShareLawsuit.RESULTAMOUNT; AShareLawsuit.AMOUNT; CRNCY_CODE; ANN_DT; AShareEODPrices.S_DQ_CLOSE; AShareEODDerivativeIndicator.TOT_SHR_TODAY",
       "catalog_v2_status": "computed",
       "detail_url": "",
@@ -5089,19 +5089,19 @@
         "trade_date": "2026-07-31",
         "stock_code": "000521.SZ",
         "stock_name": "长虹美菱",
-        "raw_value": 161.83712792152267,
+        "raw_value": 0.016183712792152267,
         "score": 0.0010657435157906835,
         "steps": [
           "选取最新截面 2026-07-31 中 score 靠近中位数的一只股票作为示例，避免只看极端值。",
-          "系统输出 raw_value=161.837，方向处理后的 score=0.001066。",
+          "系统输出 raw_value=0.016184，方向处理后的 score=0.001066。",
           "score 由同月截面去极值、标准化并按因子方向统一成“越高越好”。"
         ],
         "inputs": [
           {
             "field": "raw_value",
             "label": "系统原始因子值 raw_value",
-            "value": 161.83712792152267,
-            "display": "161.837",
+            "value": 0.016183712792152267,
+            "display": "0.016184",
             "unit": "",
             "note": "来自当前因子落地结果"
           },

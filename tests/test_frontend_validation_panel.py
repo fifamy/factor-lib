@@ -725,6 +725,41 @@ def test_latest_holdings_copy_distinguishes_display_pool_from_historical_backtes
     assert "pool_date" in compose_rows
 
 
+def test_topn_holdings_use_competition_rank_and_disclose_real_count():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    helper = _source_between(source, "function competitionTopNRows", "function snapshotHoldingSelection")
+    fast_renderer = _source_between(source, "async function renderTopStocksFast", "async function renderTopStocksFromSnapshotSide")
+    result = _frontend_eval_json([
+        helper,
+        "const rows = competitionTopNRows([",
+        "  {stock_code: '000003.SZ', score: 8},",
+        "  {stock_code: '000002.SZ', score: 9},",
+        "  {stock_code: '000001.SZ', score: 10},",
+        "  {stock_code: '000004.SZ', score: 9}",
+        "], 2);",
+        "console.log(JSON.stringify({codes: rows.map(r => r.stock_code), count: rows.length}));",
+    ])
+
+    assert result == {
+        "codes": ["000001.SZ", "000002.SZ", "000004.SZ"],
+        "count": 3,
+    }
+    assert "holding_stats_by_n" in source
+    assert "名义 Top${n} · 实际 ${actualN} 只" in source
+    assert "不以展示截断计数" in source
+    assert "snapshotHoldingSelection(snap, N)" in fast_renderer
+    assert ".slice(0, N)" not in fast_renderer
+    assert ".holding-count-note-expanded" in styles
+
+
+def test_obsolete_one_month_completion_helper_is_removed():
+    source = APP_JS.read_text(encoding="utf-8")
+
+    assert "function isCompletedForwardPeriod" not in source
+    assert "returnMonth === signalMonth + 1" not in source
+
+
 def test_supabase_permission_errors_are_separated_from_network_failures():
     source = APP_JS.read_text(encoding="utf-8")
     audit_js = (FRONTEND_ROOT / "factor_audit.js").read_text(encoding="utf-8")
@@ -1216,8 +1251,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.7</title>" in index
-    assert "<b>因子库 v2.0.7</b>" in index
+    assert "<title>因子库 v2.0.8</title>" in index
+    assert "<b>因子库 v2.0.8</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 
