@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-08-26T01:18:20+00:00",
-  "deploy_version": "20260826091815",
+  "generated_at": "2026-08-26T03:02:30+00:00",
+  "deploy_version": "20260826110227",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "d2deb1b26163a778dc58f5fe7dcc7d9bd0579255",
+  "pages_worktree_git_commit_before_sync": "495a206ecb59be22377172c995556845f06ea952",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "af883418d9935c98059c438a97e80bb41f526697cf400184ecb32a11881fda70",
+      "sha256": "8111267685abefcc95129cbac7111983d2b0ff0461f6e2ce97bb0ed5b33a5cae",
       "bytes": 32563
     },
     "app.js": {
-      "sha256": "8c1574467e85e593dcf435f2f0e3b0981ec3daf4cd9640cd9d6e0f7f0e297dc0",
-      "bytes": 442729
+      "sha256": "86ba3d3edc6dd2675dc6ecde82ea4a63f950af2006df89aeb6521c5a0b77c8e3",
+      "bytes": 447515
     },
     "styles.css": {
       "sha256": "406279ec899363b3b8985ea2324bad14c4a055c9a5b37f95df383e36ec2bdcf6",
       "bytes": 38217
     },
     "factor_audit.html": {
-      "sha256": "5b4fde8fe024702aef7051591c32dd58ac5c86ef0879962845e555e7a8fdd16a",
+      "sha256": "e923e55922ac1b8ad467b6c5f9831b0cfaaf05e52bd50ba709fad9e533697809",
       "bytes": 7687
     },
     "factor_audit.js": {
@@ -94,8 +94,8 @@
     "scripts": {
       "exists": true,
       "file_count": 121,
-      "bytes": 1654787,
-      "sha256": "45e76f91d1bfb7ccafb87733902c8110f813f0b2efca3cfa82d670dae99ce368"
+      "bytes": 1655614,
+      "sha256": "83a950bb75b5c11f03f114e4331cecb6ce1df25061483c20a1add88d0926a951"
     },
     "config": {
       "exists": true,

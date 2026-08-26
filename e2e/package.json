@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "accessibility-validation": "node accessibility_validation.mjs",
+    "benchmark-compose-optimizer": "node benchmark_compose_optimizer.mjs",
     "compose-validation": "node run_compose_validation.mjs",
     "online-compose-validation": "node online_compose_validation.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"

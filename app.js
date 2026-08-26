@@ -438,7 +438,7 @@ function composeNeutralUnavailableMessage() {
 }
 
 function composeIndustryApproximationMessage() {
-  return "浏览器合成的行业约束使用最新静态申万一级行业，并按候选集行业占比分配权重；不等于单因子回测的月末PIT行业中性口径，两者结果不可直接比较。";
+  return "浏览器合成的行业约束使用最新静态申万一级行业；先按完整有效候选集的行业数量占比确定配额，再在各行业内按合成分数竞争秩选股。该口径不等于单因子回测的月末PIT行业中性口径，两者结果不可直接比较。";
 }
 
 function normalizeComposeScoreMode(mode) {
@@ -519,13 +519,78 @@ function holdingCountNote(nominalN, rows, stats = null) {
   </div>`;
 }
 
+function composeScoreValue(row) {
+  const value = row?.cs ?? row?.comp_score;
+  return value === null || value === undefined ? null : Number(value);
+}
+
+function competitionComposeTopNRows(rows, nominalN) {
+  const n = Math.max(1, Number(nominalN) || 1);
+  const ranked = (rows || [])
+    .filter(r => Number.isFinite(composeScoreValue(r)))
+    .slice()
+    .sort((a, b) => composeScoreValue(b) - composeScoreValue(a) || String(a.stock_code).localeCompare(String(b.stock_code)));
+  if (ranked.length <= n) return ranked;
+  const boundaryScore = composeScoreValue(ranked[n - 1]);
+  return ranked.filter(r => composeScoreValue(r) >= boundaryScore);
+}
+
+function composeLatestHoldingSelection(candidateRows, nominalN, constraintMode) {
+  const n = Math.max(1, Number(nominalN) || 1);
+  const constraint = normalizeConstraintMode(constraintMode);
+  // 行业配额以完整有效候选集的行业数量占比计算，不能先按全局得分截断；
+  // 无约束组合则直接采用全市场竞争秩 TopN，并包含全部边界同分。
+  const rankedCandidates = constraint === "industry"
+    ? (candidateRows || []).filter(r => r?.industry_sw1 && Number.isFinite(composeScoreValue(r)))
+    : competitionComposeTopNRows(candidateRows, n);
+  const picked = constraint === "industry"
+    ? industryNeutralPickRows(rankedCandidates, n)
+    : rankedCandidates.map(r => ({ ...r, weight: 1 / Math.max(1, rankedCandidates.length) }));
+  return {
+    rows: picked,
+    stats: {
+      nominal_n: n,
+      actual_n: picked.length,
+      displayed_n: Math.min(picked.length, MAX_HOLDING_DETAIL_ROWS),
+      tie_expanded: picked.length > n,
+      underfilled: picked.length < n,
+      constraint_mode: constraint,
+      candidate_actual_n: rankedCandidates.length,
+    },
+  };
+}
+
+function composeHoldingCountNote(nominalN, displayedRows, stats) {
+  if (normalizeConstraintMode(stats?.constraint_mode) !== "industry") {
+    return holdingCountNote(nominalN, displayedRows, stats);
+  }
+  const n = Math.max(1, Number(nominalN) || 1);
+  const actualN = Number.isFinite(Number(stats?.actual_n)) ? Number(stats.actual_n) : displayedRows.length;
+  let explanation = "实际持股数与名义 TopN 一致。";
+  let tone = "holding-count-note-ok";
+  if (actualN > n) {
+    explanation = `行业配额边界存在同分，按竞争秩不拆分边界并列，扩容 ${actualN - n} 只。`;
+    tone = "holding-count-note-expanded";
+  } else if (actualN < n) {
+    explanation = `行业候选集中的有效股票不足，未用缺失股票补足。`;
+    tone = "holding-count-note-underfilled";
+  }
+  const displayNote = displayedRows.length < actualN
+    ? `明细仅展示前 ${displayedRows.length} 只；实际数来自完整选股结果，不以展示截断计数。`
+    : `明细展示全部 ${displayedRows.length} 只。`;
+  return `<div class="holding-count-note ${tone}" role="status">
+    <span class="holding-count-value">名义 Top${n} · 实际 ${actualN} 只</span>
+    <span>${explanation}${displayNote}</span>
+  </div>`;
+}
+
 function composeConstraintModeLabel(mode = state.composeConstraintMode) {
   return normalizeConstraintMode(mode) === "industry" ? "静态行业约束" : "无约束等权";
 }
 
 function composeConstraintHoldText(mode = state.composeConstraintMode) {
   return normalizeConstraintMode(mode) === "industry"
-    ? "按候选集最新静态申万一级行业占比近似配权"
+    ? "按完整有效候选集的最新静态申万一级行业占比近似配权"
     : "Top股票等权持有";
 }
 
@@ -6866,7 +6931,7 @@ function renderComposeControls() {
       <span style="color:#666;font-size:11px">组合约束：</span>
       <button id="cps-constraint-none" class="cpsn-btn cps-constraint-btn${constraint === "none" ? " active" : ""}" data-mode="none">无约束等权</button>
       <button id="cps-constraint-industry" class="cpsn-btn cps-constraint-btn${constraint === "industry" ? " active" : ""}" data-mode="industry">静态行业约束</button>
-      <span style="color:#888;font-size:11px">先按合成分数选股，再按最新静态申万一级行业近似配权</span>
+      <span style="color:#888;font-size:11px">完整有效候选集定行业配额，各行业内按合成分数竞争秩选股</span>
     </div>`;
   box.innerHTML = constraintBtns + industryApproximationNotice + neutralNotice + usageNotice + state.composeFactors.map((raw, i) => {
     const f = normalizeComposeFactor(raw);
@@ -7041,9 +7106,6 @@ async function renderComposeStocks(renderSeq) {
   const condSql = matrixCondSql(state.composeFactors);
   if (scoreExpr === null || condSql === null) return;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
-  const candidateLimit = constraint === "industry"
-    ? Math.max(900, state.composeN * 30)
-    : Math.min(Math.max(state.composeN + 180, state.composeN * 4), 700);
   const res = await state.db.query(`
     SELECT stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
@@ -7053,7 +7115,6 @@ async function renderComposeStocks(renderSeq) {
     FROM cps_latest_matrix
     WHERE TRUE ${condSql}
     ORDER BY comp_score DESC, stock_code
-    LIMIT ${candidateLimit}
   `);
   if (isComposeRenderStale(renderSeq)) return;
   const candidateRows = res.toArray()
@@ -7073,9 +7134,9 @@ async function renderComposeStocks(renderSeq) {
       pb: r.meta.pb,
       avg_amount: r.meta.avg_amount,
     }));
-  const rows = (constraint === "industry"
-    ? industryNeutralPickRows(candidateRows, state.composeN)
-    : candidateRows.slice(0, state.composeN));
+  const selection = composeLatestHoldingSelection(candidateRows, state.composeN, constraint);
+  const allRows = selection.rows;
+  const rows = allRows.slice(0, MAX_HOLDING_DETAIL_ROWS);
   const condDesc = state.composeFactors.filter(f => f.thr !== null && Number.isFinite(f.thr))
     .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}得分${f.op}${f.thr}`).join(" 且 ");
   if (rows.length === 0) {
@@ -7087,8 +7148,9 @@ async function renderComposeStocks(renderSeq) {
   const wdesc = state.composeFactors.map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}`).join(" + ");
   const fmt = (v, dp = 2) => (v === null || v === undefined ? "—" : Number(v).toFixed(dp));
   const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));
-  let html = `<h3>合成 Top ${state.composeN} 股票（当前最新持仓展示，截面日 ${htmlText(dt)}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+  let html = `<h3>合成名义 Top ${state.composeN} 股票（当前最新持仓展示，截面日 ${htmlText(dt)}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
     <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${htmlText(wdesc)}（高斯秩标准化分数加权和）${condDesc ? "；过滤：" + htmlText(condDesc) : ""}；组合约束：${htmlText(composeConstraintModeLabel(constraint))}。${htmlText(scopeNote)}</p>
+    ${composeHoldingCountNote(state.composeN, rows, selection.stats)}
     <table class="stock-table"><thead><tr>
       <th>#</th><th>代码</th><th>名称</th><th>得分截面</th><th>展示池日期</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${constraint === "industry" ? "<th>权重</th>" : ""}<th>合成得分</th>
     </tr></thead><tbody>`;
@@ -7669,9 +7731,6 @@ async function comboLatestHoldingRows(factors, N, constraintMode) {
   const condSql = matrixCondSql(factors);
   if (scoreExpr === null || condSql === null) return [];
   const constraint = normalizeConstraintMode(constraintMode);
-  const candidateLimit = constraint === "industry"
-    ? Math.max(900, N * 30)
-    : Math.min(Math.max(N + 180, N * 4), 700);
   const res = await state.db.query(`
     SELECT stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
@@ -7681,7 +7740,6 @@ async function comboLatestHoldingRows(factors, N, constraintMode) {
     FROM cps_latest_matrix
     WHERE TRUE ${condSql}
     ORDER BY comp_score DESC, stock_code
-    LIMIT ${candidateLimit}
   `);
   const candidateRows = res.toArray()
     .map(r => ({ ...r, meta: metaMap.get(r.stock_code) }))
@@ -7700,10 +7758,8 @@ async function comboLatestHoldingRows(factors, N, constraintMode) {
       market_cap: r.meta.market_cap,
       avg_amount: r.meta.avg_amount,
     }));
-  const picked = constraint === "industry"
-    ? industryNeutralPickRows(candidateRows, N)
-    : candidateRows.slice(0, N).map(r => ({ ...r, weight: 1 / Math.max(1, Math.min(N, candidateRows.length)) }));
-  return picked.map(r => ({ ...r, weight: snapshotNumber(r.weight) ?? 0 }));
+  const selection = composeLatestHoldingSelection(candidateRows, N, constraint);
+  return selection.rows.map(r => ({ ...r, weight: snapshotNumber(r.weight) ?? 0 }));
 }
 
 function comboBacktestAvgTurnover(backtest, N) {
@@ -8846,6 +8902,7 @@ function matrixBacktestSql(factors, N, baseTable, constraintMode = state.compose
   const needsIndustry = normalizeConstraintMode(constraintMode) === "industry";
   const industrySelect = needsIndustry ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1";
   const industryJoin = needsIndustry ? "LEFT JOIN stock_descriptors d ON d.stock_code = m.stock_code" : "";
+  const rankFilter = needsIndustry ? "" : `WHERE rk <= ${N}`;
   return `
     WITH scored AS (
       SELECT m.trade_date, m.return_date, m.stock_code, m.fwd_return, ROUND(${scoreExpr}, 6) AS cs,
@@ -8862,7 +8919,7 @@ function matrixBacktestSql(factors, N, baseTable, constraintMode = state.compose
     SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
            stock_code, fwd_return, cs, industry_sw1
-    FROM ranked WHERE rk <= ${normalizeConstraintMode(constraintMode) === "industry" ? Math.max(900, N * 30) : N}
+    FROM ranked ${rankFilter}
     ORDER BY trade_date, rk, stock_code`;
 }
 
@@ -8899,6 +8956,7 @@ async function comboBacktest(factors, N, baseTable, constraintMode = state.compo
     .map(f => `('${f.code}','${normalizeScoreMode(f.scoreMode)}',${f.weight},${normalizeSide(f.side)})`)
     .join(",");
   const cond = composeCondFor(factors, baseTable);
+  const fallbackRankFilter = normalizedConstraint === "industry" ? "" : `WHERE rk <= ${N}`;
   const res = await state.db.query(`
     WITH w(code, score_mode, weight, side) AS (VALUES ${vals}),
     ${cond.cte}
@@ -8922,7 +8980,7 @@ async function comboBacktest(factors, N, baseTable, constraintMode = state.compo
     SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
            stock_code, fwd_return, cs, industry_sw1
-    FROM ranked WHERE rk <= ${normalizedConstraint === "industry" ? Math.max(900, N * 30) : N}
+    FROM ranked ${fallbackRankFilter}
     ORDER BY trade_date, rk, stock_code`);
   const rows = res.toArray();
   return normalizedConstraint === "industry"
@@ -9183,21 +9241,35 @@ function backtestWeights(monthsArr, weights, N, conds) {
   let prev = null, nav = 1;
   const navArr = [1], retArr = [];
   for (const mo of monthsArr) {
-    let elig = mo.stocks;
-    if (conds && conds.length) {
-      elig = mo.stocks.filter(s => conds.every(c =>
-        c.op === ">=" ? s.scores[c.idx] >= c.thr : s.scores[c.idx] <= c.thr));
+    const stocks = mo.stocks || [];
+    const compositeScores = new Float64Array(stocks.length);
+    compositeScores.fill(Number.NaN);
+    let eligibleCount = 0;
+    for (let stockIdx = 0; stockIdx < stocks.length; stockIdx += 1) {
+      const stock = stocks[stockIdx];
+      const passes = !conds?.length || conds.every(c =>
+        c.op === ">=" ? stock.scores[c.idx] >= c.thr : stock.scores[c.idx] <= c.thr);
+      if (!passes) continue;
+      let composite = 0;
+      for (let i = 0; i < weights.length; i += 1) composite += weights[i] * stock.scores[i];
+      const rounded = roundCompositeScoreForRanking(composite);
+      if (!Number.isFinite(rounded)) continue;
+      compositeScores[stockIdx] = rounded;
+      eligibleCount += 1;
     }
-    if (elig.length === 0) {   // 该月无符合 → 空仓
+    if (eligibleCount === 0) {   // 该月无符合 → 空仓
       nav *= 1; navArr.push(nav); retArr.push(0); prev = new Map(); continue;
     }
-    const scored = elig.map(s => {
-      let c = 0; for (let i = 0; i < weights.length; i++) c += weights[i] * s.scores[i];
-      return { code: s.code, comp: roundCompositeScoreForRanking(c), ret: s.ret };
-    });
-    scored.sort((a, b) => b.comp - a.comp || String(a.code).localeCompare(String(b.code)));
-    const boundaryScore = scored[N - 1]?.comp;
-    const picks = boundaryScore === undefined ? [] : scored.filter(s => s.comp >= boundaryScore);
+    const boundaryScore = nthLargestFinite(compositeScores, N);
+    if (boundaryScore === null) continue;
+    const picks = [];
+    for (let stockIdx = 0; stockIdx < stocks.length; stockIdx += 1) {
+      const comp = compositeScores[stockIdx];
+      if (Number.isFinite(comp) && comp >= boundaryScore) {
+        const stock = stocks[stockIdx];
+        picks.push({ code: stock.code, comp, ret: stock.ret });
+      }
+    }
     if (!picks.some(p => isValidForwardReturn(p.ret))) continue;
     const weight = 1 / picks.length;
     const gross = equalWeightReturnFromObserved(picks);
@@ -9207,6 +9279,75 @@ function backtestWeights(monthsArr, weights, N, conds) {
     nav *= (1 + net); navArr.push(nav); retArr.push(net); prev = cur;
   }
   return computeMetrics(retArr, navArr);
+}
+
+function nthLargestFinite(values, n) {
+  const k = Math.max(1, Math.floor(Number(n) || 1));
+  const heap = [];
+  const siftUp = (start) => {
+    let i = start;
+    while (i > 0) {
+      const parent = Math.floor((i - 1) / 2);
+      if (heap[parent] <= heap[i]) break;
+      [heap[parent], heap[i]] = [heap[i], heap[parent]];
+      i = parent;
+    }
+  };
+  const siftDown = () => {
+    let i = 0;
+    while (true) {
+      const left = i * 2 + 1;
+      if (left >= heap.length) return;
+      const right = left + 1;
+      const child = right < heap.length && heap[right] < heap[left] ? right : left;
+      if (heap[i] <= heap[child]) return;
+      [heap[i], heap[child]] = [heap[child], heap[i]];
+      i = child;
+    }
+  };
+  for (const raw of values || []) {
+    const value = Number(raw);
+    if (!Number.isFinite(value)) continue;
+    if (heap.length < k) {
+      heap.push(value);
+      siftUp(heap.length - 1);
+    } else if (value > heap[0]) {
+      heap[0] = value;
+      siftDown();
+    }
+  }
+  return heap.length === k ? heap[0] : null;
+}
+
+function yieldToEventLoop() {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+async function searchOptimalWeights(monthsArr, grid, N, conds, options = {}) {
+  const best = {
+    annual: { val: -Infinity, w: null, m: null },
+    sharpe: { val: -Infinity, w: null, m: null },
+    vol:    { val: Infinity, w: null, m: null },
+    mdd:    { val: -Infinity, w: null, m: null },
+  };
+  const yieldEvery = Math.max(1, Math.floor(Number(options.yieldEvery) || 2));
+  const yieldFn = typeof options.yieldFn === "function" ? options.yieldFn : yieldToEventLoop;
+  for (let i = 0; i < grid.length; i += 1) {
+    const w = grid[i];
+    const m = backtestWeights(monthsArr, w, N, conds);
+    if (m) {
+      if (m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
+      if (Number.isFinite(Number(m.sharpe)) && m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
+      if (m.vol < best.vol.val) best.vol = { val: m.vol, w, m };
+      if (m.mdd > best.mdd.val) best.mdd = { val: m.mdd, w, m };
+    }
+    const completed = i + 1;
+    if (completed < grid.length && completed % yieldEvery === 0) {
+      if (typeof options.onProgress === "function") options.onProgress(completed, grid.length);
+      await yieldFn();
+    }
+  }
+  return best;
 }
 
 async function optimizeWeights() {
@@ -9233,27 +9374,17 @@ async function optimizeWeights() {
     .map((f, i) => `${effectiveScoreSql(`m.f${matrixIndexes[i]}`, f.side)} AS f${i}`)
     .join(", ");
   const scorePresenceSql = matrixIndexes.map(idx => `m.f${idx} IS NOT NULL`).join(" AND ");
-  // 候选股裁剪：只保留"在任一所选因子排进前 500"的股。合成 top-N(N≤100) 的成分
-  // 必在此并集内（全因子都排 500 外 → 加权和必偏低 → 进不了 top），裁剪不改结果但大幅提速。
+  const optimizerRangeSql = rangeWhere(state.composeStart, state.composeEnd, "m.trade_date");
+  // 使用所有所选因子分数均非空的股票。不能用“任一单因子 Top500 并集”裁剪：
+  // 一只股票可以在每个单因子都排 500 名以后，却因多项分数均衡而进入合成 TopN。
   const res = await state.db.query(`
-    WITH cand AS (
-      ${state.composeFactors.map((f, i) => `
-        SELECT trade_date, stock_code FROM (
-          SELECT trade_date, stock_code,
-                 RANK() OVER (PARTITION BY trade_date ORDER BY ${effectiveScoreSql(`f${matrixIndexes[i]}`, f.side)} DESC) AS rk
-          FROM cps_matrix
-          WHERE f${matrixIndexes[i]} IS NOT NULL
-        ) WHERE rk <= 500
-      `).join("\nUNION\n")}
-    )
     SELECT strftime(m.trade_date,'%Y-%m') AS signal_ym,
            strftime(COALESCE(m.return_date, m.trade_date),'%Y-%m') AS return_ym,
            m.stock_code,
            ${scoreCols},
            m.fwd_return
     FROM cps_matrix m
-    JOIN cand c ON c.trade_date = m.trade_date AND c.stock_code = m.stock_code
-    WHERE ${scorePresenceSql}
+    WHERE ${scorePresenceSql}${optimizerRangeSql}
     ORDER BY m.trade_date
   `);
   // 组织成 months[signal_ym]，信号月与收益月分开保留，避免把
@@ -9298,21 +9429,13 @@ async function optimizeWeights() {
   // 网格步长：因子越多步长越粗（控制组合数）
   const step = nF === 2 ? 0.05 : nF === 3 ? 0.1 : 0.2;
   const grid = weightGrid(nF, step);
-  // 4 个目标各记录最优
-  const best = {
-    annual: { val: -Infinity, w: null, m: null },
-    sharpe: { val: -Infinity, w: null, m: null },
-    vol:    { val: Infinity,  w: null, m: null },
-    mdd:    { val: -Infinity, w: null, m: null },   // mdd 是负数，越大(接近0)越好
-  };
-  for (const w of grid) {
-    const m = backtestWeights(monthsArr, w, state.composeN, conds);
-    if (!m) continue;
-    if (m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
-    if (Number.isFinite(Number(m.sharpe)) && m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
-    if (m.vol < best.vol.val) best.vol = { val: m.vol, w, m };
-    if (m.mdd > best.mdd.val) best.mdd = { val: m.mdd, w, m };
-  }
+  const best = await searchOptimalWeights(monthsArr, grid, state.composeN, conds, {
+    yieldEvery: 2,
+    onProgress: (completed, total) => {
+      const loading = box.querySelector(".loading");
+      if (loading) loading.textContent = `搜索中… ${completed}/${total}`;
+    },
+  });
 
   const pct = v => (v * 100).toFixed(1) + "%";
   const wstr = w => codes.map((c, i) => `${c} ${(w[i] * 100).toFixed(0)}%`).join(" / ");

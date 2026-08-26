@@ -437,10 +437,14 @@ def test_homepage_does_not_wait_for_remote_combo_library():
 def test_compose_backtest_only_joins_industry_descriptors_when_requested():
     source = APP_JS.read_text(encoding="utf-8")
     matrix_sql = _source_between(source, "function matrixBacktestSql", "async function comboBacktest")
+    fallback = _source_between(source, "async function comboBacktest", "async function saveCurrentCombo")
 
     assert 'const needsIndustry = normalizeConstraintMode(constraintMode) === "industry"' in matrix_sql
     assert 'needsIndustry ? "LEFT JOIN stock_descriptors' in matrix_sql
     assert 'needsIndustry ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1"' in matrix_sql
+    assert 'const fallbackRankFilter = normalizedConstraint === "industry" ? "" : `WHERE rk <= ${N}`' in fallback
+    assert "FROM ranked ${fallbackRankFilter}" in fallback
+    assert "Math.max(900, N * 30)" not in fallback
 
 
 def test_frontend_topn_and_groups_are_tie_aware_in_every_compose_path():
@@ -453,11 +457,220 @@ def test_frontend_topn_and_groups_are_tie_aware_in_every_compose_path():
 
     assert "RANK() OVER" in side_rank and "ROW_NUMBER() OVER" not in side_rank
     assert "RANK() OVER" in matrix_sql and "ROW_NUMBER() OVER" not in matrix_sql
+    assert 'const rankFilter = needsIndustry ? "" : `WHERE rk <= ${N}`' in matrix_sql
+    assert "Math.max(900, N * 30)" not in matrix_sql
     assert "NTILE(10)" not in group_validation
     assert group_validation.count("RANK() OVER") >= 2
     assert "boundaryScore" in industry_picker
     assert "boundaryScore" in optimizer
     assert ".slice(0, N)" not in optimizer
+
+
+def test_compose_latest_holdings_include_boundary_ties_in_raw_and_neutral_modes():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function composeScoreValue", "function composeConstraintModeLabel")
+    picker = _source_between(source, "function industryNeutralPickRows", "function buildWeightedBacktestFromRows")
+    result = _frontend_eval_json([
+        "const MAX_HOLDING_DETAIL_ROWS = 100;",
+        'function normalizeConstraintMode(mode) { return mode === "industry" ? "industry" : "none"; }',
+        'function holdingCountNote() { return ""; }',
+        picker,
+        helpers,
+        "const rows = [",
+        "  { stock_code: '000004.SZ', comp_score: 8, industry_sw1: 'A' },",
+        "  { stock_code: '000003.SZ', comp_score: 9, industry_sw1: 'B' },",
+        "  { stock_code: '000001.SZ', comp_score: 10, industry_sw1: 'A' },",
+        "  { stock_code: '000002.SZ', comp_score: 9, industry_sw1: 'A' },",
+        "];",
+        "const raw = composeLatestHoldingSelection(rows, 2, 'none');",
+        "const neutral = composeLatestHoldingSelection(rows.map(r => ({...r, score_mode: 'neutral'})), 2, 'none');",
+        "console.log(JSON.stringify({",
+        "  rawCodes: raw.rows.map(r => r.stock_code),",
+        "  rawActual: raw.stats.actual_n,",
+        "  neutralCodes: neutral.rows.map(r => r.stock_code),",
+        "  neutralActual: neutral.stats.actual_n,",
+        "  weightSum: raw.rows.reduce((s, r) => s + r.weight, 0),",
+        "}));",
+    ])
+
+    assert result["rawCodes"] == ["000001.SZ", "000002.SZ", "000003.SZ"]
+    assert result["neutralCodes"] == result["rawCodes"]
+    assert result["rawActual"] == 3
+    assert result["neutralActual"] == 3
+    assert math.isclose(result["weightSum"], 1.0, rel_tol=0, abs_tol=1e-12)
+
+
+def test_compose_latest_industry_selection_keeps_quota_boundary_ties():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function composeScoreValue", "function composeConstraintModeLabel")
+    picker = _source_between(source, "function industryNeutralPickRows", "function buildWeightedBacktestFromRows")
+    result = _frontend_eval_json([
+        "const MAX_HOLDING_DETAIL_ROWS = 100;",
+        'function normalizeConstraintMode(mode) { return mode === "industry" ? "industry" : "none"; }',
+        'function holdingCountNote() { return ""; }',
+        picker,
+        helpers,
+        "const rows = [",
+        "  { stock_code: 'A1', comp_score: 9, industry_sw1: 'A' },",
+        "  { stock_code: 'A2', comp_score: 8, industry_sw1: 'A' },",
+        "  { stock_code: 'A3', comp_score: 8, industry_sw1: 'A' },",
+        "  { stock_code: 'B1', comp_score: 7, industry_sw1: 'B' },",
+        "  { stock_code: 'B2', comp_score: 6, industry_sw1: 'B' },",
+        "  { stock_code: 'B3', comp_score: 5, industry_sw1: 'B' },",
+        "];",
+        "const selected = composeLatestHoldingSelection(rows, 3, 'industry');",
+        "console.log(JSON.stringify({",
+        "  codes: selected.rows.map(r => r.stock_code),",
+        "  actual: selected.stats.actual_n,",
+        "  candidateActual: selected.stats.candidate_actual_n,",
+        "  weightSum: selected.rows.reduce((s, r) => s + r.weight, 0),",
+        "}));",
+    ])
+
+    assert set(result["codes"]) == {"A1", "A2", "A3", "B1"}
+    assert result["actual"] == 4
+    assert result["candidateActual"] == 6
+    assert math.isclose(result["weightSum"], 1.0, rel_tol=0, abs_tol=1e-12)
+
+
+def test_compose_latest_and_historical_industry_picker_match_on_full_over_900_pool():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function composeScoreValue", "function composeConstraintModeLabel")
+    picker = _source_between(source, "function industryNeutralPickRows", "function buildWeightedBacktestFromRows")
+    group_picker = _source_between(source, "function groupIndustryNeutralRowsByMonth", "function matrixBacktestSql")
+    result = _frontend_eval_json([
+        "const MAX_HOLDING_DETAIL_ROWS = 100;",
+        'function normalizeConstraintMode(mode) { return mode === "industry" ? "industry" : "none"; }',
+        'function holdingCountNote() { return ""; }',
+        picker,
+        group_picker,
+        helpers,
+        "const rows = [];",
+        "for (let i = 0; i < 900; i += 1) rows.push({stock_code: `A${String(i).padStart(4, '0')}`, comp_score: 2000 - i, cs: 2000 - i, industry_sw1: 'A', signal_dt: '2026-01', dt: '2026-02-01'});",
+        "for (let i = 0; i < 100; i += 1) rows.push({stock_code: `B${String(i).padStart(4, '0')}`, comp_score: 100 - i, cs: 100 - i, industry_sw1: 'B', signal_dt: '2026-01', dt: '2026-02-01'});",
+        "const latest = composeLatestHoldingSelection(rows, 30, 'industry').rows.slice().sort((a, b) => a.stock_code.localeCompare(b.stock_code));",
+        "const historical = groupIndustryNeutralRowsByMonth(rows, 30).slice().sort((a, b) => a.stock_code.localeCompare(b.stock_code));",
+        "console.log(JSON.stringify({",
+        "  latest: latest.map(r => [r.stock_code, r.weight]),",
+        "  historical: historical.map(r => [r.stock_code, r.weight]),",
+        "  lowScoreIndustryCount: latest.filter(r => r.industry_sw1 === 'B').length,",
+        "}));",
+    ])
+
+    assert result["latest"] == result["historical"]
+    assert len(result["latest"]) == 30
+    assert result["lowScoreIndustryCount"] == 3
+
+
+def test_compose_latest_render_and_validation_share_selection_contract():
+    source = APP_JS.read_text(encoding="utf-8")
+    render = _source_between(source, "async function renderComposeStocks", "async function renderComposeBacktest")
+    validation_holdings = _source_between(source, "async function comboLatestHoldingRows", "function comboBacktestAvgTurnover")
+    optimizer = _source_between(source, "async function optimizeWeights", "function bindComposeButtons")
+
+    assert "composeLatestHoldingSelection(candidateRows, state.composeN, constraint)" in render
+    assert "allRows.slice(0, MAX_HOLDING_DETAIL_ROWS)" in render
+    assert "composeHoldingCountNote(state.composeN, rows, selection.stats)" in render
+    assert "合成名义 Top ${state.composeN}" in render
+    assert "LIMIT ${candidateLimit}" not in render
+    assert "composeLatestHoldingSelection(candidateRows, N, constraint)" in validation_holdings
+    assert "candidateRows.slice(0, N)" not in validation_holdings
+    assert "return selection.rows.map" in validation_holdings
+    assert "renderCompose();" in optimizer
+
+
+def test_optimizer_uses_full_common_universe_not_single_factor_top500_union():
+    source = APP_JS.read_text(encoding="utf-8")
+    optimizer = _source_between(source, "async function optimizeWeights", "function bindComposeButtons")
+    result = _frontend_eval_json([
+        "const rows = [];",
+        "for (let i = 0; i < 500; i += 1) {",
+        "  rows.push({code: `A${i}`, scores: [1, 0]});",
+        "  rows.push({code: `B${i}`, scores: [0, 1]});",
+        "}",
+        "rows.push({code: 'BALANCED', scores: [0.8, 0.8]});",
+        "const factorRanks = [0, 1].map(j => rows.slice().sort((a, b) => b.scores[j] - a.scores[j] || a.code.localeCompare(b.code)).findIndex(r => r.code === 'BALANCED') + 1);",
+        "const compositeTop = rows.slice().sort((a, b) => ((b.scores[0] + b.scores[1]) - (a.scores[0] + a.scores[1])) || a.code.localeCompare(b.code))[0].code;",
+        "console.log(JSON.stringify({factorRanks, compositeTop}));",
+    ])
+
+    assert result["factorRanks"] == [501, 501]
+    assert result["compositeTop"] == "BALANCED"
+    assert "WITH cand AS" not in optimizer
+    assert "JOIN cand" not in optimizer
+    assert "rk <= 500" not in optimizer
+    assert 'const optimizerRangeSql = rangeWhere(state.composeStart, state.composeEnd, "m.trade_date")' in optimizer
+    assert "WHERE ${scorePresenceSql}${optimizerRangeSql}" in optimizer
+
+
+def test_optimizer_heap_boundary_matches_full_sort_and_keeps_all_ties():
+    source = APP_JS.read_text(encoding="utf-8")
+    heap = _source_between(source, "function nthLargestFinite", "function yieldToEventLoop")
+    result = _frontend_eval_json([
+        heap,
+        "const cases = [",
+        "  {values: [10, 9, 9, 8], n: 2},",
+        "  {values: [3, 1, 2, 2, Number.NaN], n: 3},",
+        "  {values: [5], n: 2},",
+        "];",
+        "const rows = cases.map(c => {",
+        "  const finite = c.values.filter(Number.isFinite).sort((a, b) => b - a);",
+        "  const sortedBoundary = finite.length >= c.n ? finite[c.n - 1] : null;",
+        "  const heapBoundary = nthLargestFinite(c.values, c.n);",
+        "  const ties = heapBoundary === null ? [] : c.values.filter(v => Number.isFinite(v) && v >= heapBoundary);",
+        "  return {sortedBoundary, heapBoundary, ties};",
+        "});",
+        "console.log(JSON.stringify(rows));",
+    ])
+
+    assert result[0] == {"sortedBoundary": 9, "heapBoundary": 9, "ties": [10, 9, 9]}
+    assert result[1]["sortedBoundary"] == result[1]["heapBoundary"] == 2
+    assert result[2]["sortedBoundary"] is None
+    assert result[2]["heapBoundary"] is None
+
+
+def test_optimizer_search_yields_every_two_grid_points_and_matches_manual_best():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+    metrics = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
+    optimizer_helpers = _source_between(source, "function backtestWeights", "async function optimizeWeights")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0.002;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
+        helpers,
+        metrics,
+        optimizer_helpers,
+        "const months = [{stocks: [",
+        "  {code: 'A', scores: [1, 0], ret: 0.2},",
+        "  {code: 'B', scores: [0, 1], ret: -0.1},",
+        "  {code: 'C', scores: [0.5, 0.5], ret: 0.05},",
+        "]}];",
+        "const grid = [[1,0], [0.75,0.25], [0.5,0.5], [0.25,0.75], [0,1]];",
+        "let yields = 0;",
+        "(async () => {",
+        "  const searched = await searchOptimalWeights(months, grid, 1, [], {yieldEvery: 2, yieldFn: async () => { yields += 1; }});",
+        "  const manual = grid.map(w => ({w, m: backtestWeights(months, w, 1, [])})).sort((a, b) => b.m.annual - a.m.annual)[0];",
+        "  console.log(JSON.stringify({yields, searched: searched.annual.w, manual: manual.w}));",
+        "})();",
+    ])
+
+    assert result["yields"] == 2
+    assert result["searched"] == result["manual"]
+
+
+def test_optimizer_source_avoids_full_object_sort_and_has_benchmark_script():
+    source = APP_JS.read_text(encoding="utf-8")
+    backtest = _source_between(source, "function backtestWeights", "function nthLargestFinite")
+    search = _source_between(source, "async function searchOptimalWeights", "async function optimizeWeights")
+    benchmark = ROOT / "e2e" / "benchmark_compose_optimizer.mjs"
+    package = json.loads((ROOT / "e2e" / "package.json").read_text(encoding="utf-8"))
+
+    assert "new Float64Array(stocks.length)" in backtest
+    assert "nthLargestFinite(compositeScores, N)" in backtest
+    assert ".sort(" not in backtest
+    assert "await yieldFn()" in search
+    assert benchmark.exists()
+    assert package["scripts"]["benchmark-compose-optimizer"] == "node benchmark_compose_optimizer.mjs"
 
 
 def test_frontend_industry_neutral_picker_includes_quota_boundary_ties():
@@ -956,6 +1169,9 @@ def test_compose_industry_constraint_loads_descriptors_and_discloses_static_appr
     assert "if (needsDescriptors && !state.hasDescriptors)" in render
     assert "系统不会把缺失行业当作空持仓继续计算" in render
     assert "静态行业约束" in controls
+    assert "完整有效候选集定行业配额，各行业内按合成分数竞争秩选股" in controls
+    assert "先按完整有效候选集的行业数量占比确定配额" in source
+    assert "按完整有效候选集的最新静态申万一级行业占比近似配权" in source
     assert "不等于单因子回测的月末PIT行业中性口径" in source
 
 
@@ -1251,8 +1467,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.8</title>" in index
-    assert "<b>因子库 v2.0.8</b>" in index
+    assert "<title>因子库 v2.0.9</title>" in index
+    assert "<b>因子库 v2.0.9</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 
