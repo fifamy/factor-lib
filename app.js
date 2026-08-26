@@ -7113,7 +7113,7 @@ async function renderComposeStocks(renderSeq) {
            CAST(trade_date AS VARCHAR) AS as_of_date,
            CAST(trade_date AS VARCHAR) AS pool_date
     FROM cps_latest_matrix
-    WHERE TRUE ${condSql}
+    WHERE (${scoreExpr}) IS NOT NULL ${condSql}
     ORDER BY comp_score DESC, stock_code
   `);
   if (isComposeRenderStale(renderSeq)) return;
@@ -7738,7 +7738,7 @@ async function comboLatestHoldingRows(factors, N, constraintMode) {
            CAST(trade_date AS VARCHAR) AS as_of_date,
            CAST(trade_date AS VARCHAR) AS pool_date
     FROM cps_latest_matrix
-    WHERE TRUE ${condSql}
+    WHERE (${scoreExpr}) IS NOT NULL ${condSql}
     ORDER BY comp_score DESC, stock_code
   `);
   const candidateRows = res.toArray()
@@ -8564,7 +8564,7 @@ function renderComboGroup10Table(group10) {
   const totalMembers = rows.reduce((s, r) => s + (r.member_count || 0), 0);
   const totalMissing = rows.reduce((s, r) => s + (r.missing_return_count || 0), 0);
   const coverageNote = totalMembers > 0
-    ? `<p class="validation-note">覆盖口径：已剔除整月无任何有效远期收益的未完成月；已完成月内的缺失成员按 -100% 惩罚。当前缺失 ${pctText(totalMissing / totalMembers)}。本表为分组等权毛收益，未扣换仓成本，用于观察排序单调性；不应与已扣成本的单因子分组收益直接比较数值。</p>`
+    ? `<p class="validation-note">覆盖口径：已剔除整月无任何有效远期收益的未完成月；已完成月内仅对有效收益成员等权归一，缺失成员不按 -100% 惩罚。当前缺失 ${pctText(totalMissing / totalMembers)}。本表为分组等权毛收益，未扣换仓成本，用于观察排序单调性；不应与已扣成本的单因子分组收益直接比较数值。</p>`
     : "";
   return `${coverageNote}<table class="validation-table">
     <thead><tr><th>10组</th><th>毛年化收益</th><th>夏普</th><th>最大回撤</th><th>月数</th><th>有效收益 / 成员</th><th>缺失率</th></tr></thead>
@@ -8765,23 +8765,28 @@ function buildBacktestFromRows(rows, N) {
       byMonth.set(key, {
         signalDt: key,
         returnDt: r.dt || key,
+        completed: false,
         holdings: [],
       });
     }
     const o = byMonth.get(key);
     if (r.dt && String(r.dt) > String(o.returnDt)) o.returnDt = String(r.dt);
-    o.holdings.push({ stock_code: r.stock_code, ret: r.fwd_return });
+    if (r.period_complete === true || r.period_complete === 1) o.completed = true;
+    if (r.stock_code) o.holdings.push({ stock_code: r.stock_code, ret: r.fwd_return });
   }
   const periods = [...byMonth.values()]
-    .filter(o => o.returnDt && o.holdings.some(h => isValidForwardReturn(h.ret)))
+    .filter(o => o.returnDt && (
+      (o.completed && o.holdings.length === 0)
+      || o.holdings.some(h => isValidForwardReturn(h.ret))
+    ))
     .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1; const x = [], navArr = [1], retArr = [];
   if (periods.length) x.push(periods[0].signalDt);
   for (const o of periods) {
-    const weight = 1 / Math.max(1, o.holdings.length);
-    const gross = equalWeightReturnFromObserved(o.holdings);
+    const weight = o.holdings.length ? 1 / o.holdings.length : 0;
+    const gross = o.holdings.length ? equalWeightReturnFromObserved(o.holdings) : 0;
     const cur = new Map(o.holdings.map(h => [h.stock_code, weight]));
-    const turnover = weightedTurnover(cur, prev);
+    const turnover = !prev && cur.size === 0 ? 0 : weightedTurnover(cur, prev);
     const net = netLongOnlyReturn(gross, turnover, !prev);
     nav *= (1 + net);
     x.push(o.returnDt);
@@ -8803,13 +8808,16 @@ function industryNeutralPickRows(candidates, N) {
     industry,
     targetWeight: count / total,
   }));
+  // 候选池少于名义 TopN 时应持有全部有效成员，不能让行业配额
+  // 大于库存后把整个行业删掉。
+  const portfolioSize = Math.min(Math.max(1, Math.floor(Number(N) || 1)), valid.length);
   const quotas = industries.map(item => {
-    const raw = item.targetWeight * N;
+    const raw = item.targetWeight * portfolioSize;
     return { ...item, raw, quota: Math.floor(raw), frac: raw - Math.floor(raw) };
   });
   let allocated = quotas.reduce((s, q) => s + q.quota, 0);
   quotas.sort((a, b) => b.frac - a.frac || a.industry.localeCompare(b.industry));
-  for (let i = 0; allocated < N && i < quotas.length; i++, allocated++) quotas[i].quota += 1;
+  for (let i = 0; allocated < portfolioSize && i < quotas.length; i++, allocated++) quotas[i].quota += 1;
   const quotaByIndustry = new Map(quotas.filter(q => q.quota > 0).map(q => [q.industry, q]));
   const rows = [];
   for (const q of quotaByIndustry.values()) {
@@ -8837,28 +8845,33 @@ function buildWeightedBacktestFromRows(rows) {
       byMonth.set(key, {
         signalDt: key,
         returnDt: r.dt || key,
+        completed: false,
         holdings: new Map(),
       });
     }
     const period = byMonth.get(key);
     if (r.dt && String(r.dt) > String(period.returnDt)) period.returnDt = String(r.dt);
+    if (r.period_complete === true || r.period_complete === 1) period.completed = true;
     const w = Number(r.weight);
-    if (!Number.isFinite(w) || w <= 0) continue;
+    if (!r.stock_code || !Number.isFinite(w) || w <= 0) continue;
     period.holdings.set(r.stock_code, {
       weight: w,
       ret: r.fwd_return,
     });
   }
   const periods = [...byMonth.values()]
-    .filter(o => [...o.holdings.values()].some(h => isValidForwardReturn(h.ret)))
+    .filter(o => (
+      (o.completed && o.holdings.size === 0)
+      || [...o.holdings.values()].some(h => isValidForwardReturn(h.ret))
+    ))
     .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1;
   const x = [], navArr = [1], retArr = [];
   if (periods.length) x.push(periods[0].signalDt);
   for (const o of periods) {
-    const gross = weightedReturnFromObserved([...o.holdings.values()]);
+    const gross = o.holdings.size ? weightedReturnFromObserved([...o.holdings.values()]) : 0;
     const cur = new Map([...o.holdings.entries()].map(([code, h]) => [code, h.weight]));
-    const turnover = weightedTurnover(cur, prev);
+    const turnover = !prev && cur.size === 0 ? 0 : weightedTurnover(cur, prev);
     const net = netLongOnlyReturn(gross, turnover, !prev);
     nav *= (1 + net);
     x.push(o.returnDt);
@@ -8879,7 +8892,12 @@ function groupIndustryNeutralRowsByMonth(rows, N) {
   const out = [];
   for (const arr of byMonth.values()) {
     const picked = industryNeutralPickRows(arr, N);
-    for (const r of picked) out.push(r);
+    if (picked.length) {
+      for (const r of picked) out.push(r);
+    } else {
+      const completedPeriod = arr.find(r => r.period_complete === true || r.period_complete === 1);
+      if (completedPeriod) out.push({ ...completedPeriod, stock_code: null, weight: null });
+    }
   }
   return out.sort((a, b) => String(a.signal_dt || a.dt).localeCompare(String(b.signal_dt || b.dt)) || String(a.stock_code).localeCompare(String(b.stock_code)));
 }
@@ -8904,23 +8922,34 @@ function matrixBacktestSql(factors, N, baseTable, constraintMode = state.compose
   const industryJoin = needsIndustry ? "LEFT JOIN stock_descriptors d ON d.stock_code = m.stock_code" : "";
   const rankFilter = needsIndustry ? "" : `WHERE rk <= ${N}`;
   return `
-    WITH scored AS (
+    WITH periods AS (
+      SELECT trade_date, MAX(return_date) AS return_date
+      FROM ${baseTable}
+      GROUP BY trade_date
+    ),
+    scored AS (
       SELECT m.trade_date, m.return_date, m.stock_code, m.fwd_return, ROUND(${scoreExpr}, 6) AS cs,
              ${industrySelect}
       FROM ${baseTable} m
       ${industryJoin}
-      WHERE TRUE ${condSql}
+      WHERE (${scoreExpr}) IS NOT NULL ${condSql}
     ),
     ranked AS (
       SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1,
              RANK() OVER (PARTITION BY trade_date ORDER BY cs DESC) AS rk
       FROM scored
+    ),
+    selected AS (
+      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1, rk
+      FROM ranked ${rankFilter}
     )
-    SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
-           strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
-           stock_code, fwd_return, cs, industry_sw1
-    FROM ranked ${rankFilter}
-    ORDER BY trade_date, rk, stock_code`;
+    SELECT strftime(p.trade_date, '%Y-%m') AS signal_dt,
+           strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS dt,
+           s.stock_code, s.fwd_return, s.cs, s.industry_sw1,
+           p.return_date IS NOT NULL AS period_complete
+    FROM periods p
+    LEFT JOIN selected s ON s.trade_date = p.trade_date
+    ORDER BY p.trade_date, s.rk, s.stock_code`;
 }
 
 // 给定组合配置 + 基表 → 逐月净值/收益（口径同 renderComposeBacktest）。
@@ -8959,6 +8988,11 @@ async function comboBacktest(factors, N, baseTable, constraintMode = state.compo
   const fallbackRankFilter = normalizedConstraint === "industry" ? "" : `WHERE rk <= ${N}`;
   const res = await state.db.query(`
     WITH w(code, score_mode, weight, side) AS (VALUES ${vals}),
+    periods AS (
+      SELECT trade_date, MAX(return_date) AS return_date
+      FROM ${baseTable}
+      GROUP BY trade_date
+    ),
     ${cond.cte}
     comp AS (
       SELECT s.trade_date, s.stock_code, MAX(s.return_date) AS return_date,
@@ -8976,12 +9010,18 @@ async function comboBacktest(factors, N, baseTable, constraintMode = state.compo
       FROM comp c
       ${cond.join}
       WHERE c.cnt = ${nF}
+    ),
+    selected AS (
+      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1, rk
+      FROM ranked ${fallbackRankFilter}
     )
-    SELECT strftime(trade_date, '%Y-%m') AS signal_dt,
-           strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS dt,
-           stock_code, fwd_return, cs, industry_sw1
-    FROM ranked ${fallbackRankFilter}
-    ORDER BY trade_date, rk, stock_code`);
+    SELECT strftime(p.trade_date, '%Y-%m') AS signal_dt,
+           strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS dt,
+           s.stock_code, s.fwd_return, s.cs, s.industry_sw1,
+           p.return_date IS NOT NULL AS period_complete
+    FROM periods p
+    LEFT JOIN selected s ON s.trade_date = p.trade_date
+    ORDER BY p.trade_date, s.rk, s.stock_code`);
   const rows = res.toArray();
   return normalizedConstraint === "industry"
     ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(rows, N))
@@ -9237,11 +9277,18 @@ function weightGrid(nF, step) {
 }
 
 // 在 JS 内存里对一组权重跑合成回测，返回指标。conds=[{idx,op,thr}] 先过滤再打分。
-function backtestWeights(monthsArr, weights, N, conds) {
+function backtestWeights(monthsArr, weights, N, conds, range = {}) {
   let prev = null, nav = 1;
   const navArr = [1], retArr = [];
   for (const mo of monthsArr) {
+    const returnMonth = String(mo.returnDt || mo.returnYm || "").slice(0, 7);
+    if (range.endMonth && returnMonth && returnMonth > range.endMonth) break;
+    const includeInMetrics = (!range.startMonth || !returnMonth || returnMonth >= range.startMonth)
+      && (!range.endMonth || !returnMonth || returnMonth <= range.endMonth);
     const stocks = mo.stocks || [];
+    const periodComplete = mo.periodComplete === true
+      || (mo.periodComplete !== false && stocks.some(stock => isValidForwardReturn(stock.ret)));
+    if (!periodComplete) continue;
     const compositeScores = new Float64Array(stocks.length);
     compositeScores.fill(Number.NaN);
     let eligibleCount = 0;
@@ -9257,10 +9304,19 @@ function backtestWeights(monthsArr, weights, N, conds) {
       compositeScores[stockIdx] = rounded;
       eligibleCount += 1;
     }
-    if (eligibleCount === 0) {   // 该月无符合 → 空仓
-      nav *= 1; navArr.push(nav); retArr.push(0); prev = new Map(); continue;
+    // 已完成持有期若过滤后无候选，当期转为现金：收益为 0，但按
+    // 前后持仓计算清仓/再入场成本。未完成终端期已在上方跳过。
+    if (eligibleCount === 0) {
+      const cur = new Map();
+      const turnover = !prev ? 0 : weightedTurnover(cur, prev);
+      const net = netLongOnlyReturn(0, turnover, !prev);
+      if (includeInMetrics) {
+        nav *= (1 + net); navArr.push(nav); retArr.push(net);
+      }
+      prev = cur;
+      continue;
     }
-    const boundaryScore = nthLargestFinite(compositeScores, N);
+    const boundaryScore = nthLargestFinite(compositeScores, Math.min(N, eligibleCount));
     if (boundaryScore === null) continue;
     const picks = [];
     for (let stockIdx = 0; stockIdx < stocks.length; stockIdx += 1) {
@@ -9276,7 +9332,10 @@ function backtestWeights(monthsArr, weights, N, conds) {
     const cur = new Map(picks.map(p => [p.code, weight]));
     const turnover = weightedTurnover(cur, prev);
     const net = netLongOnlyReturn(gross, turnover, !prev);
-    nav *= (1 + net); navArr.push(nav); retArr.push(net); prev = cur;
+    if (includeInMetrics) {
+      nav *= (1 + net); navArr.push(nav); retArr.push(net);
+    }
+    prev = cur;
   }
   return computeMetrics(retArr, navArr);
 }
@@ -9334,7 +9393,7 @@ async function searchOptimalWeights(monthsArr, grid, N, conds, options = {}) {
   const yieldFn = typeof options.yieldFn === "function" ? options.yieldFn : yieldToEventLoop;
   for (let i = 0; i < grid.length; i += 1) {
     const w = grid[i];
-    const m = backtestWeights(monthsArr, w, N, conds);
+    const m = backtestWeights(monthsArr, w, N, conds, options.range || {});
     if (m) {
       if (m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
       if (Number.isFinite(Number(m.sharpe)) && m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
@@ -9374,31 +9433,48 @@ async function optimizeWeights() {
     .map((f, i) => `${effectiveScoreSql(`m.f${matrixIndexes[i]}`, f.side)} AS f${i}`)
     .join(", ");
   const scorePresenceSql = matrixIndexes.map(idx => `m.f${idx} IS NOT NULL`).join(" AND ");
-  const optimizerRangeSql = rangeWhere(state.composeStart, state.composeEnd, "m.trade_date");
+  // 为与主回测“先全期计算换手，再按收益实现月 slice”一致，开始月之前的
+  // 持仓必须保留用于确定区间首月换手；只将结束月下推。按整期日期过滤仍会
+  // 保留个别收益缺失的成员。
+  const optimizerEndSql = rangeWhere(null, state.composeEnd, "p.period_return_date");
   // 使用所有所选因子分数均非空的股票。不能用“任一单因子 Top500 并集”裁剪：
   // 一只股票可以在每个单因子都排 500 名以后，却因多项分数均衡而进入合成 TopN。
   const res = await state.db.query(`
-    SELECT strftime(m.trade_date,'%Y-%m') AS signal_ym,
-           strftime(COALESCE(m.return_date, m.trade_date),'%Y-%m') AS return_ym,
+    WITH optimizer_period_dates AS (
+      SELECT trade_date, MAX(return_date) AS period_return_date
+      FROM cps_matrix
+      GROUP BY trade_date
+    ),
+    optimizer_candidates AS (
+      SELECT *
+      FROM cps_matrix m
+      WHERE ${scorePresenceSql}
+    )
+    SELECT strftime(p.trade_date,'%Y-%m') AS signal_ym,
+           strftime(COALESCE(p.period_return_date, p.trade_date),'%Y-%m') AS return_ym,
            m.stock_code,
            ${scoreCols},
-           m.fwd_return
-    FROM cps_matrix m
-    WHERE ${scorePresenceSql}${optimizerRangeSql}
-    ORDER BY m.trade_date
+           m.fwd_return,
+           p.period_return_date IS NOT NULL AS period_complete
+    FROM optimizer_period_dates p
+    LEFT JOIN optimizer_candidates m ON m.trade_date = p.trade_date
+    WHERE TRUE${optimizerEndSql}
+    ORDER BY p.trade_date, m.stock_code
   `);
   // 组织成 months[signal_ym]，信号月与收益月分开保留，避免把
   // 已完成持有期与末期未完成信号月合并。
   const tmp = new Map();   // signal_ym -> Map(code -> {scores:[], ret, cnt})
   const returnMonthBySignal = new Map();
+  const completedBySignal = new Map();
   for (const r of res.toArray()) {
     if (!tmp.has(r.signal_ym)) tmp.set(r.signal_ym, new Map());
     const mm = tmp.get(r.signal_ym);
+    if (r.period_complete === true || r.period_complete === 1) completedBySignal.set(r.signal_ym, true);
     const previousReturnMonth = returnMonthBySignal.get(r.signal_ym);
     if (!previousReturnMonth || String(r.return_ym) > String(previousReturnMonth)) {
       returnMonthBySignal.set(r.signal_ym, r.return_ym);
     }
-    if (!mm.has(r.stock_code)) {
+    if (r.stock_code && !mm.has(r.stock_code)) {
       mm.set(r.stock_code, {
         scores: codes.map((_, i) => r[`f${i}`]),
         ret: r.fwd_return,
@@ -9408,14 +9484,14 @@ async function optimizeWeights() {
   }
   const monthsArr = [];
   for (const [signalYm, mm] of tmp) {
-    if (state.composeStart && signalYm < state.composeStart) continue;
-    if (state.composeEnd && signalYm > state.composeEnd) continue;
+    const returnYm = returnMonthBySignal.get(signalYm) || signalYm;
     const stocks = [];
     for (const [code, o] of mm) if (o.cnt === nF) stocks.push({ code, scores: o.scores, ret: o.ret });
-    if (stocks.length >= state.composeN) monthsArr.push({
+    monthsArr.push({
       ym: signalYm,
       signalDt: signalYm,
-      returnDt: returnMonthBySignal.get(signalYm) || signalYm,
+      returnDt: returnYm,
+      periodComplete: completedBySignal.get(signalYm) === true,
       stocks,
     });
   }
@@ -9431,6 +9507,7 @@ async function optimizeWeights() {
   const grid = weightGrid(nF, step);
   const best = await searchOptimalWeights(monthsArr, grid, state.composeN, conds, {
     yieldEvery: 2,
+    range: { startMonth: state.composeStart, endMonth: state.composeEnd },
     onProgress: (completed, total) => {
       const loading = box.querySelector(".loading");
       if (loading) loading.textContent = `搜索中… ${completed}/${total}`;

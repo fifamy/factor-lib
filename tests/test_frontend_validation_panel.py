@@ -249,6 +249,8 @@ def test_frontend_ranking_keeps_missing_members_but_portfolio_uses_observed_retu
     assert 'COUNT(*) FILTER (WHERE ${validForwardReturnSql("fwd_return")}) > 0' in group_validation
     assert "OR MAX(return_date) IS NOT NULL" not in group_validation
     assert "ELSE NULL" in source
+    assert "缺失成员不按 -100% 惩罚" in source
+    assert "缺失成员按 -100% 惩罚" not in source
 
 
 def test_compare_respects_snapshot_capability_and_normalizes_duckdb_bigints():
@@ -386,7 +388,7 @@ def test_frontend_weighted_and_optimizer_paths_keep_signal_and_return_months_sep
     assert result["weightedX"] == []
     assert result["groupedSignals"] == ["2026-06", "2026-07"]
     assert result["optimizedNavEnd"] is None
-    assert "strftime(m.trade_date,'%Y-%m') AS signal_ym" in optimize_ui
+    assert "strftime(p.trade_date,'%Y-%m') AS signal_ym" in optimize_ui
     assert "AS return_ym" in optimize_ui
 
 
@@ -444,6 +446,12 @@ def test_compose_backtest_only_joins_industry_descriptors_when_requested():
     assert 'needsIndustry ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1"' in matrix_sql
     assert 'const fallbackRankFilter = normalizedConstraint === "industry" ? "" : `WHERE rk <= ${N}`' in fallback
     assert "FROM ranked ${fallbackRankFilter}" in fallback
+    assert "WITH periods AS" in matrix_sql
+    assert "LEFT JOIN selected s ON s.trade_date = p.trade_date" in matrix_sql
+    assert "p.return_date IS NOT NULL AS period_complete" in matrix_sql
+    assert "periods AS" in fallback
+    assert "LEFT JOIN selected s ON s.trade_date = p.trade_date" in fallback
+    assert "p.return_date IS NOT NULL AS period_complete" in fallback
     assert "Math.max(900, N * 30)" not in fallback
 
 
@@ -569,11 +577,13 @@ def test_compose_latest_render_and_validation_share_selection_contract():
     optimizer = _source_between(source, "async function optimizeWeights", "function bindComposeButtons")
 
     assert "composeLatestHoldingSelection(candidateRows, state.composeN, constraint)" in render
+    assert "WHERE (${scoreExpr}) IS NOT NULL ${condSql}" in render
     assert "allRows.slice(0, MAX_HOLDING_DETAIL_ROWS)" in render
     assert "composeHoldingCountNote(state.composeN, rows, selection.stats)" in render
     assert "合成名义 Top ${state.composeN}" in render
     assert "LIMIT ${candidateLimit}" not in render
     assert "composeLatestHoldingSelection(candidateRows, N, constraint)" in validation_holdings
+    assert "WHERE (${scoreExpr}) IS NOT NULL ${condSql}" in validation_holdings
     assert "candidateRows.slice(0, N)" not in validation_holdings
     assert "return selection.rows.map" in validation_holdings
     assert "renderCompose();" in optimizer
@@ -599,8 +609,102 @@ def test_optimizer_uses_full_common_universe_not_single_factor_top500_union():
     assert "WITH cand AS" not in optimizer
     assert "JOIN cand" not in optimizer
     assert "rk <= 500" not in optimizer
-    assert 'const optimizerRangeSql = rangeWhere(state.composeStart, state.composeEnd, "m.trade_date")' in optimizer
-    assert "WHERE ${scorePresenceSql}${optimizerRangeSql}" in optimizer
+    assert 'const optimizerEndSql = rangeWhere(null, state.composeEnd, "p.period_return_date")' in optimizer
+    assert "WITH optimizer_period_dates AS" in optimizer
+    assert "MAX(return_date) AS period_return_date" in optimizer
+    assert "optimizer_candidates AS" in optimizer
+    assert "LEFT JOIN optimizer_candidates m ON m.trade_date = p.trade_date" in optimizer
+    assert "COALESCE(p.period_return_date, p.trade_date)" in optimizer
+    assert "WHERE TRUE${optimizerEndSql}" in optimizer
+    assert "periodComplete: completedBySignal.get(signalYm) === true" in optimizer
+    assert "range: { startMonth: state.composeStart, endMonth: state.composeEnd }" in optimizer
+    assert "if (stocks.length) monthsArr.push" not in optimizer
+    assert "stocks.length >= state.composeN" not in optimizer
+
+
+def test_optimizer_matches_historical_when_pool_is_underfilled_or_filter_has_zero_candidates():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+    metrics = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
+    compose_backtest = _source_between(source, "function buildBacktestFromRows", "function industryNeutralPickRows")
+    industry_backtest = _source_between(source, "function industryNeutralPickRows", "function matrixBacktestSql")
+    optimizer_backtest = _source_between(source, "function backtestWeights", "async function optimizeWeights")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0.002;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
+        helpers,
+        metrics,
+        compose_backtest,
+        industry_backtest,
+        optimizer_backtest,
+        "const historicalRows = [",
+        "  {signal_dt:'2026-01', dt:'2026-02-28', stock_code:'A', fwd_return:0.10},",
+        "  {signal_dt:'2026-01', dt:'2026-02-28', stock_code:'B', fwd_return:null},",
+        "  {signal_dt:'2026-03', dt:'2026-04-30', stock_code:'A', fwd_return:0.05},",
+        "  {signal_dt:'2026-03', dt:'2026-04-30', stock_code:'B', fwd_return:-0.10},",
+        "];",
+        "const historicalBt = buildBacktestFromRows(historicalRows, 3);",
+        "const historical = computeMetrics(historicalBt.retArr, historicalBt.navArr);",
+        "const historicalCashRows = [",
+        "  ...historicalRows,",
+        "  {signal_dt:'2026-02', dt:'2026-03-31', stock_code:null, fwd_return:null, period_complete:true},",
+        "];",
+        "const historicalCashBt = buildBacktestFromRows(historicalCashRows, 3);",
+        "const historicalCash = computeMetrics(historicalCashBt.retArr, historicalCashBt.navArr);",
+        "const industryCashRows = historicalCashRows.map((r, i) => r.stock_code ? ({...r, cs:10-i, industry_sw1:r.stock_code === 'A' ? 'IA' : 'IB'}) : r);",
+        "const industryCashBt = buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(industryCashRows, 3));",
+        "const industryCash = computeMetrics(industryCashBt.retArr, industryCashBt.navArr);",
+        "const underfilled = backtestWeights([",
+        "  {periodComplete:true,stocks:[{code:'A',scores:[1],ret:0.10},{code:'B',scores:[0.5],ret:null}]},",
+        "  {periodComplete:true,stocks:[{code:'A',scores:[1],ret:0.05},{code:'B',scores:[0.5],ret:-0.10}]},",
+        "], [1], 3, []);",
+        "const withZeroFilteredMonth = backtestWeights([",
+        "  {periodComplete:true,stocks:[{code:'A',scores:[1],ret:0.10},{code:'B',scores:[0.5],ret:null}]},",
+        "  {periodComplete:true,stocks:[{code:'A',scores:[-1],ret:0.30},{code:'B',scores:[-2],ret:0.20}]},",
+        "  {periodComplete:true,stocks:[{code:'A',scores:[1],ret:0.05},{code:'B',scores:[0.5],ret:-0.10}]},",
+        "  {periodComplete:false,stocks:[{code:'A',scores:[-1],ret:null},{code:'B',scores:[-2],ret:null}]},",
+        "], [1], 2, [{idx:0,op:'>=',thr:0}]);",
+        "console.log(JSON.stringify({historical, historicalCash, historicalCashReturns:historicalCashBt.retArr, industryCash, industryCashReturns:industryCashBt.retArr, underfilled, withZeroFilteredMonth}));",
+    ])
+
+    assert math.isclose(result["underfilled"]["navEnd"], result["historical"]["navEnd"], rel_tol=0, abs_tol=1e-12)
+    assert math.isclose(result["underfilled"]["annual"], result["historical"]["annual"], rel_tol=0, abs_tol=1e-12)
+    assert result["historicalCashReturns"] == pytest.approx([0.0978, -0.002, -0.02695])
+    assert result["industryCashReturns"] == pytest.approx(result["historicalCashReturns"])
+    for key in ("industryCash", "withZeroFilteredMonth"):
+        for metric in ("navEnd", "annual", "mdd"):
+            assert math.isclose(result[key][metric], result["historicalCash"][metric], rel_tol=0, abs_tol=1e-12)
+
+
+def test_optimizer_range_keeps_pre_range_holdings_for_first_month_turnover_cost():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+    metrics = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
+    compose_backtest = _source_between(source, "function buildBacktestFromRows", "function industryNeutralPickRows")
+    optimizer_backtest = _source_between(source, "function backtestWeights", "async function optimizeWeights")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0.002;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
+        helpers,
+        metrics,
+        compose_backtest,
+        optimizer_backtest,
+        "const full = buildBacktestFromRows([",
+        "  {signal_dt:'2025-12',dt:'2026-01-31',stock_code:'A',fwd_return:0.10,period_complete:true},",
+        "  {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'B',fwd_return:0.20,period_complete:true},",
+        "], 1);",
+        "const mainRangeReturn = full.retArr[1];",
+        "const mainRangeMetrics = computeMetrics([mainRangeReturn], [1, 1 + mainRangeReturn]);",
+        "const optimized = backtestWeights([",
+        "  {returnDt:'2026-01',periodComplete:true,stocks:[{code:'A',scores:[1],ret:0.10}]},",
+        "  {returnDt:'2026-02',periodComplete:true,stocks:[{code:'B',scores:[1],ret:0.20}]},",
+        "], [1], 1, [], {startMonth:'2026-02',endMonth:'2026-02'});",
+        "console.log(JSON.stringify({mainRangeReturn, mainRangeMetrics, optimized}));",
+    ])
+
+    assert math.isclose(result["mainRangeReturn"], 0.1952, rel_tol=0, abs_tol=1e-12)
+    for metric in ("navEnd", "annual", "mdd"):
+        assert math.isclose(result["optimized"][metric], result["mainRangeMetrics"][metric], rel_tol=0, abs_tol=1e-12)
 
 
 def test_optimizer_heap_boundary_matches_full_sort_and_keeps_all_ties():
@@ -666,7 +770,10 @@ def test_optimizer_source_avoids_full_object_sort_and_has_benchmark_script():
     package = json.loads((ROOT / "e2e" / "package.json").read_text(encoding="utf-8"))
 
     assert "new Float64Array(stocks.length)" in backtest
-    assert "nthLargestFinite(compositeScores, N)" in backtest
+    assert "nthLargestFinite(compositeScores, Math.min(N, eligibleCount))" in backtest
+    assert "if (eligibleCount === 0) {" in backtest
+    assert "const turnover = !prev ? 0 : weightedTurnover(cur, prev)" in backtest
+    assert "if (!periodComplete) continue" in backtest
     assert ".sort(" not in backtest
     assert "await yieldFn()" in search
     assert benchmark.exists()
@@ -693,6 +800,41 @@ def test_frontend_industry_neutral_picker_includes_quota_boundary_ties():
     assert set(weights) == {"A1", "A2", "A3", "B1"}
     assert math.isclose(sum(weights.values()), 1.0, rel_tol=0, abs_tol=1e-12)
     assert math.isclose(weights["A2"], 1 / 6, rel_tol=0, abs_tol=1e-12)
+
+
+def test_industry_latest_and_historical_keep_all_members_when_pool_is_smaller_than_topn():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function composeScoreValue", "function composeConstraintModeLabel")
+    picker = _source_between(source, "function industryNeutralPickRows", "function buildWeightedBacktestFromRows")
+    group_picker = _source_between(source, "function groupIndustryNeutralRowsByMonth", "function matrixBacktestSql")
+    result = _frontend_eval_json([
+        "const MAX_HOLDING_DETAIL_ROWS = 100;",
+        'function normalizeConstraintMode(mode) { return mode === "industry" ? "industry" : "none"; }',
+        'function holdingCountNote() { return ""; }',
+        picker,
+        group_picker,
+        helpers,
+        "const rows = [",
+        "  {stock_code:'A1', comp_score:2, cs:2, industry_sw1:'A', signal_dt:'2026-01', dt:'2026-02-28'},",
+        "  {stock_code:'B1', comp_score:1, cs:1, industry_sw1:'B', signal_dt:'2026-01', dt:'2026-02-28'},",
+        "];",
+        "const latest = composeLatestHoldingSelection(rows, 3, 'industry');",
+        "const historical = groupIndustryNeutralRowsByMonth(rows, 3);",
+        "console.log(JSON.stringify({",
+        "  latestCodes: latest.rows.map(r => r.stock_code).sort(),",
+        "  historicalCodes: historical.map(r => r.stock_code).sort(),",
+        "  latestActual: latest.stats.actual_n,",
+        "  latestUnderfilled: latest.stats.underfilled,",
+        "  latestWeight: latest.rows.reduce((s,r) => s + r.weight, 0),",
+        "  historicalWeight: historical.reduce((s,r) => s + r.weight, 0),",
+        "}));",
+    ])
+
+    assert result["latestCodes"] == result["historicalCodes"] == ["A1", "B1"]
+    assert result["latestActual"] == 2
+    assert result["latestUnderfilled"] is True
+    assert math.isclose(result["latestWeight"], 1, rel_tol=0, abs_tol=1e-12)
+    assert math.isclose(result["historicalWeight"], 1, rel_tol=0, abs_tol=1e-12)
 
 
 def test_compose_ic_and_portfolio_sql_share_valid_forward_return_rule():
@@ -1467,8 +1609,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.9</title>" in index
-    assert "<b>因子库 v2.0.9</b>" in index
+    assert "<title>因子库 v2.0.10</title>" in index
+    assert "<b>因子库 v2.0.10</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 
