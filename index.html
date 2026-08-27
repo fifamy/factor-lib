@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>因子库 v2.0.10</title>
+  <title>因子库 v2.0.11</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260826141519">
+  <link rel="stylesheet" href="styles.css?v=20260827115810">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <span><b>因子库 v2.0.10</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
+    <span><b>因子库 v2.0.11</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260826141519" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260827115810" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -67,7 +67,7 @@
             <select id="sg-end" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
             <span id="sg-range-info" style="color:#888;font-size:11px;margin-left:4px"></span>
           </div>
-          <p style="color:#999;font-size:11px;margin:6px 0 0 0">区间影响净值/KPI/指标扫描（区间内重建净值）；“Top 30 股票”始终是最新月末截面。</p>
+          <p style="color:#999;font-size:11px;margin:6px 0 0 0">区间影响净值/KPI/指标扫描（区间内重建净值）；“名义 Top 30 股票”始终是最新月末截面，竞争秩边界同分会全部纳入。</p>
         </div>
         <div class="panel" id="factor-detail">
           <h3>因子详情</h3>
@@ -106,7 +106,7 @@
           <div id="scan-chart"></div>
         </div>
         <div class="panel" id="top-stocks">
-          <h3>Top 30 股票（最新月末截面）</h3>
+          <h3>名义 Top 30 股票（竞争秩，最新月末截面）</h3>
           <div class="empty">从左侧选择一个因子</div>
         </div>
       </div>
@@ -318,7 +318,7 @@
           <h3>因子排行榜</h3>
           <p style="color:#666;font-size:12px">所有因子按<b>综合得分</b>排名。综合分 = 因子有效性(50%) + 实战业绩(50%)，
             各分项指标在全因子截面标准化后加权；方向已统一（数值越大越好）。</p>
-          <p style="color:#999;font-size:11px;margin-top:2px">业绩口径：top-30 等权、月末调仓、单边 0.2%，按换手扣费。
+          <p style="color:#999;font-size:11px;margin-top:2px">业绩口径：名义 top-30 等权、竞争秩边界同分全部纳入、月末调仓、单边 0.2%，按换手扣费。离散因子的实际持股可显著超过 30 只，请同时查看“最新实际持股”。
             有效性：RankIC 均值 + IC_IR（信号稳定性）。点击列头可改排序（如点“最大回撤”看最抗跌、点“年化”看最赚钱），勾选因子后可一键带入对比 / 合成。</p>
           <div class="rank-guide">
             <div class="rank-guide-title">排行榜怎么看</div>
@@ -346,7 +346,7 @@
             <span style="color:#666;font-size:12px">排行口径：</span>
             <select id="rank-param-side" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
               <option value="1">默认方向</option>
-              <option value="-1">反向</option>
+              <option value="-1" disabled>反向（需逐因子重排）</option>
             </select>
             <select id="rank-param-score" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
               <option value="raw">原始口径</option>
@@ -357,6 +357,7 @@
               <option value="industry">行业中性</option>
             </select>
             <span id="rank-param-info" style="color:#888;font-size:11px"></span>
+            <span id="rank-side-note" style="color:#888;font-size:11px">因子排行聚合快照仅含默认高分端；反向需逐因子重排，统一排行暂不提供。</span>
           </div>
           <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span style="color:#666;font-size:12px">时间区间：</span>
@@ -459,7 +460,7 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260826141519"></script>
-  <script type="module" src="app.js?v=20260826141519"></script>
+  <script src="app_holding_scope.js?v=20260827115810"></script>
+  <script type="module" src="app.js?v=20260827115810"></script>
 </body>
 </html>

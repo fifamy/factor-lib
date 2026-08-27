@@ -10,6 +10,7 @@ from pathlib import Path
 from factor_lib.backtest import (
     assert_backtest_economic_invariants,
     build_industry_neutral_holdings,
+    completed_period_calendar,
     run_industry_neutral_topn_backtest,
     run_group_backtests,
     run_quantile_backtests,
@@ -151,6 +152,33 @@ def test_batch_topn_matches_single_topn():
         assert_frame_equal(got, expected)
 
 
+def test_explicit_signal_calendar_excludes_pre_evaluation_cash_periods():
+    old_date = date(2023, 12, 29)
+    signal_date = date(2024, 1, 31)
+    score = pl.DataFrame({
+        "trade_date": [signal_date],
+        "stock_code": ["A"],
+        "score": [1.0],
+    })
+    monthly_ret = pl.DataFrame({
+        "trade_date": [old_date, signal_date],
+        "return_date": [date(2024, 1, 2), date(2024, 2, 1)],
+        "stock_code": ["MARKET", "A"],
+        "fwd_return": [0.0, 0.1],
+    })
+    calendar = completed_period_calendar(monthly_ret, score.select("trade_date"))
+
+    nav = run_topn_backtest(
+        score,
+        monthly_ret,
+        top_n=1,
+        cost_per_side=0.0,
+        calendar=calendar,
+    )
+
+    assert nav["trade_date"].to_list() == [signal_date]
+
+
 def test_topn_backtest_missing_member_return_reweights_observed_members():
     score = pl.DataFrame(
         {
@@ -189,6 +217,51 @@ def test_topn_backtest_all_missing_member_returns_skips_period():
     }, schema_overrides={"fwd_return": pl.Float64})
 
     assert run_topn_backtest(score, monthly_ret, top_n=2, cost_per_side=0.0).is_empty()
+
+
+def test_topn_all_missing_middle_period_keeps_previous_observed_holdings_for_turnover():
+    signal_dates = [date(2024, 1, 31), date(2024, 2, 29), date(2024, 3, 31)]
+    score = pl.DataFrame({
+        "trade_date": signal_dates,
+        "stock_code": ["A", "B", "A"],
+        "score": [1.0, 1.0, 1.0],
+    })
+    monthly_ret = pl.DataFrame({
+        "trade_date": signal_dates,
+        "return_date": [date(2024, 2, 29), date(2024, 3, 31), date(2024, 4, 30)],
+        "stock_code": ["A", "B", "A"],
+        "fwd_return": [0.10, None, 0.20],
+    }, schema_overrides={"fwd_return": pl.Float64})
+
+    nav = run_topn_backtest(score, monthly_ret, top_n=1, cost_per_side=0.0)
+
+    assert nav["trade_date"].to_list() == [signal_dates[0], signal_dates[2]]
+    assert nav["turnover"].to_list() == pytest.approx([1.0, 0.0])
+
+
+def test_topn_no_candidate_is_cash_and_unfinished_terminal_period_is_skipped():
+    signal_dates = [
+        date(2024, 1, 31), date(2024, 2, 29),
+        date(2024, 3, 31), date(2024, 4, 30),
+    ]
+    score = pl.DataFrame({
+        "trade_date": [signal_dates[0], signal_dates[2], signal_dates[3]],
+        "stock_code": ["A", "A", "B"],
+        "score": [1.0, 1.0, 1.0],
+    })
+    monthly_ret = pl.DataFrame({
+        "trade_date": signal_dates,
+        "return_date": [date(2024, 2, 29), date(2024, 3, 31), date(2024, 4, 30), None],
+        "stock_code": ["A", "MARKET", "A", "B"],
+        "fwd_return": [0.10, 0.0, 0.20, None],
+    }, schema_overrides={"return_date": pl.Date, "fwd_return": pl.Float64})
+
+    nav = run_topn_backtest(score, monthly_ret, top_n=1, cost_per_side=0.002)
+
+    assert nav["trade_date"].to_list() == signal_dates[:3]
+    assert nav["port_ret_gross"].to_list() == pytest.approx([0.10, 0.0, 0.20])
+    assert nav["turnover"].to_list() == pytest.approx([1.0, 0.5, 0.5])
+    assert nav["port_ret"].to_list() == pytest.approx([0.0978, -0.002, 0.1976])
 
 
 def test_topn_includes_all_boundary_ties_and_is_row_order_invariant():
@@ -326,6 +399,63 @@ def test_industry_neutral_script_initial_position_charges_single_side_cost():
     row = nav.row(0, named=True)
     assert abs(row["turnover"] - 1.0) < 1e-12
     assert abs(row["port_ret"] - ((1.0 + 0.10) * (1.0 - 0.002) - 1.0)) < 1e-12
+
+
+def test_industry_neutral_script_all_missing_middle_period_keeps_previous_observed_holdings():
+    module = load_industry_neutral_backtest_script()
+    signal_dates = [date(2025, 1, 31), date(2025, 2, 28), date(2025, 3, 31)]
+    holdings = pl.DataFrame({
+        "trade_date": signal_dates,
+        "top_n": [1, 1, 1],
+        "stock_code": ["A", "B", "A"],
+        "weight": [1.0, 1.0, 1.0],
+        "industry_sw1": ["行业A", "行业B", "行业A"],
+    })
+    monthly_ret = pl.DataFrame({
+        "trade_date": signal_dates,
+        "return_date": [date(2025, 2, 28), date(2025, 3, 31), date(2025, 4, 30)],
+        "stock_code": ["A", "B", "A"],
+        "fwd_return": [0.10, None, 0.20],
+    }, schema_overrides={"fwd_return": pl.Float64})
+
+    nav = module.nav_from_weighted_holdings_all_topn(
+        holdings, monthly_ret, cost_per_side=0.0
+    )
+
+    assert nav["trade_date"].to_list() == [signal_dates[0], signal_dates[2]]
+    assert nav["turnover"].to_list() == pytest.approx([1.0, 0.0])
+
+
+def test_industry_neutral_script_distinguishes_cash_missing_and_terminal_periods():
+    module = load_industry_neutral_backtest_script()
+    signal_dates = [
+        date(2025, 1, 31), date(2025, 2, 28), date(2025, 3, 31),
+        date(2025, 4, 30), date(2025, 5, 31),
+    ]
+    holdings = pl.DataFrame({
+        "trade_date": [signal_dates[0], signal_dates[2], signal_dates[3], signal_dates[4]],
+        "top_n": [1, 1, 1, 1],
+        "stock_code": ["A", "B", "A", "B"],
+        "weight": [1.0, 1.0, 1.0, 1.0],
+        "industry_sw1": ["行业A", "行业B", "行业A", "行业B"],
+    })
+    monthly_ret = pl.DataFrame({
+        "trade_date": signal_dates,
+        "return_date": [
+            date(2025, 2, 28), date(2025, 3, 31), date(2025, 4, 30),
+            date(2025, 5, 30), None,
+        ],
+        "stock_code": ["A", "MARKET", "B", "A", "B"],
+        "fwd_return": [0.10, 0.0, None, 0.20, None],
+    }, schema_overrides={"return_date": pl.Date, "fwd_return": pl.Float64})
+
+    nav = module.nav_from_weighted_holdings_all_topn(
+        holdings, monthly_ret, cost_per_side=0.002
+    )
+
+    assert nav["trade_date"].to_list() == [signal_dates[0], signal_dates[1], signal_dates[3]]
+    assert nav["turnover"].to_list() == pytest.approx([1.0, 0.5, 0.5])
+    assert nav["port_ret"].to_list() == pytest.approx([0.0978, -0.002, 0.1976])
 
 
 def test_industry_neutral_script_total_loss_with_cost_stops_at_zero_nav():

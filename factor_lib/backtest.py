@@ -29,6 +29,36 @@ def _empty_holdings() -> pl.DataFrame:
     )
 
 
+def completed_period_calendar(
+    monthly_ret: pl.DataFrame,
+    signal_dates: pl.DataFrame | None = None,
+) -> pl.DataFrame:
+    """Return globally completed signal periods and their realised exit date.
+
+    The market calendar, rather than factor holdings, determines whether a
+    period is complete.  This lets a factor with no eligible names emit a cash
+    month while still excluding the unfinished terminal signal period.
+    """
+    if monthly_ret.is_empty():
+        return pl.DataFrame(schema={"trade_date": pl.Date, "return_date": pl.Date})
+    source = monthly_ret
+    if "return_date" not in source.columns:
+        source = source.with_columns(pl.col("trade_date").alias("return_date"))
+    calendar = (
+        source.group_by("trade_date")
+        .agg(pl.col("return_date").max().alias("return_date"))
+        .filter(pl.col("return_date").is_not_null())
+        .sort("trade_date")
+    )
+    if signal_dates is not None:
+        calendar = calendar.join(
+            signal_dates.select("trade_date").drop_nulls().unique(),
+            on="trade_date",
+            how="inner",
+        )
+    return calendar.sort("trade_date")
+
+
 def _empty_group_backtest() -> pl.DataFrame:
     return pl.DataFrame(
         schema={
@@ -84,36 +114,55 @@ def _nav_from_selected(
     monthly_ret: pl.DataFrame,
     top_n: int | None,
     cost_per_side: float,
+    *,
+    calendar: pl.DataFrame | None = None,
+    prejoined_returns: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
-    if selected.is_empty():
+    if selected.is_empty() and calendar is None:
         return _empty_nav()
     holdings = (
         selected.with_columns((1.0 / pl.len().over("trade_date")).alias("weight"))
         .select(["trade_date", "stock_code", "weight"])
     )
-    return _nav_from_weighted_holdings(holdings, monthly_ret, cost_per_side=cost_per_side)
+    return _nav_from_weighted_holdings(
+        holdings,
+        monthly_ret,
+        cost_per_side=cost_per_side,
+        calendar=calendar,
+        prejoined_returns=prejoined_returns,
+    )
 
 
 def _nav_from_weighted_holdings(
     holdings: pl.DataFrame,
     monthly_ret: pl.DataFrame,
     cost_per_side: float,
+    *,
+    calendar: pl.DataFrame | None = None,
+    prejoined_returns: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
-    if holdings.is_empty():
+    if holdings.is_empty() and calendar is None:
         return _empty_nav()
 
-    if "return_date" not in monthly_ret.columns:
-        monthly_ret = monthly_ret.with_columns(pl.col("trade_date").alias("return_date"))
-
-    held = holdings.join(monthly_ret, on=["trade_date", "stock_code"], how="left")
-    held = held.with_columns(
-        [
-            pl.col("return_date").max().over("trade_date").alias("_period_return_date"),
-            valid_forward_return_expr().alias("_has_valid_return"),
-        ]
-    ).filter(pl.col("_period_return_date").is_not_null())
-    if held.is_empty():
+    calendar = calendar if calendar is not None else completed_period_calendar(monthly_ret)
+    if calendar.is_empty():
         return _empty_nav()
+    completed_holdings = holdings.join(
+        calendar.select("trade_date"), on="trade_date", how="inner"
+    )
+    return_source = (
+        prejoined_returns
+        if prejoined_returns is not None
+        else monthly_ret.select(["trade_date", "stock_code", "fwd_return"])
+    )
+    held = (
+        completed_holdings.join(
+            return_source,
+            on=["trade_date", "stock_code"],
+            how="left",
+        )
+        .with_columns(valid_forward_return_expr().alias("_has_valid_return"))
+    )
     port_ret = (
         held.with_columns([
             pl.when(pl.col("_has_valid_return"))
@@ -127,7 +176,6 @@ def _nav_from_weighted_holdings(
         ])
         .group_by("trade_date")
         .agg([
-            pl.col("_period_return_date").max().alias("return_date"),
             pl.col("_ret").sum().alias("_observed_weighted_return"),
             pl.col("_observed_weight").sum().alias("_observed_weight"),
         ])
@@ -139,35 +187,50 @@ def _nav_from_weighted_holdings(
         .with_columns(
             (pl.col("_observed_weighted_return") / pl.col("_observed_weight")).alias("port_ret_gross")
         )
-        .select(["trade_date", "return_date", "port_ret_gross"])
+        .select(["trade_date", "port_ret_gross"])
         .sort("trade_date")
     )
-
-    months = sorted(holdings["trade_date"].unique().to_list())
+    gross_by_month = dict(zip(port_ret["trade_date"].to_list(), port_ret["port_ret_gross"].to_list()))
     holdings_by_month = {
         (key[0] if isinstance(key, tuple) else key): part
-        for key, part in holdings.partition_by("trade_date", as_dict=True).items()
+        for key, part in completed_holdings.partition_by("trade_date", as_dict=True).items()
     }
-    prev: dict[str, float] = {}
-    turnovers = []
-    for m in months:
-        month_holdings = holdings_by_month[m]
-        curr = dict(zip(
-            month_holdings["stock_code"].to_list(),
-            (float(v) for v in month_holdings["weight"].to_list()),
-        ))
-        if not prev:
-            t = 1.0
+    prev: dict[str, float] | None = None
+    periods = []
+    for period in calendar.iter_rows(named=True):
+        trade_date = period["trade_date"]
+        month_holdings = holdings_by_month.get(trade_date)
+        if month_holdings is not None and trade_date not in gross_by_month:
+            # Holdings exist, but every member return is missing/invalid.  The
+            # period is unobservable: emit nothing and do not advance ``prev``.
+            continue
+        if month_holdings is None:
+            curr: dict[str, float] = {}
+            gross = 0.0
+        else:
+            curr = dict(zip(
+                month_holdings["stock_code"].to_list(),
+                (float(v) for v in month_holdings["weight"].to_list()),
+            ))
+            gross = float(gross_by_month[trade_date])
+        if prev is None:
+            t = 0.0 if not curr else 1.0
             trading_cost = cost_per_side * t
         else:
             names = set(curr) | set(prev)
             t = 0.5 * sum(abs(curr.get(s, 0.0) - prev.get(s, 0.0)) for s in names)
             trading_cost = 2 * cost_per_side * t
-        turnovers.append({"trade_date": m, "turnover": t, "trading_cost": trading_cost})
+        periods.append({
+            "trade_date": trade_date,
+            "return_date": period["return_date"],
+            "port_ret_gross": gross,
+            "turnover": t,
+            "trading_cost": trading_cost,
+        })
         prev = curr
-    turnover_df = pl.DataFrame(turnovers)
-
-    out = port_ret.join(turnover_df, on="trade_date", how="left")
+    if not periods:
+        return _empty_nav()
+    out = pl.DataFrame(periods)
     # Charge long-only costs against the capital that remains after the
     # holding-period return.  Additive subtraction can push a total loss
     # below -100% (for example -1.0 - 0.002) and create an impossible negative
@@ -191,8 +254,15 @@ def nav_from_weighted_holdings(
     holdings: pl.DataFrame,
     monthly_ret: pl.DataFrame,
     cost_per_side: float,
+    *,
+    calendar: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
-    return _nav_from_weighted_holdings(holdings, monthly_ret, cost_per_side=cost_per_side)
+    return _nav_from_weighted_holdings(
+        holdings,
+        monthly_ret,
+        cost_per_side=cost_per_side,
+        calendar=calendar,
+    )
 
 
 def build_industry_neutral_holdings(score: pl.DataFrame, top_n: int) -> pl.DataFrame:
@@ -291,8 +361,12 @@ def run_topn_backtests(
     monthly_ret: pl.DataFrame,
     top_ns: list[int],
     cost_per_side: float,
+    *,
+    calendar: pl.DataFrame | None = None,
 ) -> dict[int, pl.DataFrame]:
     """一次排序后批量计算多个 top_n 组合，结果与逐个 run_topn_backtest 一致。"""
+    calendar = calendar if calendar is not None else completed_period_calendar(monthly_ret)
+    return_source = monthly_ret.select(["trade_date", "stock_code", "fwd_return"])
     ranked = (
         score.drop_nulls("score")
         .sort(["trade_date", "score", "stock_code"], descending=[False, True, False])
@@ -302,17 +376,30 @@ def run_topn_backtests(
             # an economically identical score tie.
             pl.col("score").rank(method="min", descending=True).over("trade_date").alias("rank")
         )
+        # Joining the market return panel once is materially faster than
+        # repeating the same 900k-row join for every requested Top-N.  Each
+        # portfolio still uses the identical selected rows and NAV state
+        # machine below, so this is a computation-only optimisation.
+        .join(return_source, on=["trade_date", "stock_code"], how="left")
     )
 
     out = {}
     for top_n in top_ns:
         if top_n <= 0:
             raise ValueError("top_n must be positive")
-        selected = (
+        selected_returns = (
             ranked.filter(pl.col("rank") <= top_n)
-            .select(["trade_date", "stock_code"])
+            .select(["trade_date", "stock_code", "fwd_return"])
         )
-        out[top_n] = _nav_from_selected(selected, monthly_ret, top_n, cost_per_side)
+        selected = selected_returns.select(["trade_date", "stock_code"])
+        out[top_n] = _nav_from_selected(
+            selected,
+            monthly_ret,
+            top_n,
+            cost_per_side,
+            calendar=calendar,
+            prejoined_returns=selected_returns,
+        )
     return out
 
 
@@ -322,6 +409,8 @@ def run_group_backtests(
     n_groups: int,
     group_prefix: str = "G",
     cost_per_side: float = 0.002,
+    *,
+    calendar: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
     """Build equal-count score groups plus high-minus-low long-short returns.
 
@@ -333,6 +422,7 @@ def run_group_backtests(
     if score.is_empty():
         return _empty_group_backtest()
 
+    return_source = monthly_ret.select(["trade_date", "stock_code", "fwd_return"])
     ranked = (
         score.drop_nulls("score")
         .sort(["trade_date", "score", "stock_code"], descending=[False, False, False])
@@ -349,15 +439,24 @@ def run_group_backtests(
                 + 1
             ).alias("group_no")
         )
+        .join(return_source, on=["trade_date", "stock_code"], how="left")
     )
 
     rows = []
     for group_no in range(1, n_groups + 1):
-        selected = (
+        selected_returns = (
             ranked.filter(pl.col("group_no") == group_no)
-            .select(["trade_date", "stock_code"])
+            .select(["trade_date", "stock_code", "fwd_return"])
         )
-        nav = _nav_from_selected(selected, monthly_ret, top_n=None, cost_per_side=cost_per_side)
+        selected = selected_returns.select(["trade_date", "stock_code"])
+        nav = _nav_from_selected(
+            selected,
+            monthly_ret,
+            top_n=None,
+            cost_per_side=cost_per_side,
+            calendar=calendar,
+            prejoined_returns=selected_returns,
+        )
         if not nav.is_empty():
             rows.append(nav.with_columns(pl.lit(f"{group_prefix}{group_no}").alias("portfolio")))
 
@@ -427,6 +526,8 @@ def run_quantile_backtests(
     monthly_ret: pl.DataFrame,
     n_quantiles: int = 5,
     cost_per_side: float = 0.002,
+    *,
+    calendar: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
     """按截面分位构造 Q1..Qn 与最高-最低多空组合。
 
@@ -441,6 +542,7 @@ def run_quantile_backtests(
         n_groups=n_quantiles,
         group_prefix="Q",
         cost_per_side=cost_per_side,
+        calendar=calendar,
     )
 
 
@@ -449,6 +551,8 @@ def run_topn_backtest(
     monthly_ret: pl.DataFrame,
     top_n: int,
     cost_per_side: float,
+    *,
+    calendar: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
     """对每个月末截面取 top_n 个 score 最高的股票，等权下月持有。
 
@@ -460,4 +564,10 @@ def run_topn_backtest(
 
     返回：DataFrame(trade_date, port_ret, turnover, nav)
     """
-    return run_topn_backtests(score, monthly_ret, [top_n], cost_per_side)[top_n]
+    return run_topn_backtests(
+        score,
+        monthly_ret,
+        [top_n],
+        cost_per_side,
+        calendar=calendar,
+    )[top_n]

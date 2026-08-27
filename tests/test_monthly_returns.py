@@ -128,3 +128,23 @@ def test_suspended_stock_does_not_defer_exit_to_its_resumption_date():
     assert halted_june["return_date"] == date(2020, 8, 3)
     assert halted_june["fwd_return"] is None
     assert halted_june["valid_return_reason"] == "entry_day_suspended"
+
+
+def test_stock_specific_last_quote_does_not_create_pseudo_signal_period():
+    panel = pl.DataFrame({
+        "stock_code": ["ACTIVE"] * 4 + ["STALE"] * 3,
+        "trade_date": [
+            date(2024, 1, 31), date(2024, 2, 1),
+            date(2024, 2, 29), date(2024, 3, 1),
+            date(2024, 1, 31), date(2024, 2, 1), date(2024, 2, 10),
+        ],
+        "adj_close": [100.0, 101.0, 102.0, 103.0, 50.0, 51.0, 52.0],
+    })
+
+    month_end, monthly_ret = monthly_forward_return(panel)
+
+    assert date(2024, 2, 10) not in month_end["trade_date"].to_list()
+    assert date(2024, 2, 10) not in monthly_ret["trade_date"].to_list()
+    assert set(monthly_ret["trade_date"].to_list()) <= {
+        date(2024, 1, 31), date(2024, 2, 29), date(2024, 3, 1),
+    }

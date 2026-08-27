@@ -1352,7 +1352,7 @@ async function selectFactor(code, opts = {}) {
     const portfolioSnap = snap;
     await initSingleRangeControlsFast(portfolioSnap);
     renderFactorDetail(meta, snap);
-    renderValidationPanel(code, scoreSnap);
+    await renderValidationPanel(code, scoreSnap);
     const tQ = performance.now();
     if (state.singleSide === 1) {
       await Promise.all([
@@ -1453,21 +1453,37 @@ const _singleSideRankCache = new Map();
 const _singleSideRankBuilds = new Map();
 
 function singleSideBtKey(code, side, n) {
-  return `${composeShardKey(code, state.singleScoreMode)}|${normalizeSide(side)}|${n}`;
+  return `${composeShardKey(code, state.singleScoreMode)}|${normalizeConstraintMode(state.singleConstraintMode)}|${normalizeSide(side)}|${n}`;
 }
 
-function singleSideRankKey(code, side, maxRank = 100) {
-  return `${composeShardKey(code, state.singleScoreMode)}|${normalizeSide(side)}|${maxRank}`;
+function exactReverseUnavailableReason(scoreMode = state.singleScoreMode, constraintMode = state.singleConstraintMode) {
+  if (normalizeConstraintMode(constraintMode) === "industry") {
+    return "反向行业中性组合需要逐月 PIT 行业持仓，当前快照未包含该方向；请切换为无约束等权后再使用反向。";
+  }
+  if (normalizeScoreMode(scoreMode) === "neutral" && !hasComposeNeutralScores()) {
+    return "当前发布包未包含行业市值中性历史分数，无法精确重排反向持仓；请切换为原始口径。";
+  }
+  return "";
 }
 
-async function factorSideRankedRows(code, side, maxRank = 100) {
-  const key = singleSideRankKey(code, side, maxRank);
+function singleSideRankKey(code, side, maxRank = 100, options = {}) {
+  const scoreMode = normalizeScoreMode(options.scoreMode ?? state.singleScoreMode);
+  const constraintMode = normalizeConstraintMode(options.constraintMode ?? state.singleConstraintMode);
+  return `${composeShardKey(code, scoreMode)}|${constraintMode}|${normalizeSide(side)}|${maxRank}`;
+}
+
+async function factorSideRankedRows(code, side, maxRank = 100, options = {}) {
+  const scoreMode = normalizeScoreMode(options.scoreMode ?? state.singleScoreMode);
+  const constraintMode = normalizeConstraintMode(options.constraintMode ?? state.singleConstraintMode);
+  const unavailable = normalizeSide(side) === -1 ? exactReverseUnavailableReason(scoreMode, constraintMode) : "";
+  if (unavailable) throw new Error(unavailable);
+  const key = singleSideRankKey(code, side, maxRank, { scoreMode, constraintMode });
   if (_singleSideRankCache.has(key)) return _singleSideRankCache.get(key);
   if (_singleSideRankBuilds.has(key)) return _singleSideRankBuilds.get(key);
   const build = (async () => {
     await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
     await ensureComposeData();
-    const item = { code, scoreMode: normalizeScoreMode(state.singleScoreMode), key: composeShardKey(code, state.singleScoreMode) };
+    const item = { code, scoreMode, key: composeShardKey(code, scoreMode) };
     await ensureComposeFiles([item]);
     const path = _composeFilePaths.get(item.key);
     if (!path) throw new Error(`缺少合成分片：${code}`);
@@ -1502,12 +1518,14 @@ async function factorSideRankedRows(code, side, maxRank = 100) {
   }
 }
 
-async function factorSideBacktest(code, side, N) {
-  const key = singleSideBtKey(code, side, N);
+async function factorSideBacktest(code, side, N, options = {}) {
+  const scoreMode = normalizeScoreMode(options.scoreMode ?? state.singleScoreMode);
+  const constraintMode = normalizeConstraintMode(options.constraintMode ?? state.singleConstraintMode);
+  const key = `${composeShardKey(code, scoreMode)}|${constraintMode}|${normalizeSide(side)}|${N}`;
   if (_singleSideBtCache.has(key)) return cloneBacktest(_singleSideBtCache.get(key));
   if (_singleSideBtBuilds.has(key)) return cloneBacktest(await _singleSideBtBuilds.get(key));
   const build = (async () => {
-    const rows = await factorSideRankedRows(code, side, Math.max(100, N));
+    const rows = await factorSideRankedRows(code, side, Math.max(100, N), { scoreMode, constraintMode });
     const bt = buildBacktestFromRows(rows.filter(r => r.rk <= N), N);
     _singleSideBtCache.set(key, cloneBacktest(bt));
     while (_singleSideBtCache.size > 24) _singleSideBtCache.delete(_singleSideBtCache.keys().next().value);
@@ -1676,6 +1694,8 @@ function renderFactorDetail(meta, snap = null) {
     btn.onclick = () => {
       const next = normalizeSide(btn.dataset.side);
       if (state.singleSide === next) return;
+      const unavailable = next === -1 ? exactReverseUnavailableReason() : "";
+      if (unavailable) { alert(unavailable); return; }
       state.singleSide = next;
       selectFactor(state.activeFactor);
     };
@@ -1685,6 +1705,8 @@ function renderFactorDetail(meta, snap = null) {
       if (btn.disabled) return;
       const next = normalizeScoreMode(btn.dataset.mode);
       if (state.singleScoreMode === next) return;
+      const unavailable = state.singleSide === -1 ? exactReverseUnavailableReason(next, state.singleConstraintMode) : "";
+      if (unavailable) { alert(unavailable); return; }
       state.singleScoreMode = next;
       selectFactor(state.activeFactor);
     };
@@ -1694,6 +1716,8 @@ function renderFactorDetail(meta, snap = null) {
       if (btn.disabled) return;
       const next = normalizeConstraintMode(btn.dataset.mode);
       if (state.singleConstraintMode === next) return;
+      const unavailable = state.singleSide === -1 ? exactReverseUnavailableReason(state.singleScoreMode, next) : "";
+      if (unavailable) { alert(unavailable); return; }
       state.singleConstraintMode = next;
       selectFactor(state.activeFactor);
     };
@@ -2189,21 +2213,16 @@ async function renderNavChartFast(code, snap) {
   if (navChart) { navChart.dispose(); navChart = null; }
   chartDiv.innerHTML = "";
 
-  const months = monthsFromSnapshot(snap);
-  const returnDates = returnDatesFromSnapshot(snap);
-  const idxs = rangeFilterIndexes(months, state.singleStart, state.singleEnd);
-  const periodLabels = labelsByIndexes(returnDates, idxs);
-  const signalLabels = labelsByIndexes(signalMonthsFromSnapshot(snap), idxs);
-  const x = labelsFromReturnDates(periodLabels, signalLabels);
+  const backtests = ns.map(n => snapshotBacktestByRange(snap, n));
+  const x = mergeBacktestChartLabels(backtests);
   const series = [];
   ns.forEach((n, i) => {
-    const bt = snap.backtests?.[String(n)];
-    if (!bt) return;
-    const rets = sliceByIndexes(bt.ret, idxs);
+    const bt = backtests[i];
+    if (!bt?.retArr?.length) return;
     series.push({
       name: `top${n}`,
       type: "line",
-      data: alignReturnsToChart(rets, x),
+      data: alignBacktestNavToLabels(bt, x),
       symbol: "none",
       color: STRAT_COLORS[i % STRAT_COLORS.length],
       lineStyle: { width: 2 },
@@ -2393,11 +2412,16 @@ function alignedBenchmarkReturns(snapshot, months, indexCode) {
   });
 }
 
-function computeTop30ExcessForBenchmark(snap, benchmarkSnapshot, indexCode, side = state.singleSide) {
-  const bt = sideBacktestFromSnapshot(snap, side, 30);
+async function singleTop30Backtest(code, snap, side = state.singleSide) {
+  return normalizeSide(side) === -1
+    ? exactSideBacktestByRange(code, side, 30)
+    : snapshotBacktestByRange(snap, 30);
+}
+
+async function computeTop30ExcessForBenchmark(code, snap, benchmarkSnapshot, indexCode, side = state.singleSide) {
+  const bt = await singleTop30Backtest(code, snap, side);
   if (!bt.retArr.length) return { annual: null, mdd: null, n: 0 };
-  const idxs = rangeFilterIndexes(monthsFromSnapshot(snap), state.singleStart, state.singleEnd);
-  const months = labelsByIndexes(returnDatesFromSnapshot(snap), idxs).map(monthOfLabel);
+  const months = bt.x.slice(1).map(monthOfLabel);
   const bmRets = alignedBenchmarkReturns(benchmarkSnapshot, months, indexCode);
   const excess = [];
   for (let i = 0; i < bt.retArr.length; i++) {
@@ -2432,8 +2456,8 @@ function renderBenchmarkSelect() {
   `;
 }
 
-function renderCostSensitivityTable(snap, avgTurnover, side = state.singleSide) {
-  const bt = sideBacktestFromSnapshot(snap, side, 30);
+async function renderCostSensitivityTable(code, snap, avgTurnover, side = state.singleSide) {
+  const bt = await singleTop30Backtest(code, snap, side);
   const rows = COST_SCENARIOS.map(s => {
     const adjusted = estimateCostAdjustedReturns(bt.retArr, avgTurnover, 0.002, s.bps);
     const m = metricsFromReturns(adjusted);
@@ -2442,7 +2466,7 @@ function renderCostSensitivityTable(snap, avgTurnover, side = state.singleSide) 
   return `
     <h4 class="validation-subtitle">成本敏感性</h4>
     <table class="validation-table cost-sensitivity-table">
-      <thead><tr><th>单边成本</th><th>Top30年化</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th></tr></thead>
+      <thead><tr><th>单边成本</th><th>名义 Top30 年化</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <p class="validation-note">成本敏感性基于月均换手估算：以当前 Top30 月收益序列为基础，按不同单边交易成本调整收益，主要用于观察换手较高因子对成本的敏感程度。</p>
@@ -2489,9 +2513,9 @@ function sliceByIndexes(arr, idxs) {
 }
 
 function sliceBacktestByRange(bt, startMonth, endMonth) {
-  if (!bt || !Array.isArray(bt.x) || !Array.isArray(bt.retArr)) return { x: [], navArr: [], retArr: [] };
+  if (!bt || !Array.isArray(bt.x) || !Array.isArray(bt.retArr)) return { x: [], navArr: [], retArr: [], turnoverArr: [] };
   const hasStartAnchor = bt.x.length === bt.retArr.length + 1;
-  const x = [], retArr = [];
+  const x = [], retArr = [], turnoverArr = [];
   for (let i = 0; i < bt.retArr.length; i++) {
     const retLabel = hasStartAnchor ? bt.x[i + 1] : bt.x[i];
     const m = monthOfLabel(retLabel);
@@ -2502,22 +2526,50 @@ function sliceBacktestByRange(bt, startMonth, endMonth) {
     if (!x.length) x.push(hasStartAnchor ? bt.x[i] : m);
     x.push(retLabel);
     retArr.push(Number(r));
+    const turnover = bt.turnoverArr?.[i];
+    turnoverArr.push(turnover === null || turnover === undefined || !Number.isFinite(Number(turnover)) ? null : Number(turnover));
   }
-  return { x, retArr, navArr: navFromReturnsForChart(retArr) };
+  return { x, retArr, navArr: navFromReturnsForChart(retArr), turnoverArr };
 }
 
-function sideBacktestFromSnapshot(snap, side, n) {
+function snapshotBacktestByRange(snap, n, startMonth = state.singleStart, endMonth = state.singleEnd) {
   const bt = snap?.backtests?.[String(n)];
-  if (!bt) return { x: [], retArr: [], navArr: [] };
+  if (!bt) return { x: [], retArr: [], navArr: [], turnoverArr: [] };
   const months = monthsFromSnapshot(snap);
   const returnDates = returnDatesFromSnapshot(snap);
-  const idxs = rangeFilterIndexes(months, state.singleStart, state.singleEnd);
-  const returnLabels = labelsByIndexes(returnDates, idxs);
-  const signalLabels = labelsByIndexes(signalMonthsFromSnapshot(snap), idxs);
-  const x = labelsFromReturnDates(returnLabels, signalLabels);
-  const sideN = normalizeSide(side);
-  const retArr = sliceByIndexes(bt.ret, idxs).map(v => limitedLiabilityReturn(v * sideN));
-  return { x, retArr, navArr: alignReturnsToChart(retArr, x) };
+  const signalMonths = signalMonthsFromSnapshot(snap);
+  const idxs = rangeFilterIndexes(months, startMonth, endMonth);
+  const returnLabels = [], retArr = [], turnoverArr = [];
+  let firstSignal = null;
+  for (const idx of idxs) {
+    const value = bt.ret?.[idx];
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) continue;
+    if (firstSignal === null) firstSignal = signalMonths[idx] || months[idx] || monthOfLabel(returnDates[idx]);
+    returnLabels.push(returnDates[idx] || months[idx]);
+    retArr.push(limitedLiabilityReturn(Number(value)));
+    const turnover = bt.turnover?.[idx];
+    turnoverArr.push(turnover === null || turnover === undefined || !Number.isFinite(Number(turnover)) ? null : Number(turnover));
+  }
+  const x = returnLabels.length ? [firstSignal, ...returnLabels] : [];
+  return { x, retArr, navArr: navFromReturnsForChart(retArr), turnoverArr };
+}
+
+function mergeBacktestChartLabels(backtests) {
+  const usable = (backtests || []).filter(bt => bt?.x?.length);
+  if (!usable.length) return [];
+  const returns = [...new Set(usable.flatMap(bt => bt.x.slice(1)))].sort((a, b) => String(a).localeCompare(String(b)));
+  return [usable[0].x[0], ...returns];
+}
+
+function alignBacktestNavToLabels(backtest, labels) {
+  const byLabel = new Map((backtest?.x || []).map((label, i) => [String(label), backtest.navArr?.[i] ?? null]));
+  return (labels || []).map(label => byLabel.has(String(label)) ? byLabel.get(String(label)) : null);
+}
+
+async function exactSideBacktestByRange(code, side, n, options = {}) {
+  if (normalizeSide(side) !== -1) throw new Error("exactSideBacktestByRange 仅用于反向重排组合");
+  const full = await factorSideBacktest(code, side, n, options);
+  return sliceBacktestByRange(full, options.startMonth ?? state.singleStart, options.endMonth ?? state.singleEnd);
 }
 
 function navFromReturnsForChart(rets) {
@@ -3345,7 +3397,7 @@ function renderSegmentHeatmap(snap) {
   });
 }
 
-function renderValidationPanel(code, snap) {
+async function renderValidationPanel(code, snap) {
   const target = document.getElementById("validation-summary");
   if (!target) return;
   const v = snap?.validation || {};
@@ -3363,18 +3415,26 @@ function renderValidationPanel(code, snap) {
   const rankIcP = snapshotNumber(v.rank_ic_p_value_1m);
   const rankIcQ = snapshotNumber(v.rank_ic_q_value_1m);
   const groupMono = snapshotNumber(v.group10_monotonicity);
-  const top30Sharpe = snapshotNumber(v.top30_sharpe);
-  const top30Annual = firstSnapshotNumber(v.top30_ann_return, v.top30_annual_return);
-  const top30Mdd = snapshotNumber(v.top30_max_drawdown);
-  const top30Win = firstSnapshotNumber(v.top30_month_win_rate, v.top30_win_rate);
-  const top30Turnover = snapshotNumber(v.top30_avg_turnover);
-  const top30AnnTurnover = snapshotNumber(v.top30_ann_turnover);
+  const top30Backtest = await singleTop30Backtest(code, snap, state.singleSide);
+  const top30Metrics = top30Backtest.retArr.length ? computeMetrics(top30Backtest.retArr, top30Backtest.navArr) : null;
+  const top30Sharpe = top30Metrics?.sharpe ?? (side === 1 ? snapshotNumber(v.top30_sharpe) : null);
+  const top30Annual = top30Metrics?.annual ?? (side === 1 ? firstSnapshotNumber(v.top30_ann_return, v.top30_annual_return) : null);
+  const top30Mdd = top30Metrics?.mdd ?? (side === 1 ? snapshotNumber(v.top30_max_drawdown) : null);
+  const top30Win = top30Metrics?.winRate ?? (side === 1 ? firstSnapshotNumber(v.top30_month_win_rate, v.top30_win_rate) : null);
+  const realizedTurnovers = (top30Backtest.turnoverArr || []).filter(value => Number.isFinite(Number(value))).map(Number);
+  const reverseAvgTurnover = realizedTurnovers.length
+    ? realizedTurnovers.reduce((sum, value) => sum + value, 0) / realizedTurnovers.length
+    : null;
+  const top30Turnover = side === -1 ? reverseAvgTurnover : snapshotNumber(v.top30_avg_turnover);
+  const top30AnnTurnover = side === -1 && reverseAvgTurnover !== null
+    ? reverseAvgTurnover * 12
+    : snapshotNumber(v.top30_ann_turnover);
   const benchmarkCode = BENCHMARK_OPTIONS.some(b => b.code === state.validationBenchmark) ? state.validationBenchmark : "HS300";
   state.validationBenchmark = benchmarkCode;
   const selectedBenchmark = BENCHMARK_OPTIONS.find(b => b.code === benchmarkCode);
-  const excessByBenchmark = computeTop30ExcessForBenchmark(snap, state.benchmarkSnapshot, benchmarkCode, state.singleSide);
-  const top30ExcessAnnual = excessByBenchmark.annual ?? snapshotNumber(v.top30_excess_ann_return);
-  const top30ExcessMdd = excessByBenchmark.mdd ?? snapshotNumber(v.top30_excess_max_drawdown);
+  const excessByBenchmark = await computeTop30ExcessForBenchmark(code, snap, state.benchmarkSnapshot, benchmarkCode, state.singleSide);
+  const top30ExcessAnnual = excessByBenchmark.annual ?? (side === 1 ? snapshotNumber(v.top30_excess_ann_return) : null);
+  const top30ExcessMdd = excessByBenchmark.mdd ?? (side === 1 ? snapshotNumber(v.top30_excess_max_drawdown) : null);
   const fullGroup10 = group10PayloadForSide(snap, state.singleSide);
   const fullLsReturns = (fullGroup10?.returns?.LS || [])
     .filter(x => x !== null && x !== undefined && Number.isFinite(Number(x)))
@@ -3434,7 +3494,7 @@ function renderValidationPanel(code, snap) {
         ])}
       </div>
       <div class="validation-block">
-        <h4>Top30 默认表现</h4>
+        <h4>名义 Top30 组合表现（竞争秩）</h4>
         ${validationValueBlock([
           ["年化收益", signalValue("ann_return", top30Annual, pctText(top30Annual))],
           ["夏普", signalValue("sharpe", top30Sharpe, signedNumText(top30Sharpe, 2))],
@@ -3460,7 +3520,7 @@ function renderValidationPanel(code, snap) {
       <thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>HAC t值</th><th>胜率</th><th>样本月数</th></tr></thead>
       <tbody>${decayRows}</tbody>
     </table>
-    ${renderCostSensitivityTable(snap, top30Turnover, state.singleSide)}
+    ${await renderCostSensitivityTable(code, snap, top30Turnover, state.singleSide)}
     ${renderGroup10ValidationTable(snap)}
     <div id="group10-validation-chart" class="validation-chart"></div>
     ${renderRollingValidationTable(snap)}
@@ -3471,13 +3531,13 @@ function renderValidationPanel(code, snap) {
     <div id="segment-portfolio-chart" class="validation-chart validation-segment-portfolio-chart"></div>
     ${renderSegmentPortfolioTable(snap)}
     <div id="segment-heatmap" class="validation-chart validation-heatmap"></div>
-    <p class="validation-note">${code} · ${scoreModeLabel()}。摘要指标为离线全样本统计；Top30 摘要和超额指标随当前分析方向、区间和基准选择重算；10 分组是无行业约束的排序有效性检验，表格随当前回测区间重算展示。</p>
+    <p class="validation-note">${code} · ${scoreModeLabel()}。有效性与分层摘要来自离线全样本统计；Top30 摘要和超额指标随当前分析方向、区间和基准选择重算；10 分组是无行业约束的排序有效性检验，表格随当前回测区间重算展示。</p>
   `;
   const bmSelect = document.getElementById("validation-benchmark-select");
   if (bmSelect) {
     bmSelect.onchange = () => {
       state.validationBenchmark = bmSelect.value;
-      renderValidationPanel(code, snap);
+      renderValidationPanel(code, snap).catch(err => console.error("validation benchmark rerender failed:", err));
     };
   }
   renderGroup10ValidationChart(snap);
@@ -3525,17 +3585,15 @@ async function renderNavChartSide(code, side, snap = null) {
   if (navChart) { navChart.dispose(); navChart = null; }
   chartDiv.innerHTML = "";
 
+  const backtests = await Promise.all(ns.map(n => exactSideBacktestByRange(code, side, n)));
+  const x = mergeBacktestChartLabels(backtests);
   const series = [];
-  let x = [];
   for (const [i, n] of ns.entries()) {
-    const bt = snap
-      ? sideBacktestFromSnapshot(snap, side, n)
-      : sliceBacktestByRange(await factorSideBacktest(code, side, n), state.singleStart, state.singleEnd);
-    if (!x.length && bt.x.length) x = bt.x;
+    const bt = backtests[i];
     series.push({
       name: `top${n}${sideSuffix(side)}`,
       type: "line",
-      data: bt.navArr,
+      data: alignBacktestNavToLabels(bt, x),
       symbol: "none",
       color: STRAT_COLORS[i % STRAT_COLORS.length],
       lineStyle: { width: 2 },
@@ -3686,19 +3744,17 @@ async function renderKpiTable(code) {
 
 async function renderKpiTableFast(code, snap, scoreSnap = snap) {
   const target = document.getElementById("kpi");
-  const months = monthsFromSnapshot(snap);
-  const idxs = rangeFilterIndexes(months, state.singleStart, state.singleEnd);
   const bm = await ensureBenchmarkSnapshot();
   const bmMetrics = benchmarkMetrics(bm, state.singleStart, state.singleEnd);
   const icMonths = scoreSnap.ic?.months || [];
   const icIdxs = rangeFilterIndexes(icMonths, state.singleStart, state.singleEnd);
-  const rankStats = rankIcStats(sliceByIndexes(icMonths, icIdxs), sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs), 1, 1);
+  const rankStats = rankIcStats(labelsByIndexes(icMonths, icIdxs), sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs), 1, 1);
   const icir = rankStats.ir == null ? "—" : rankStats.ir.toFixed(2);
 
   let rows = "";
   for (const n of state.selectedNs) {
-    const bt = snap.backtests?.[String(n)];
-    const m = bt ? metricsFromReturns(sliceByIndexes(bt.ret, idxs)) : null;
+    const bt = snapshotBacktestByRange(snap, n);
+    const m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     if (!m) { rows += `<tr><td>top${n}</td><td colspan="7">无数据</td></tr>`; continue; }
     rows += `<tr>
       <td>top${n} · ${constraintModeLabel()}</td>
@@ -3747,15 +3803,13 @@ async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
   const icMonths = scoreSnap?.ic?.months || [];
   const icIdxs = rangeFilterIndexes(icMonths, state.singleStart, state.singleEnd);
   const rankStats = scoreSnap
-    ? rankIcStats(sliceByIndexes(icMonths, icIdxs), sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs), sideN, 1)
+    ? rankIcStats(labelsByIndexes(icMonths, icIdxs), sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs), sideN, 1)
     : { ir: null };
   const icir = rankStats.ir == null ? "—" : rankStats.ir.toFixed(2);
 
   let rows = "";
   for (const n of state.selectedNs) {
-    const bt = snap
-      ? sideBacktestFromSnapshot(snap, side, n)
-      : sliceBacktestByRange(await factorSideBacktest(code, side, n), state.singleStart, state.singleEnd);
+    const bt = await exactSideBacktestByRange(code, side, n);
     const m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     if (!m) { rows += `<tr><td>top${n}${sideSuffix(side)}</td><td colspan="7">无数据</td></tr>`; continue; }
     rows += `<tr>
@@ -3859,12 +3913,10 @@ async function renderNScanFast(code, snap) {
   if (scanChart) { scanChart.dispose(); scanChart = null; }
   chartDiv.innerHTML = "";
 
-  const months = monthsFromSnapshot(snap);
-  const idxs = rangeFilterIndexes(months, state.singleStart, state.singleEnd);
   const xs = Object.keys(snap.backtests || {}).map(Number).sort((a, b) => a - b);
   const ys = xs.map(n => {
-    const bt = snap.backtests?.[String(n)];
-    const m = bt ? metricsFromReturns(sliceByIndexes(bt.ret, idxs)) : null;
+    const bt = snapshotBacktestByRange(snap, n);
+    const m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     if (!m) return null;
     if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
     if (state.scanMetric === "sharpe") return Number.isFinite(Number(m.sharpe)) ? +Number(m.sharpe).toFixed(3) : null;
@@ -3900,11 +3952,9 @@ async function renderNScanSide(code, side, snap = null) {
   chartDiv.innerHTML = "";
 
   const xs = PRESET_NS.slice();
-  const rows = snap ? null : await factorSideRankedRows(code, side, 100);
+  const rankedRows = await factorSideRankedRows(code, side, 100);
   const ys = xs.map(n => {
-    const sliced = snap
-      ? sideBacktestFromSnapshot(snap, side, n)
-      : sliceBacktestByRange(buildBacktestFromRows(rows.filter(r => r.rk <= n), n), state.singleStart, state.singleEnd);
+    const sliced = sliceBacktestByRange(buildBacktestFromRows(rankedRows.filter(r => r.rk <= n), n), state.singleStart, state.singleEnd);
     const m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
     if (!m) return null;
     if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
@@ -4216,7 +4266,10 @@ async function renderCmpTable() {
       const d = byKey[`${code}_${f.n}`];
       m = d ? metricsFromReturns(d.rets) : null;
     } else {
-      const fullBt = await factorSideBacktest(code, f.side, f.n);
+      const fullBt = await factorSideBacktest(code, f.side, f.n, {
+        scoreMode: f.scoreMode,
+        constraintMode: f.constraintMode,
+      });
       const sliced = sliceBacktestByRange(fullBt, state.compareStart, state.compareEnd);
       m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
     }
@@ -4270,20 +4323,23 @@ async function renderCmpTableFast() {
     const snap = await loadSingleSnapshot(f.code);
     const scoreSnap = activeScoreSnapshotFor(snap, f.scoreMode);
     const portSnap = activePortfolioSnapshotFor(snap, f.scoreMode, f.constraintMode);
-    const months = monthsFromSnapshot(portSnap);
-    const idxs = rangeFilterIndexes(months, state.compareStart, state.compareEnd);
     let m = null;
     if (f.side === 1) {
-      const bt = portSnap.backtests?.[String(f.n)];
-      m = bt ? metricsFromReturns(sliceByIndexes(bt.ret, idxs)) : null;
+      const bt = snapshotBacktestByRange(portSnap, f.n, state.compareStart, state.compareEnd);
+      m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     } else {
-      const sliced = sideBacktestFromSnapshot(portSnap, f.side, f.n);
+      const sliced = await exactSideBacktestByRange(f.code, f.side, f.n, {
+        scoreMode: f.scoreMode,
+        constraintMode: f.constraintMode,
+        startMonth: state.compareStart,
+        endMonth: state.compareEnd,
+      });
       m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
     }
     const icMonths = scoreSnap.ic?.months || [];
     const icIdxs = rangeFilterIndexes(icMonths, state.compareStart, state.compareEnd);
     const rankStats = rankIcStats(
-      sliceByIndexes(icMonths, icIdxs),
+      labelsByIndexes(icMonths, icIdxs),
       sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs),
       f.side,
       1,
@@ -4446,32 +4502,30 @@ async function renderCmpNavFast() {
   const snaps = await Promise.all(state.compareFactors.map(f => loadSingleSnapshot(f.code)));
   let x = [];
   const series = [];
+  const portfolioSeries = [];
   for (const [i, f] of state.compareFactors.entries()) {
     Object.assign(f, normalizeCompareFactor(f));
     const snap = snaps[i];
     const portSnap = activePortfolioSnapshotFor(snap, f.scoreMode, f.constraintMode);
-    let data = null;
+    let bt = null;
     if (f.side === 1) {
-      const months = monthsFromSnapshot(portSnap || {});
-      const returnDates = returnDatesFromSnapshot(portSnap || {});
-      const idxs = rangeFilterIndexes(months, state.compareStart, state.compareEnd);
-      const labels = labelsFromReturnDates(
-        labelsByIndexes(returnDates, idxs),
-        labelsByIndexes(signalMonthsFromSnapshot(portSnap || {}), idxs)
-      );
-      if (!x.length && labels.length) x = labels;
-      const bt = portSnap.backtests?.[String(f.n)];
-      if (!bt) continue;
-      data = alignReturnsToChart(sliceByIndexes(bt.ret, idxs), x);
+      bt = snapshotBacktestByRange(portSnap, f.n, state.compareStart, state.compareEnd);
     } else {
-      const bt = sideBacktestFromSnapshot(portSnap, f.side, f.n);
-      if (!x.length && bt.x.length) x = bt.x;
-      data = bt.navArr;
+      bt = await exactSideBacktestByRange(f.code, f.side, f.n, {
+        scoreMode: f.scoreMode,
+        constraintMode: f.constraintMode,
+        startMonth: state.compareStart,
+        endMonth: state.compareEnd,
+      });
     }
+    portfolioSeries.push({ f, i, bt });
+  }
+  x = mergeBacktestChartLabels(portfolioSeries.map(item => item.bt));
+  for (const { f, i, bt } of portfolioSeries) {
     series.push({ name: `${factorParamName(f.code, f.side, f.scoreMode, f.constraintMode)} top${f.n}`, type: "line", symbol: "none",
-             data,
-             color: STRAT_COLORS[i % STRAT_COLORS.length],
-             lineStyle: { width: 2 } });
+      data: alignBacktestNavToLabels(bt, x),
+      color: STRAT_COLORS[i % STRAT_COLORS.length],
+      lineStyle: { width: 2 } });
   }
 
   const bm = await ensureBenchmarkSnapshot();
@@ -4925,11 +4979,12 @@ const RANK_COLS = [
   { key: "code",      label: "因子",    lcol: true,  fmt: v => htmlText(v), help: "因子代码，点击因子行可进入单因子检验。" },
   { key: "name_cn",   label: "名称",    lcol: true,  fmt: v => htmlText(v), help: "因子中文名称。" },
   { key: "score",     label: "综合分",  fmt: v => v.toFixed(2), cls: "score-cell", help: "综合分综合收益、风险、IC与稳定性，适合做第一轮排序，不代表单独买入结论。" },
-  { key: "annual",    label: "年化收益", fmt: v => (v * 100).toFixed(1) + "%", help: "Top30组合年化收益，反映绝对收益能力。" },
-  { key: "vol",       label: "年化波动率", fmt: v => (v * 100).toFixed(1) + "%", help: "Top30组合收益波动率，越低说明组合收益起伏越小。" },
-  { key: "sharpe",    label: "夏普",    fmt: v => v.toFixed(2), help: "Top30组合风险调整后收益，越高越好。" },
-  { key: "mdd",       label: "最大回撤", fmt: v => (v * 100).toFixed(1) + "%", help: "Top30组合最大回撤，越接近0回撤越小。" },
-  { key: "winRate",   label: "月胜率",  fmt: v => (v * 100).toFixed(0) + "%", help: "Top30组合正收益月份占比，反映收益持续性。" },
+  { key: "annual",    label: "年化收益", fmt: v => (v * 100).toFixed(1) + "%", help: "名义 Top30 组合年化收益；竞争秩边界同分会全部纳入。" },
+  { key: "top30ActualNLatest", label: "最新实际持股", fmt: v => v === null || v === undefined ? "—" : (Number(v) > 30 ? `${Number(v).toLocaleString()}（扩容）` : Number(v).toLocaleString()), help: "最新截面按名义 Top30 竞争秩入选的实际股票数；同分边界可使实际数大于 30。" },
+  { key: "vol",       label: "年化波动率", fmt: v => (v * 100).toFixed(1) + "%", help: "名义 Top30 组合收益波动率，越低说明组合收益起伏越小。" },
+  { key: "sharpe",    label: "夏普",    fmt: v => v.toFixed(2), help: "名义 Top30 组合风险调整后收益，越高越好。" },
+  { key: "mdd",       label: "最大回撤", fmt: v => (v * 100).toFixed(1) + "%", help: "名义 Top30 组合最大回撤，越接近 0 回撤越小。" },
+  { key: "winRate",   label: "月胜率",  fmt: v => (v * 100).toFixed(0) + "%", help: "名义 Top30 组合正收益月份占比，反映收益持续性。" },
   { key: "rankIC",    label: "RankIC均值", fmt: v => v.toFixed(3), help: "因子排序与未来收益排序的一致性，绝对值越大排序信息越强。" },
   { key: "rankIC3M",  label: "IC3M", fmt: v => numText(v, 3), help: "3个月前瞻期RankIC，用于观察中短期信号是否延续。" },
   { key: "rankIC6M",  label: "IC6M", fmt: v => numText(v, 3), help: "6个月前瞻期RankIC，用于观察信号衰减和持有期适配。" },
@@ -4939,11 +4994,11 @@ const RANK_COLS = [
   { key: "rankIcP", label: "p值", fmt: v => numText(v, 3), help: "RankIC均值 HAC t 检验对应的原始双侧 p 值，未做多重检验调整。" },
   { key: "rankIcQ", label: "FDR q值", fmt: v => numText(v, 3), help: "RankIC显著性的多重检验调整结果，用于降低多因子筛选中的偶然显著风险。" },
   { key: "rankIcWinRate", label: "IC胜率", fmt: v => pctText(v), help: "RankIC为正的月份占比，反映排序方向持续性。" },
-  { key: "top30ExcessAnnual", label: "超额年化", fmt: v => signedPctText(v), help: "Top30月收益减基准月收益后的年化收益，反映相对基准的增量收益。" },
-  { key: "top30ExcessMdd", label: "超额回撤", fmt: v => pctText(v), help: "Top30超额收益曲线最大回撤，越接近0相对回撤压力越小。" },
+  { key: "top30ExcessAnnual", label: "超额年化", fmt: v => signedPctText(v), help: "名义 Top30 月收益减基准月收益后的年化收益，反映相对基准的增量收益。" },
+  { key: "top30ExcessMdd", label: "超额回撤", fmt: v => pctText(v), help: "名义 Top30 超额收益曲线最大回撤，越接近 0 相对回撤压力越小。" },
   { key: "group10Mono", label: "10组单调性", fmt: v => numText(v, 2), help: "10组收益排序单调性，越高说明分组排序越清晰。" },
-  { key: "top30Turnover", label: "月均换手", fmt: v => pctText(v), help: "Top30持仓月均换手，越高交易成本压力越大。" },
-  { key: "medCap",    label: "中位市值(亿)", fmt: v => v === null ? "—" : Math.round(v).toLocaleString(), help: "最新Top30持仓的中位市值，用于判断因子偏大盘或小盘。" },
+  { key: "top30Turnover", label: "月均换手", fmt: v => pctText(v), help: "名义 Top30 完整实际持仓的月均换手，越高交易成本压力越大。" },
+  { key: "medCap",    label: "中位市值(亿)", fmt: v => v === null ? "—" : Math.round(v).toLocaleString(), help: "最新名义 Top30 完整实际持仓的中位市值，不使用展示截断样本。" },
   { key: "capStyle",  label: "市值风格", lcol: true, fmt: v => htmlText(v), help: "按最新Top30持仓市值分布归纳的风格标签。" },
   { key: "tags",      label: "标签", lcol: true, sortable: false,
     fmt: (_, r) => [r.env_tag, r.time_tag]
@@ -4951,7 +5006,7 @@ const RANK_COLS = [
       .map(t => `<span class="ftag ftag-${htmlAttr(t)}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}" tabindex="0">${htmlText(t)}</span>`)
       .join(" ") || "—",
     help: "辅助标签由市场环境表现和近12个月RankIC变化生成；悬停标签可查看触发口径。" },
-  { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => htmlText(v), help: "最新Top30持仓中权重靠前的三个行业，用于观察行业集中度。" },
+  { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => htmlText(v), help: "最新名义 Top30 完整实际持仓的前三行业，不使用展示截断样本。" },
 ];
 
 let _rankState = { rows: null, sortKey: "score", desc: true, checked: new Set(),
@@ -5033,11 +5088,17 @@ function bindRankParamControls() {
   const scoreSel = document.getElementById("rank-param-score");
   const constraintSel = document.getElementById("rank-param-constraint");
   if (!sideSel || !scoreSel || !constraintSel) return;
+  if (normalizeSide(_rankState.side) !== 1) _rankState.side = 1;
   sideSel.value = String(normalizeSide(_rankState.side));
   scoreSel.value = normalizeScoreMode(_rankState.scoreMode);
   constraintSel.value = normalizeConstraintMode(_rankState.constraintMode);
   const onParamChange = async () => {
     _rankState.side = normalizeSide(sideSel.value);
+    if (_rankState.side !== 1) {
+      _rankState.side = 1;
+      sideSel.value = "1";
+      alert("因子排行聚合快照仅含默认高分端；反向需逐因子重排持仓，请在单因子页查看精确反向结果。");
+    }
     _rankState.scoreMode = normalizeScoreMode(scoreSel.value);
     _rankState.constraintMode = normalizeConstraintMode(constraintSel.value);
     updateRankParamInfo();
@@ -5336,6 +5397,11 @@ function setupRankRangeControls(months, fastMode) {
 }
 
 async function recomputeRank(fastMode = !!state.rankingSnapshot) {
+  if (normalizeSide(_rankState.side) !== 1) {
+    _rankState.side = 1;
+    const sideSel = document.getElementById("rank-param-side");
+    if (sideSel) sideSel.value = "1";
+  }
   const seq = ++_rankRenderSeq;
   const box = document.getElementById("rank-table");
   updateRankParamInfo();
@@ -5424,6 +5490,7 @@ async function computeRankingFast(startMonth, endMonth) {
   const snap = await ensureRankingSnapshot();
   const months = snap.months || [];
   const side = normalizeSide(_rankState.side);
+  if (side !== 1) throw new Error("反向因子排行需逐因子重排持仓，不能由默认方向收益翻号得到。");
   const retKey = normalizeScoreMode(_rankState.scoreMode) === "neutral"
     ? (normalizeConstraintMode(_rankState.constraintMode) === "industry" ? "neutral_industry_neutral_top30_ret" : "neutral_top30_ret")
     : (normalizeConstraintMode(_rankState.constraintMode) === "industry" ? "industry_neutral_top30_ret" : "top30_ret");
@@ -5432,7 +5499,7 @@ async function computeRankingFast(startMonth, endMonth) {
   const idxs = rangeFilterIndexes(months, startMonth, endMonth);
   const rows = [];
   for (const f of snap.factors || []) {
-    const rets = sliceByIndexes(f[retKey] || f.top30_ret, idxs).map(v => Number(v) * side);
+    const rets = sliceByIndexes(f[retKey] || f.top30_ret, idxs);
     // 月份标签不能走数值切片；否则 "YYYY-MM" 会被 Number() 过滤，IC_IR 因缺少年化频率而回退为 0。
     const rankStats = rankIcStats(labelsByIndexes(months, idxs), sliceByIndexes(f[icKey] || f.rank_ic, idxs), side, 1);
     const decayStats = filteredIcDecayStats(f[decayKey], side, startMonth, endMonth);
@@ -5457,6 +5524,7 @@ async function computeRankingFast(startMonth, endMonth) {
       top30ExcessMdd: f.top30_excess_max_drawdown ?? null,
       group10Mono: f.group10_monotonicity ?? null,
       top30Turnover: f.top30_avg_turnover ?? null,
+      top30ActualNLatest: f.top30ActualNLatest ?? null,
       nMonths: rets.length,
       top3ind: f.top3ind || "—",
       medCap: f.medCap ?? null,
@@ -5480,6 +5548,9 @@ async function computeRankingFast(startMonth, endMonth) {
 }
 
 async function computeRanking(startMonth, endMonth) {
+  if (normalizeSide(_rankState.side) !== 1) {
+    throw new Error("反向因子排行需逐因子重排持仓，DuckDB 默认回测表不包含反向组合。");
+  }
   // 区间过滤条件：回测和 IC 都按“收益结束月”筛选。
   const btWhere = ["top_n = 30"];
   // 剔除 NaN 的 RankIC 月（稀疏因子在某些月份截面 <3 只票，04 算 IC 得 NaN）。
@@ -5548,6 +5619,7 @@ async function computeRanking(startMonth, endMonth) {
       top30ExcessMdd: null,
       group10Mono: null,
       top30Turnover: null,
+      top30ActualNLatest: null,
       nMonths: s.rets.length,
       top3ind: ind3.get(f.code) || "—",
       medCap: mc ? mc.medCap : null,
@@ -5675,6 +5747,10 @@ function rankSendTo(mode) {
   const codes = [..._rankState.checked];
   if (codes.length === 0) { alert("请先勾选至少一个因子"); return; }
   const side = normalizeSide(_rankState.side);
+  if (side !== 1) {
+    alert("反向因子排行已禁用：排行快照仅含默认高分端，不能把默认收益翻号后传入单因子、对比或合成页。");
+    return;
+  }
   const scoreMode = normalizeScoreMode(_rankState.scoreMode);
   const constraintMode = normalizeConstraintMode(_rankState.constraintMode);
   if (mode === "single") {
@@ -5832,7 +5908,12 @@ function composeScoreConfigKey(factors = state.composeFactors, startMonth = stat
 }
 
 function cloneBacktest(bt) {
-  return bt ? { x: bt.x.slice(), navArr: bt.navArr.slice(), retArr: bt.retArr.slice() } : null;
+  return bt ? {
+    x: bt.x.slice(),
+    navArr: bt.navArr.slice(),
+    retArr: bt.retArr.slice(),
+    ...(Array.isArray(bt.turnoverArr) ? { turnoverArr: bt.turnoverArr.slice() } : {}),
+  } : null;
 }
 
 function rememberComposeBacktest(key, bt) {
@@ -8780,7 +8861,7 @@ function buildBacktestFromRows(rows, N) {
       || o.holdings.some(h => isValidForwardReturn(h.ret))
     ))
     .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
-  let prev = null, nav = 1; const x = [], navArr = [1], retArr = [];
+  let prev = null, nav = 1; const x = [], navArr = [1], retArr = [], turnoverArr = [];
   if (periods.length) x.push(periods[0].signalDt);
   for (const o of periods) {
     const weight = o.holdings.length ? 1 / o.holdings.length : 0;
@@ -8792,9 +8873,10 @@ function buildBacktestFromRows(rows, N) {
     x.push(o.returnDt);
     navArr.push(nav);
     retArr.push(net);
+    turnoverArr.push(turnover);
     prev = cur;
   }
-  return { x, navArr, retArr };
+  return { x, navArr, retArr, turnoverArr };
 }
 
 function industryNeutralPickRows(candidates, N) {
@@ -8866,7 +8948,7 @@ function buildWeightedBacktestFromRows(rows) {
     ))
     .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1;
-  const x = [], navArr = [1], retArr = [];
+  const x = [], navArr = [1], retArr = [], turnoverArr = [];
   if (periods.length) x.push(periods[0].signalDt);
   for (const o of periods) {
     const gross = o.holdings.size ? weightedReturnFromObserved([...o.holdings.values()]) : 0;
@@ -8877,9 +8959,10 @@ function buildWeightedBacktestFromRows(rows) {
     x.push(o.returnDt);
     navArr.push(nav);
     retArr.push(net);
+    turnoverArr.push(turnover);
     prev = cur;
   }
-  return { x, navArr, retArr };
+  return { x, navArr, retArr, turnoverArr };
 }
 
 function groupIndustryNeutralRowsByMonth(rows, N) {

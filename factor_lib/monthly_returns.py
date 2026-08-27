@@ -79,12 +79,13 @@ def month_end_panel(panel: pl.DataFrame) -> pl.DataFrame:
         .with_columns(_month_id_expr("trade_date").alias("month_id"))
     )
     # Only a row observed on the global market month-end is a tradable EOD
-    # signal.  Joining on the exact signal date leaves earlier stale rows with
-    # a null entry date instead of treating their following row as execution.
+    # signal.  A stock-specific last quote earlier in the month is stale data,
+    # not another market rebalance date.  Keeping those rows would split one
+    # natural month into several pseudo periods in downstream backtests.
     monthly = monthly.join(
         schedule.select(["trade_date", "entry_date"]),
         on="trade_date",
-        how="left",
+        how="inner",
     )
     entry_values = panel.select([
         "stock_code",

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import polars as pl
 
-from factor_lib.backtest import assert_backtest_economic_invariants
+from factor_lib.backtest import assert_backtest_economic_invariants, completed_period_calendar
 from factor_lib.factors import momentum, volatility, liquidity, beta, company, market_extra, investor, derived, tech_event, word_v2  # noqa: F401
 from factor_lib.monthly_returns import valid_forward_return_expr
 from factor_lib.industry import load_industry_map
@@ -138,6 +138,8 @@ def nav_from_weighted_holdings_all_topn(
     holdings: pl.DataFrame,
     monthly_ret: pl.DataFrame,
     cost_per_side: float,
+    *,
+    calendar=None,
 ) -> pl.DataFrame:
     if holdings.is_empty():
         return pl.DataFrame(schema={
@@ -149,12 +151,8 @@ def nav_from_weighted_holdings_all_topn(
             "nav": pl.Float64,
         })
 
-    held = holdings.join(monthly_ret, on=["trade_date", "stock_code"], how="left")
-    held = held.with_columns([
-        pl.col("return_date").max().over(["top_n", "trade_date"]).alias("_period_return_date"),
-        valid_forward_return_expr().alias("_has_valid_return"),
-    ]).filter(pl.col("_period_return_date").is_not_null())
-    if held.is_empty():
+    calendar = calendar if calendar is not None else completed_period_calendar(monthly_ret)
+    if calendar.is_empty():
         return pl.DataFrame(schema={
             "trade_date": pl.Date,
             "return_date": pl.Date,
@@ -163,6 +161,17 @@ def nav_from_weighted_holdings_all_topn(
             "turnover": pl.Float64,
             "nav": pl.Float64,
         })
+    completed_holdings = holdings.join(
+        calendar.select("trade_date"), on="trade_date", how="inner"
+    )
+    held = (
+        completed_holdings.join(
+            monthly_ret.select(["trade_date", "stock_code", "fwd_return"]),
+            on=["trade_date", "stock_code"],
+            how="left",
+        )
+        .with_columns(valid_forward_return_expr().alias("_has_valid_return"))
+    )
     port_ret = (
         held.with_columns([
             pl.when(pl.col("_has_valid_return"))
@@ -176,46 +185,80 @@ def nav_from_weighted_holdings_all_topn(
         ])
         .group_by(["top_n", "trade_date"])
         .agg([
-            pl.col("_period_return_date").max().alias("return_date"),
             pl.col("_ret").sum().alias("_weighted_ret"),
             pl.col("_observed_weight").sum().alias("_observed_weight"),
         ])
         .filter(pl.col("_observed_weight") > 0)
         .with_columns((pl.col("_weighted_ret") / pl.col("_observed_weight")).alias("port_ret_gross"))
-        .select(["top_n", "trade_date", "return_date", "port_ret_gross"])
+        .select(["top_n", "trade_date", "port_ret_gross"])
     )
 
-    months = sorted(holdings["trade_date"].unique().to_list())
-    month_idx = pl.DataFrame({"trade_date": months, "month_idx": list(range(len(months)))})
-    h = holdings.join(month_idx, on="trade_date", how="inner")
+    # Cross the global completed calendar with every requested Top-N.  Missing
+    # holdings are executable cash periods; holdings with no observable member
+    # return are removed below and therefore do not advance turnover state.
+    top_ns = holdings.select("top_n").unique().sort("top_n")
+    holding_periods = completed_holdings.select(["top_n", "trade_date"]).unique().with_columns(
+        pl.lit(True).alias("has_holdings")
+    )
+    periods = (
+        top_ns.join(calendar, how="cross")
+        .join(holding_periods, on=["top_n", "trade_date"], how="left")
+        .join(port_ret, on=["top_n", "trade_date"], how="left")
+        .filter(pl.col("has_holdings").is_null() | pl.col("port_ret_gross").is_not_null())
+        .with_columns([
+            pl.col("has_holdings").fill_null(False),
+            pl.col("port_ret_gross").fill_null(0.0),
+        ])
+        .sort(["top_n", "trade_date"])
+        .with_columns(
+            (pl.col("trade_date").cum_count().over("top_n") - 1).alias("period_idx")
+        )
+    )
+    h = completed_holdings.join(
+        periods.select(["top_n", "trade_date", "period_idx"]),
+        on=["top_n", "trade_date"],
+        how="inner",
+    )
     changes = pl.concat([
-        h.select(["top_n", "month_idx", "stock_code", pl.col("weight").alias("delta")]),
-        h.select(["top_n", (pl.col("month_idx") + 1).alias("month_idx"), "stock_code", (-pl.col("weight")).alias("delta")]),
+        h.select(["top_n", "period_idx", "stock_code", pl.col("weight").alias("delta")]),
+        h.select(["top_n", (pl.col("period_idx") + 1).alias("period_idx"), "stock_code", (-pl.col("weight")).alias("delta")]),
     ])
     turnover = (
-        changes.group_by(["top_n", "month_idx", "stock_code"])
+        changes.group_by(["top_n", "period_idx", "stock_code"])
         .agg(pl.col("delta").sum().alias("delta"))
-        .group_by(["top_n", "month_idx"])
+        .group_by(["top_n", "period_idx"])
         .agg((pl.col("delta").abs().sum() * 0.5).alias("turnover"))
-        .join(month_idx, on="month_idx", how="inner")
+        .join(
+            periods.select(["top_n", "period_idx"]),
+            on=["top_n", "period_idx"],
+            how="inner",
+        )
+    )
+    turnover = (
+        periods.join(turnover, on=["top_n", "period_idx"], how="left")
+        .with_columns(pl.col("turnover").fill_null(0.0))
         .with_columns(
-            pl.when(pl.col("month_idx") == 0).then(1.0).otherwise(pl.col("turnover")).alias("turnover")
+            pl.when((pl.col("period_idx") == 0) & pl.col("has_holdings"))
+            .then(1.0)
+            .when(pl.col("period_idx") == 0)
+            .then(0.0)
+            .otherwise(pl.col("turnover"))
+            .alias("turnover")
         )
         .with_columns(
-            pl.when(pl.col("month_idx") == 0)
+            pl.when(pl.col("period_idx") == 0)
             .then(cost_per_side * pl.col("turnover"))
             .otherwise(2 * cost_per_side * pl.col("turnover"))
             .alias("trading_cost")
         )
-        .select(["top_n", "trade_date", "turnover", "trading_cost"])
+        .select([
+            "top_n", "trade_date", "return_date", "port_ret_gross",
+            "turnover", "trading_cost",
+        ])
     )
 
     out = (
-        port_ret.join(turnover, on=["top_n", "trade_date"], how="left")
-        .with_columns([
-            pl.col("turnover").fill_null(0.0),
-            pl.col("trading_cost").fill_null(0.0),
-        ])
+        turnover
         .with_columns(
             pl.max_horizontal(
                 pl.lit(-1.0),
@@ -247,6 +290,10 @@ def main(
 
     month_end, monthly_ret = monthly_forward_return(panel)
     score_all = word_universe_for_scores(score_all, panel, meta, FACTOR_REGISTRY)
+    evaluation_calendar = completed_period_calendar(
+        monthly_ret,
+        score_all.select("trade_date"),
+    )
     eligible_with_industry_all = (
         score_all
         .select(["factor_code", "trade_date", "stock_code"])
@@ -281,7 +328,12 @@ def main(
             print(f"  Skip {code}: no industry coverage", flush=True)
             continue
         holdings = build_industry_neutral_holdings_all_topn(score_one, TOP_NS)
-        nav = nav_from_weighted_holdings_all_topn(holdings, monthly_ret, COST_PER_SIDE)
+        nav = nav_from_weighted_holdings_all_topn(
+            holdings,
+            monthly_ret,
+            COST_PER_SIDE,
+            calendar=evaluation_calendar,
+        )
         if not nav.is_empty():
             all_nav.append(nav.with_columns(pl.lit(code).alias("factor_code")))
 

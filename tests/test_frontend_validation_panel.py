@@ -1106,6 +1106,101 @@ def test_topn_holdings_use_competition_rank_and_disclose_real_count():
     assert "snapshotHoldingSelection(snap, N)" in fast_renderer
     assert ".slice(0, N)" not in fast_renderer
     assert ".holding-count-note-expanded" in styles
+    assert "top30ActualNLatest" in source
+    assert "最新实际持股" in source
+    assert "名义 top-30" in INDEX_HTML.read_text(encoding="utf-8")
+
+
+def test_snapshot_backtest_filters_return_label_and_return_as_pairs():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function monthsFromSnapshot", "function quantilePayloadForSide")
+    result = _frontend_eval_json([
+        "const state = {singleStart:null,singleEnd:null};",
+        "function limitedLiabilityReturn(value) { const n=Number(value); return Number.isFinite(n) ? Math.max(-1,n) : null; }",
+        helpers,
+        "const snap = {",
+        " signal_months:['2025-12','2026-01','2026-02'],",
+        " months:['2026-01','2026-02','2026-03'],",
+        " return_dates:['2026-01-31','2026-02-28','2026-03-31'],",
+        " backtests:{'30':{ret:[0.10,null,0.20],turnover:[0.5,0.7,0.8]}}",
+        "};",
+        "const bt=snapshotBacktestByRange(snap,30);",
+        "console.log(JSON.stringify(bt));",
+    ])
+
+    assert result["x"] == ["2025-12", "2026-01-31", "2026-03-31"]
+    assert result["retArr"] == pytest.approx([0.10, 0.20])
+    assert result["navArr"] == pytest.approx([1, 1.1, 1.32])
+    assert result["turnoverArr"] == pytest.approx([0.5, 0.8])
+
+
+def test_single_reverse_uses_low_score_holdings_not_positive_return_sign_flip():
+    source = APP_JS.read_text(encoding="utf-8")
+    return_helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+    backtest = _source_between(source, "function buildBacktestFromRows", "function industryNeutralPickRows")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE=0.002; const MIN_VALID_FORWARD_RETURN=-1;",
+        return_helpers,
+        backtest,
+        "const continuousPositive=buildBacktestFromRows([",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'A',fwd_return:0.10},",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'B',fwd_return:0.20}],2);",
+        "const continuousReverse=buildBacktestFromRows([",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'C',fwd_return:0.30},",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'D',fwd_return:0.40}],2);",
+        "const discretePositive=buildBacktestFromRows([",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'A',fwd_return:0.01},",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'B',fwd_return:0.01},",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'C',fwd_return:0.01},",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'D',fwd_return:0.01}],2);",
+        "const discreteReverse=buildBacktestFromRows([",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'L',fwd_return:0.25},",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'M1',fwd_return:0.15},",
+        " {signal_dt:'2026-01',dt:'2026-02-28',stock_code:'M2',fwd_return:0.15}],2);",
+        "console.log(JSON.stringify({",
+        " cp:continuousPositive.retArr[0],cr:continuousReverse.retArr[0],",
+        " dp:discretePositive.retArr[0],dr:discreteReverse.retArr[0],",
+        " dc:discretePositive.turnoverArr.length,rc:discreteReverse.turnoverArr.length",
+        "}));",
+    ])
+
+    assert result["cr"] != pytest.approx(max(-1, -result["cp"]))
+    assert result["dr"] != pytest.approx(max(-1, -result["dp"]))
+    assert result["cr"] == pytest.approx((1.35 * 0.998) - 1)
+    assert result["dr"] == pytest.approx((1 + (0.25 + 0.15 + 0.15) / 3) * 0.998 - 1)
+
+
+def test_all_single_reverse_portfolio_paths_require_exact_reranking():
+    source = APP_JS.read_text(encoding="utf-8")
+    index = INDEX_HTML.read_text(encoding="utf-8")
+    ranked = _source_between(source, "async function factorSideRankedRows", "async function factorSideBacktest")
+    nav = _source_between(source, "async function renderNavChartSide", "async function renderKpiTable")
+    kpi = _source_between(source, "async function renderKpiTableSide", "async function renderNScan")
+    nscan = _source_between(source, "async function renderNScanSide", "// ===================== 模式切换")
+    validation = _source_between(source, "async function renderValidationPanel", "function benchmarkSeries")
+    compare_table = _source_between(source, "async function renderCmpTableFast", "function drawCmpTable")
+    compare_nav = _source_between(source, "async function renderCmpNavFast", "async function renderCmpIc")
+    ranking = _source_between(source, "async function computeRankingFast", "async function computeRanking(startMonth")
+    quantile = _source_between(source, "function quantilePayloadForSide", "function renderQuantileUnavailable")
+
+    assert "ORDER BY score * ${sideN} DESC" in ranked
+    assert "exactSideBacktestByRange(code, side, n)" in nav
+    assert "exactSideBacktestByRange(code, side, n)" in kpi
+    assert "factorSideRankedRows(code, side, 100)" in nscan
+    assert "const top30Backtest = await singleTop30Backtest" in validation
+    assert "await computeTop30ExcessForBenchmark(code" in validation
+    assert "await renderCostSensitivityTable(code" in validation
+    assert "exactSideBacktestByRange(f.code, f.side, f.n" in compare_table
+    assert "exactSideBacktestByRange(f.code, f.side, f.n" in compare_nav
+    assert "sideBacktestFromSnapshot" not in source
+    assert "limitedLiabilityReturn(v * sideN)" not in source
+    assert "反向（需逐因子重排）" in index
+    assert '<option value="-1" disabled>' in index
+    assert "反向因子排行需逐因子重排持仓" in ranking
+    assert ".map(v => Number(v) * side)" not in ranking
+    # 等权分位反向的正确变换是交换 Q1/Q5，并翻转 Q5-Q1 多空。
+    assert "`Q${6 - i}`" in quantile
+    assert "limitedLiabilityReturn(-Number(v))" in quantile
 
 
 def test_obsolete_one_month_completion_helper_is_removed():
@@ -1218,9 +1313,9 @@ def test_ranking_view_explains_metric_reading_order_and_column_meanings():
     assert "点击列头排序" in index
     assert "function htmlAttr" in source
     assert "综合分综合收益、风险、IC与稳定性" in source
-    assert "Top30月收益减基准月收益后的年化收益" in source
+    assert "名义 Top30 月收益减基准月收益后的年化收益" in source
     assert "10组收益排序单调性" in source
-    assert "Top30持仓月均换手" in source
+    assert "名义 Top30 完整实际持仓的月均换手" in source
 
 
 def test_compose_validation_static_contract():
@@ -1609,8 +1704,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.10</title>" in index
-    assert "<b>因子库 v2.0.10</b>" in index
+    assert "<title>因子库 v2.0.11</title>" in index
+    assert "<b>因子库 v2.0.11</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

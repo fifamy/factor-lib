@@ -463,7 +463,7 @@
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "与OPGROWTH当前历史得分相关性约0.921，但净利润增长与营业利润增长的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
+    "usage_note": "与OPGROWTH当前历史得分相关性约0.919，但净利润增长与营业利润增长的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
@@ -483,7 +483,7 @@
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "与NPGROWTH当前历史得分相关性约0.921，但营业利润增长与净利润增长的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
+    "usage_note": "与NPGROWTH当前历史得分相关性约0.919，但营业利润增长与净利润增长的经济含义不完全相同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "牛市进攻型",
@@ -523,7 +523,7 @@
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "与TANG2ASSET当前历史得分相关性约0.903，但杠杆与有形资产结构的经济含义不同；不新增硬性互斥，同时计权前须复核边际信息、共线性和权重。LEVERAGE与EQMULT、DEBT2EQ的既有同义硬拦截仍保留。",
+    "usage_note": "与TANG2ASSET当前历史得分相关性约0.896，但杠杆与有形资产结构的经济含义不同；不新增硬性互斥，同时计权前须复核边际信息、共线性和权重。LEVERAGE与EQMULT、DEBT2EQ的既有同义硬拦截仍保留。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -631,7 +631,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -853,7 +853,7 @@
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "与TANG2ASSET当前历史得分相关性约0.901，但权益乘数与有形资产结构的经济含义不同；不新增硬性互斥，同时计权前须复核边际信息、共线性和权重。EQMULT与LEVERAGE、DEBT2EQ的既有同义硬拦截仍保留。",
+    "usage_note": "与TANG2ASSET当前历史得分相关性约0.896，但权益乘数与有形资产结构的经济含义不同；不新增硬性互斥，同时计权前须复核边际信息、共线性和权重。EQMULT与LEVERAGE、DEBT2EQ的既有同义硬拦截仍保留。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
@@ -898,7 +898,7 @@
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "与LEVERAGE、EQMULT当前历史得分相关性分别约0.903、0.901，但有形资产结构与杠杆的经济含义不同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
+    "usage_note": "与LEVERAGE、EQMULT当前历史得分相关性均约0.896，但有形资产结构与杠杆的经济含义不同；不做硬性互斥，同时计权前须复核边际信息、共线性和权重。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
     "env_tag": "震荡占优型",
@@ -960,7 +960,12 @@
     "combo_policy": "allow",
     "usage_note": "",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "accounts_receivable_efficiency_inverse",
+        "reason": "ARRATIO与ARTURN分别以应收占收入和收入除应收表达回款效率，统一方向后当前历史得分相关性约0.906，不得同时计权。"
+      }
+    ],
     "env_tag": "震荡占优型",
     "time_tag": "近期反转"
   },
@@ -1043,7 +1048,7 @@
     "combo_exclusion_groups": [
       {
         "id": "absolute_relative_60d_rank_alias",
-        "reason": "市场收益为截面常数，当前两者标准化得分完全一致，不得同时计权。"
+        "reason": "市场收益为截面常数，当前两者标准化得分相关性约0.999999，不得同时计权。"
       }
     ],
     "env_tag": "全天候型",
@@ -1231,7 +1236,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "熊市防御型",
+    "env_tag": "全天候型",
     "time_tag": "近期转弱"
   },
   {
@@ -1248,12 +1253,12 @@
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "当前计算完整20个交易日成交额算术均值原值，已对齐Word口径。与MFLOW20的信息重叠度仍需在重算后复核，确认前不得同时计权。",
+    "usage_note": "当前计算完整20个交易日成交额算术均值原值，已对齐Word口径。与MFLOW20当前历史得分相关性约0.99998，不得同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {
         "id": "amount_moneyflow_rank_alias",
-        "reason": "当前历史得分完全一致，不得同时计权。"
+        "reason": "当前历史得分相关性约0.99998，不得同时计权。"
       }
     ],
     "env_tag": "熊市防御型",
@@ -1566,7 +1571,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期反转"
   },
   {
@@ -1718,7 +1723,7 @@
     "combo_exclusion_groups": [
       {
         "id": "absolute_relative_60d_rank_alias",
-        "reason": "市场收益为截面常数，当前两者标准化得分完全一致，不得同时计权。"
+        "reason": "市场收益为截面常数，当前两者标准化得分相关性约0.999999，不得同时计权。"
       }
     ],
     "env_tag": "全天候型",
@@ -1966,7 +1971,7 @@
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。与EXPOP当前历史得分相关性约0.92，不建议二者同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期转强"
   },
   {
@@ -1986,7 +1991,7 @@
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "震荡占优型",
+    "env_tag": "熊市防御型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2006,7 +2011,7 @@
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "熊市防御型",
     "time_tag": "反向改善"
   },
   {
@@ -2026,7 +2031,7 @@
     "usage_note": "业绩快报首次披露月事件信号，覆盖率低，不建议单独作为默认主排序因子。与EXPDEDNP当前历史得分相关性约0.92，不建议二者同时计权。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "熊市防御型",
     "time_tag": "近期转强"
   },
   {
@@ -2088,7 +2093,7 @@
     "combo_exclusion_groups": [
       {
         "id": "amount_moneyflow_rank_alias",
-        "reason": "当前历史得分完全一致，不得同时计权。"
+        "reason": "当前历史得分相关性约0.99998，不得同时计权。"
       }
     ],
     "env_tag": "熊市防御型",
@@ -2356,7 +2361,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "持续低效"
   },
   {
@@ -2373,9 +2378,14 @@
     "is_event": false,
     "usage_status": "standard",
     "combo_policy": "warn",
-    "usage_note": "当前使用截至公告日可见的上年末与本期末应收账款、应收票据平均余额除以TTM营业收入，已对齐Word口径；期初值未披露时严格置缺失。",
+    "usage_note": "当前使用截至公告日可见的上年末与本期末应收账款、应收票据平均余额除以TTM营业收入，已对齐Word口径；期初值未披露时严格置缺失。与ARTURN统一方向后均表达应收回款效率，当前历史得分相关性约0.906，不得同时计权。",
     "data_end_date": null,
-    "combo_exclusion_groups": [],
+    "combo_exclusion_groups": [
+      {
+        "id": "accounts_receivable_efficiency_inverse",
+        "reason": "ARRATIO与ARTURN分别以应收占收入和收入除应收表达回款效率，统一方向后当前历史得分相关性约0.906，不得同时计权。"
+      }
+    ],
     "env_tag": "全天候型",
     "time_tag": "近期反转"
   },
@@ -2661,7 +2671,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "近期失效"
   },
   {
@@ -2746,7 +2756,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -2768,7 +2778,7 @@
     "combo_exclusion_groups": [
       {
         "id": "placement_refinancing_alias",
-        "reason": "当前历史得分绝对相关性0.9995，默认不得同时计权。"
+        "reason": "当前历史得分绝对相关性0.9989，默认不得同时计权。"
       }
     ],
     "env_tag": "牛市进攻型",
@@ -2831,7 +2841,7 @@
     "usage_note": "稀疏风险事件辅助信号，不建议单独作为默认主排序因子。",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "牛市进攻型",
+    "env_tag": "全天候型",
     "time_tag": "反向恶化"
   },
   {
@@ -2891,7 +2901,7 @@
     "usage_note": "",
     "data_end_date": null,
     "combo_exclusion_groups": [],
-    "env_tag": "全天候型",
+    "env_tag": "牛市进攻型",
     "time_tag": "长期稳定型"
   },
   {
@@ -3033,7 +3043,7 @@
     "combo_exclusion_groups": [
       {
         "id": "placement_refinancing_alias",
-        "reason": "当前历史得分绝对相关性0.9995，默认不得同时计权。"
+        "reason": "当前历史得分绝对相关性0.9989，默认不得同时计权。"
       }
     ],
     "env_tag": "牛市进攻型",
