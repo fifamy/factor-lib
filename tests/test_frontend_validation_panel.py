@@ -1689,6 +1689,46 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
     assert "中证500" in source
     assert "中证800" in source
     assert "computeTop30ExcessForBenchmark" in source
+
+
+def test_single_factor_kpi_and_validation_share_exact_holding_period_benchmark_returns():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    metric_helpers = _source_between(source, "function computeMetrics(rets, navs)", "function monthIdFromLabel")
+    benchmark_helpers = _source_between(
+        source,
+        "function alignedBenchmarkPeriodReturns",
+        "function estimateCostAdjustedReturns",
+    )
+    result = _frontend_eval_json([
+        metric_helpers,
+        benchmark_helpers,
+        "const snapshot={",
+        " months:['2025-01','2025-02','2025-03'],",
+        " nav:{HS300:[1,9,3]},",  # deliberately unusable month-end NAVs
+        " periods:{return_dates:['2025-03-03','2025-04-01'],returns:{HS300:[0.05,0.02]}}",
+        "};",
+        "const bt={x:['2025-01-31','2025-03-03','2025-04-01'],retArr:[0.12,0.01]};",
+        "const actual=benchmarkComparisonForBacktest(bt,snapshot,'HS300');",
+        "const expected=metricsFromReturns([0.07,-0.01]);",
+        "console.log(JSON.stringify({actual,expected}));",
+    ])
+
+    assert result["actual"]["n"] == 2
+    assert result["actual"]["annual"] == pytest.approx(result["expected"]["annual"])
+    assert result["actual"]["mdd"] == pytest.approx(result["expected"]["mdd"])
+    assert result["actual"]["benchmark"]["annual"] == pytest.approx(
+        _frontend_compute_metrics([0.05, 0.02])["annual"]
+    )
+
+    fast_kpi = _source_between(source, "async function renderKpiTableFast", "async function renderKpiTableSide")
+    reverse_kpi = _source_between(source, "async function renderKpiTableSide", "async function renderNScan")
+    validation = _source_between(source, "async function computeTop30ExcessForBenchmark", "function estimateCostAdjustedReturns")
+    assert 'benchmarkComparisonForBacktest(bt, bm, "HS300")' in fast_kpi
+    assert 'benchmarkComparisonForBacktest(bt, bm, "HS300")' in reverse_kpi
+    assert "return benchmarkComparisonForBacktest" in validation
+    assert "m.annual - bmMetrics" not in fast_kpi
+    assert "m.annual - bmMetrics" not in reverse_kpi
     assert "renderCostSensitivityTable" in source
     assert "estimateCostAdjustedReturns" in source
     assert "成本敏感性" in source
@@ -1704,8 +1744,8 @@ def test_validation_panel_supports_benchmark_switch_and_cost_sensitivity():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.11</title>" in index
-    assert "<b>因子库 v2.0.11</b>" in index
+    assert "<title>因子库 v2.0.12</title>" in index
+    assert "<b>因子库 v2.0.12</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

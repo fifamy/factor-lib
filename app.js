@@ -2159,29 +2159,15 @@ async function renderNavChart(code) {
     });
   });
 
-  // 基准：单 N 时画全部 3 条；多 N 对比时只留沪深300 一条灰线作参照（避免太挤）
-  if (state.hasBenchmarks && x.length) {
-    const bmRes = await state.db.query(`
-      SELECT index_code, strftime(trade_date, '%Y-%m') AS dt, nav
-      FROM benchmarks
-      WHERE strftime(trade_date, '%Y-%m') >= '${monthOfLabel(x[0])}'
-        AND strftime(trade_date, '%Y-%m') <= '${monthOfLabel(x[x.length - 1])}'
-      ORDER BY index_code, trade_date
-    `);
-    const byIndex = {};
-    for (const r of bmRes.toArray()) {
-      if (!byIndex[r.index_code]) byIndex[r.index_code] = {};
-      byIndex[r.index_code][r.dt] = r.nav;
-    }
+  // 基准净值按组合实际入场/退出日期推进，不使用月末净值近似。
+  if (x.length) {
+    const bm = await ensureBenchmarkSnapshot();
     const colors = { "HS300": "#c14545", "CSI800": "#6e9a4f", "CSI500": "#c89c2b" };
     const cnNames = { "HS300": "沪深300", "CSI800": "中证800", "CSI500": "中证500" };
     const wantIdx = ["HS300", "CSI800", "CSI500"];
     for (const idxCode of wantIdx) {
-      const monthMap = byIndex[idxCode];
-      if (!monthMap) continue;
-      const aligned = x.map(m => (monthOfLabel(m) in monthMap ? monthMap[monthOfLabel(m)] : null));
-      const b = aligned.find(v => v !== null);
-      const rebased = b ? aligned.map(v => (v === null ? null : v / b)) : aligned;
+      const rebased = benchmarkNavForBacktest(bm, x, idxCode);
+      if (!rebased.some(v => v !== null)) continue;
       series.push({
         name: `${cnNames[idxCode] || idxCode}(基准)`,
         type: "line", data: rebased, symbol: "none", connectNulls: true,
@@ -2233,7 +2219,7 @@ async function renderNavChartFast(code, snap) {
   const colors = { "HS300": "#c14545", "CSI800": "#6e9a4f", "CSI500": "#c89c2b" };
   const cnNames = { "HS300": "沪深300", "CSI800": "中证800", "CSI500": "中证500" };
   for (const idxCode of ["HS300", "CSI800", "CSI500"]) {
-    const rebased = rebaseNav(benchmarkSeries(bm, x.map(monthOfLabel), idxCode));
+    const rebased = benchmarkNavForBacktest(bm, x, idxCode);
     if (!rebased.some(v => v !== null)) continue;
     series.push({
       name: `${cnNames[idxCode] || idxCode}(基准)`,
@@ -2394,22 +2380,56 @@ function medianNumber(values) {
   return clean.length % 2 ? clean[mid] : (clean[mid - 1] + clean[mid]) / 2;
 }
 
-function alignedBenchmarkReturns(snapshot, months, indexCode) {
-  const bmMonths = snapshot?.months || [];
-  const nav = snapshot?.nav?.[indexCode] || [];
-  const returns = new Map();
-  for (let i = 1; i < bmMonths.length; i++) {
-    const prev = nav[i - 1];
-    const cur = nav[i];
-    if (prev === null || cur === null || prev === undefined || cur === undefined) continue;
-    const p = Number(prev);
-    const c = Number(cur);
-    if (Number.isFinite(p) && Number.isFinite(c) && p > 0) returns.set(bmMonths[i], c / p - 1);
-  }
-  return months.map(m => {
-    const v = returns.get(m);
+function alignedBenchmarkPeriodReturns(snapshot, returnDates, indexCode) {
+  const periodDates = snapshot?.periods?.return_dates || [];
+  const periodReturns = snapshot?.periods?.returns?.[indexCode] || [];
+  const returns = new Map(periodDates.map((d, i) => [String(d), periodReturns[i]]));
+  return (returnDates || []).map(d => {
+    const v = returns.get(String(d));
     return v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
   });
+}
+
+function benchmarkComparisonForBacktest(bt, snapshot, indexCode) {
+  if (!bt?.retArr?.length || !Array.isArray(bt.x)) {
+    return { annual: null, mdd: null, n: 0, total: 0, benchmark: null };
+  }
+  const hasStartAnchor = bt.x.length === bt.retArr.length + 1;
+  const returnDates = hasStartAnchor ? bt.x.slice(1) : bt.x.slice(0, bt.retArr.length);
+  const bmRets = alignedBenchmarkPeriodReturns(snapshot, returnDates, indexCode);
+  const excess = [];
+  const alignedBenchmark = [];
+  for (let i = 0; i < bt.retArr.length; i++) {
+    const r = Number(bt.retArr[i]);
+    const b = bmRets[i];
+    if (!Number.isFinite(r) || b === null || !Number.isFinite(Number(b))) continue;
+    excess.push(r - Number(b));
+    alignedBenchmark.push(Number(b));
+  }
+  const m = metricsFromReturns(excess);
+  return {
+    annual: m?.annual ?? null,
+    mdd: m?.mdd ?? null,
+    n: excess.length,
+    total: bt.retArr.length,
+    benchmark: metricsFromReturns(alignedBenchmark),
+  };
+}
+
+function benchmarkNavForBacktest(snapshot, labels, indexCode) {
+  if (!Array.isArray(labels) || labels.length < 2) return [];
+  const bmRets = alignedBenchmarkPeriodReturns(snapshot, labels.slice(1), indexCode);
+  const out = [1];
+  let nav = 1;
+  for (const value of bmRets) {
+    if (value === null || !Number.isFinite(Number(value))) {
+      out.push(null);
+      continue;
+    }
+    nav *= 1 + Number(value);
+    out.push(+nav.toFixed(6));
+  }
+  return out;
 }
 
 async function singleTop30Backtest(code, snap, side = state.singleSide) {
@@ -2420,18 +2440,7 @@ async function singleTop30Backtest(code, snap, side = state.singleSide) {
 
 async function computeTop30ExcessForBenchmark(code, snap, benchmarkSnapshot, indexCode, side = state.singleSide) {
   const bt = await singleTop30Backtest(code, snap, side);
-  if (!bt.retArr.length) return { annual: null, mdd: null, n: 0 };
-  const months = bt.x.slice(1).map(monthOfLabel);
-  const bmRets = alignedBenchmarkReturns(benchmarkSnapshot, months, indexCode);
-  const excess = [];
-  for (let i = 0; i < bt.retArr.length; i++) {
-    const r = bt.retArr[i];
-    const b = bmRets[i];
-    if (r === null || b === null || r === undefined || b === undefined) continue;
-    if (Number.isFinite(Number(r)) && Number.isFinite(Number(b))) excess.push(Number(r) - Number(b));
-  }
-  const m = metricsFromReturns(excess);
-  return { annual: m?.annual ?? null, mdd: m?.mdd ?? null, n: excess.length };
+  return benchmarkComparisonForBacktest(bt, benchmarkSnapshot, indexCode);
 }
 
 function estimateCostAdjustedReturns(rets, avgTurnover, baseSingleSideCost = 0.002, scenarioBps = 20) {
@@ -3605,7 +3614,7 @@ async function renderNavChartSide(code, side, snap = null) {
     const colors = { "HS300": "#c14545", "CSI800": "#6e9a4f", "CSI500": "#c89c2b" };
     const cnNames = { "HS300": "沪深300", "CSI800": "中证800", "CSI500": "中证500" };
     for (const idxCode of ["HS300", "CSI800", "CSI500"]) {
-      const rebased = rebaseNav(benchmarkSeries(bm, x.map(monthOfLabel), idxCode));
+      const rebased = benchmarkNavForBacktest(bm, x, idxCode);
       if (!rebased.some(v => v !== null)) continue;
       series.push({
         name: `${cnNames[idxCode] || idxCode}(基准)`,
@@ -3654,21 +3663,22 @@ async function renderKpiTable(code) {
   const target = document.getElementById("kpi");
   // 查所选各 N 在区间内的月收益，区间内重建净值（mdd/年化口径对齐区间）
   const res = await state.db.query(`
-    SELECT top_n, port_ret FROM preset_backtest
+    SELECT top_n, strftime(return_date, '%Y-%m-%d') AS return_date, port_ret FROM preset_backtest
     WHERE factor_code = '${code}' AND top_n IN (${state.selectedNs.join(",")})
       ${backtestRangeWhere(state.singleStart, state.singleEnd)}
     ORDER BY top_n, trade_date
   `);
   const byN = {};
   for (const r of res.toArray()) {
-    if (!byN[r.top_n]) byN[r.top_n] = { rets: [], navs: [1] };   // navs 以真实起点 1.0 开头，确保首月收益计入
+    if (!byN[r.top_n]) byN[r.top_n] = { rets: [], navs: [1], returnDates: [] };   // navs 以真实起点 1.0 开头，确保首月收益计入
     if (r.port_ret !== null) {
       const o = byN[r.top_n];
       o.rets.push(r.port_ret);
+      o.returnDates.push(r.return_date);
       o.navs.push(o.navs[o.navs.length - 1] * (1 + r.port_ret));
     }
   }
-  const ba = await benchAnnuals();
+  const bm = await ensureBenchmarkSnapshot();
 
   // 因子级 IC_IR（与 N 无关）：区间内 RankIC 均值 / 标准差，按有效观测频率年化。
   const icRes = await state.db.query(`
@@ -3688,8 +3698,9 @@ async function renderKpiTable(code) {
     const d = byN[n];
     const m = d ? computeMetrics(d.rets, d.navs) : null;
     if (!m) { rows += `<tr><td>top${n}</td><td colspan="7">无数据</td></tr>`; continue; }
-    const ex300 = ("HS300" in ba) ? signed(m.annual - ba.HS300) : "—";
-    const ex800 = ("CSI800" in ba) ? signed(m.annual - ba.CSI800) : "—";
+    const bt = { x: ["起点", ...d.returnDates], retArr: d.rets };
+    const ex300 = signedPctText(benchmarkComparisonForBacktest(bt, bm, "HS300").annual);
+    const ex800 = signedPctText(benchmarkComparisonForBacktest(bt, bm, "CSI800").annual);
     rows += `<tr>
       <td>top${n}</td>
       <td>${pct(m.annual)}</td>
@@ -3702,39 +3713,29 @@ async function renderKpiTable(code) {
     </tr>`;
   }
 
-  // 基准行：从月末 nav 序列算绝对指标（超额列对基准自身无意义，留 —）
-  if (state.hasBenchmarks) {
-    const cnNames = { "HS300": "沪深300", "CSI800": "中证800", "CSI500": "中证500" };
-    const bRes = await state.db.query(`
-      SELECT index_code, nav FROM benchmarks
-      WHERE index_code IN ('HS300','CSI800','CSI500')
-        ${rangeWhere(state.singleStart, state.singleEnd)}
-      ORDER BY index_code, trade_date
-    `);
-    const bg = {};
-    for (const r of bRes.toArray()) { (bg[r.index_code] ||= []).push(r.nav); }
-    for (const idx of ["HS300", "CSI800", "CSI500"]) {
-      const navs = bg[idx];
-      if (!navs || navs.length < 2) continue;
-      const rets = navs.slice(1).map((v, i) => v / navs[i] - 1);
-      const m = computeMetrics(rets, navs);
-      rows += `<tr style="color:#888;border-top:2px solid #ddd">
-        <td style="color:#888">${cnNames[idx]}</td>
-        <td>${pct(m.annual)}</td>
-        <td>${pct(m.vol)}</td>
-        <td>${numText(m.sharpe, 2)}</td>
-        <td>${pct(m.mdd)}</td>
-        <td>${(m.winRate * 100).toFixed(0)}%</td>
-        <td>—</td><td>—</td>
-      </tr>`;
-    }
+  // 基准行与组合使用完全相同的入场/退出日期。
+  const reference = state.selectedNs.map(n => byN[n]).find(Boolean);
+  const referenceBt = reference ? { x: ["起点", ...reference.returnDates], retArr: reference.rets } : null;
+  const cnNames = { "HS300": "沪深300", "CSI800": "中证800", "CSI500": "中证500" };
+  for (const idx of ["HS300", "CSI800", "CSI500"]) {
+    const m = benchmarkComparisonForBacktest(referenceBt, bm, idx).benchmark;
+    if (!m) continue;
+    rows += `<tr style="color:#888;border-top:2px solid #ddd">
+      <td style="color:#888">${cnNames[idx]}</td>
+      <td>${pct(m.annual)}</td>
+      <td>${pct(m.vol)}</td>
+      <td>${numText(m.sharpe, 2)}</td>
+      <td>${pct(m.mdd)}</td>
+      <td>${(m.winRate * 100).toFixed(0)}%</td>
+      <td>—</td><td>—</td>
+    </tr>`;
   }
 
   target.innerHTML = `
     <table class="kpi-table">
       <thead><tr>
         <th>组合 / 基准</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th>
-        <th>月度胜率</th><th>超额 vs 300</th><th>超额 vs 800</th>
+        <th>月度胜率</th><th>超额年化 vs 300</th><th>超额年化 vs 800</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -3745,7 +3746,14 @@ async function renderKpiTable(code) {
 async function renderKpiTableFast(code, snap, scoreSnap = snap) {
   const target = document.getElementById("kpi");
   const bm = await ensureBenchmarkSnapshot();
-  const bmMetrics = benchmarkMetrics(bm, state.singleStart, state.singleEnd);
+  const referenceBt = state.selectedNs
+    .map(n => snapshotBacktestByRange(snap, n))
+    .find(bt => bt.retArr.length);
+  const bmMetrics = {};
+  for (const idx of ["HS300", "CSI800", "CSI500"]) {
+    const comparison = benchmarkComparisonForBacktest(referenceBt, bm, idx);
+    if (comparison.benchmark) bmMetrics[idx] = comparison.benchmark;
+  }
   const icMonths = scoreSnap.ic?.months || [];
   const icIdxs = rangeFilterIndexes(icMonths, state.singleStart, state.singleEnd);
   const rankStats = rankIcStats(labelsByIndexes(icMonths, icIdxs), sliceByIndexes(scoreSnap.ic?.rank_ic, icIdxs), 1, 1);
@@ -3756,6 +3764,8 @@ async function renderKpiTableFast(code, snap, scoreSnap = snap) {
     const bt = snapshotBacktestByRange(snap, n);
     const m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     if (!m) { rows += `<tr><td>top${n}</td><td colspan="7">无数据</td></tr>`; continue; }
+    const ex300 = benchmarkComparisonForBacktest(bt, bm, "HS300");
+    const ex800 = benchmarkComparisonForBacktest(bt, bm, "CSI800");
     rows += `<tr>
       <td>top${n} · ${constraintModeLabel()}</td>
       <td>${pctText(m.annual)}</td>
@@ -3763,8 +3773,8 @@ async function renderKpiTableFast(code, snap, scoreSnap = snap) {
       <td>${numText(m.sharpe, 2)}</td>
       <td>${pctText(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
-      <td>${bmMetrics.HS300 ? signedPctText(m.annual - bmMetrics.HS300.annual) : "—"}</td>
-      <td>${bmMetrics.CSI800 ? signedPctText(m.annual - bmMetrics.CSI800.annual) : "—"}</td>
+      <td>${signedPctText(ex300.annual)}</td>
+      <td>${signedPctText(ex800.annual)}</td>
     </tr>`;
   }
 
@@ -3787,7 +3797,7 @@ async function renderKpiTableFast(code, snap, scoreSnap = snap) {
     <table class="kpi-table">
       <thead><tr>
         <th>组合 / 基准</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th>
-        <th>月度胜率</th><th>超额 vs 300</th><th>超额 vs 800</th>
+        <th>月度胜率</th><th>超额年化 vs 300</th><th>超额年化 vs 800</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -3798,7 +3808,7 @@ async function renderKpiTableFast(code, snap, scoreSnap = snap) {
 async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
   const target = document.getElementById("kpi");
   const bm = await ensureBenchmarkSnapshot();
-  const bmMetrics = benchmarkMetrics(bm, state.singleStart, state.singleEnd);
+  const bmMetrics = {};
   const sideN = normalizeSide(side);
   const icMonths = scoreSnap?.ic?.months || [];
   const icIdxs = rangeFilterIndexes(icMonths, state.singleStart, state.singleEnd);
@@ -3808,10 +3818,14 @@ async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
   const icir = rankStats.ir == null ? "—" : rankStats.ir.toFixed(2);
 
   let rows = "";
+  let referenceBt = null;
   for (const n of state.selectedNs) {
     const bt = await exactSideBacktestByRange(code, side, n);
+    if (!referenceBt && bt.retArr.length) referenceBt = bt;
     const m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     if (!m) { rows += `<tr><td>top${n}${sideSuffix(side)}</td><td colspan="7">无数据</td></tr>`; continue; }
+    const ex300 = benchmarkComparisonForBacktest(bt, bm, "HS300");
+    const ex800 = benchmarkComparisonForBacktest(bt, bm, "CSI800");
     rows += `<tr>
       <td>top${n}${sideSuffix(side)} · ${constraintModeLabel()}</td>
       <td>${pctText(m.annual)}</td>
@@ -3819,9 +3833,14 @@ async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
       <td>${numText(m.sharpe, 2)}</td>
       <td>${pctText(m.mdd)}</td>
       <td>${(m.winRate * 100).toFixed(0)}%</td>
-      <td>${bmMetrics.HS300 ? signedPctText(m.annual - bmMetrics.HS300.annual) : "—"}</td>
-      <td>${bmMetrics.CSI800 ? signedPctText(m.annual - bmMetrics.CSI800.annual) : "—"}</td>
+      <td>${signedPctText(ex300.annual)}</td>
+      <td>${signedPctText(ex800.annual)}</td>
     </tr>`;
+  }
+
+  for (const idx of ["HS300", "CSI800", "CSI500"]) {
+    const comparison = benchmarkComparisonForBacktest(referenceBt, bm, idx);
+    if (comparison.benchmark) bmMetrics[idx] = comparison.benchmark;
   }
 
   const cnNames = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
@@ -3843,7 +3862,7 @@ async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
     <table class="kpi-table">
       <thead><tr>
         <th>组合 / 基准</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th>
-        <th>月度胜率</th><th>超额 vs 300</th><th>超额 vs 800</th>
+        <th>月度胜率</th><th>超额年化 vs 300</th><th>超额年化 vs 800</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -4532,7 +4551,7 @@ async function renderCmpNavFast() {
   const colors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
   const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
   for (const idx of ["HS300", "CSI800", "CSI500"]) {
-    const rebased = rebaseNav(benchmarkSeries(bm, x.map(monthOfLabel), idx));
+    const rebased = benchmarkNavForBacktest(bm, x, idx);
     if (!rebased.some(v => v !== null)) continue;
     series.push({ name: `${cn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
       data: rebased, color: colors[idx], lineStyle: { width: 1.2, type: "dashed" } });
@@ -7272,7 +7291,7 @@ async function renderComposeBacktest(renderSeq) {
     const colors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
     const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
     for (const idx of ["HS300", "CSI800", "CSI500"]) {
-      const aligned = benchmarkSeries(bm, x.map(monthOfLabel), idx);
+      const aligned = benchmarkNavForBacktest(bm, x, idx);
       const b = aligned.find(v => v !== null);
       series.push({ name: `${cn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
         data: b ? aligned.map(v => v === null ? null : v / b) : aligned,
@@ -9293,7 +9312,7 @@ async function renderComboCompare() {
     if (allMonths.length) {
       const bmSnap = await ensureBenchmarkSnapshot();
       for (const idx of ["HS300", "CSI800", "CSI500"]) {
-        const aligned = benchmarkSeries(bmSnap, allMonths.map(monthOfLabel), idx);
+        const aligned = benchmarkNavForBacktest(bmSnap, allMonths, idx);
         const b = aligned.find(v => v !== null);
         series.push({ name: `${bcn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
           data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,

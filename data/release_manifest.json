@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-08-27T03:58:17+00:00",
-  "deploy_version": "20260827115810",
+  "generated_at": "2026-08-28T01:56:20+00:00",
+  "deploy_version": "20260828095614",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "f957dc210a92b9e4de5b2fcc684514ee6c16fbe5",
+  "pages_worktree_git_commit_before_sync": "b7d2e3f4e2219627e89d2d8f0a24741354324f9e",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "e96c7e03c84302ed86e2fc0b1efbf6ffa84165182b38460b8ae1a6dc72dd0488",
+      "sha256": "1301eb0029f54ed19506f8bfa7861efc88465e9b74802bcb0f4fc2f0795792da",
       "bytes": 32982
     },
     "app.js": {
-      "sha256": "475751cd5c76724d6e2021a9360ee6e24e9618100a62385cdaadab4bfd66fcbf",
-      "bytes": 456758
+      "sha256": "6aa1b6aee77cf3cf57ad716262dd24911d5b138c8db946f2b453e7fad88bab63",
+      "bytes": 457161
     },
     "styles.css": {
       "sha256": "406279ec899363b3b8985ea2324bad14c4a055c9a5b37f95df383e36ec2bdcf6",
       "bytes": 38217
     },
     "factor_audit.html": {
-      "sha256": "632d93d0fd95dd71826e887d44d330f3f9804ba84d495d911b6f6c0c7b4ddcfe",
+      "sha256": "b6168304c2a75603b0fcf834bdd2dbbe5464c75f8be39a8e6794192189439619",
       "bytes": 7688
     },
     "factor_audit.js": {
@@ -38,8 +38,16 @@
       "bytes": 128808
     },
     "data/factor_ranking_snapshot.json": {
-      "sha256": "22ee17f10805de298b93de942403967683ea0ff3805b828c82b756bc9a806afd",
-      "bytes": 4240315
+      "sha256": "e069d1ab534a17f04c4838f5bff7a70f0c8bd3187ea9aa5032404e694f9db050",
+      "bytes": 4241642
+    },
+    "data/benchmark_snapshot.json": {
+      "sha256": "ca475a88bc971d38cca6a8e07dba655ca5e5fe4d6bd1f0f0838356ce24469546",
+      "bytes": 15388
+    },
+    "data/benchmark_period_returns.parquet": {
+      "sha256": "9dd68f346435d125ea200dea285d83163a81cad899c75a09e71eebfe8a1dacc7",
+      "bytes": 12951
     },
     "data/factor_audit/index.json": {
       "sha256": "ee7670d963c88a1d1a7d36188ef1b72bffcb1a470c21ed583cfd4223f8258162",
@@ -87,15 +95,15 @@
   "source_directory_summaries": {
     "factor_lib": {
       "exists": true,
-      "file_count": 59,
-      "bytes": 585288,
-      "sha256": "12b4c9b340ab2cf021417a1cbf77ff947c6ee2213335056477b6d7dc9ad0530e"
+      "file_count": 60,
+      "bytes": 589569,
+      "sha256": "07173af98647cc3406357d8f16744203a219ff1bdf87ae05ae5e68e55b6890fa"
     },
     "scripts": {
       "exists": true,
-      "file_count": 121,
-      "bytes": 1662297,
-      "sha256": "e1a2d137b13bebda064d77bc5747970f9e62a3375ec3fdc00e03005d77829cc5"
+      "file_count": 122,
+      "bytes": 1671168,
+      "sha256": "f372f70dd84aa9799cdd169050a524ec834331fc7aebe1add31dc1671ecd5be4"
     },
     "config": {
       "exists": true,
@@ -150,6 +158,11 @@
       "bytes": 46645595,
       "mtime_ns": 1787731822680241908
     },
+    "data/benchmark_period_returns.parquet": {
+      "sha256": "9dd68f346435d125ea200dea285d83163a81cad899c75a09e71eebfe8a1dacc7",
+      "bytes": 12951,
+      "mtime_ns": 1787878446403877784
+    },
     "data/factor_quantile_backtest.parquet": {
       "sha256": "c885f59bdaf59128482c91d0a5117958f4c779e9ce5eb618e47c35c232d5174b",
       "bytes": 2391458,
@@ -161,14 +174,14 @@
       "mtime_ns": 1787732944158320924
     },
     "data/factor_validation_summary.parquet": {
-      "sha256": "90705b49a72e9c017b4a1d7a42b086099f79e2aecf90c98dbc00cdec175197b8",
-      "bytes": 33035,
-      "mtime_ns": 1787792149633472346
+      "sha256": "0d6a35cf80272eecfe3a7bdd21946a8ab4dc95c3ada5a77de2588481a3819b33",
+      "bytes": 35466,
+      "mtime_ns": 1787878916190125975
     },
     "data/factor_validation_summary_neutral.parquet": {
-      "sha256": "78c12535e0234af7397f6d7b4ef8edc32932c8368b67c2ec06bf505e3ad3a538",
-      "bytes": 33011,
-      "mtime_ns": 1787792153863416223
+      "sha256": "58ffb77ad1a362df2c3945e93425505e06c613a78f998f6f89d436e2bfded450",
+      "bytes": 35444,
+      "mtime_ns": 1787878921064653913
     }
   },
   "capabilities": {
