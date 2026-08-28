@@ -232,15 +232,26 @@ async function ensureDataManifest() {
   return state.dataManifest;
 }
 
+function topMetaText(manifest = {}, factorCount = 0) {
+  const latestDataDate = manifest.latest_data_date;
+  const completedSignalEnd = manifest.completed_backtest_signal_end_date;
+  const completedSignalMonths = Number(manifest.completed_backtest_signal_months);
+  const parts = [`${factorCount} 因子`];
+  if (latestDataDate) parts.push(`最新数据截面 ${latestDataDate}`);
+  if (completedSignalEnd) {
+    const count = Number.isFinite(completedSignalMonths) && completedSignalMonths > 0
+      ? `${completedSignalMonths} 个`
+      : "";
+    parts.push(`${count}已完成回测信号月截至 ${completedSignalEnd}`);
+  }
+  return parts.length > 1 ? parts.join(" · ") : `${factorCount} 因子可用`;
+}
+
 function renderTopMeta() {
   const m = state.dataManifest || {};
-  const asOf = m.return_end_date || m.backtest_end_month;
-  const universe = m.stock_universe_rule === "word_v2" ? "Word股票池" : "历史股票池";
   const countLabel = document.getElementById("factor-count-label");
   if (countLabel) countLabel.textContent = `${state.catalog.length}因子`;
-  document.getElementById("meta").textContent = asOf
-    ? `${state.catalog.length} 因子 · 数据截至 ${asOf} · ${universe}`
-    : `${state.catalog.length} 因子可用`;
+  document.getElementById("meta").textContent = topMetaText(m, state.catalog.length);
 }
 
 async function fetchJson(url) {

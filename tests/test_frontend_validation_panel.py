@@ -1741,11 +1741,42 @@ def test_single_factor_kpi_and_validation_share_exact_holding_period_benchmark_r
     assert ".cost-sensitivity-table" in styles
 
 
+def test_top_meta_uses_latest_cross_section_and_completed_signal_dates():
+    source = APP_JS.read_text(encoding="utf-8")
+    helper = _source_between(source, "function topMetaText", "function renderTopMeta")
+    renderer = _source_between(source, "function renderTopMeta", "async function fetchJson")
+    result = _frontend_eval_json([
+        helper,
+        "const manifest = {",
+        "  latest_data_date: '2026-07-31',",
+        "  completed_backtest_signal_months: 137,",
+        "  completed_backtest_signal_end_date: '2026-05-29',",
+        "  return_end_date: '2026-07-01',",
+        "  stock_universe_rule: 'word_v2',",
+        "};",
+        "console.log(JSON.stringify({",
+        "  full: topMetaText(manifest, 146),",
+        "  fallback: topMetaText({}, 146),",
+        "}));",
+    ])
+
+    assert result["full"] == (
+        "146 因子 · 最新数据截面 2026-07-31 · "
+        "137 个已完成回测信号月截至 2026-05-29"
+    )
+    assert result["fallback"] == "146 因子可用"
+    assert "2026-07-01" not in result["full"]
+    assert "Word股票池" not in result["full"]
+    assert "return_end_date" not in helper
+    assert "stock_universe_rule" not in helper
+    assert "topMetaText(m, state.catalog.length)" in renderer
+
+
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.12</title>" in index
-    assert "<b>因子库 v2.0.12</b>" in index
+    assert "<title>因子库 v2.0.13</title>" in index
+    assert "<b>因子库 v2.0.13</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 
