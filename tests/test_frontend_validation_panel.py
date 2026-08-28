@@ -1741,7 +1741,68 @@ def test_single_factor_kpi_and_validation_share_exact_holding_period_benchmark_r
     assert ".cost-sensitivity-table" in styles
 
 
-def test_top_meta_uses_latest_cross_section_and_completed_signal_dates():
+def test_compare_compose_combo_and_ranking_excess_use_exact_holding_period_returns():
+    source = APP_JS.read_text(encoding="utf-8")
+    metric_helpers = _source_between(source, "function computeMetrics(rets, navs)", "function monthIdFromLabel")
+    benchmark_helpers = _source_between(
+        source,
+        "function alignedBenchmarkPeriodReturns",
+        "function estimateCostAdjustedReturns",
+    )
+    nav_helper = _source_between(source, "function navFromReturnsForChart", "function labelsFromReturnDates")
+    benchmark_metric_helper = _source_between(source, "function benchmarkMetrics", "async function renderNavChartSide")
+    range_helpers = _source_between(source, "function monthsFromSnapshot", "function mergeBacktestChartLabels")
+    result = _frontend_eval_json([
+        metric_helpers,
+        nav_helper,
+        benchmark_helpers,
+        range_helpers,
+        benchmark_metric_helper,
+        "const snapshot={periods:{",
+        " return_dates:['2025-03-03','2025-04-01','2025-05-06'],",
+        " returns:{HS300:[0.50,0.02,-0.01]}",
+        "}};",
+        "const bt=backtestFromReturnSeries(",
+        " ['2025-03-03','2025-04-01','2025-05-06'],",
+        " [0.99,0.05,0.03],",
+        " [1,2],",
+        ");",
+        "const actual=benchmarkComparisonForBacktest(bt,snapshot,'HS300');",
+        "const expected=metricsFromReturns([0.03,0.04]);",
+        "const benchmarkMetricsExact=benchmarkMetrics(snapshot,'2025-04','2025-05');",
+        "console.log(JSON.stringify({bt,actual,expected,benchmarkMetricsExact}));",
+    ])
+
+    assert result["bt"]["x"] == ["2025-04-01", "2025-05-06"]
+    assert result["actual"]["n"] == 2
+    assert result["actual"]["annual"] == pytest.approx(result["expected"]["annual"])
+    assert result["actual"]["mdd"] == pytest.approx(result["expected"]["mdd"])
+    assert result["benchmarkMetricsExact"]["HS300"]["annual"] == pytest.approx(
+        _frontend_compute_metrics([0.02, -0.01])["annual"]
+    )
+
+    compare = _source_between(source, "async function renderCmpTable", "async function renderCmpNav")
+    ranking = _source_between(source, "async function computeRankingFast", "function makeZScorer")
+    combo_ranking = _source_between(source, "function comboRankingRowFromPayload", "function comboRankingErrorRow")
+    combo_payload = _source_between(source, "async function comboValidationPayload", "function perturbComboCoreWeight")
+    compose_kpi = _source_between(source, "async function renderComposeBacktest", "function renderComposeIcDecayUnavailable")
+    compose_validation = _source_between(source, "async function renderComposeValidation", "async function ensureCmpBase")
+    saved_compare = _source_between(source, "async function renderComboCompare", "function weightGrid")
+
+    for section in (compare, ranking, combo_payload, compose_kpi, saved_compare):
+        assert "benchmarkComparisonForBacktest" in section
+    assert "benchmarkExcess" in combo_ranking
+    assert "benchmarkExcess" in compose_validation
+    assert "top30ExcessAnnual: f.top30_excess_ann_return" not in ranking
+    assert "top30ExcessMdd: f.top30_excess_max_drawdown" not in ranking
+    assert "m.annual -" not in compare
+    assert "m.annual -" not in combo_ranking
+    assert "m.annual -" not in compose_kpi
+    assert "m.annual -" not in compose_validation
+    assert "m.annual -" not in saved_compare
+
+
+def test_top_meta_only_uses_latest_cross_section_date():
     source = APP_JS.read_text(encoding="utf-8")
     helper = _source_between(source, "function topMetaText", "function renderTopMeta")
     renderer = _source_between(source, "function renderTopMeta", "async function fetchJson")
@@ -1760,14 +1821,12 @@ def test_top_meta_uses_latest_cross_section_and_completed_signal_dates():
         "}));",
     ])
 
-    assert result["full"] == (
-        "146 因子 · 最新数据截面 2026-07-31 · "
-        "137 个已完成回测信号月截至 2026-05-29"
-    )
+    assert result["full"] == "146 因子 · 最新数据截面 2026-07-31"
     assert result["fallback"] == "146 因子可用"
     assert "2026-07-01" not in result["full"]
     assert "Word股票池" not in result["full"]
     assert "return_end_date" not in helper
+    assert "completed_backtest_signal" not in helper
     assert "stock_universe_rule" not in helper
     assert "topMetaText(m, state.catalog.length)" in renderer
 
@@ -1775,8 +1834,8 @@ def test_top_meta_uses_latest_cross_section_and_completed_signal_dates():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.0.13</title>" in index
-    assert "<b>因子库 v2.0.13</b>" in index
+    assert "<title>因子库 v2.0.14</title>" in index
+    assert "<b>因子库 v2.0.14</b>" in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

@@ -234,16 +234,8 @@ async function ensureDataManifest() {
 
 function topMetaText(manifest = {}, factorCount = 0) {
   const latestDataDate = manifest.latest_data_date;
-  const completedSignalEnd = manifest.completed_backtest_signal_end_date;
-  const completedSignalMonths = Number(manifest.completed_backtest_signal_months);
   const parts = [`${factorCount} 因子`];
   if (latestDataDate) parts.push(`最新数据截面 ${latestDataDate}`);
-  if (completedSignalEnd) {
-    const count = Number.isFinite(completedSignalMonths) && completedSignalMonths > 0
-      ? `${completedSignalMonths} 个`
-      : "";
-    parts.push(`${count}已完成回测信号月截至 ${completedSignalEnd}`);
-  }
   return parts.length > 1 ? parts.join(" · ") : `${factorCount} 因子可用`;
 }
 
@@ -2401,6 +2393,24 @@ function alignedBenchmarkPeriodReturns(snapshot, returnDates, indexCode) {
   });
 }
 
+function backtestFromReturnSeries(returnDates, returns, indexes = null) {
+  const selected = Array.isArray(indexes)
+    ? indexes
+    : Array.from({ length: Math.min(returnDates?.length || 0, returns?.length || 0) }, (_, i) => i);
+  const x = [];
+  const retArr = [];
+  for (const i of selected) {
+    const label = returnDates?.[i];
+    const value = returns?.[i];
+    if (label === null || label === undefined || value === null || value === undefined) continue;
+    const ret = Number(value);
+    if (!Number.isFinite(ret)) continue;
+    x.push(String(label));
+    retArr.push(ret);
+  }
+  return { x, retArr, navArr: navFromReturnsForChart(retArr), turnoverArr: [] };
+}
+
 function benchmarkComparisonForBacktest(bt, snapshot, indexCode) {
   if (!bt?.retArr?.length || !Array.isArray(bt.x)) {
     return { annual: null, mdd: null, n: 0, total: 0, benchmark: null };
@@ -3583,6 +3593,23 @@ function rebaseNav(arr) {
 
 function benchmarkMetrics(snapshot, startMonth = null, endMonth = null) {
   const out = {};
+  const periodDates = snapshot?.periods?.return_dates || [];
+  const periodReturns = snapshot?.periods?.returns || {};
+  if (periodDates.length && Object.keys(periodReturns).length) {
+    const idxs = [];
+    for (let i = 0; i < periodDates.length; i += 1) {
+      const month = monthOfLabel(periodDates[i]);
+      if (startMonth && month < startMonth) continue;
+      if (endMonth && month > endMonth) continue;
+      idxs.push(i);
+    }
+    for (const [code, arr] of Object.entries(periodReturns)) {
+      const rets = sliceByIndexes(arr, idxs);
+      const metrics = metricsFromReturns(rets);
+      if (metrics) out[code] = metrics;
+    }
+    return out;
+  }
   const months = snapshot?.months || [];
   const idxs = rangeFilterIndexes(months, startMonth, endMonth);
   for (const [code, arr] of Object.entries(snapshot?.nav || {})) {
@@ -4255,7 +4282,9 @@ async function renderCmpTable() {
   const inList = [...new Set(state.compareFactors.map(f => `'${f.code}'`))].join(",");
   // 各因子用各自 n 取月收益；按 (code,n) 分组（同因子可重复用不同 N）
   const res = await state.db.query(`
-    SELECT factor_code, top_n, port_ret, nav FROM preset_backtest
+    SELECT factor_code, top_n, port_ret, nav,
+           strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS return_date
+    FROM preset_backtest
     WHERE ${cmpPairCond()}
       ${backtestRangeWhere(state.compareStart, state.compareEnd)}
     ORDER BY factor_code, top_n, trade_date
@@ -4263,8 +4292,11 @@ async function renderCmpTable() {
   const byKey = {};
   for (const r of res.toArray()) {
     const k = `${r.factor_code}_${r.top_n}`;
-    if (!byKey[k]) byKey[k] = { rets: [] };
-    if (r.port_ret !== null) byKey[k].rets.push(r.port_ret);
+    if (!byKey[k]) byKey[k] = { rets: [], returnDates: [] };
+    if (r.port_ret !== null && Number.isFinite(Number(r.port_ret)) && r.return_date) {
+      byKey[k].rets.push(Number(r.port_ret));
+      byKey[k].returnDates.push(String(r.return_date));
+    }
   }
   // 各因子 IC 统计（与 N 无关）：区间内 RankIC 均值 + 年化 IC_IR。
   const icRes = await state.db.query(`
@@ -4282,7 +4314,7 @@ async function renderCmpTable() {
     icMap[r.factor_code].values.push(r.rank_ic);
   }
 
-  const ba = await benchAnnuals();
+  const benchmarkSnapshot = await ensureBenchmarkSnapshot();
   const pct = (v) => (v * 100).toFixed(1) + "%";
   const num = (v, d = 2) => (v === null || v === undefined || !Number.isFinite(v) ? "—" : Number(v).toFixed(d));
 
@@ -4292,16 +4324,18 @@ async function renderCmpTable() {
     const code = f.code;
     f.side = normalizeSide(f.side);
     let m = null;
+    let bt = null;
     if (f.side === 1) {
       const d = byKey[`${code}_${f.n}`];
+      bt = d ? backtestFromReturnSeries(d.returnDates, d.rets) : null;
       m = d ? metricsFromReturns(d.rets) : null;
     } else {
       const fullBt = await factorSideBacktest(code, f.side, f.n, {
         scoreMode: f.scoreMode,
         constraintMode: f.constraintMode,
       });
-      const sliced = sliceBacktestByRange(fullBt, state.compareStart, state.compareEnd);
-      m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
+      bt = sliceBacktestByRange(fullBt, state.compareStart, state.compareEnd);
+      m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     }
     const ic = icMap[code] || { months: [], values: [] };
     const icStats = rankIcStats(ic.months, ic.values, f.side, 1);
@@ -4309,7 +4343,7 @@ async function renderCmpTable() {
     if (!m) { factors.push({ label, noData: true }); continue; }
     factors.push({
       label, annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
-      ex300: ("HS300" in ba) ? (m.annual - ba.HS300) : null,
+      ex300: bt ? benchmarkComparisonForBacktest(bt, benchmarkSnapshot, "HS300").annual : null,
       ic_mean: icStats.mean,
       icir: icStats.ir,
     });
@@ -4354,17 +4388,18 @@ async function renderCmpTableFast() {
     const scoreSnap = activeScoreSnapshotFor(snap, f.scoreMode);
     const portSnap = activePortfolioSnapshotFor(snap, f.scoreMode, f.constraintMode);
     let m = null;
+    let bt = null;
     if (f.side === 1) {
-      const bt = snapshotBacktestByRange(portSnap, f.n, state.compareStart, state.compareEnd);
+      bt = snapshotBacktestByRange(portSnap, f.n, state.compareStart, state.compareEnd);
       m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     } else {
-      const sliced = await exactSideBacktestByRange(f.code, f.side, f.n, {
+      bt = await exactSideBacktestByRange(f.code, f.side, f.n, {
         scoreMode: f.scoreMode,
         constraintMode: f.constraintMode,
         startMonth: state.compareStart,
         endMonth: state.compareEnd,
       });
-      m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
+      m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
     }
     const icMonths = scoreSnap.ic?.months || [];
     const icIdxs = rangeFilterIndexes(icMonths, state.compareStart, state.compareEnd);
@@ -4378,7 +4413,7 @@ async function renderCmpTableFast() {
     if (!m) { factors.push({ label, noData: true }); continue; }
     factors.push({
       label, annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd, winRate: m.winRate,
-      ex300: ba.HS300 ? (m.annual - ba.HS300.annual) : null,
+      ex300: benchmarkComparisonForBacktest(bt, bm, "HS300").annual,
       ic_mean: rankStats.mean, icir: rankStats.ir,
     });
   }
@@ -5518,7 +5553,9 @@ async function factorMarketCap() {
 // startMonth/endMonth: 'YYYY-MM'（含端点）；null 表示不限。
 async function computeRankingFast(startMonth, endMonth) {
   const snap = await ensureRankingSnapshot();
+  const benchmarkSnapshot = await ensureBenchmarkSnapshot();
   const months = snap.months || [];
+  const returnDates = snap.return_dates || months;
   const side = normalizeSide(_rankState.side);
   if (side !== 1) throw new Error("反向因子排行需逐因子重排持仓，不能由默认方向收益翻号得到。");
   const retKey = normalizeScoreMode(_rankState.scoreMode) === "neutral"
@@ -5529,7 +5566,8 @@ async function computeRankingFast(startMonth, endMonth) {
   const idxs = rangeFilterIndexes(months, startMonth, endMonth);
   const rows = [];
   for (const f of snap.factors || []) {
-    const rets = sliceByIndexes(f[retKey] || f.top30_ret, idxs);
+    const bt = backtestFromReturnSeries(returnDates, f[retKey] || f.top30_ret, idxs);
+    const rets = bt.retArr;
     // 月份标签不能走数值切片；否则 "YYYY-MM" 会被 Number() 过滤，IC_IR 因缺少年化频率而回退为 0。
     const rankStats = rankIcStats(labelsByIndexes(months, idxs), sliceByIndexes(f[icKey] || f.rank_ic, idxs), side, 1);
     const decayStats = filteredIcDecayStats(f[decayKey], side, startMonth, endMonth);
@@ -5540,6 +5578,7 @@ async function computeRankingFast(startMonth, endMonth) {
     };
     const m = metricsFromReturns(rets);
     if (!m) continue;
+    const excess = benchmarkComparisonForBacktest(bt, benchmarkSnapshot, "HS300");
     const rankIC = rankStats.mean ?? 0;
     const icir = rankStats.ir ?? 0;
     rows.push({
@@ -5550,8 +5589,8 @@ async function computeRankingFast(startMonth, endMonth) {
       rankIcP: f.rank_ic_p_value_1m ?? null,
       rankIcQ: f.rank_ic_q_value_1m ?? null,
       rankIcWinRate: f.rank_ic_win_rate_1m ?? null,
-      top30ExcessAnnual: f.top30_excess_ann_return ?? null,
-      top30ExcessMdd: f.top30_excess_max_drawdown ?? null,
+      top30ExcessAnnual: excess.annual,
+      top30ExcessMdd: excess.mdd,
       group10Mono: f.group10_monotonicity ?? null,
       top30Turnover: f.top30_avg_turnover ?? null,
       top30ActualNLatest: f.top30ActualNLatest ?? null,
@@ -5598,16 +5637,20 @@ async function computeRanking(startMonth, endMonth) {
 
   // 1) top-30 区间内的月度收益 → 在区间内重建 NAV（从 1.0 起），再算年化/夏普/回撤/胜率
   const btRes = await state.db.query(`
-    SELECT factor_code, port_ret FROM preset_backtest
+    SELECT factor_code, port_ret,
+           strftime(COALESCE(return_date, trade_date), '%Y-%m-%d') AS return_date
+    FROM preset_backtest
     WHERE ${btWhere.join(" AND ")} ORDER BY factor_code, trade_date
   `);
-  const series = new Map();   // code → {rets, navs}
+  const series = new Map();   // code → {rets, navs, returnDates}
   for (const r of btRes.toArray()) {
-    if (!series.has(r.factor_code)) series.set(r.factor_code, { rets: [], navs: [1] });
+    if (!series.has(r.factor_code)) series.set(r.factor_code, { rets: [], navs: [1], returnDates: [] });
     const o = series.get(r.factor_code);
-    o.rets.push(r.port_ret);
+    if (r.port_ret === null || !Number.isFinite(Number(r.port_ret)) || !r.return_date) continue;
+    o.rets.push(Number(r.port_ret));
+    o.returnDates.push(String(r.return_date));
     const prev = o.navs[o.navs.length - 1];
-    o.navs.push(prev * (1 + r.port_ret));   // 区间内重建净值，保证回撤/年化口径对齐区间
+    o.navs.push(prev * (1 + Number(r.port_ret)));   // 区间内重建净值，保证回撤/年化口径对齐区间
   }
   // 2) IC 统计：区间内 RankIC 均值 + IC_IR（按有效观测频率年化）
   const icRes = await state.db.query(`
@@ -5627,6 +5670,7 @@ async function computeRanking(startMonth, endMonth) {
   // 2.5) 每因子 top-30 选股的前三行业 + 市值特征（最新截面，与时间区间无关，缓存只查一次）
   const ind3 = await factorTop3Industries();
   const mcap = await factorMarketCap();
+  const benchmarkSnapshot = await ensureBenchmarkSnapshot();
 
   // 3) 每因子汇总指标
   const rows = [];
@@ -5636,6 +5680,11 @@ async function computeRanking(startMonth, endMonth) {
     const icSeries = icStat.get(f.code) || { months: [], values: [] };
     const ic = rankIcStats(icSeries.months, icSeries.values, 1, 1);
     if (!m) continue;
+    const excess = benchmarkComparisonForBacktest(
+      backtestFromReturnSeries(s.returnDates, s.rets),
+      benchmarkSnapshot,
+      "HS300",
+    );
     const mc = mcap.get(f.code);
     rows.push({
       code: f.code, name_cn: f.name_cn, l1: f.l1, l2: f.l2,
@@ -5645,8 +5694,8 @@ async function computeRanking(startMonth, endMonth) {
       rankIcP: null,
       rankIcQ: null,
       rankIcWinRate: null,
-      top30ExcessAnnual: null,
-      top30ExcessMdd: null,
+      top30ExcessAnnual: excess.annual,
+      top30ExcessMdd: excess.mdd,
       group10Mono: null,
       top30Turnover: null,
       top30ActualNLatest: null,
@@ -6292,7 +6341,7 @@ function comboRankingScore(row) {
 function comboRankingRowFromPayload(source, combo, payload) {
   const m = payload.metrics || {};
   const rank = payload.rankStats || {};
-  const bm = payload.benchmarkMetrics || {};
+  const benchmarkExcess = payload.benchmarkExcess || {};
   const corrRows = payload.correlation?.rows || [];
   const maxAbsCorr = corrRows.length ? Math.max(...corrRows.map(r => Math.abs(Number(r.corr) || 0))) : null;
   const best = payload.singleComparison?.best || null;
@@ -6312,8 +6361,8 @@ function comboRankingRowFromPayload(source, combo, payload) {
     sharpe: m.sharpe ?? null,
     max_drawdown: m.mdd ?? null,
     win_rate: m.winRate ?? null,
-    excess_300: (m.annual !== null && m.annual !== undefined && bm.HS300) ? m.annual - bm.HS300.annual : null,
-    excess_800: (m.annual !== null && m.annual !== undefined && bm.CSI800) ? m.annual - bm.CSI800.annual : null,
+    excess_300: benchmarkExcess.HS300?.annual ?? null,
+    excess_800: benchmarkExcess.CSI800?.annual ?? null,
     monotonicity: payload.group10?.monotonicity ?? null,
     ls_ann_return: payload.group10?.ls?.annual ?? null,
     max_abs_corr: maxAbsCorr,
@@ -7326,9 +7375,15 @@ async function renderComposeBacktest(renderSeq) {
   const signed = v => (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
   const bmSnapForKpi = await ensureBenchmarkSnapshot();
   if (isComposeRenderStale(renderSeq)) return;
-  const bg = benchmarkMetrics(bmSnapForKpi, state.composeStart, state.composeEnd);
-  const ex300 = bg.HS300 ? signed(m.annual - bg.HS300.annual) : "—";
-  const ex800 = bg.CSI800 ? signed(m.annual - bg.CSI800.annual) : "—";
+  const bg = {};
+  const excess = {};
+  for (const code of ["HS300", "CSI800", "CSI500"]) {
+    const comparison = benchmarkComparisonForBacktest(bt, bmSnapForKpi, code);
+    if (comparison.benchmark) bg[code] = comparison.benchmark;
+    excess[code] = comparison;
+  }
+  const ex300 = excess.HS300.annual === null ? "—" : signed(excess.HS300.annual);
+  const ex800 = excess.CSI800.annual === null ? "—" : signed(excess.CSI800.annual);
   let krows = `<tr><td><b>合成组合</b></td><td>${pct(m.annual)}</td><td>${pct(m.vol)}</td><td>${numText(m.sharpe, 2)}</td><td>${pct(m.mdd)}</td>
       <td>${(m.winRate*100).toFixed(0)}%</td><td>${ex300}</td><td>${ex800}</td></tr>`;
   // 三基准行（绝对指标）
@@ -8107,7 +8162,18 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
   const correlation = await comboCorrelationWarnings(factors);
   const singleComparison = await comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth);
   const bm = await ensureBenchmarkSnapshot();
-  const bg = benchmarkMetrics(bm, startMonth, endMonth);
+  const bg = {};
+  const benchmarkExcess = {};
+  for (const code of ["HS300", "CSI800", "CSI500"]) {
+    const comparison = benchmarkComparisonForBacktest(bt, bm, code);
+    if (comparison.benchmark) bg[code] = comparison.benchmark;
+    benchmarkExcess[code] = {
+      annual: comparison.annual,
+      mdd: comparison.mdd,
+      n: comparison.n,
+      total: comparison.total,
+    };
+  }
   const basePayload = {
     factors: cloneComposeFactors(factors),
     N,
@@ -8121,6 +8187,7 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
     correlation,
     singleComparison,
     benchmarkMetrics: bg,
+    benchmarkExcess,
   };
   if (options.includeCrowding !== false) {
     basePayload.crowdingDiagnostics = await comboCrowdingDiagnostics(basePayload);
@@ -8762,8 +8829,8 @@ async function renderComposeValidation(renderSeq) {
     if (isComposeRenderStale(renderSeq)) return;
     const m = payload.metrics;
     const rank = payload.rankStats || {};
-    const ex300 = (m && payload.benchmarkMetrics?.HS300) ? m.annual - payload.benchmarkMetrics.HS300.annual : null;
-    const ex800 = (m && payload.benchmarkMetrics?.CSI800) ? m.annual - payload.benchmarkMetrics.CSI800.annual : null;
+    const ex300 = payload.benchmarkExcess?.HS300?.annual ?? null;
+    const ex800 = payload.benchmarkExcess?.CSI800?.annual ?? null;
     const groupMono = payload.group10?.monotonicity ?? null;
     const ls = payload.group10?.ls;
     const horizons = (payload.icDecay?.stats || []).map(s => `<tr>
@@ -9307,6 +9374,7 @@ async function renderComboCompare() {
   const benchmarkRows = [];
   const bcolors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
   const bcn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
+  const bmSnap = withData.length ? await ensureBenchmarkSnapshot() : null;
 
   // —— 净值叠加图（只画有数据的组合）——
   if (cpsCompareChart) { cpsCompareChart.dispose(); cpsCompareChart = null; }
@@ -9321,7 +9389,6 @@ async function renderComboCompare() {
         color: c.color, lineStyle: { width: 2 } };
     });
     if (allMonths.length) {
-      const bmSnap = await ensureBenchmarkSnapshot();
       for (const idx of ["HS300", "CSI800", "CSI500"]) {
         const aligned = benchmarkNavForBacktest(bmSnap, allMonths, idx);
         const b = aligned.find(v => v !== null);
@@ -9352,8 +9419,6 @@ async function renderComboCompare() {
   }
 
   // —— 指标对比表：列出所有暂存组合和基准；点击表头可按指标排序 ——
-  const hs300Annual = benchmarkRows.find(r => r.label === "沪深300")?.annual;
-  const exBase = hs300Annual;
   const rows = [];
   for (const c of rangedCombos) {
     const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c.color};margin-right:5px"></span>`;
@@ -9367,7 +9432,7 @@ async function renderComboCompare() {
       labelHtml: `${dot}${c.name}`,
       annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd,
       winRate: m.winRate,
-      ex300: Number.isFinite(exBase) ? m.annual - exBase : null,
+      ex300: benchmarkComparisonForBacktest(c.viewBt, bmSnap, "HS300").annual,
       navEnd: m.navEnd,
     });
   }
