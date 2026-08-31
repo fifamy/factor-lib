@@ -121,9 +121,15 @@ try {
       || u.includes("stock_descriptors.parquet")
     );
     if (forbidden.length) throw new Error("Compose requested slow data files: " + forbidden.join(", "));
+    // MOM12_1 is also opened in single-factor mode above. The application keeps
+    // that compose shard in its in-memory cache, so the compose workflow should
+    // reuse it instead of issuing a second request. Verify one request across the
+    // complete journey rather than requiring every shard to be fetched again in
+    // the compose measurement window.
+    const workflowReqs = results.flatMap(r => r.dataRequests);
     for (const code of ["MOM12_1", "REV1M"]) {
-      const hits = composeReqs.filter(u => new URL(u).pathname.endsWith(`/compose_scores/${code}.parquet`)).length;
-      if (hits !== 1) throw new Error(`Compose shard ${code} requested ${hits} times, expected once`);
+      const hits = workflowReqs.filter(u => new URL(u).pathname.endsWith(`/compose_scores/${code}.parquet`)).length;
+      if (hits !== 1) throw new Error(`Workflow shard ${code} requested ${hits} times, expected once`);
     }
   }
 } catch (err) {
