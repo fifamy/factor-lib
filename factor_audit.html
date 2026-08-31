@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>因子核对 · 因子库 v2.0.14</title>
   <link rel="stylesheet" href="vendor/katex.min.css">
-  <link rel="stylesheet" href="factor_audit.css?v=20260828151040">
+  <link rel="stylesheet" href="factor_audit.css?v=20260831151410">
 </head>
 <body>
   <header class="fa-header">
-    <div class="fa-title">因子核对 <span class="fa-sub">每个因子：覆盖 · 分布 · 方向 · 对账 · 体检</span></div>
+    <h1 class="fa-title">因子核对 <span class="fa-sub">每个因子：覆盖 · 分布 · 方向 · 对账 · 体检</span></h1>
     <a class="fa-back" href="index.html">← 返回因子库</a>
   </header>
   <section class="fa-toolbar">
@@ -27,6 +27,7 @@
       <button data-filter="formula_mismatch">仅口径不一致</button>
       <button data-filter="universe_mismatch">仅样本空间不一致</button>
       <button data-filter="parameter_mismatch">仅参数待补</button>
+      <button data-filter="recon_coverage_difference">仅覆盖差异</button>
       <button data-filter="review_unreviewed">未复核</button>
       <button data-filter="review_in_progress">进行中</button>
       <button data-filter="review_issue">有问题</button>
@@ -37,7 +38,8 @@
       <button data-filter="resolution_pending_research">待研究</button>
       <button data-filter="resolution_not_planned">已评估保留</button>
     </div>
-    <input id="fa-search" type="search" placeholder="搜索 代码/名称/分类…">
+    <label class="fa-visually-hidden" for="fa-search">搜索因子代码、名称或分类</label>
+    <input id="fa-search" type="search" placeholder="搜索 代码/名称/分类…" autocomplete="off">
     <label class="fa-reviewer-box">我是谁
       <input id="fa-reviewer-name" type="text" placeholder="填写姓名">
     </label>
@@ -48,7 +50,12 @@
   <section id="fa-methodology-warning" class="fa-methodology-warning">
     行业口径提示：行业分层、行业中性组合和行业市值中性化均使用月末时点有效的历史申万一级行业 PIT（按 ENTRY_DT/REMOVE_DT 判定）；缺少当月有效映射的股票不参与相应行业计算。
   </section>
+  <section id="fa-verification-summary" class="fa-verification-summary" aria-live="polite">
+    正在加载计算复核证据级别…
+  </section>
   <main class="fa-main">
+    <p class="fa-scroll-hint" id="fa-table-scroll-hint">表格可左右滑动；首列固定，按 Enter 或空格打开因子详情。</p>
+    <div class="fa-table-wrap" role="region" aria-label="因子核对明细表，可横向滚动" aria-describedby="fa-table-scroll-hint" tabindex="0">
     <table id="fa-table" class="fa-table">
       <thead><tr>
         <th>因子</th><th>分类</th><th>计算公式</th><th>样本空间</th><th>参数覆盖</th><th>复核状态</th><th>处理状态</th><th class="fa-help" title="覆盖率 = 该因子有值的(股票×月末)格 ÷ 同期 Word 股票池。&#10;· 低于100%：多为事件因子(业绩快报)、数据起步晚、或需长历史窗口导致的正常缺失。&#10;· 高于100%：说明实际计算样本超出 Word 股票池，需要复核。&#10;判断『算得对不对』请看右侧『对账』列；覆盖率只反映因子铺得多广。">覆盖率 ⓘ</th><th>分布</th>
@@ -56,6 +63,7 @@
       </tr></thead>
       <tbody id="fa-tbody"></tbody>
     </table>
+    </div>
     <section id="fa-dashboard" class="fa-dashboard hidden">
       <div class="fa-dashboard-head">
         <h2>汇总看板</h2>
@@ -79,7 +87,8 @@
             <h3 id="fa-retained-review-heading">已评估保留与原人工问题复核明细</h3>
             <span id="fa-retained-review-count" class="fa-retained-review-count"></span>
           </div>
-          <input id="fa-retained-search" type="search" placeholder="筛选保留与历史复核因子…">
+          <label class="fa-visually-hidden" for="fa-retained-search">筛选保留与历史复核因子</label>
+          <input id="fa-retained-search" type="search" placeholder="筛选保留与历史复核因子…" autocomplete="off">
         </div>
         <div class="fa-retained-table-wrap">
           <table class="fa-retained-table">
@@ -132,13 +141,13 @@
       </div>
     </section>
   </main>
-  <div id="fa-drawer" class="fa-drawer hidden">
-    <div class="fa-drawer-inner">
-      <button id="fa-close" class="fa-close">✕</button>
+  <div id="fa-drawer" class="fa-drawer hidden" aria-hidden="true">
+    <div class="fa-drawer-inner" role="dialog" aria-modal="true" aria-labelledby="fa-detail-title" tabindex="-1">
+      <button id="fa-close" class="fa-close" type="button" aria-label="关闭因子详情">✕</button>
       <div id="fa-detail"></div>
     </div>
   </div>
   <script src="vendor/katex.min.js"></script>
-  <script src="factor_audit.js?v=20260828151040"></script>
+  <script src="factor_audit.js?v=20260831151410"></script>
 </body>
 </html>

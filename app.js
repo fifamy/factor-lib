@@ -1374,6 +1374,7 @@ async function selectFactor(code, opts = {}) {
     console.log(`selectFactor(${code}, N=[${state.selectedNs}]) fast critical ${(performance.now()-tAll).toFixed(0)}ms (render ${(performance.now()-tQ).toFixed(0)}ms)`);
     renderSingleDeferredCharts(code, portfolioSnap, scoreSnap, seq);
     prefetchNearbySingleSnapshots(code);
+    prefetchComposeShard(code, state.singleScoreMode);
     scheduleDuckDbWarmup(1800);
   } catch (err) {
     if (seq !== _singleRenderSeq) return;
@@ -4067,6 +4068,20 @@ function updateTreeHighlight() {
 }
 
 function switchMode(mode) {
+  if (mode !== "ranking") {
+    if (_rankParamTimer) {
+      clearTimeout(_rankParamTimer);
+      _rankParamTimer = null;
+    }
+    _rankRenderSeq++;
+  }
+  if (mode !== "compose") {
+    clearTimeout(renderComposeSoon._timer);
+    renderComposeSoon._timer = null;
+    clearTimeout(_composeValidationTimer);
+    _composeValidationTimer = null;
+    _composeRenderSeq++;
+  }
   state.mode = mode;
   document.querySelectorAll(".mode-btn").forEach(b => {
     const active = b.dataset.mode === mode;
@@ -5144,7 +5159,8 @@ let _rankParamTimer = null;
 function updateRankParamInfo() {
   const el = document.getElementById("rank-param-info");
   if (!el) return;
-  el.textContent = `${sideLabel(_rankState.side)} / ${scoreModeLabel(_rankState.scoreMode)} / ${constraintModeLabel(_rankState.constraintMode)} / top30`;
+  const direction = normalizeSide(_rankState.side) === -1 ? "反向" : "默认方向";
+  el.textContent = `${direction} / ${scoreModeLabel(_rankState.scoreMode)} / ${constraintModeLabel(_rankState.constraintMode)} / top30`;
 }
 
 function bindRankParamControls() {
@@ -5882,6 +5898,8 @@ let _cpsBaseBuild = null;     // 进行中的重建 promise（串行锁）
 let _cpsMatrixCodes = [];
 const _composeFilePaths = new Map();
 const _composeFileLoads = new Map();
+const _composePrefetches = new Map();
+const _composePrefetchBuffers = new Map();
 let _latestComposeBtKey = null;
 let _latestComposeBt = null;
 const _composeBtCache = new Map();
@@ -5896,6 +5914,48 @@ function composeScorePath(code, scoreMode = "raw") {
 
 function composeShardKey(code, scoreMode = "raw") {
   return `${normalizeScoreMode(scoreMode)}|${code}`;
+}
+
+function prefetchComposeShard(code, scoreMode = "raw") {
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || "")) return;
+  const key = composeShardKey(code, scoreMode);
+  const keepKeys = new Set([key, ...composeFactorShards().map(item => item.key)]);
+  for (const [activeKey, entry] of _composePrefetches) {
+    if (keepKeys.has(activeKey)) continue;
+    entry.controller.abort();
+    _composePrefetches.delete(activeKey);
+  }
+  for (const bufferedKey of _composePrefetchBuffers.keys()) {
+    if (!keepKeys.has(bufferedKey)) _composePrefetchBuffers.delete(bufferedKey);
+  }
+  if (_composeFilePaths.has(key) || _composeFileLoads.has(key)
+      || _composePrefetches.has(key) || _composePrefetchBuffers.has(key)) return;
+  const controller = new AbortController();
+  const entry = { controller, promise: null };
+  entry.promise = fetch(composeScorePath(code, scoreMode), {
+    cache: "force-cache",
+    priority: "low",
+    signal: controller.signal,
+  })
+    .then(response => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.arrayBuffer();
+    })
+    .then(buffer => {
+      if (_composePrefetches.get(key) === entry) _composePrefetchBuffers.set(key, buffer);
+      return buffer;
+    })
+    .catch(error => {
+      if (error?.name !== "AbortError") {
+        console.warn(`合成分片预取失败 ${code}:`, error.message || error);
+      }
+      return null;
+    })
+    .finally(() => {
+      if (_composePrefetches.get(key) === entry) _composePrefetches.delete(key);
+    });
+  _composePrefetches.set(key, entry);
 }
 
 function composeFactorShards(factors = state.composeFactors) {
@@ -5914,15 +5974,24 @@ async function ensureComposeFiles(items) {
   await Promise.all(items.map(async (item) => {
     const key = item.key || composeShardKey(item.code, item.scoreMode);
     if (_composeFilePaths.has(key)) return;
+    let prefetched = _composePrefetchBuffers.get(key) || null;
+    const activePrefetch = _composePrefetches.get(key);
+    if (!prefetched && activePrefetch) prefetched = await activePrefetch.promise;
+    if (_composeFilePaths.has(key)) return;
     if (!_composeFileLoads.has(key)) {
       _composeFileLoads.set(key, (async () => {
         const url = composeScorePath(item.code, item.scoreMode);
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
-        const bytes = new Uint8Array(await res.arrayBuffer());
+        let buffer = prefetched || _composePrefetchBuffers.get(key) || null;
+        if (!buffer) {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+          buffer = await res.arrayBuffer();
+        }
+        const bytes = new Uint8Array(buffer);
         const path = `/${normalizeScoreMode(item.scoreMode) === "neutral" ? "compose_scores_neutral" : "compose_scores"}/${item.code}.parquet`;
         await state.duckdb.registerFileBuffer(path, bytes);
         _composeFilePaths.set(key, path);
+        _composePrefetchBuffers.delete(key);
       })());
     }
     await _composeFileLoads.get(key);
@@ -7180,9 +7249,26 @@ function renderComposeControls() {
 
 let _composeLoadedOnce = false;
 let _composeRenderSeq = 0;
+let _composeValidationTimer = null;
 
 function isComposeRenderStale(seq) {
   return seq !== _composeRenderSeq;
+}
+
+function scheduleComposeValidation(renderSeq, criticalPromise, delay = 1200) {
+  clearTimeout(_composeValidationTimer);
+  const target = document.getElementById("combo-validation");
+  if (target && !isComposeRenderStale(renderSeq)) {
+    target.innerHTML = `<div class="loading">关键结果完成后计算完整检验…</div>`;
+  }
+  Promise.resolve(criticalPromise).finally(() => {
+    if (isComposeRenderStale(renderSeq)) return;
+    _composeValidationTimer = setTimeout(() => {
+      _composeValidationTimer = null;
+      if (isComposeRenderStale(renderSeq)) return;
+      renderComposeValidation(renderSeq).catch(err => console.warn("合成延后检验失败:", err));
+    }, delay);
+  });
 }
 
 async function renderCompose() {
@@ -7245,10 +7331,9 @@ async function renderCompose() {
       renderComposeBacktest(renderSeq),
     ]);
     if (isComposeRenderStale(renderSeq)) return;
-    Promise.all([
-      renderComposeIcDecay(renderSeq),
-      renderComposeValidation(renderSeq),
-    ]).catch(err => console.warn("合成延后检验失败:", err));
+    const icPromise = renderComposeIcDecay(renderSeq)
+      .catch(err => console.warn("合成 IC 衰减计算失败:", err));
+    scheduleComposeValidation(renderSeq, icPromise);
   } catch (err) {
     if (isComposeRenderStale(renderSeq)) return;
     console.error("renderCompose failed:", err);
@@ -7423,7 +7508,6 @@ function composeIcDecaySql(factors = state.composeFactors, startMonth = state.co
              ANY_VALUE(return_date) AS return_date,
              stock_code,
              CAST(strftime(trade_date, '%Y') AS INTEGER) * 12 + CAST(strftime(trade_date, '%m') AS INTEGER) AS month_id,
-             CAST(strftime(ANY_VALUE(return_date), '%Y') AS INTEGER) * 12 + CAST(strftime(ANY_VALUE(return_date), '%m') AS INTEGER) AS return_month_id,
              ANY_VALUE(fwd_return) AS r1
       FROM cps_matrix
       WHERE ${validForwardReturnSql("fwd_return")}
@@ -7437,42 +7521,53 @@ function composeIcDecaySql(factors = state.composeFactors, startMonth = state.co
       FROM cps_matrix m
       WHERE (${scoreExpr}) IS NOT NULL ${condSql || ""} ${rangeSql}
     ),
+    ret_windows AS (
+      SELECT *,
+             LEAD(month_id, 2) OVER w AS end_month_3,
+             LEAD(return_date, 2) OVER w AS return_date_3,
+             (1+r1)
+               * (1+LEAD(r1, 1) OVER w)
+               * (1+LEAD(r1, 2) OVER w) - 1 AS r3,
+             LEAD(month_id, 5) OVER w AS end_month_6,
+             LEAD(return_date, 5) OVER w AS return_date_6,
+             (1+r1)
+               * (1+LEAD(r1, 1) OVER w)
+               * (1+LEAD(r1, 2) OVER w)
+               * (1+LEAD(r1, 3) OVER w)
+               * (1+LEAD(r1, 4) OVER w)
+               * (1+LEAD(r1, 5) OVER w) - 1 AS r6,
+             LEAD(month_id, 11) OVER w AS end_month_12,
+             LEAD(return_date, 11) OVER w AS return_date_12,
+             (1+r1)
+               * (1+LEAD(r1, 1) OVER w)
+               * (1+LEAD(r1, 2) OVER w)
+               * (1+LEAD(r1, 3) OVER w)
+               * (1+LEAD(r1, 4) OVER w)
+               * (1+LEAD(r1, 5) OVER w)
+               * (1+LEAD(r1, 6) OVER w)
+               * (1+LEAD(r1, 7) OVER w)
+               * (1+LEAD(r1, 8) OVER w)
+               * (1+LEAD(r1, 9) OVER w)
+               * (1+LEAD(r1, 10) OVER w)
+               * (1+LEAD(r1, 11) OVER w) - 1 AS r12
+      FROM ret_base
+      WINDOW w AS (PARTITION BY stock_code ORDER BY month_id)
+    ),
     horizon_returns AS (
       SELECT b1.trade_date, b1.stock_code, 1 AS h, b1.r1 AS fwd_return, b1.return_date
-      FROM ret_base b1
-      WHERE b1.return_month_id = b1.month_id + 1
+      FROM ret_windows b1
       UNION ALL
-      SELECT b1.trade_date, b1.stock_code, 3 AS h, (1+b1.r1)*(1+b2.r1)*(1+b3.r1)-1 AS fwd_return, b3.return_date
-      FROM ret_base b1
-      JOIN ret_base b2 ON b2.stock_code = b1.stock_code AND b2.month_id = b1.month_id + 1
-      JOIN ret_base b3 ON b3.stock_code = b1.stock_code AND b3.month_id = b1.month_id + 2 AND b3.return_month_id = b1.month_id + 3
+      SELECT trade_date, stock_code, 3 AS h, r3 AS fwd_return, return_date_3 AS return_date
+      FROM ret_windows
+      WHERE end_month_3 = month_id + 2
       UNION ALL
-      SELECT b1.trade_date, b1.stock_code, 6 AS h,
-             (1+b1.r1)*(1+b2.r1)*(1+b3.r1)*(1+b4.r1)*(1+b5.r1)*(1+b6.r1)-1 AS fwd_return,
-             b6.return_date
-      FROM ret_base b1
-      JOIN ret_base b2 ON b2.stock_code = b1.stock_code AND b2.month_id = b1.month_id + 1
-      JOIN ret_base b3 ON b3.stock_code = b1.stock_code AND b3.month_id = b1.month_id + 2
-      JOIN ret_base b4 ON b4.stock_code = b1.stock_code AND b4.month_id = b1.month_id + 3
-      JOIN ret_base b5 ON b5.stock_code = b1.stock_code AND b5.month_id = b1.month_id + 4
-      JOIN ret_base b6 ON b6.stock_code = b1.stock_code AND b6.month_id = b1.month_id + 5 AND b6.return_month_id = b1.month_id + 6
+      SELECT trade_date, stock_code, 6 AS h, r6 AS fwd_return, return_date_6 AS return_date
+      FROM ret_windows
+      WHERE end_month_6 = month_id + 5
       UNION ALL
-      SELECT b1.trade_date, b1.stock_code, 12 AS h,
-             (1+b1.r1)*(1+b2.r1)*(1+b3.r1)*(1+b4.r1)*(1+b5.r1)*(1+b6.r1)*
-             (1+b7.r1)*(1+b8.r1)*(1+b9.r1)*(1+b10.r1)*(1+b11.r1)*(1+b12.r1)-1 AS fwd_return,
-             b12.return_date
-      FROM ret_base b1
-      JOIN ret_base b2 ON b2.stock_code = b1.stock_code AND b2.month_id = b1.month_id + 1
-      JOIN ret_base b3 ON b3.stock_code = b1.stock_code AND b3.month_id = b1.month_id + 2
-      JOIN ret_base b4 ON b4.stock_code = b1.stock_code AND b4.month_id = b1.month_id + 3
-      JOIN ret_base b5 ON b5.stock_code = b1.stock_code AND b5.month_id = b1.month_id + 4
-      JOIN ret_base b6 ON b6.stock_code = b1.stock_code AND b6.month_id = b1.month_id + 5
-      JOIN ret_base b7 ON b7.stock_code = b1.stock_code AND b7.month_id = b1.month_id + 6
-      JOIN ret_base b8 ON b8.stock_code = b1.stock_code AND b8.month_id = b1.month_id + 7
-      JOIN ret_base b9 ON b9.stock_code = b1.stock_code AND b9.month_id = b1.month_id + 8
-      JOIN ret_base b10 ON b10.stock_code = b1.stock_code AND b10.month_id = b1.month_id + 9
-      JOIN ret_base b11 ON b11.stock_code = b1.stock_code AND b11.month_id = b1.month_id + 10
-      JOIN ret_base b12 ON b12.stock_code = b1.stock_code AND b12.month_id = b1.month_id + 11 AND b12.return_month_id = b1.month_id + 12
+      SELECT trade_date, stock_code, 12 AS h, r12 AS fwd_return, return_date_12 AS return_date
+      FROM ret_windows
+      WHERE end_month_12 = month_id + 11
     ),
     joined AS (
       SELECT s.trade_date, s.stock_code, s.cs, h, fwd_return, return_date

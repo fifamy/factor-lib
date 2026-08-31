@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>因子库 v2.0.14</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260828151040">
+  <link rel="stylesheet" href="styles.css?v=20260831151410">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <span><b>因子库 v2.0.14</b>　·　A股 · <span id="factor-count-label">加载中</span></span>
+    <h1 class="app-title">因子库 v2.0.14 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260828151040" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260831151410" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -62,16 +62,16 @@
             <button class="sgrange-btn" data-range="2016">2016</button>
             <button class="sgrange-btn" data-range="2015">2015</button>
             <span style="color:#999;font-size:11px;margin-left:8px">自定义：</span>
-            <select id="sg-start" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <select id="sg-start" aria-label="单因子回测开始月份" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
             <span style="color:#999;font-size:11px">~</span>
-            <select id="sg-end" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <select id="sg-end" aria-label="单因子回测结束月份" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
             <span id="sg-range-info" style="color:#888;font-size:11px;margin-left:4px"></span>
           </div>
           <p style="color:#999;font-size:11px;margin:6px 0 0 0">区间影响净值/KPI/指标扫描（区间内重建净值）；“名义 Top 30 股票”始终是最新月末截面，竞争秩边界同分会全部纳入。</p>
         </div>
         <div class="panel" id="factor-detail">
           <h3>因子详情</h3>
-          <div class="empty">从左侧选择一个因子</div>
+          <div class="empty empty-guidance"><b>先从左侧目录选择一个因子</b><span>这里会显示公式、方向、数据时点和使用约束；随后再查看净值、分层与检验结果。</span></div>
         </div>
         <div class="panel">
           <h3 id="nav-title">组合净值（月末等权调仓，单边 0.2%，按换手扣费）</h3>
@@ -141,9 +141,9 @@
             <button class="cmprange-btn" data-range="2016">2016</button>
             <button class="cmprange-btn" data-range="2015">2015</button>
             <span style="color:#888;font-size:11px;margin-left:8px">自定义</span>
-            <select id="cmp-start" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <select id="cmp-start" aria-label="多因子对比开始月份" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
             <span style="color:#999">~</span>
-            <select id="cmp-end" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <select id="cmp-end" aria-label="多因子对比结束月份" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
             <span id="cmp-range-info" style="color:#888;font-size:11px"></span>
           </div>
           <div id="cmp-controls" style="margin-top:8px"><div class="empty">未选因子</div></div>
@@ -179,7 +179,7 @@
             <button class="cpsn-btn" data-n="10">10</button>
             <button class="cpsn-btn active" data-n="30">30</button>
             <button class="cpsn-btn" data-n="50">50</button>
-            <input id="cpsn-input" type="number" min="1" max="100" placeholder="1-100"
+            <input id="cpsn-input" type="number" min="1" max="100" placeholder="1-100" aria-label="自定义合成组合选股数量"
                    style="width:64px;padding:3px 6px;border:1px solid #ccc;border-radius:3px;font-size:12px" />
             <button id="cpsn-add" class="cpsn-btn">+ 用此数</button>
           </div>
@@ -201,9 +201,9 @@
             <button class="cpsrange-btn" data-range="2016">2016</button>
             <button class="cpsrange-btn" data-range="2015">2015</button>
             <span style="color:#888;font-size:11px;margin-left:8px">自定义</span>
-            <select id="cps-start" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <select id="cps-start" aria-label="多因子合成开始月份" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
             <span style="color:#999">~</span>
-            <select id="cps-end" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <select id="cps-end" aria-label="多因子合成结束月份" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
             <span id="cps-range-info" style="color:#888;font-size:11px"></span>
           </div>
           <div id="cps-controls" style="margin-top:8px"><div class="empty">未选因子</div></div>
@@ -290,7 +290,9 @@
           <h3>管理员审核</h3>
           <div id="admin-login-box">
             <form id="admin-login-form" class="admin-login-row">
+              <label class="visually-hidden" for="admin-email">管理员邮箱</label>
               <input id="admin-email" type="email" placeholder="管理员邮箱" autocomplete="username" />
+              <label class="visually-hidden" for="admin-password">管理员密码</label>
               <input id="admin-password" type="password" placeholder="密码" autocomplete="current-password" />
               <button id="admin-login-btn" class="cpsn-btn" type="submit">登录</button>
             </form>
@@ -344,15 +346,15 @@
           </div>
           <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span style="color:#666;font-size:12px">排行口径：</span>
-            <select id="rank-param-side" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+            <select id="rank-param-side" aria-label="排行榜因子方向" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
               <option value="1">默认方向</option>
               <option value="-1" disabled>反向（需逐因子重排）</option>
             </select>
-            <select id="rank-param-score" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+            <select id="rank-param-score" aria-label="排行榜分数口径" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
               <option value="raw">原始口径</option>
               <option value="neutral">行业市值中性</option>
             </select>
-            <select id="rank-param-constraint" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
+            <select id="rank-param-constraint" aria-label="排行榜组合约束" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px">
               <option value="none">无约束等权</option>
               <option value="industry">行业中性</option>
             </select>
@@ -377,9 +379,9 @@
             <button class="rkrange-btn" data-range="2016">2016</button>
             <button class="rkrange-btn" data-range="2015">2015</button>
             <span style="color:#999;font-size:11px;margin-left:8px">自定义：</span>
-            <select id="rk-start" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <select id="rk-start" aria-label="排行榜开始月份" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
             <span style="color:#999;font-size:11px">~</span>
-            <select id="rk-end" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
+            <select id="rk-end" aria-label="排行榜结束月份" style="font-size:12px;padding:2px;border:1px solid #ccc;border-radius:3px"></select>
             <span id="rk-range-info" style="color:#888;font-size:11px;margin-left:4px"></span>
           </div>
           <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -460,7 +462,7 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260828151040"></script>
-  <script type="module" src="app.js?v=20260828151040"></script>
+  <script src="app_holding_scope.js?v=20260831151410"></script>
+  <script type="module" src="app.js?v=20260831151410"></script>
 </body>
 </html>

@@ -842,6 +842,7 @@ function matchRow(f) {
   if (filter === "formula_mismatch" && !f.formula_mismatch) return false;
   if (filter === "universe_mismatch" && !f.universe_mismatch) return false;
   if (filter === "parameter_mismatch" && !f.parameter_mismatch) return false;
+  if (filter === "recon_coverage_difference" && f.recon !== "coverage_difference") return false;
   if (filter.indexOf("review_") === 0) {
     const status = filter.replace("review_", "");
     const normalized = status === "pass" ? "passed" : status;
@@ -865,7 +866,7 @@ function rowHtml(f) {
     ? `<span class="fa-formula-mismatch" title="${esc(NEUTRALIZATION_SPARSE_TIP)}">中性化稀疏</span>`
     : "";
   return `
-    <tr class="fa-row lv-${f.health}" data-code="${f.code}">
+    <tr class="fa-row lv-${f.health}" data-code="${f.code}" tabindex="0" role="button" aria-label="打开 ${esc(f.code)} ${esc(f.name_cn)} 的核对详情">
       <td><span class="fa-code">${esc(f.code)}</span><span class="fa-name">${esc(f.name_cn)}</span>${dataHistoryBadge}${neutralizationBadge}${f.doc_missing ? `<span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${f.formula_mismatch ? `<span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${f.universe_mismatch ? `<span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}${f.parameter_mismatch ? `<span class="fa-formula-mismatch" title="${esc(PARAMETER_MISMATCH_TIP)}">参数待补</span>` : ""}</td>
       <td>${esc(f.l1)} / ${esc(f.l2)}</td>
       <td>${formulaStatusCell(f)}</td>
@@ -897,7 +898,7 @@ function render() {
     }
     html += rowHtml(f);
   }
-  document.getElementById("fa-tbody").innerHTML = html || `<tr><td colspan="12" style="padding:16px;color:#8a94a6">无匹配因子</td></tr>`;
+  document.getElementById("fa-tbody").innerHTML = html || `<tr><td colspan="12" class="fa-empty">无匹配因子</td></tr>`;
   const reviewed = ALL.filter(f => reviewStatusForFactor(f.code) !== "unreviewed" && reviewStatusForFactor(f.code) !== "unavailable").length;
   const issue = ALL.filter(f => reviewStatusForFactor(f.code) === "issue").length;
   const reviewText = reviewLoadError ? "复核库离线" : `已复核 ${reviewed} · 有问题 ${issue}`;
@@ -905,22 +906,84 @@ function render() {
   const pendingCompletion = ALL.filter(f => ["pending_technical", "pending_data", "pending_research"].includes(f.resolution_status)).length;
   const retainedCount = ALL.filter(f => f.resolution_status === "not_planned").length;
   document.getElementById("fa-stat").textContent =
-    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · 数据起步晚 ${ALL.filter(hasCoverageLateFlag).length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length} · 样本空间不一致 ${ALL.filter(f => f.universe_mismatch).length} · 参数待补 ${ALL.filter(f => f.parameter_mismatch).length} · 已修改 ${fixed} · 待完成 ${pendingCompletion} · 已评估保留 ${retainedCount} · ${reviewText}`;
-  document.querySelectorAll(".fa-row").forEach(tr =>
-    tr.addEventListener("click", () => openDetail(tr.dataset.code)));
+    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · 对账覆盖差异 ${ALL.filter(f => f.recon === "coverage_difference").length} · 数据起步晚 ${ALL.filter(hasCoverageLateFlag).length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length} · 样本空间不一致 ${ALL.filter(f => f.universe_mismatch).length} · 参数待补 ${ALL.filter(f => f.parameter_mismatch).length} · 已修改 ${fixed} · 待完成 ${pendingCompletion} · 已评估保留 ${retainedCount} · ${reviewText}`;
+  document.querySelectorAll(".fa-row").forEach(tr => {
+    tr.addEventListener("click", () => openDetail(tr.dataset.code, tr));
+    tr.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openDetail(tr.dataset.code, tr);
+    });
+  });
   renderReviewDashboard();
   renderResolutionDashboard();
 }
-async function openDetail(code) {
+let drawerReturnFocus = null;
+let drawerReturnCode = null;
+const drawerBackground = [".fa-header", ".fa-toolbar", "#fa-methodology-warning", "#fa-verification-summary", ".fa-main"];
+function drawerFocusable() {
+  return [...document.querySelectorAll('#fa-drawer button:not([disabled]), #fa-drawer input:not([disabled]), #fa-drawer textarea:not([disabled]), #fa-drawer select:not([disabled]), #fa-drawer a[href], #fa-drawer [tabindex]:not([tabindex="-1"])')]
+    .filter(el => !el.hidden && el.getClientRects().length > 0);
+}
+function closeDetail() {
+  const drawer = document.getElementById("fa-drawer");
+  if (drawer.classList.contains("hidden")) return;
+  drawer.classList.add("hidden");
+  drawer.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("fa-drawer-open");
+  drawerBackground.forEach(selector => {
+    const el = document.querySelector(selector);
+    if (el) el.inert = false;
+  });
+  const trigger = drawerReturnFocus && document.contains(drawerReturnFocus)
+    ? drawerReturnFocus
+    : (drawerReturnCode ? document.querySelector(`.fa-row[data-code="${CSS.escape(drawerReturnCode)}"]`) : null);
+  drawerReturnFocus = null;
+  drawerReturnCode = null;
+  if (trigger) requestAnimationFrame(() => trigger.focus());
+}
+function trapDetailFocus(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeDetail();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = drawerFocusable();
+  if (!focusable.length) {
+    event.preventDefault();
+    document.querySelector(".fa-drawer-inner")?.focus();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+async function openDetail(code, trigger = document.activeElement) {
   const drawer = document.getElementById("fa-drawer");
   const box = document.getElementById("fa-detail");
-  box.innerHTML = `<p class="fa-detail-sub">加载 ${code} …</p>`;
+  box.innerHTML = `<p id="fa-detail-title" class="fa-detail-sub">加载 ${code} …</p>`;
+  drawerReturnFocus = trigger instanceof HTMLElement ? trigger : document.activeElement;
+  drawerReturnCode = code;
   drawer.classList.remove("hidden");
+  drawer.setAttribute("aria-hidden", "false");
+  document.body.classList.add("fa-drawer-open");
+  drawerBackground.forEach(selector => {
+    const el = document.querySelector(selector);
+    if (el) el.inert = true;
+  });
+  requestAnimationFrame(() => document.getElementById("fa-close")?.focus());
   let d;
   try {
     d = await (await fetch(`data/factor_audit/${code}.json?v=${Date.now()}`)).json();
   } catch (e) {
-    box.innerHTML = `<p class="fa-recon-bad">加载失败：${code}</p>`;
+    box.innerHTML = `<p id="fa-detail-title" class="fa-recon-bad">加载失败：${code}</p>`;
     return;
   }
   const s = d.sample || {};
@@ -932,7 +995,7 @@ async function openDetail(code) {
     ? `重算 ${fmt(s.recomputed)} vs 存储 ${fmt(s.stored)} → <span class="${s.match ? "fa-recon-ok" : "fa-recon-bad"}">${s.match ? "✓一致" : "✗不符"}</span>`
     : `存储值 ${fmt(s.stored)}（外部源类，见对账）`;
   box.innerHTML = `
-    <h2 class="fa-detail-h">${esc(d.code)} · ${esc(d.name_cn)}</h2>
+    <h2 id="fa-detail-title" class="fa-detail-h">${esc(d.code)} · ${esc(d.name_cn)}</h2>
     <div class="fa-detail-sub">${esc(d.l1)} / ${esc(d.l2)} · 方向 ${dirCell(d.direction)} · 体检 ${badge(HEALTH_LABEL, d.health.level)}${d.doc_missing ? ` · <span class="fa-doc-missing" title="${esc(DOC_MISSING_TIP)}">Word缺</span>` : ""}${d.formula_mismatch && d.formula_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(FORMULA_MISMATCH_TIP)}">口径异</span>` : ""}${d.universe_mismatch && d.universe_mismatch.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(UNIVERSE_MISMATCH_TIP)}">样本异</span>` : ""}${d.parameter_coverage && d.parameter_coverage.level === "warn" ? ` · <span class="fa-formula-mismatch" title="${esc(PARAMETER_MISMATCH_TIP)}">参数待补</span>` : ""}</div>
     ${renderDataHistoryWarning(d)}
     ${renderNeutralizationQualityWarning(d)}
@@ -1011,11 +1074,11 @@ function fmt(x) {
 }
 function esc(s) { return String(s === null || s === undefined ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
 
-document.getElementById("fa-close").addEventListener("click", () =>
-  document.getElementById("fa-drawer").classList.add("hidden"));
+document.getElementById("fa-close").addEventListener("click", closeDetail);
 document.getElementById("fa-drawer").addEventListener("click", e => {
-  if (e.target.id === "fa-drawer") document.getElementById("fa-drawer").classList.add("hidden");
+  if (e.target.id === "fa-drawer") closeDetail();
 });
+document.getElementById("fa-drawer").addEventListener("keydown", trapDetailFocus);
 document.querySelectorAll(".fa-filters button").forEach(b =>
   b.addEventListener("click", () => {
     document.querySelectorAll(".fa-filters button").forEach(x => x.classList.remove("active"));
@@ -1034,6 +1097,20 @@ document.getElementById("fa-retained-search").addEventListener("input", e => {
   renderRetainedReviewReport();
 });
 document.getElementById("fa-export-reviews").addEventListener("click", exportReviewsCsv);
+function renderVerificationSummary(summary) {
+  const el = document.getElementById("fa-verification-summary");
+  if (!summary) {
+    el.textContent = "当前审计包未附发布前大样本复核摘要；请先运行发布前校验，不能仅凭页面中的小样本对账判断研究定义正确。";
+    return;
+  }
+  const truth = summary.truth_level_counts || {};
+  const status = summary.status_counts || {};
+  const total = Number(summary.factor_count || ALL.length || 0);
+  const independent = Number(summary.independent_reference_count || truth.independent_reference || 0);
+  const coverageDiff = Number(status.coverage_difference || 0);
+  const requested = Number(summary.sample_size_requested || 0);
+  el.innerHTML = `<b>计算复核证据：</b>${total} 个因子已使用发布前${requested ? `每因子最多 ${requested} 个单元的` : "大样本"}核对；独立参考实现 ${independent} 个，同源映射 ${Number(truth.same_source_mapping || 0)} 个，同生产路径 ${Number(truth.same_production_path || 0)} 个；覆盖差异 ${coverageDiff} 个。共同键数值一致不等于研究定义已被独立证实。`;
+}
 (async function init() {
   initReviewerIdentity();
   setView("list");
@@ -1041,6 +1118,7 @@ document.getElementById("fa-export-reviews").addEventListener("click", exportRev
     const idx = await (await fetch(`data/factor_audit/index.json?v=${Date.now()}`)).json();
     auditGeneratedAt = idx.generated_at || "";
     ALL = idx.factors;
+    renderVerificationSummary(idx.calculation_reconciliation);
     try {
       retainedReviewReport = await loadRetainedReviewReport();
     } catch (reportError) {

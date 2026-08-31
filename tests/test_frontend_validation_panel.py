@@ -215,16 +215,18 @@ def test_combo_ic_decay_sql_uses_average_ranks_for_ties():
     assert "rank() OVER (PARTITION BY trade_date, h ORDER BY fwd_return)" not in body
 
 
-def test_combo_ic_decay_sql_uses_calendar_month_self_join_not_physical_lead():
+def test_combo_ic_decay_sql_uses_consecutive_signal_months_without_exit_month_filter():
     source = APP_JS.read_text(encoding="utf-8")
     body = _source_between(source, "function composeIcDecaySql", "async function comboIcDecay")
 
-    assert "LEAD(" not in body
-    assert "month_id" in body
-    assert "month_id + 1" in body
-    assert "month_id + 3" in body
-    assert "month_id + 6" in body
-    assert "month_id + 12" in body
+    assert "WINDOW w AS (PARTITION BY stock_code ORDER BY month_id)" in body
+    assert "LEAD(month_id, 2) OVER w AS end_month_3" in body
+    assert "LEAD(month_id, 5) OVER w AS end_month_6" in body
+    assert "LEAD(month_id, 11) OVER w AS end_month_12" in body
+    assert "end_month_3 = month_id + 2" in body
+    assert "end_month_6 = month_id + 5" in body
+    assert "end_month_12 = month_id + 11" in body
+    assert "return_month_id" not in body
     assert "WHERE m.fwd_return IS NOT NULL" not in body
 
 
@@ -1835,7 +1837,7 @@ def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
     assert "<title>因子库 v2.0.14</title>" in index
-    assert "<b>因子库 v2.0.14</b>" in index
+    assert '<h1 class="app-title">因子库 v2.0.14 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

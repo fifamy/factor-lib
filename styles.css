@@ -35,7 +35,8 @@ body.modal-open { overflow: hidden; }
 #topbar { background: #1a4d80; color: #fff; padding: 10px 16px;
           display: flex; justify-content: space-between; align-items: center; font-size: 14px;
           flex: 0 0 auto; min-height: var(--topbar-height); position: sticky; top: 0; z-index: var(--z-sticky); }
-#topbar b { letter-spacing: 0.5px; }
+.app-title { margin: 0; color: #fff; font-size: 14px; font-weight: 700; letter-spacing: .5px; line-height: 1.4; }
+.app-title span { font-weight: 400; letter-spacing: 0; }
 #top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
 .nav-link { color: #fff; text-decoration: none; border-radius: 4px; padding: 4px 8px; font-size: 12px; }
 .nav-link:hover { color: #fff; background: rgba(255,255,255,.16); text-decoration: underline; text-underline-offset: 3px; }
@@ -501,6 +502,9 @@ table.opt-table th:last-child, table.opt-table td:last-child { text-align: cente
 
 .loading { color: var(--text-muted); padding: 16px; text-align: center; }
 .empty   { color: var(--text-muted); padding: 16px; text-align: center; }
+.empty-guidance { display: grid; gap: 5px; justify-items: center; padding-block: 24px; }
+.empty-guidance b { color: var(--text-secondary); font-size: 13px; }
+.empty-guidance span { max-width: 62ch; line-height: 1.6; }
 
 .topn-btn { background: #fff; border: 1px solid #ccc; border-radius: 14px;
             padding: 3px 10px; font-size: 12px; margin-right: 4px; cursor: pointer; }

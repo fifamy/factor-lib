@@ -1,8 +1,18 @@
 * { box-sizing: border-box; }
+:root {
+  --fa-ink: #1f2733;
+  --fa-muted: #5f6b7a;
+  --fa-subtle: #526071;
+  --fa-brand: #2f6fb0;
+  --fa-warning: #714b00;
+  --fa-focus: #0b6bcb;
+}
 body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #1f2733; background: #f5f7fa; }
+body.fa-drawer-open { overflow: hidden; }
+.fa-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .fa-header { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 24px; background: #fff; border-bottom: 1px solid #e5e9f0; }
-.fa-title { font-size: 18px; font-weight: 600; }
-.fa-sub { font-size: 12px; color: #8a94a6; font-weight: 400; margin-left: 8px; }
+.fa-title { margin: 0; font-size: 18px; font-weight: 600; }
+.fa-sub { font-size: 12px; color: var(--fa-muted); font-weight: 400; margin-left: 8px; }
 .fa-back { font-size: 13px; color: #2f6fb0; text-decoration: none; }
 .fa-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 24px; }
 .fa-view-toggle { display: inline-flex; border: 1px solid #d4dae3; border-radius: 6px; overflow: hidden; background: #fff; flex: 0 0 auto; }
@@ -13,18 +23,23 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-filters button { border: 1px solid #d4dae3; background: #fff; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .fa-filters button.active { background: #2f6fb0; color: #fff; border-color: #2f6fb0; }
 #fa-search { flex: 0 0 280px; padding: 6px 10px; border: 1px solid #d4dae3; border-radius: 6px; font-size: 13px; }
-.fa-stat { font-size: 12px; color: #8a94a6; }
+.fa-stat { font-size: 12px; color: var(--fa-muted); }
 .fa-reviewer-box { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5a6373; white-space: nowrap; }
 #fa-reviewer-name { width: 118px; padding: 6px 8px; border: 1px solid #d4dae3; border-radius: 6px; font-size: 13px; }
 .fa-reviewer-badge { font-size: 12px; color: #2e7d32; white-space: nowrap; }
-.fa-reviewer-badge.empty { color: #b8860b; }
+.fa-reviewer-badge.empty { color: var(--fa-warning); }
 .fa-methodology-warning { margin: 0 24px 12px; padding: 10px 12px; border: 1px solid #f0d49a; border-radius: 6px; background: #fff8e6; color: #7a5200; font-size: 12px; line-height: 1.6; }
-.fa-main { padding: 0 24px 48px; overflow-x: auto; }
+.fa-verification-summary { margin: -4px 24px 12px; padding: 10px 12px; border: 1px solid #c8d7e8; border-radius: 6px; background: #f3f7fb; color: #34465a; font-size: 12px; line-height: 1.6; }
+.fa-verification-summary b { color: #213c5a; }
+.fa-main { padding: 0 24px 48px; min-width: 0; }
+.fa-table-wrap { width: 100%; overflow-x: auto; border-radius: 8px; -webkit-overflow-scrolling: touch; }
+.fa-scroll-hint { display: none; margin: 0 0 8px; color: var(--fa-muted); font-size: 12px; line-height: 1.5; }
 .hidden { display: none !important; }
 .fa-table { width: 100%; min-width: 1320px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; font-size: 13px; }
-.fa-table th { text-align: left; padding: 10px 12px; color: #8a94a6; font-weight: 500; border-bottom: 1px solid #e5e9f0; background: #fafbfc; }
+.fa-table th { text-align: left; padding: 10px 12px; color: var(--fa-subtle); font-weight: 600; border-bottom: 1px solid #e5e9f0; background: #fafbfc; }
 .fa-table td { padding: 9px 12px; border-bottom: 1px solid #f0f2f6; }
 .fa-row { cursor: pointer; }
+.fa-row:focus-visible { outline: 3px solid var(--fa-focus); outline-offset: -3px; }
 .fa-row:hover { background: #f0f6ff; }
 .fa-row.lv-warn { background: #fff8e6; }
 .fa-row.lv-error { background: #fdecea; }
@@ -33,15 +48,15 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-code { font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
 .fa-name { color: #5a6373; margin-left: 6px; font-size: 12px; }
 .fa-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
-.b-ok { color: #2e7d32; } .b-warn { color: #b8860b; } .b-error { color: #c0392b; }
+.b-ok { color: #216e2b; } .b-warn { color: var(--fa-warning); } .b-error { color: #a93226; }
 .fa-review-status { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; white-space: nowrap; }
 .fa-review-status.rs-none { background: #eef2f7; color: #5d6b82; }
 .fa-review-status.rs-pending { background: #fff8e6; color: #9a6500; }
 .fa-review-status.rs-issue { background: #fdecea; color: #c0392b; }
 .fa-review-status.rs-pass { background: #eaf6ec; color: #2e7d32; }
-.fa-review-status.rs-offline { background: #f2f3f5; color: #8a94a6; }
+.fa-review-status.rs-offline { background: #f2f3f5; color: var(--fa-muted); }
 .fa-resolution-status { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; line-height: 1.4; white-space: nowrap; font-weight: 600; }
-.fa-resolution-status.rsv-none { background: #eef2f7; color: #6b7790; }
+.fa-resolution-status.rsv-none { background: #eef2f7; color: #526071; }
 .fa-resolution-status.rsv-fixed { background: #eaf6ec; color: #216e2b; }
 .fa-resolution-status.rsv-technical { background: #fdecea; color: #a93226; }
 .fa-resolution-status.rsv-data { background: #e8f3fc; color: #1f5f94; }
@@ -50,22 +65,23 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-spark { display: inline-flex; align-items: flex-end; gap: 1px; height: 22px; }
 .fa-spark i { width: 3px; background: #8fb8e0; display: inline-block; }
 .fa-dir-pos { color: #2e7d32; } .fa-dir-neg { color: #c0392b; }
-.fa-drawer { position: fixed; inset: 0; background: rgba(20,28,40,.35); display: flex; justify-content: flex-end; }
+.fa-drawer { position: fixed; inset: 0; z-index: 1000; background: rgba(20,28,40,.35); display: flex; justify-content: flex-end; }
 .fa-drawer.hidden { display: none; }
 .fa-drawer-inner { width: 720px; max-width: 92vw; height: 100%; background: #fff; overflow-y: auto; padding: 24px 28px; position: relative; }
-.fa-close { position: absolute; top: 16px; right: 16px; border: none; background: none; font-size: 18px; cursor: pointer; color: #8a94a6; }
+.fa-close { position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border: none; border-radius: 6px; background: transparent; font-size: 18px; cursor: pointer; color: var(--fa-muted); }
+.fa-close:hover { background: #eef2f7; color: var(--fa-ink); }
 .fa-detail-h { font-size: 17px; font-weight: 600; margin: 0 0 4px; }
-.fa-detail-sub { color: #8a94a6; font-size: 12px; margin-bottom: 18px; }
+.fa-detail-sub { color: var(--fa-muted); font-size: 12px; margin-bottom: 18px; }
 .fa-block { margin: 18px 0; }
 .fa-block h3 { font-size: 13px; color: #34507a; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid #d9e0ea; }
 .fa-kv { width: 100%; border-collapse: collapse; font-size: 12px; }
 .fa-kv td { padding: 5px 8px; border-bottom: 1px solid #f0f2f6; }
-.fa-kv td:first-child { color: #8a94a6; width: 38%; }
+.fa-kv td:first-child { color: var(--fa-muted); width: 38%; }
 .fa-mono { font-family: ui-monospace, Menlo, monospace; }
 .fa-recon-ok { color: #2e7d32; font-weight: 600; }
 .fa-recon-bad { color: #c0392b; font-weight: 600; }
 .fa-steps { background: #f6f8fb; border-radius: 6px; padding: 10px 12px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.7; }
-.fa-flag { display: inline-block; background: #fff3e0; color: #b8860b; padding: 1px 8px; border-radius: 4px; font-size: 11px; margin: 2px 4px 2px 0; }
+.fa-flag { display: inline-block; background: #fff3e0; color: var(--fa-warning); padding: 1px 8px; border-radius: 4px; font-size: 11px; margin: 2px 4px 2px 0; }
 .fa-flag.err { background: #fdecea; color: #c0392b; }
 .fa-doc-missing { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #eef2f7; color: #5d6b82; font-size: 11px; font-weight: 500; vertical-align: middle; }
 .fa-doc-alert { margin: 0 0 8px; padding: 8px 10px; border: 1px solid #d9e0ea; border-radius: 6px; background: #f6f8fb; color: #5d6b82; font-size: 12px; line-height: 1.6; }
@@ -79,10 +95,10 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-param-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .fa-param-list span { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 999px; background: #eef2ff; color: #27346f; font-size: 12px; line-height: 1.3; }
 .fa-group td { background: #eef2f7; font-weight: 600; color: #34507a; font-size: 12px; padding: 7px 12px; border-top: 1px solid #d9e0ea; }
-.fa-group-sub { color: #6b7790; font-weight: 500; }
-.fa-group-n { color: #8a94a6; font-weight: 400; font-size: 11px; margin-left: 8px; }
+.fa-group-sub { color: #526071; font-weight: 500; }
+.fa-group-n { color: #526071; font-weight: 500; font-size: 11px; margin-left: 8px; }
 .fa-eq { padding: 4px 0 2px; overflow-x: auto; }
-.fa-note { color: #6b7790; font-size: 12px; margin-top: 4px; line-height: 1.7; }
+.fa-note { color: var(--fa-muted); font-size: 12px; margin-top: 4px; line-height: 1.7; }
 .fa-help { cursor: help; }
 .fa-table th.fa-help { text-decoration: underline dotted #c2c9d4; text-underline-offset: 3px; }
 .fa-review-panel { margin: 18px 0; padding: 14px; border: 1px solid #d9e0ea; border-radius: 8px; background: #fbfcfe; }
@@ -96,14 +112,14 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-segmented button:disabled { cursor: not-allowed; opacity: .65; }
 .fa-review-field { display: block; margin: 10px 0; color: #5a6373; font-size: 12px; }
 .fa-review-field textarea { width: 100%; margin-top: 6px; padding: 8px 10px; border: 1px solid #d4dae3; border-radius: 6px; resize: vertical; font-size: 13px; font-family: inherit; color: #1f2733; background: #fff; }
-.fa-review-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; font-size: 12px; color: #6b7790; }
+.fa-review-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; font-size: 12px; color: var(--fa-muted); }
 .fa-review-actions button, .fa-export-btn { border: 1px solid #2f6fb0; background: #2f6fb0; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-.fa-review-actions button:disabled { border-color: #c2c9d4; background: #d9e0ea; color: #8a94a6; cursor: not-allowed; }
+.fa-review-actions button:disabled { border-color: #c2c9d4; background: #d9e0ea; color: #526071; cursor: not-allowed; }
 .fa-review-others { margin-top: 14px; }
 .fa-review-others h4 { margin: 0 0 8px; font-size: 12px; color: #5a6373; }
 .fa-review-record { padding: 9px 10px; border: 1px solid #e5e9f0; border-radius: 6px; background: #fff; margin-bottom: 8px; }
 .fa-review-record-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
-.fa-review-record-time { color: #8a94a6; font-size: 11px; margin-top: 4px; }
+.fa-review-record-time { color: var(--fa-muted); font-size: 11px; margin-top: 4px; }
 .fa-review-stale { display: inline-block; margin-left: 5px; padding: 1px 5px; border-radius: 4px; background: #fff4d6; color: #855700; font-weight: 600; }
 .fa-review-text { color: #3f4a5a; font-size: 12px; line-height: 1.6; margin-top: 6px; white-space: pre-wrap; }
 .fa-dashboard { background: #fff; border-radius: 8px; padding: 18px; }
@@ -121,7 +137,7 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-retained-review-audit { margin: 18px 0 20px; }
 .fa-retained-review-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
 .fa-retained-review-head h3 { margin: 0 0 3px; color: #34507a; font-size: 14px; }
-.fa-retained-review-count { color: #6b7790; font-size: 12px; }
+.fa-retained-review-count { color: var(--fa-muted); font-size: 12px; }
 #fa-retained-search { width: 280px; padding: 6px 10px; border: 1px solid #d4dae3; border-radius: 6px; font-size: 13px; }
 .fa-retained-table-wrap { max-height: 760px; overflow: auto; border-top: 1px solid #d9e0ea; border-bottom: 1px solid #d9e0ea; }
 .fa-retained-table { width: 100%; min-width: 1320px; border-collapse: collapse; table-layout: fixed; background: #fff; }
@@ -136,13 +152,13 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-retained-table p:last-child { margin-bottom: 0; }
 .fa-retained-table strong { display: block; margin: 0 0 3px; color: #34507a; font-size: 11px; }
 .fa-retained-table strong:not(:first-child) { margin-top: 9px; }
-.fa-retained-table small { display: block; margin-top: 5px; color: #8a94a6; line-height: 1.4; }
+.fa-retained-table small { display: block; margin-top: 5px; color: var(--fa-muted); line-height: 1.4; }
 .fa-retained-factor-link { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
 .fa-retained-factor-link b { display: block; color: #1f2733; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .fa-retained-factor-link span { display: block; margin-top: 2px; color: #5a6373; font-size: 12px; }
 .fa-retained-factor-link:hover b { color: #2f6fb0; }
 .fa-retained-factor-link:focus-visible, #fa-retained-search:focus-visible { outline: 2px solid #2f6fb0; outline-offset: 2px; }
-.fa-retained-missing { color: #8a94a6; }
+.fa-retained-missing { color: var(--fa-muted); }
 .fa-variable-download-audit { margin-top: 16px; }
 .fa-variable-table { min-width: 1080px; }
 .fa-variable-table th:nth-child(1) { width: 10%; }
@@ -165,11 +181,11 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
 .fa-review-list-row { width: 100%; text-align: left; border: 1px solid #e5e9f0; border-radius: 6px; background: #fff; padding: 8px 10px; cursor: pointer; }
 .fa-review-list-row:hover { background: #f0f6ff; }
 .fa-review-list-row b { display: block; font-size: 12px; color: #1f2733; margin-bottom: 3px; }
-.fa-review-list-row span { display: block; font-size: 12px; color: #6b7790; line-height: 1.5; }
-.fa-empty { color: #8a94a6; font-size: 12px; padding: 8px 0; }
+.fa-review-list-row span { display: block; font-size: 12px; color: var(--fa-muted); line-height: 1.5; }
+.fa-empty { color: var(--fa-muted); font-size: 12px; padding: 8px 0; }
 .fa-identity-warning { flex: 1 1 100%; margin: 2px 0 0; padding: 7px 9px; border: 1px solid #ead9a4;
                        border-radius: 5px; background: #fffbeb; color: #6b4b00; font-size: 11px; line-height: 1.5; }
-.fa-filters button:focus-visible, .fa-view-toggle button:focus-visible, .fa-review-list-row:focus-visible, .fa-close:focus-visible, .fa-export-btn:focus-visible { outline: 2px solid #2f6fb0; outline-offset: 2px; }
+.fa-filters button:focus-visible, .fa-view-toggle button:focus-visible, .fa-review-list-row:focus-visible, .fa-close:focus-visible, .fa-export-btn:focus-visible, #fa-search:focus-visible, #fa-reviewer-name:focus-visible, #fa-retained-search:focus-visible, .fa-table-wrap:focus-visible { outline: 2px solid var(--fa-focus); outline-offset: 2px; }
 @media (max-width: 960px) {
   .fa-toolbar { align-items: stretch; flex-direction: column; gap: 10px; }
   #fa-search { flex: 0 0 auto; width: 100%; }
@@ -181,5 +197,24 @@ body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", 
   .fa-header { align-items: flex-start; gap: 10px; flex-direction: column; padding: 14px 16px; }
   .fa-toolbar { padding: 10px 16px; }
   .fa-methodology-warning { margin-inline: 16px; }
+  .fa-verification-summary { margin-inline: 16px; }
   .fa-main { padding-inline: 16px; }
+  .fa-scroll-hint { display: block; }
+  .fa-table th:first-child, .fa-table td:first-child { position: sticky; left: 0; z-index: 2; min-width: 190px; background: #fff; box-shadow: 1px 0 #e5e9f0; }
+  .fa-table th:first-child { z-index: 3; background: #fafbfc; }
+  .fa-row.lv-warn td:first-child { background: #fff8e6; }
+  .fa-row.lv-error td:first-child { background: #fdecea; }
+}
+@media (pointer: coarse) {
+  .fa-view-toggle button, .fa-filters button, .fa-review-actions button, .fa-export-btn, .fa-review-list-row, .fa-segmented button, .fa-retained-factor-link { min-height: 44px; }
+  #fa-search, #fa-reviewer-name, #fa-retained-search, .fa-review-field textarea { min-height: 44px; font-size: 16px; }
+  .fa-close { width: 44px; height: 44px; }
+}
+@media (max-width: 640px) {
+  .fa-drawer { align-items: flex-end; }
+  .fa-drawer-inner { width: 100%; max-width: none; height: min(92dvh, 920px); padding: 56px 18px 24px; border-radius: 12px 12px 0 0; }
+  .fa-sub { display: block; margin: 4px 0 0; line-height: 1.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }

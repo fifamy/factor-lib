@@ -6,6 +6,7 @@ FRONTEND = ROOT / "frontend" if (ROOT / "frontend" / "index.html").exists() else
 INDEX = (FRONTEND / "index.html").read_text(encoding="utf-8")
 APP = (FRONTEND / "app.js").read_text(encoding="utf-8")
 STYLES = (FRONTEND / "styles.css").read_text(encoding="utf-8")
+AUDIT_STYLES = (FRONTEND / "factor_audit.css").read_text(encoding="utf-8")
 
 
 def test_page_has_mobile_and_landmark_contracts():
@@ -15,6 +16,22 @@ def test_page_has_mobile_and_landmark_contracts():
     assert '<nav id="sidebar" aria-label="因子目录">' in INDEX
     assert '<main id="content" tabindex="-1">' in INDEX
     assert '<label class="visually-hidden" for="factor-search">' in INDEX
+    assert '<h1 class="app-title">' in INDEX
+
+
+def test_all_static_analysis_controls_have_accessible_names():
+    for control_id in [
+        "sg-start", "sg-end", "cmp-start", "cmp-end", "cpsn-input",
+        "cps-start", "cps-end", "rank-param-side", "rank-param-score",
+        "rank-param-constraint", "rk-start", "rk-end",
+    ]:
+        marker = f'id="{control_id}"'
+        start = INDEX.index(marker)
+        tag_start = INDEX.rfind("<", 0, start)
+        tag_end = INDEX.index(">", start)
+        assert "aria-label=" in INDEX[tag_start:tag_end], control_id
+    assert '<label class="visually-hidden" for="admin-email">' in INDEX
+    assert '<label class="visually-hidden" for="admin-password">' in INDEX
 
 
 def test_analysis_modes_use_keyboard_tab_semantics():
@@ -68,6 +85,7 @@ def test_styles_remove_locked_viewport_and_cover_mobile_layout():
     assert "@media (pointer: coarse)" in STYLES
     assert "min-height: 44px" in STYLES
     assert "@media (prefers-reduced-motion: reduce)" in STYLES
+    assert ".empty-guidance" in STYLES
 
 
 def test_contrast_and_focus_tokens_cover_old_muted_text_and_nav():
@@ -78,3 +96,7 @@ def test_contrast_and_focus_tokens_cover_old_muted_text_and_nav():
         assert f'[style*="color:{old_color}"]' in STYLES
     for accessible_tag_color in ("#9f2d23", "#24663f", "#76500d", "#17623f", "#14636b", "#7d4f0a", "#9c3c13", "#4b5563"):
         assert accessible_tag_color in STYLES
+
+
+def test_audit_drawer_stays_above_sticky_table_cells():
+    assert ".fa-drawer { position: fixed; inset: 0; z-index: 1000;" in AUDIT_STYLES

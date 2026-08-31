@@ -102,6 +102,20 @@ jobs:
           ONLINE_WAIT_INTERVAL_MS: "15000"
           PLAYWRIGHT_CHROMIUM_CHANNEL: chrome
           # GitHub-hosted runners validate the live Pages site over a cold network path.
-          # Keep a 17.5s compose ceiling while retaining the stricter local 3.5s budget.
-          PERF_BUDGET_MULTIPLIER: "5"
+          # 仅保留 1.5 倍公网抖动余量，避免 5 倍容差掩盖用户可感知的性能回退。
+          PERF_BUDGET_MULTIPLIER: "1.5"
         run: node e2e/online_compose_validation.mjs
+
+      - name: Validate Supabase anonymous boundary
+        run: python3 scripts/check_supabase_admin_preflight.py
+
+      - name: Validate credentialed admin read flow when secrets are configured
+        env:
+          FACTOR_LIB_ADMIN_EMAIL: ${{ secrets.FACTOR_LIB_ADMIN_EMAIL }}
+          FACTOR_LIB_ADMIN_PASSWORD: ${{ secrets.FACTOR_LIB_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$FACTOR_LIB_ADMIN_EMAIL" ] || [ -z "$FACTOR_LIB_ADMIN_PASSWORD" ]; then
+            echo "::notice::未配置管理员测试凭据；已跳过只读管理员登录/角色/队列验收。"
+            exit 0
+          fi
+          python3 scripts/check_supabase_admin_preflight.py --credentialed

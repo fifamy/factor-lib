@@ -807,6 +807,7 @@ def _reference_lawsuitamt(
             right_on="mv_date",
             by="stock_code",
             strategy="backward",
+            check_sortedness=False,
         )
         .filter(pl.col("total_mv_cny").is_not_null())
         .with_columns((pl.col("event_amount") / pl.col("total_mv_cny")).alias("event_amount"))
@@ -1943,7 +1944,7 @@ def _derived_grcagr3y(factor_raw: pl.DataFrame, src_dir: str) -> pl.DataFrame:
             pl.col("TRADE_DT").str.strptime(pl.Date, "%Y%m%d").alias("trade_date"),
             pl.col("S_DFA_GR_TTM").cast(pl.Float64, strict=False).alias("gr"),
         )
-        .filter(pl.col("trade_date").is_in(month_ends))
+        .filter(pl.col("trade_date").is_in(month_ends.implode()))
         .with_columns((pl.col("trade_date").dt.year() * 12 + pl.col("trade_date").dt.month()).alias("_month_id"))
         .sort(["stock_code", "trade_date"])
     )
