@@ -17,6 +17,16 @@ const check = (condition, label) => {
   }
 };
 
+async function waitForFocus(page, locator, timeout = 1500) {
+  const element = await locator.elementHandle();
+  if (!element) return;
+  try {
+    await page.waitForFunction(el => document.activeElement === el, element, { timeout });
+  } catch {
+    // Keep the labelled assertion below as the single, readable failure report.
+  }
+}
+
 function launchOptions() {
   const options = { headless: true };
   if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
@@ -167,12 +177,14 @@ try {
   await detailButton.focus();
   await desktop.keyboard.press("Enter");
   await desktop.waitForSelector("#stock-modal:not([hidden])", { timeout: 15000 });
+  await waitForFocus(desktop, desktop.locator(".sd-close"));
   check(await desktop.locator(".sd-close").evaluate(el => document.activeElement === el), "弹窗打开后焦点进入关闭按钮");
   check(await desktop.locator("#main").evaluate(el => el.inert), "弹窗打开时背景内容不可交互");
   await desktop.keyboard.press("Tab");
   check(await desktop.locator("#stock-modal").evaluate(el => el.contains(document.activeElement)), "Tab 焦点限制在弹窗内");
   await desktop.keyboard.press("Escape");
   check(await desktop.locator("#stock-modal").evaluate(el => el.hidden), "Escape 可关闭弹窗");
+  await waitForFocus(desktop, detailButton);
   check(await detailButton.evaluate(el => document.activeElement === el), "关闭弹窗后焦点回到触发按钮");
 
   const ratios = await contrastRatios(desktop);
@@ -209,12 +221,14 @@ try {
   await auditRow.focus();
   await audit.keyboard.press("Enter");
   await audit.waitForSelector("#fa-drawer:not(.hidden)", { timeout: 15000 });
+  await waitForFocus(audit, audit.locator("#fa-close"));
   check(await audit.locator("#fa-close").evaluate(el => document.activeElement === el), "审计详情打开后焦点进入关闭按钮");
   check(await audit.locator(".fa-main").evaluate(el => el.inert), "审计详情打开时背景不可交互");
   await audit.keyboard.press("Tab");
   check(await audit.locator("#fa-drawer").evaluate(el => el.contains(document.activeElement)), "审计详情限制 Tab 焦点");
   await audit.keyboard.press("Escape");
   check(await audit.locator("#fa-drawer").evaluate(el => el.classList.contains("hidden")), "审计详情支持 Escape 关闭");
+  await waitForFocus(audit, auditRow);
   check(await auditRow.evaluate(el => document.activeElement === el), "审计详情关闭后焦点回到触发行");
   const auditRatios = await auditContrastRatios(audit);
   check(auditRatios.length > 0 && auditRatios.every(item => item.ratio >= 4.5), `审计页关键小字号文字对比度达到 4.5:1（最低 ${Math.min(...auditRatios.map(item => item.ratio)).toFixed(2)}）`);
