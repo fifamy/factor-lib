@@ -97,6 +97,19 @@ body.modal-open { overflow: hidden; }
                    border: 1px solid #e8d7a0; border-radius: 5px; font-size: 11px; line-height: 1.5; }
 .capability-note b { margin-right: 4px; }
 
+.index-universe-controls { display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+                           margin: 0 0 9px; padding: 8px 9px; border: 1px solid #cfdbe7;
+                           border-radius: 5px; background: #f7f9fc; min-width: 0; }
+.index-universe-controls legend { padding: 0 4px; color: var(--brand); font-size: 11px; font-weight: 600; }
+.index-universe-controls label { color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
+.index-universe-controls select { min-height: 27px; padding: 3px 24px 3px 7px; border: 1px solid #b9c6d3;
+                                  border-radius: 4px; background: #fff; color: var(--text); font-size: 12px; }
+.index-universe-controls select:disabled { color: #6b7280; background: #eef1f4; border-color: #d6dce2; cursor: not-allowed; }
+.index-universe-summary { flex: 1 1 360px; color: var(--text-secondary); font-size: 11px; line-height: 1.45; }
+.index-universe-empty { margin-top: 2px; }
+.index-member-yes { color: #27653a; font-weight: 600; }
+.index-member-no { color: var(--text-muted); }
+
 /* 主区跟随页面滚动。 */
 #content { padding: 16px; display: flex; flex-direction: column; gap: 12px;
            overflow: visible; min-width: 0; min-height: 0; }

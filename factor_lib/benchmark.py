@@ -9,6 +9,8 @@ BENCHMARK_INDEX_CODES = {
     "000300.SH": "HS300",
     "000906.SH": "CSI800",
     "000905.SH": "CSI500",
+    "000852.SH": "CSI1000",
+    "000510.SH": "CSIA500",
 }
 
 

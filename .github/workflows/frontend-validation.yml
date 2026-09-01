@@ -32,12 +32,13 @@ jobs:
           python-version: "3.12"
 
       - name: Install Python static test dependencies
-        run: python3 -m pip install pytest numpy scipy
+        run: python3 -m pip install pytest numpy scipy polars
 
       - name: Static frontend contract tests
         run: |
           python3 -m pytest tests/test_frontend_validation_panel.py -q
           python3 -m pytest tests/test_frontend_accessibility.py -q
+          python3 -m pytest tests/test_index_universe_frontend.py -q
 
       - name: Static release manifest smoke
         run: |
@@ -60,14 +61,17 @@ jobs:
         run: |
           if [ -f frontend/app.js ]; then
             node --check frontend/app_holding_scope.js
+            node --check frontend/app_index_universe.js
             node --check frontend/app.js
           else
             node --check app_holding_scope.js
+            node --check app_index_universe.js
             node --check app.js
           fi
           node --check e2e/compose_validation.mjs
           node --check e2e/run_compose_validation.mjs
           node --check e2e/online_compose_validation.mjs
+          node --check e2e/index_universe_validation.mjs
           node --check e2e/perf_budget.mjs
           node --check e2e/accessibility_validation.mjs
 
@@ -104,7 +108,9 @@ jobs:
           # GitHub-hosted runners validate the live Pages site over a cold network path.
           # 仅保留 1.5 倍公网抖动余量，避免 5 倍容差掩盖用户可感知的性能回退。
           PERF_BUDGET_MULTIPLIER: "1.5"
-        run: node e2e/online_compose_validation.mjs
+        run: |
+          node e2e/online_compose_validation.mjs
+          node e2e/index_universe_validation.mjs "$ONLINE_E2E_URL"
 
       - name: Validate Supabase anonymous boundary
         run: python3 scripts/check_supabase_admin_preflight.py

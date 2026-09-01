@@ -446,7 +446,9 @@ def test_compose_backtest_only_joins_industry_descriptors_when_requested():
     assert 'const needsIndustry = normalizeConstraintMode(constraintMode) === "industry"' in matrix_sql
     assert 'needsIndustry ? "LEFT JOIN stock_descriptors' in matrix_sql
     assert 'needsIndustry ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1"' in matrix_sql
-    assert 'const fallbackRankFilter = normalizedConstraint === "industry" ? "" : `WHERE rk <= ${N}`' in fallback
+    assert 'const fallbackRankFilter = normalizedConstraint === "industry"' in fallback
+    assert 'universe.mode === "min_share"' in fallback
+    assert 'WHERE rk <= ${N} OR (is_index_member AND member_rk <= ${requiredMemberN})' in fallback
     assert "FROM ranked ${fallbackRankFilter}" in fallback
     assert "WITH periods AS" in matrix_sql
     assert "LEFT JOIN selected s ON s.trade_date = p.trade_date" in matrix_sql
@@ -467,7 +469,9 @@ def test_frontend_topn_and_groups_are_tie_aware_in_every_compose_path():
 
     assert "RANK() OVER" in side_rank and "ROW_NUMBER() OVER" not in side_rank
     assert "RANK() OVER" in matrix_sql and "ROW_NUMBER() OVER" not in matrix_sql
-    assert 'const rankFilter = needsIndustry ? "" : `WHERE rk <= ${N}`' in matrix_sql
+    assert 'const rankFilter = needsIndustry' in matrix_sql
+    assert 'minimumIndexShare' in matrix_sql
+    assert 'WHERE rk <= ${N} OR (is_index_member AND member_rk <= ${requiredMemberN})' in matrix_sql
     assert "Math.max(900, N * 30)" not in matrix_sql
     assert "NTILE(10)" not in group_validation
     assert group_validation.count("RANK() OVER") >= 2
@@ -578,13 +582,13 @@ def test_compose_latest_render_and_validation_share_selection_contract():
     validation_holdings = _source_between(source, "async function comboLatestHoldingRows", "function comboBacktestAvgTurnover")
     optimizer = _source_between(source, "async function optimizeWeights", "function bindComposeButtons")
 
-    assert "composeLatestHoldingSelection(candidateRows, state.composeN, constraint)" in render
+    assert "composeLatestHoldingSelection(candidateRows, state.composeN, constraint, universe)" in render
     assert "WHERE (${scoreExpr}) IS NOT NULL ${condSql}" in render
     assert "allRows.slice(0, MAX_HOLDING_DETAIL_ROWS)" in render
     assert "composeHoldingCountNote(state.composeN, rows, selection.stats)" in render
     assert "合成名义 Top ${state.composeN}" in render
     assert "LIMIT ${candidateLimit}" not in render
-    assert "composeLatestHoldingSelection(candidateRows, N, constraint)" in validation_holdings
+    assert "composeLatestHoldingSelection(candidateRows, N, constraint, universe)" in validation_holdings
     assert "WHERE (${scoreExpr}) IS NOT NULL ${condSql}" in validation_holdings
     assert "candidateRows.slice(0, N)" not in validation_holdings
     assert "return selection.rows.map" in validation_holdings
@@ -613,7 +617,7 @@ def test_optimizer_uses_full_common_universe_not_single_factor_top500_union():
     assert "rk <= 500" not in optimizer
     assert 'const optimizerEndSql = rangeWhere(null, state.composeEnd, "p.period_return_date")' in optimizer
     assert "WITH optimizer_period_dates AS" in optimizer
-    assert "MAX(return_date) AS period_return_date" in optimizer
+    assert "MAX(m.return_date) AS period_return_date" in optimizer
     assert "optimizer_candidates AS" in optimizer
     assert "LEFT JOIN optimizer_candidates m ON m.trade_date = p.trade_date" in optimizer
     assert "COALESCE(p.period_return_date, p.trade_date)" in optimizer
@@ -1552,9 +1556,9 @@ def test_combo_best_single_comparison_uses_current_factor_configuration():
     source = APP_JS.read_text(encoding="utf-8")
     body = _source_between(source, "async function comboBestSingleComparison", "async function comboValidationPayload")
 
-    assert "async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth)" in source
-    assert "comboIcDecay([singleFactor], startMonth, endMonth)" in body
-    assert 'comboBacktest([singleFactor], N, "cps_matrix", constraintMode)' in body
+    assert "async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, rawUniverse" in source
+    assert "comboIcDecay([singleFactor], startMonth, endMonth, universe)" in body
+    assert 'comboBacktest([singleFactor], N, "cps_matrix", constraintMode, universe)' in body
     assert "rankIcStatsFromSeries(ic?.series?.[\"1\"] || [])" in body
     assert "thr: null" in body
     assert "loadActiveSingleSnapshot" not in body

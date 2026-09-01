@@ -21,6 +21,7 @@ const RANKING_SNAPSHOT = DATA_DIR + "factor_ranking_snapshot.json" + V;
 const CORR_SNAPSHOT = DATA_DIR + "factor_corr_snapshot.json" + V;
 const CORR_NEUTRAL_SNAPSHOT = DATA_DIR + "factor_corr_neutral_snapshot.json" + V;
 const DATA_MANIFEST = DATA_DIR + "data_manifest.json" + V;
+const INDEX_WEIGHT_MONTHLY = DATA_DIR + "index_weight_monthly.parquet" + V;
 const SCORE_LATEST_DIR = DATA_DIR + "factor_scores_latest/";
 const BACKTEST_DIR = DATA_DIR + "backtests/";
 const FACTOR_IC_DIR = DATA_DIR + "factor_ics/";
@@ -55,6 +56,7 @@ const state = {
   composeFactors: [],
   composeN: 30,
   composeConstraintMode: "none", // none | industry：合成组合最终持仓约束
+  composeUniverse: { mode: "all", indexAlias: "HS300", minShare: 0.8 },
   composeStart: null,       // 多因子合成回测区间；null=不限
   composeEnd: null,
   // 暂存的合成组合快照：[{name, factors:[...], N, color}]，供多组合对比
@@ -88,6 +90,7 @@ const state = {
   hasBenchmarks: false,
   hasCorr: false,
   hasCorrNeutral: false,
+  hasIndexWeights: false,
   duckdb: null,
   db: null,
 };
@@ -112,7 +115,30 @@ const BENCHMARK_OPTIONS = [
   { code: "HS300", label: "沪深300" },
   { code: "CSI500", label: "中证500" },
   { code: "CSI800", label: "中证800" },
+  { code: "CSI1000", label: "中证1000" },
+  { code: "CSIA500", label: "中证A500" },
 ];
+const BENCHMARK_COLORS = {
+  HS300: "#c14545",
+  CSI500: "#c89c2b",
+  CSI800: "#6e9a4f",
+  CSI1000: "#8b6bb1",
+  CSIA500: "#2f8f83",
+};
+
+function benchmarkLabel(indexCode) {
+  return BENCHMARK_OPTIONS.find(item => item.code === indexCode)?.label || indexCode;
+}
+
+function composeBenchmarkCodes(universe) {
+  const normalized = normalizeIndexUniverseConfig(universe);
+  return [...new Set([
+    "HS300",
+    "CSI800",
+    "CSI500",
+    ...(normalized.mode === "all" ? [] : [normalized.indexAlias]),
+  ])];
+}
 const COST_SCENARIOS = [
   { bps: 0, label: "0bp" },
   { bps: 10, label: "10bp" },
@@ -527,6 +553,15 @@ function composeScoreValue(row) {
   return value === null || value === undefined ? null : Number(value);
 }
 
+// 保持这一段持仓选择逻辑可被独立测试：旧组合未保存股票池字段时，
+// 一律按全市场处理；正式页面则复用统一的指数股票池标准化函数。
+function composeUniverseConfig(universe) {
+  if (typeof normalizeIndexUniverseConfig === "function") {
+    return normalizeIndexUniverseConfig(universe || { mode: "all" });
+  }
+  return { mode: "all", indexAlias: "HS300", minShare: 0.8 };
+}
+
 function competitionComposeTopNRows(rows, nominalN) {
   const n = Math.max(1, Number(nominalN) || 1);
   const ranked = (rows || [])
@@ -538,17 +573,61 @@ function competitionComposeTopNRows(rows, nominalN) {
   return ranked.filter(r => composeScoreValue(r) >= boundaryScore);
 }
 
-function composeLatestHoldingSelection(candidateRows, nominalN, constraintMode) {
+function composeLatestHoldingSelection(
+  candidateRows,
+  nominalN,
+  constraintMode,
+  universe = null,
+) {
   const n = Math.max(1, Number(nominalN) || 1);
   const constraint = normalizeConstraintMode(constraintMode);
+  const normalizedUniverse = composeUniverseConfig(universe);
+  if (constraint === "industry" && normalizedUniverse.mode === "min_share") {
+    throw new Error("最低指数成分占比暂不能与行业中性约束同时使用");
+  }
   // 行业配额以完整有效候选集的行业数量占比计算，不能先按全局得分截断；
   // 无约束组合则直接采用全市场竞争秩 TopN，并包含全部边界同分。
-  const rankedCandidates = constraint === "industry"
-    ? (candidateRows || []).filter(r => r?.industry_sw1 && Number.isFinite(composeScoreValue(r)))
-    : competitionComposeTopNRows(candidateRows, n);
-  const picked = constraint === "industry"
-    ? industryNeutralPickRows(rankedCandidates, n)
-    : rankedCandidates.map(r => ({ ...r, weight: 1 / Math.max(1, rankedCandidates.length) }));
+  let picked;
+  let universeStats;
+  let rankedCandidates;
+  if (constraint === "industry") {
+    const available = normalizedUniverse.mode === "all"
+      || (candidateRows || []).some(r => r.index_available === true || r.index_available === 1);
+    rankedCandidates = (candidateRows || []).filter(r => (
+      r?.industry_sw1
+      && Number.isFinite(composeScoreValue(r))
+      && (normalizedUniverse.mode !== "index_only" || r.is_index_member === true || r.is_index_member === 1)
+    ));
+    picked = available ? industryNeutralPickRows(rankedCandidates, n) : [];
+    const indexMemberN = picked.filter(r => r.is_index_member === true || r.is_index_member === 1).length;
+    universeStats = {
+      universe_mode: normalizedUniverse.mode,
+      index_alias: normalizedUniverse.indexAlias,
+      index_available: available,
+      index_member_n: indexMemberN,
+      index_member_share: picked.length ? indexMemberN / picked.length : null,
+      requirement_met: normalizedUniverse.mode === "all" || (picked.length > 0 && indexMemberN === picked.length),
+    };
+  } else {
+    rankedCandidates = candidateRows || [];
+    if (normalizedUniverse.mode === "all") {
+      const selected = competitionComposeTopNRows(rankedCandidates, n);
+      const equalWeight = selected.length ? 1 / selected.length : 0;
+      picked = selected.map(row => ({ ...row, weight: equalWeight }));
+      universeStats = {
+        universe_mode: "all",
+        index_alias: normalizedUniverse.indexAlias,
+        index_available: true,
+        index_member_n: 0,
+        index_member_share: null,
+        requirement_met: true,
+      };
+    } else {
+      const universeSelection = selectRowsByIndexUniverse(candidateRows, n, normalizedUniverse);
+      picked = universeSelection.rows;
+      universeStats = universeSelection.stats;
+    }
+  }
   return {
     rows: picked,
     stats: {
@@ -559,11 +638,40 @@ function composeLatestHoldingSelection(candidateRows, nominalN, constraintMode) 
       underfilled: picked.length < n,
       constraint_mode: constraint,
       candidate_actual_n: rankedCandidates.length,
+      ...universeStats,
     },
   };
 }
 
 function composeHoldingCountNote(nominalN, displayedRows, stats) {
+  const universeMode = composeUniverseConfig({
+    mode: stats?.universe_mode,
+    indexAlias: stats?.index_alias,
+  }).mode;
+  if (universeMode !== "all") {
+    const n = Math.max(1, Number(nominalN) || 1);
+    const actualN = Number(stats?.actual_n) || 0;
+    const meta = indexUniverseMeta({ indexAlias: stats?.index_alias });
+    if (stats?.index_available === false) {
+      return `<div class="holding-count-note holding-count-note-underfilled" role="status">
+        <span class="holding-count-value">${htmlText(meta.label)}成分尚不可用</span>
+        <span>当前截面早于官方成分权重起点${htmlText(meta.firstWeightDate)}，未倒推或伪造历史成分。</span>
+      </div>`;
+    }
+    if (stats?.requirement_met === false) {
+      return `<div class="holding-count-note holding-count-note-underfilled" role="status">
+        <span class="holding-count-value">名义Top${n} · 本期未构建组合</span>
+        <span>有效${htmlText(meta.label)}成分仅${Number(stats?.available_index_member_n) || 0}只，少于约束要求的${Number(stats?.required_index_member_n) || 0}只。</span>
+      </div>`;
+    }
+    const share = Number(stats?.index_member_share);
+    const shareText = Number.isFinite(share) ? `${(share * 100).toFixed(0)}%` : "—";
+    const displayNote = displayedRows.length < actualN ? `明细仅展示前${displayedRows.length}只。` : "";
+    return `<div class="holding-count-note holding-count-note-ok" role="status">
+      <span class="holding-count-value">名义Top${n} · 实际${actualN}只</span>
+      <span>${htmlText(meta.label)}成分${Number(stats?.index_member_n) || 0}只，占${shareText}；约束已满足。${displayNote}</span>
+    </div>`;
+  }
   if (normalizeConstraintMode(stats?.constraint_mode) !== "industry") {
     return holdingCountNote(nominalN, displayedRows, stats);
   }
@@ -595,6 +703,18 @@ function composeConstraintHoldText(mode = state.composeConstraintMode) {
   return normalizeConstraintMode(mode) === "industry"
     ? "按完整有效候选集的最新静态申万一级行业占比近似配权"
     : "Top股票等权持有";
+}
+
+function composeUniverseMethodNote(universe = state.composeUniverse) {
+  const normalized = composeUniverseConfig(universe);
+  const meta = normalized.mode === "all" ? null : indexUniverseMeta(normalized);
+  if (normalized.mode === "index_only") {
+    return `每个月末仅在当时有效的${meta.label}成分内计算合成排序并选股；官方成分权重自${meta.firstWeightDate}起可用。`;
+  }
+  if (normalized.mode === "min_share") {
+    return `组合按实际持股数量保证至少${Math.round(normalized.minShare * 100)}%来自当时有效的${meta.label}成分；合成分数IC仍按原股票池计算。官方成分权重自${meta.firstWeightDate}起可用。`;
+  }
+  return "合成排序和组合均使用原有Word股票池。";
 }
 
 function activeScoreSnapshot(snap) {
@@ -772,6 +892,7 @@ function validatePublishedCombo(raw, idx, validCodes) {
     description: typeof raw?.description === "string" ? raw.description.trim() : "",
     N: Number(raw?.N),
     constraintMode: normalizeConstraintMode(raw?.constraintMode),
+    universe: normalizeIndexUniverseConfig(raw?.universe),
     factors: [],
     tags: Array.isArray(raw?.tags) ? raw.tags.filter(t => typeof t === "string" && t.trim()).map(t => t.trim()) : [],
     created_at: typeof raw?.created_at === "string" ? raw.created_at.trim() : "",
@@ -785,6 +906,9 @@ function validatePublishedCombo(raw, idx, validCodes) {
   if (!raw?.id || typeof raw.id !== "string" || !raw.id.trim()) reasons.push("缺少 id");
   if (!raw?.name || typeof raw.name !== "string" || !raw.name.trim()) reasons.push("缺少名称");
   if (!Number.isInteger(combo.N) || combo.N < 1 || combo.N > 100) reasons.push("topN 必须在 1-100");
+  if (combo.constraintMode === "industry" && combo.universe.mode === "min_share") {
+    reasons.push("行业中性约束暂不能与最低指数成分占比同时使用");
+  }
   if (!Array.isArray(raw?.factors) || raw.factors.length === 0) {
     reasons.push("缺少因子");
   } else {
@@ -890,6 +1014,7 @@ function rawComboFromCurrent(name = "我的组合", existingIds = new Set()) {
     description: "",
     N: state.composeN,
     constraintMode: normalizeConstraintMode(state.composeConstraintMode),
+    universe: normalizeIndexUniverseConfig(state.composeUniverse),
     factors: cloneComposeFactors(state.composeFactors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
@@ -903,6 +1028,7 @@ function rawComboFromSavedCombo(combo, existingIds = new Set()) {
     description: "",
     N: combo.N,
     constraintMode: normalizeConstraintMode(combo.constraintMode),
+    universe: normalizeIndexUniverseConfig(combo.universe),
     factors: cloneComposeFactors(combo.factors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
@@ -956,6 +1082,7 @@ function persistMyCombos() {
     description: c.description || "",
     N: c.N,
     constraintMode: normalizeConstraintMode(c.constraintMode),
+    universe: normalizeIndexUniverseConfig(c.universe),
     factors: cloneComposeFactors(c.factors),
     tags: c.tags || [],
     created_at: c.created_at || new Date().toISOString().slice(0, 10),
@@ -1057,7 +1184,7 @@ function bindFactorSearch() {
 
 let _dbPromise = null;
 let _optionalDataLoad = Promise.resolve();
-const _optionalReady = { stockMeta: false, descriptors: false, benchmarks: false, corr: false };
+const _optionalReady = { stockMeta: false, descriptors: false, benchmarks: false, corr: false, indexWeights: false };
 let _warmupScheduled = false;
 let _singleRenderSeq = 0;
 let _singlePrefetchSeq = 0;
@@ -1103,6 +1230,7 @@ async function ensureOptionalTables(opts = {}) {
   const needDescriptors = opts.descriptors !== false;
   const needBenchmarks = opts.benchmarks !== false;
   const needCorr = opts.corr !== false;
+  const needIndexWeights = opts.indexWeights === true;
   _optionalDataLoad = _optionalDataLoad.then(async () => {
     if (needStockMeta && !_optionalReady.stockMeta) {
       state.hasStockMeta = await tryLoadOptional("stock_meta", `
@@ -1158,7 +1286,21 @@ async function ensureOptionalTables(opts = {}) {
         `);
       _optionalReady.corr = true;
     }
-    console.log(`Optional: stockMeta=${state.hasStockMeta}, descriptors=${state.hasDescriptors}, benchmarks=${state.hasBenchmarks}, corr=${state.hasCorr}, corrNeutral=${state.hasCorrNeutral}`);
+    if (needIndexWeights && !_optionalReady.indexWeights) {
+      state.hasIndexWeights = await tryLoadOptional("index_weight_monthly", `
+          CREATE OR REPLACE TABLE index_weight_monthly AS
+          SELECT * FROM read_parquet('${INDEX_WEIGHT_MONTHLY}')
+        `, `
+          CREATE OR REPLACE TABLE index_weight_monthly (
+            signal_date DATE, weight_date DATE, snapshot_lag_days INTEGER,
+            index_alias VARCHAR, index_name VARCHAR, index_code VARCHAR,
+            stock_code VARCHAR, weight_pct DOUBLE, weight DOUBLE,
+            weight_timing VARCHAR, source_table VARCHAR
+          )
+        `);
+      _optionalReady.indexWeights = true;
+    }
+    console.log(`Optional: stockMeta=${state.hasStockMeta}, descriptors=${state.hasDescriptors}, benchmarks=${state.hasBenchmarks}, corr=${state.hasCorr}, corrNeutral=${state.hasCorrNeutral}, indexWeights=${state.hasIndexWeights}`);
   });
   return _optionalDataLoad;
 }
@@ -1219,6 +1361,14 @@ async function _initDB() {
     await state.db.query(`
       CREATE TABLE factor_corr_neutral (
         factor_a VARCHAR, factor_b VARCHAR, corr DOUBLE, n_obs INTEGER, n_months INTEGER
+      )
+    `);
+    await state.db.query(`
+      CREATE TABLE index_weight_monthly (
+        signal_date DATE, weight_date DATE, snapshot_lag_days INTEGER,
+        index_alias VARCHAR, index_name VARCHAR, index_code VARCHAR,
+        stock_code VARCHAR, weight_pct DOUBLE, weight DOUBLE,
+        weight_timing VARCHAR, source_table VARCHAR
       )
     `);
     console.log(`核心表加载 ${(performance.now() - t0).toFixed(0)}ms`);
@@ -6041,18 +6191,38 @@ function composeMatrixBuildSql(shards) {
       ${joins}`;
 }
 
-function composeConfigKey(factors = state.composeFactors, N = state.composeN, constraintMode = state.composeConstraintMode) {
+function composeConfigKey(
+  factors = state.composeFactors,
+  N = state.composeN,
+  constraintMode = state.composeConstraintMode,
+  universe = state.composeUniverse,
+) {
   const norm = cloneComposeFactors(factors).sort((a, b) => a.code.localeCompare(b.code));
-  return JSON.stringify({ N, constraintMode: normalizeConstraintMode(constraintMode), factors: norm });
+  return JSON.stringify({
+    N,
+    constraintMode: normalizeConstraintMode(constraintMode),
+    universe: normalizeIndexUniverseConfig(universe),
+    factors: norm,
+  });
 }
 
-function composeScoreConfigKey(factors = state.composeFactors, startMonth = state.composeStart, endMonth = state.composeEnd) {
+function composeScoreConfigKey(
+  factors = state.composeFactors,
+  startMonth = state.composeStart,
+  endMonth = state.composeEnd,
+  universe = state.composeUniverse,
+) {
   const norm = cloneComposeFactors(factors).sort((a, b) => {
     const ka = `${composeShardKey(a.code, a.scoreMode)}|${a.side}|${a.weight}|${a.op}|${a.thr}`;
     const kb = `${composeShardKey(b.code, b.scoreMode)}|${b.side}|${b.weight}|${b.op}|${b.thr}`;
     return ka.localeCompare(kb);
   });
-  return JSON.stringify({ startMonth: startMonth || null, endMonth: endMonth || null, factors: norm });
+  return JSON.stringify({
+    startMonth: startMonth || null,
+    endMonth: endMonth || null,
+    universe: normalizeIndexUniverseConfig(universe),
+    factors: norm,
+  });
 }
 
 function cloneBacktest(bt) {
@@ -6181,9 +6351,10 @@ function composeValues() {
 
 function comboSummary(combo) {
   const constraintMode = normalizeConstraintMode(combo.constraintMode);
+  const universe = normalizeIndexUniverseConfig(combo.universe);
   return cloneComposeFactors(combo.factors)
     .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}${f.thr !== null ? `(${f.op}${f.thr})` : ""}`)
-    .join(" + ") + `，top${combo.N}，${composeConstraintModeLabel(constraintMode)}`;
+    .join(" + ") + `，top${combo.N}，${composeConstraintModeLabel(constraintMode)}，${indexUniverseModeLabel(universe)}`;
 }
 
 function comboDetailHtml(combo) {
@@ -6194,7 +6365,7 @@ function comboDetailHtml(combo) {
   }).join("");
   return `<div class="published-detail">
     ${combo.description ? `<p>${htmlText(combo.description)}</p>` : ""}
-    <p class="published-meta">组合约束：${composeConstraintModeLabel(normalizeConstraintMode(combo.constraintMode))}</p>
+    <p class="published-meta">组合约束：${composeConstraintModeLabel(normalizeConstraintMode(combo.constraintMode))}；股票池：${indexUniverseModeLabel(combo.universe)}</p>
     <table class="published-detail-table"><thead><tr><th>因子</th><th>名称</th><th>方向</th><th>口径</th><th>权重</th><th>过滤</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="published-meta">${combo.created_at ? "创建：" + htmlText(combo.created_at) + " · " : ""}ID：${htmlText(combo.id)}</p>
   </div>`;
@@ -6206,6 +6377,7 @@ function comboToTempCompare(combo) {
     factors: cloneComposeFactors(combo.factors),
     N: combo.N,
     constraintMode: normalizeConstraintMode(combo.constraintMode),
+    universe: normalizeIndexUniverseConfig(combo.universe),
     color: STRAT_COLORS[state.savedCombos.length % STRAT_COLORS.length],
     bt: null,
   };
@@ -6230,6 +6402,7 @@ function loadLibraryCombo(source, id) {
   state.composeFactors = cloneComposeFactors(combo.factors);
   state.composeN = combo.N;
   state.composeConstraintMode = normalizeConstraintMode(combo.constraintMode);
+  state.composeUniverse = normalizeIndexUniverseConfig(combo.universe);
   syncComposeNButtons();
   switchMode("compose");
 }
@@ -6421,6 +6594,7 @@ function comboRankingRowFromPayload(source, combo, payload) {
     name: combo.name,
     N: combo.N,
     constraintMode: normalizeConstraintMode(combo.constraintMode),
+    universe: normalizeIndexUniverseConfig(combo.universe),
     factors: cloneComposeFactors(combo.factors),
     rank_ic: rank.mean,
     ic_ir: rank.ir,
@@ -6452,6 +6626,7 @@ function comboRankingErrorRow(source, combo, err) {
     name: combo.name,
     N: combo.N,
     constraintMode: normalizeConstraintMode(combo.constraintMode),
+    universe: normalizeIndexUniverseConfig(combo.universe),
     factors: cloneComposeFactors(combo.factors),
     error: err?.message || String(err || "计算失败"),
     score: -999,
@@ -6462,6 +6637,7 @@ function restoreComposeContext(snapshot) {
   state.composeFactors = cloneComposeFactors(snapshot.factors);
   state.composeN = snapshot.N;
   state.composeConstraintMode = normalizeConstraintMode(snapshot.constraintMode);
+  state.composeUniverse = normalizeIndexUniverseConfig(snapshot.universe);
   state.composeStart = snapshot.start;
   state.composeEnd = snapshot.end;
   syncComposeNButtons();
@@ -6472,9 +6648,16 @@ async function comboRankingPayloadFor(combo) {
   state.composeFactors = cloneComposeFactors(combo.factors);
   state.composeN = Number(combo.N);
   state.composeConstraintMode = normalizeConstraintMode(combo.constraintMode);
+  state.composeUniverse = normalizeIndexUniverseConfig(combo.universe);
   state.composeStart = null;
   state.composeEnd = null;
-  await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+  await ensureDB({
+    stockMeta: false,
+    descriptors: true,
+    benchmarks: false,
+    corr: false,
+    indexWeights: state.composeUniverse.mode !== "all",
+  });
   await ensureComposeBase();
   return comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false, includeParameterSensitivity: false });
 }
@@ -6489,6 +6672,7 @@ async function runComboRanking() {
     factors: cloneComposeFactors(state.composeFactors),
     N: state.composeN,
     constraintMode: state.composeConstraintMode,
+    universe: normalizeIndexUniverseConfig(state.composeUniverse),
     start: state.composeStart,
     end: state.composeEnd,
   };
@@ -6978,6 +7162,7 @@ function currentComboPublishPayload() {
     description: "",
     N: state.composeN,
     constraintMode: normalizeConstraintMode(state.composeConstraintMode),
+    universe: normalizeIndexUniverseConfig(state.composeUniverse),
     factors: cloneComposeFactors(state.composeFactors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
@@ -6991,6 +7176,7 @@ function comboPublishPayload(combo) {
     description: combo.description || "",
     N: combo.N,
     constraintMode: normalizeConstraintMode(combo.constraintMode),
+    universe: normalizeIndexUniverseConfig(combo.universe),
     factors: cloneComposeFactors(combo.factors),
     tags: combo.tags || [],
     created_at: combo.created_at || new Date().toISOString().slice(0, 10),
@@ -7011,6 +7197,7 @@ function comboPublishRequestText(payload) {
     `组合名称：${payload.name}`,
     `选股数：top${payload.N}`,
     `组合约束：${composeConstraintModeLabel(payload.constraintMode)}`,
+    `指数股票池：${indexUniverseModeLabel(payload.universe)}`,
     "因子：",
     factorLines,
     "",
@@ -7141,9 +7328,10 @@ function renderComposeSoon(delay = 80) {
 
 function renderComposeControls() {
   const box = document.getElementById("cps-controls");
-  if (state.composeFactors.length === 0) { box.innerHTML = `<div class="empty">未选因子</div>`; return; }
   const wsum = state.composeFactors.reduce((s, f) => s + Math.abs(f.weight), 0) || 1;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
+  const universe = normalizeIndexUniverseConfig(state.composeUniverse);
+  state.composeUniverse = universe;
   const neutralDisabled = hasComposeNeutralScores() ? "" : " disabled";
   const neutralNotice = hasComposeNeutralScores()
     ? ""
@@ -7155,14 +7343,35 @@ function renderComposeControls() {
   const industryApproximationNotice = constraint === "industry"
     ? `<div class="capability-note"><b>口径限制</b> ${htmlText(composeIndustryApproximationMessage())}</div>`
     : "";
+  const industryDisabled = universe.mode === "min_share" ? " disabled" : "";
   const constraintBtns = `
     <div style="margin:0 0 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">组合约束：</span>
       <button id="cps-constraint-none" class="cpsn-btn cps-constraint-btn${constraint === "none" ? " active" : ""}" data-mode="none">无约束等权</button>
-      <button id="cps-constraint-industry" class="cpsn-btn cps-constraint-btn${constraint === "industry" ? " active" : ""}" data-mode="industry">静态行业约束</button>
+      <button id="cps-constraint-industry" class="cpsn-btn cps-constraint-btn${constraint === "industry" ? " active" : ""}" data-mode="industry"${industryDisabled} title="${universe.mode === "min_share" ? "最低指数成分占比暂不与行业中性组合叠加" : "按行业目标权重构建组合"}">静态行业约束</button>
       <span style="color:#888;font-size:11px">完整有效候选集定行业配额，各行业内按合成分数竞争秩选股</span>
     </div>`;
-  box.innerHTML = constraintBtns + industryApproximationNotice + neutralNotice + usageNotice + state.composeFactors.map((raw, i) => {
+  const universeControls = `
+    <fieldset class="index-universe-controls">
+      <legend>指数股票池</legend>
+      <label for="cps-universe-mode">使用方式</label>
+      <select id="cps-universe-mode">
+        <option value="all"${universe.mode === "all" ? " selected" : ""}>全市场</option>
+        <option value="index_only"${universe.mode === "index_only" ? " selected" : ""}>仅指数成分</option>
+        <option value="min_share"${universe.mode === "min_share" ? " selected" : ""}>最低成分占比</option>
+      </select>
+      <label for="cps-universe-index">目标指数</label>
+      <select id="cps-universe-index"${universe.mode === "all" ? " disabled" : ""}>
+        ${INDEX_UNIVERSE_OPTIONS.map(item => `<option value="${item.alias}"${universe.indexAlias === item.alias ? " selected" : ""}>${item.label}</option>`).join("")}
+      </select>
+      <label for="cps-universe-share">最低占比</label>
+      <select id="cps-universe-share"${universe.mode === "min_share" ? "" : " disabled"}>
+        ${[0.5, 0.6, 0.7, 0.8, 0.9, 1].map(value => `<option value="${value}"${Math.abs(universe.minShare - value) < 1e-9 ? " selected" : ""}>${Math.round(value * 100)}%</option>`).join("")}
+      </select>
+      <span class="index-universe-summary">${htmlText(composeUniverseMethodNote(universe))}</span>
+    </fieldset>`;
+  const factorRows = state.composeFactors.length
+    ? state.composeFactors.map((raw, i) => {
     const f = normalizeComposeFactor(raw);
     state.composeFactors[i] = f;
     const pctw = (f.weight / wsum * 100).toFixed(0);
@@ -7192,7 +7401,9 @@ function renderComposeControls() {
              style="width:54px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px" />
       <button type="button" class="cps-remove" data-idx="${i}" aria-label="移除合成因子 ${f.code}">×</button>
     </div>`;
-  }).join("");
+  }).join("")
+    : `<div class="empty index-universe-empty">指数股票池设置已生效；从左侧选择因子后开始计算。</div>`;
+  box.innerHTML = constraintBtns + universeControls + industryApproximationNotice + neutralNotice + usageNotice + factorRows;
   box.querySelectorAll(".cps-w-input").forEach(inp => {
     inp.addEventListener("change", () => {
       const f = state.composeFactors[parseInt(inp.dataset.idx, 10)];
@@ -7229,6 +7440,28 @@ function renderComposeControls() {
       renderComposeSoon();
     };
   });
+  const universeMode = box.querySelector("#cps-universe-mode");
+  if (universeMode) universeMode.onchange = () => {
+    const next = normalizeIndexUniverseConfig({ ...state.composeUniverse, mode: universeMode.value });
+    state.composeUniverse = next;
+    if (next.mode === "min_share" && normalizeConstraintMode(state.composeConstraintMode) === "industry") {
+      state.composeConstraintMode = "none";
+    }
+    clearComposeOptimization();
+    renderComposeSoon();
+  };
+  const universeIndex = box.querySelector("#cps-universe-index");
+  if (universeIndex) universeIndex.onchange = () => {
+    state.composeUniverse = normalizeIndexUniverseConfig({ ...state.composeUniverse, indexAlias: universeIndex.value });
+    clearComposeOptimization();
+    renderComposeSoon();
+  };
+  const universeShare = box.querySelector("#cps-universe-share");
+  if (universeShare) universeShare.onchange = () => {
+    state.composeUniverse = normalizeIndexUniverseConfig({ ...state.composeUniverse, minShare: Number(universeShare.value) });
+    clearComposeOptimization();
+    renderComposeSoon();
+  };
   box.querySelectorAll(".cps-op").forEach(sel => sel.onchange = () => {
     state.composeFactors[parseInt(sel.dataset.idx, 10)].op = sel.value;
     if (state.composeFactors[parseInt(sel.dataset.idx, 10)].thr !== null) renderComposeSoon();
@@ -7297,9 +7530,19 @@ async function renderCompose() {
   }
   try {
     const needsDescriptors = normalizeConstraintMode(state.composeConstraintMode) === "industry";
-    await ensureDB({ stockMeta: false, descriptors: needsDescriptors, benchmarks: false, corr: false });
+    const needsIndexWeights = normalizeIndexUniverseConfig(state.composeUniverse).mode !== "all";
+    await ensureDB({
+      stockMeta: false,
+      descriptors: needsDescriptors,
+      benchmarks: false,
+      corr: false,
+      indexWeights: needsIndexWeights,
+    });
     if (needsDescriptors && !state.hasDescriptors) {
       throw new Error("静态行业约束不可用：未能加载stock_descriptors.parquet。请补齐描述表后重试，系统不会把缺失行业当作空持仓继续计算。");
+    }
+    if (needsIndexWeights && !state.hasIndexWeights) {
+      throw new Error("指数股票池不可用：未能加载index_weight_monthly.parquet。请重新导出前端数据后重试，系统不会退回全市场继续计算。");
     }
     if (isComposeRenderStale(renderSeq)) return;
     await ensureComposeData();   // 懒加载合成专用大表
@@ -7351,15 +7594,32 @@ async function renderComposeStocks(renderSeq) {
   const condSql = matrixCondSql(state.composeFactors);
   if (scoreExpr === null || condSql === null) return;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
+  const universe = normalizeIndexUniverseConfig(state.composeUniverse);
+  const universeActive = universe.mode !== "all";
+  const universeJoin = universeActive ? `
+    LEFT JOIN index_weight_monthly iw
+      ON iw.signal_date = m.trade_date
+     AND iw.index_alias = '${universe.indexAlias}'
+     AND iw.stock_code = m.stock_code
+    LEFT JOIN (
+      SELECT DISTINCT signal_date
+      FROM index_weight_monthly
+      WHERE index_alias = '${universe.indexAlias}'
+    ) ia ON ia.signal_date = m.trade_date
+  ` : "";
   const res = await state.db.query(`
-    SELECT stock_code,
+    SELECT m.stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
-           CAST(trade_date AS VARCHAR) AS dt,
-           CAST(trade_date AS VARCHAR) AS as_of_date,
-           CAST(trade_date AS VARCHAR) AS pool_date
-    FROM cps_latest_matrix
+           CAST(m.trade_date AS VARCHAR) AS dt,
+           CAST(m.trade_date AS VARCHAR) AS as_of_date,
+           CAST(m.trade_date AS VARCHAR) AS pool_date,
+           ${universeActive ? "ia.signal_date IS NOT NULL" : "TRUE"} AS index_available,
+           ${universeActive ? "iw.stock_code IS NOT NULL" : "FALSE"} AS is_index_member,
+           ${universeActive ? "iw.weight" : "NULL::DOUBLE"} AS benchmark_weight
+    FROM cps_latest_matrix m
+    ${universeJoin}
     WHERE (${scoreExpr}) IS NOT NULL ${condSql}
-    ORDER BY comp_score DESC, stock_code
+    ORDER BY comp_score DESC, m.stock_code
   `);
   if (isComposeRenderStale(renderSeq)) return;
   const candidateRows = res.toArray()
@@ -7379,13 +7639,20 @@ async function renderComposeStocks(renderSeq) {
       pb: r.meta.pb,
       avg_amount: r.meta.avg_amount,
     }));
-  const selection = composeLatestHoldingSelection(candidateRows, state.composeN, constraint);
+  const selection = composeLatestHoldingSelection(candidateRows, state.composeN, constraint, universe);
   const allRows = selection.rows;
   const rows = allRows.slice(0, MAX_HOLDING_DETAIL_ROWS);
   const condDesc = state.composeFactors.filter(f => f.thr !== null && Number.isFinite(f.thr))
     .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}得分${f.op}${f.thr}`).join(" 且 ");
   if (rows.length === 0) {
-    target.innerHTML = `<h3>合成 Top 股票</h3><div class="empty">无股票满足条件${condDesc ? "：" + htmlText(condDesc) : ""}（过滤可能过严，放宽阈值）</div>`;
+    const meta = indexUniverseMeta(universe);
+    let message = `无股票满足条件${condDesc ? "：" + htmlText(condDesc) : ""}（过滤可能过严，放宽阈值）`;
+    if (universeActive && selection.stats.index_available === false) {
+      message = `当前截面没有${meta.label}官方成分权重；该指数成分数据自${meta.firstWeightDate}起可用。`;
+    } else if (universe.mode === "min_share" && selection.stats.requirement_met === false) {
+      message = `当前有效候选中只有${Number(selection.stats.available_index_member_n) || 0}只${meta.label}成分，无法满足至少${Math.round(universe.minShare * 100)}%的持股数量约束。`;
+    }
+    target.innerHTML = `<h3>合成 Top 股票</h3><div class="empty">${htmlText(message)}</div>`;
     return;
   }
   const dt = rows[0].dt;
@@ -7394,10 +7661,10 @@ async function renderComposeStocks(renderSeq) {
   const fmt = (v, dp = 2) => (v === null || v === undefined ? "—" : Number(v).toFixed(dp));
   const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));
   let html = `<h3>合成名义 Top ${state.composeN} 股票（当前最新持仓展示，截面日 ${htmlText(dt)}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
-    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${htmlText(wdesc)}（高斯秩标准化分数加权和）${condDesc ? "；过滤：" + htmlText(condDesc) : ""}；组合约束：${htmlText(composeConstraintModeLabel(constraint))}。${htmlText(scopeNote)}</p>
+    <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${htmlText(wdesc)}（高斯秩标准化分数加权和）${condDesc ? "；过滤：" + htmlText(condDesc) : ""}；组合约束：${htmlText(composeConstraintModeLabel(constraint))}；股票池：${htmlText(indexUniverseModeLabel(universe))}。${htmlText(scopeNote)}</p>
     ${composeHoldingCountNote(state.composeN, rows, selection.stats)}
     <table class="stock-table"><thead><tr>
-      <th>#</th><th>代码</th><th>名称</th><th>得分截面</th><th>展示池日期</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${constraint === "industry" ? "<th>权重</th>" : ""}<th>合成得分</th>
+      <th>#</th><th>代码</th><th>名称</th><th>得分截面</th><th>展示池日期</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${universeActive ? "<th>指数成分</th><th>指数权重</th>" : ""}${constraint === "industry" ? "<th>组合权重</th>" : ""}<th>合成得分</th>
     </tr></thead><tbody>`;
   rows.forEach((r, i) => {
     const as_of_date = holdingAsOfDate(r);
@@ -7405,7 +7672,7 @@ async function renderComposeStocks(renderSeq) {
     html += `<tr class="stock-row" data-stock="${htmlAttr(r.stock_code)}" data-name="${htmlAttr(r.name || "")}" title="点击看该股各因子打分（为什么入选）"><td>${i + 1}</td><td><button type="button" class="stock-detail-btn" aria-label="查看 ${htmlAttr(r.stock_code)} ${htmlAttr(r.name || "")} 的因子打分">${htmlText(r.stock_code)}</button></td><td>${htmlText(r.name || "")}</td>
       <td>${htmlText(as_of_date)}</td><td>${htmlText(pool_date)}</td>
       <td>${htmlText(r.industry_sw1 || "—")}</td><td>${fmtMV(r.market_cap)}</td>
-      <td>${fmt(r.pe, 1)}</td><td>${fmt(r.pb, 2)}</td>${constraint === "industry" ? `<td>${pctText(Number(r.weight))}</td>` : ""}<td>${fmt(r.comp_score, 3)}</td></tr>`;
+      <td>${fmt(r.pe, 1)}</td><td>${fmt(r.pb, 2)}</td>${universeActive ? `<td class="${r.is_index_member ? "index-member-yes" : "index-member-no"}">${r.is_index_member ? "是" : "否"}</td><td>${r.is_index_member ? pctText(Number(r.benchmark_weight)) : "—"}</td>` : ""}${constraint === "industry" ? `<td>${pctText(Number(r.weight))}</td>` : ""}<td>${fmt(r.comp_score, 3)}</td></tr>`;
   });
   target.innerHTML = html + "</tbody></table>";
 }
@@ -7413,10 +7680,11 @@ async function renderComposeStocks(renderSeq) {
 async function renderComposeBacktest(renderSeq) {
   if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
+  const universe = normalizeIndexUniverseConfig(state.composeUniverse);
   document.getElementById("cps-nav-title").textContent =
-    `合成组合净值（top-${state.composeN}，${composeConstraintModeLabel(constraint)}，${composeConstraintHoldText(constraint)}，单边 0.2%，按换手扣成本，起点=1.0；${composeRangeLabel()}）`;
-  const key = composeConfigKey(state.composeFactors, state.composeN, constraint);
-  const fullBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix", constraint);
+    `合成组合净值（top-${state.composeN}，${composeConstraintModeLabel(constraint)}，${indexUniverseModeLabel(universe)}，${composeConstraintHoldText(constraint)}，单边0.2%，按换手扣成本，起点=1.0；${composeRangeLabel()}）`;
+  const key = composeConfigKey(state.composeFactors, state.composeN, constraint, universe);
+  const fullBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix", constraint, universe);
   if (isComposeRenderStale(renderSeq)) return;
   _latestComposeBtKey = key;
   _latestComposeBt = cloneBacktest(fullBt);
@@ -7433,14 +7701,12 @@ async function renderComposeBacktest(renderSeq) {
   if (x.length) {
     const bm = await ensureBenchmarkSnapshot();
     if (isComposeRenderStale(renderSeq)) return;
-    const colors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
-    const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
-    for (const idx of ["HS300", "CSI800", "CSI500"]) {
+    for (const idx of composeBenchmarkCodes(universe)) {
       const aligned = benchmarkNavForBacktest(bm, x, idx);
       const b = aligned.find(v => v !== null);
-      series.push({ name: `${cn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
+      series.push({ name: `${benchmarkLabel(idx)}(基准)`, type: "line", symbol: "none", connectNulls: true,
         data: b ? aligned.map(v => v === null ? null : v / b) : aligned,
-        color: colors[idx], lineStyle: { width: 1.2, type: "dashed" } });
+        color: BENCHMARK_COLORS[idx], lineStyle: { width: 1.2, type: "dashed" } });
     }
   }
   cpsNavChart = echarts.init(div);
@@ -7462,7 +7728,7 @@ async function renderComposeBacktest(renderSeq) {
   if (isComposeRenderStale(renderSeq)) return;
   const bg = {};
   const excess = {};
-  for (const code of ["HS300", "CSI800", "CSI500"]) {
+  for (const code of composeBenchmarkCodes(universe)) {
     const comparison = benchmarkComparisonForBacktest(bt, bmSnapForKpi, code);
     if (comparison.benchmark) bg[code] = comparison.benchmark;
     excess[code] = comparison;
@@ -7471,13 +7737,12 @@ async function renderComposeBacktest(renderSeq) {
   const ex800 = excess.CSI800.annual === null ? "—" : signed(excess.CSI800.annual);
   let krows = `<tr><td><b>合成组合</b></td><td>${pct(m.annual)}</td><td>${pct(m.vol)}</td><td>${numText(m.sharpe, 2)}</td><td>${pct(m.mdd)}</td>
       <td>${(m.winRate*100).toFixed(0)}%</td><td>${ex300}</td><td>${ex800}</td></tr>`;
-  // 三基准行（绝对指标）
+  // 常用基准与当前指数股票池对应基准（绝对指标）
   {
-    const cn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
-    for (const idx of ["HS300", "CSI800", "CSI500"]) {
+    for (const idx of composeBenchmarkCodes(universe)) {
       const bm = bg[idx]; if (!bm) continue;
       krows += `<tr style="color:#888;border-top:2px solid #ddd">
-        <td style="color:#888">${cn[idx]}</td><td>${pct(bm.annual)}</td><td>${pct(bm.vol)}</td><td>${numText(bm.sharpe, 2)}</td>
+        <td style="color:#888">${benchmarkLabel(idx)}</td><td>${pct(bm.annual)}</td><td>${pct(bm.vol)}</td><td>${numText(bm.sharpe, 2)}</td>
         <td>${pct(bm.mdd)}</td><td>${(bm.winRate*100).toFixed(0)}%</td><td>—</td><td>—</td></tr>`;
     }
   }
@@ -7494,10 +7759,21 @@ function renderComposeIcDecayUnavailable(message) {
   if (tableDiv) tableDiv.innerHTML = "";
 }
 
-function composeIcDecaySql(factors = state.composeFactors, startMonth = state.composeStart, endMonth = state.composeEnd) {
+function composeIcDecaySql(
+  factors = state.composeFactors,
+  startMonth = state.composeStart,
+  endMonth = state.composeEnd,
+  rawUniverse = state.composeUniverse,
+) {
   const scoreExpr = matrixScoreSql(factors);
   const condSql = matrixCondSql(factors);
   if (!scoreExpr || condSql === null) return null;
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  const indexOnlyJoin = universe.mode === "index_only" ? `
+      INNER JOIN index_weight_monthly iw
+        ON iw.signal_date = m.trade_date
+       AND iw.index_alias = '${universe.indexAlias}'
+       AND iw.stock_code = m.stock_code` : "";
   const rangeConds = [];
   if (startMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') >= '${startMonth}'`);
   if (endMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') <= '${endMonth}'`);
@@ -7519,6 +7795,7 @@ function composeIcDecaySql(factors = state.composeFactors, startMonth = state.co
              CAST(strftime(m.trade_date, '%Y') AS INTEGER) * 12 + CAST(strftime(m.trade_date, '%m') AS INTEGER) AS month_id,
              ROUND(${scoreExpr}, 6) AS cs
       FROM cps_matrix m
+      ${indexOnlyJoin}
       WHERE (${scoreExpr}) IS NOT NULL ${condSql || ""} ${rangeSql}
     ),
     ret_windows AS (
@@ -7599,12 +7876,17 @@ function composeIcDecaySql(factors = state.composeFactors, startMonth = state.co
   `;
 }
 
-async function comboIcDecay(factors = state.composeFactors, startMonth = state.composeStart, endMonth = state.composeEnd) {
-  const cacheKey = composeScoreConfigKey(factors, startMonth, endMonth);
+async function comboIcDecay(
+  factors = state.composeFactors,
+  startMonth = state.composeStart,
+  endMonth = state.composeEnd,
+  universe = state.composeUniverse,
+) {
+  const cacheKey = composeScoreConfigKey(factors, startMonth, endMonth, universe);
   if (_composeIcDecayCache.has(cacheKey)) return _composeIcDecayCache.get(cacheKey);
   if (_composeIcDecayBuilds.has(cacheKey)) return _composeIcDecayBuilds.get(cacheKey);
   const build = (async () => {
-    const sql = composeIcDecaySql(factors, startMonth, endMonth);
+    const sql = composeIcDecaySql(factors, startMonth, endMonth, universe);
     if (!sql) return { horizons: [1, 3, 6, 12], stats: [], series: {} };
     const res = await state.db.query(sql);
     const rows = res.toArray();
@@ -7640,8 +7922,8 @@ async function renderComposeIcDecay(renderSeq) {
   if (!chartDiv || !tableDiv) return;
   const rng = composeRangeLabel();
   document.getElementById("cps-ic-decay-title").textContent =
-    `合成分数 IC 衰减 / 多前瞻期（${rng}；按当前方向、权重、口径和阈值）`;
-  const payload = await comboIcDecay(state.composeFactors, state.composeStart, state.composeEnd);
+    `合成分数IC衰减 / 多前瞻期（${rng}；${indexUniverseModeLabel(state.composeUniverse)}；按当前方向、权重、口径和阈值）`;
+  const payload = await comboIcDecay(state.composeFactors, state.composeStart, state.composeEnd, state.composeUniverse);
   if (isComposeRenderStale(renderSeq)) return;
   const stats = payload.stats || [];
   const hasData = stats.some(s => s.mean !== null && Number.isFinite(Number(s.mean)));
@@ -7686,7 +7968,7 @@ async function renderComposeIcDecay(renderSeq) {
         <tr><td>${s.h}个月</td><td>${numText(s.mean, 4)}</td><td>${numText(s.ir, 2)}</td><td>${s.n}</td></tr>
       `).join("")}</tbody>
     </table>
-    <p style="color:#888;font-size:11px;margin-top:6px">这里衡量的是当前合成分数排序对未来 1/3/6/12 个月收益的预测力；行业中性约束只影响持仓，不改变合成分数 IC。</p>
+    <p style="color:#888;font-size:11px;margin-top:6px">这里衡量当前合成分数排序对未来1/3/6/12个月收益的预测力；“仅指数成分”会在对应指数的月末时点成分内计算IC，“最低成分占比”只约束持仓、不改变IC样本。</p>
   `;
 }
 
@@ -7809,18 +8091,30 @@ function monotonicityFromReturns(values) {
   return sx > 0 && sy > 0 ? cov / (sx * sy) : null;
 }
 
-async function comboGroupValidation(factors, startMonth = null, endMonth = null) {
+async function comboGroupValidation(
+  factors,
+  startMonth = null,
+  endMonth = null,
+  rawUniverse = state.composeUniverse,
+) {
   const scoreExpr = matrixScoreSql(factors);
   const condSql = matrixCondSql(factors);
   if (!scoreExpr || condSql === null) return { groups: [], rows: [], monotonicity: null, ls: null };
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  const indexOnlyJoin = universe.mode === "index_only" ? `
+      INNER JOIN index_weight_monthly iw
+        ON iw.signal_date = m.trade_date
+       AND iw.index_alias = '${universe.indexAlias}'
+       AND iw.stock_code = m.stock_code` : "";
   const rangeConds = [];
-  if (startMonth) rangeConds.push(`strftime(trade_date, '%Y-%m') >= '${startMonth}'`);
-  if (endMonth) rangeConds.push(`strftime(trade_date, '%Y-%m') <= '${endMonth}'`);
+  if (startMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') >= '${startMonth}'`);
+  if (endMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') <= '${endMonth}'`);
   const rangeSql = rangeConds.length ? `AND ${rangeConds.join(" AND ")}` : "";
   const res = await state.db.query(`
     WITH scored AS (
-      SELECT trade_date, return_date, stock_code, fwd_return, ROUND(${scoreExpr}, 6) AS cs
-      FROM cps_matrix
+      SELECT m.trade_date, m.return_date, m.stock_code, m.fwd_return, ROUND(${scoreExpr}, 6) AS cs
+      FROM cps_matrix m
+      ${indexOnlyJoin}
       WHERE (${scoreExpr}) IS NOT NULL ${condSql} ${rangeSql}
     ),
     ranked AS (
@@ -7986,21 +8280,36 @@ function comboCorrelationSummary(correlation, factorCount) {
   };
 }
 
-async function comboLatestHoldingRows(factors, N, constraintMode) {
+async function comboLatestHoldingRows(factors, N, constraintMode, rawUniverse = state.composeUniverse) {
   const metaMap = await ensureStockMetaSnapshot();
   const scoreExpr = matrixScoreSql(factors);
   const condSql = matrixCondSql(factors);
   if (scoreExpr === null || condSql === null) return [];
   const constraint = normalizeConstraintMode(constraintMode);
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  const universeActive = universe.mode !== "all";
+  const universeJoin = universeActive ? `
+    LEFT JOIN index_weight_monthly iw
+      ON iw.signal_date = m.trade_date
+     AND iw.index_alias = '${universe.indexAlias}'
+     AND iw.stock_code = m.stock_code
+    LEFT JOIN (
+      SELECT DISTINCT signal_date
+      FROM index_weight_monthly
+      WHERE index_alias = '${universe.indexAlias}'
+    ) ia ON ia.signal_date = m.trade_date` : "";
   const res = await state.db.query(`
-    SELECT stock_code,
+    SELECT m.stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
-           CAST(trade_date AS VARCHAR) AS dt,
-           CAST(trade_date AS VARCHAR) AS as_of_date,
-           CAST(trade_date AS VARCHAR) AS pool_date
-    FROM cps_latest_matrix
+           CAST(m.trade_date AS VARCHAR) AS dt,
+           CAST(m.trade_date AS VARCHAR) AS as_of_date,
+           CAST(m.trade_date AS VARCHAR) AS pool_date,
+           ${universeActive ? "ia.signal_date IS NOT NULL" : "TRUE"} AS index_available,
+           ${universeActive ? "iw.stock_code IS NOT NULL" : "FALSE"} AS is_index_member
+    FROM cps_latest_matrix m
+    ${universeJoin}
     WHERE (${scoreExpr}) IS NOT NULL ${condSql}
-    ORDER BY comp_score DESC, stock_code
+    ORDER BY comp_score DESC, m.stock_code
   `);
   const candidateRows = res.toArray()
     .map(r => ({ ...r, meta: metaMap.get(r.stock_code) }))
@@ -8018,8 +8327,10 @@ async function comboLatestHoldingRows(factors, N, constraintMode) {
       industry_sw2: r.meta.industry_sw2,
       market_cap: r.meta.market_cap,
       avg_amount: r.meta.avg_amount,
+      index_available: r.index_available === true,
+      is_index_member: r.is_index_member === true,
     }));
-  const selection = composeLatestHoldingSelection(candidateRows, N, constraint);
+  const selection = composeLatestHoldingSelection(candidateRows, N, constraint, universe);
   return selection.rows.map(r => ({ ...r, weight: snapshotNumber(r.weight) ?? 0 }));
 }
 
@@ -8043,14 +8354,18 @@ function comboBacktestAvgTurnover(backtest, N) {
   return turns.length ? turns.reduce((s, v) => s + v, 0) / turns.length : null;
 }
 
-async function comboHistoricalAvgTurnover(factors, N, constraintMode) {
-  const sql = matrixBacktestSql(factors, N, "cps_matrix", constraintMode);
+async function comboHistoricalAvgTurnover(factors, N, constraintMode, rawUniverse = state.composeUniverse) {
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  const sql = matrixBacktestSql(factors, N, "cps_matrix", constraintMode, universe);
   if (!sql) return null;
   const res = await state.db.query(sql);
   const rows = res.toArray();
-  const pickedRows = normalizeConstraintMode(constraintMode) === "industry"
-    ? groupIndustryNeutralRowsByMonth(rows, N)
+  const universeRows = universe.mode === "min_share"
+    ? groupIndexUniverseRowsByMonth(rows, N, universe)
     : rows;
+  const pickedRows = normalizeConstraintMode(constraintMode) === "industry"
+    ? groupIndustryNeutralRowsByMonth(universeRows, N)
+    : universeRows;
   const byMonth = new Map();
   for (const r of pickedRows) {
     const key = String(r.dt || "");
@@ -8159,10 +8474,10 @@ async function comboCrowdingFactorExposures(holdings) {
 }
 
 async function comboCrowdingDiagnostics(payload) {
-  const holdings = await comboLatestHoldingRows(payload.factors, payload.N, payload.constraintMode);
+  const holdings = await comboLatestHoldingRows(payload.factors, payload.N, payload.constraintMode, payload.universe);
   let avgTurnover = comboBacktestAvgTurnover(payload.backtest, payload.N);
   if (avgTurnover === null) {
-    avgTurnover = await comboHistoricalAvgTurnover(payload.factors, payload.N, payload.constraintMode);
+    avgTurnover = await comboHistoricalAvgTurnover(payload.factors, payload.N, payload.constraintMode, payload.universe);
   }
   const amounts = holdings.map(r => r.avg_amount).filter(v => snapshotNumber(v) !== null);
   const caps = holdings.map(r => r.market_cap).filter(v => snapshotNumber(v) !== null);
@@ -8201,7 +8516,8 @@ async function comboCrowdingDiagnostics(payload) {
   return metrics;
 }
 
-async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth) {
+async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, rawUniverse = state.composeUniverse) {
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
   const normFactors = cloneComposeFactors(factors);
   if (!normFactors.length) return null;
   const rows = [];
@@ -8212,9 +8528,9 @@ async function comboBestSingleComparison(factors, N, constraintMode, startMonth,
     if (seen.has(key)) continue;
     seen.add(key);
     try {
-      const ic = await comboIcDecay([singleFactor], startMonth, endMonth);
+      const ic = await comboIcDecay([singleFactor], startMonth, endMonth, universe);
       const rank = rankIcStatsFromSeries(ic?.series?.["1"] || []);
-      const fullBt = await comboBacktest([singleFactor], N, "cps_matrix", constraintMode);
+      const fullBt = await comboBacktest([singleFactor], N, "cps_matrix", constraintMode, universe);
       const bt = sliceBacktestByRange(fullBt, startMonth, endMonth);
       const metrics = computeMetrics(bt.retArr, bt.navArr);
       rows.push({
@@ -8243,23 +8559,27 @@ async function comboBestSingleComparison(factors, N, constraintMode, startMonth,
 }
 
 async function comboValidationPayload(factors, N, constraintMode, startMonth, endMonth, options = {}) {
+  const universe = normalizeIndexUniverseConfig(options.universe ?? state.composeUniverse);
   if (normalizeConstraintMode(constraintMode) === "industry") {
     await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
   }
-  const fullBt = await comboBacktest(factors, N, "cps_matrix", constraintMode);
+  if (universe.mode !== "all") {
+    await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false, indexWeights: true });
+  }
+  const fullBt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe);
   const bt = sliceBacktestByRange(fullBt, startMonth, endMonth);
   const metrics = computeMetrics(bt.retArr, bt.navArr);
-  const icDecay = await comboIcDecay(factors, startMonth, endMonth);
+  const icDecay = await comboIcDecay(factors, startMonth, endMonth, universe);
   const rankSeries = icDecay?.series?.["1"] || [];
   const rankStats = rankIcStatsFromSeries(rankSeries);
   const rolling = comboRollingValidation(rankSeries, bt);
-  const group10 = await comboGroupValidation(factors, startMonth, endMonth);
+  const group10 = await comboGroupValidation(factors, startMonth, endMonth, universe);
   const correlation = await comboCorrelationWarnings(factors);
-  const singleComparison = await comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth);
+  const singleComparison = await comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, universe);
   const bm = await ensureBenchmarkSnapshot();
   const bg = {};
   const benchmarkExcess = {};
-  for (const code of ["HS300", "CSI800", "CSI500"]) {
+  for (const code of composeBenchmarkCodes(universe)) {
     const comparison = benchmarkComparisonForBacktest(bt, bm, code);
     if (comparison.benchmark) bg[code] = comparison.benchmark;
     benchmarkExcess[code] = {
@@ -8273,6 +8593,7 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
     factors: cloneComposeFactors(factors),
     N,
     constraintMode: normalizeConstraintMode(constraintMode),
+    universe,
     backtest: bt,
     metrics,
     rankStats,
@@ -8311,6 +8632,7 @@ function comboParameterSensitivityScenarios(payload) {
   const factors = cloneComposeFactors(payload?.factors || []);
   const currentN = Number(payload?.N) || state.composeN || 30;
   const currentConstraint = normalizeConstraintMode(payload?.constraintMode);
+  const universe = normalizeIndexUniverseConfig(payload?.universe);
   const scenarios = [];
   [10, 30, 50].forEach(n => {
     scenarios.push({
@@ -8319,18 +8641,20 @@ function comboParameterSensitivityScenarios(payload) {
       factors: cloneComposeFactors(factors),
       N: n,
       constraintMode: currentConstraint,
+      universe,
     });
   });
   [
     { mode: "none", label: "无约束等权" },
     { mode: "industry", label: "行业中性约束" },
-  ].forEach(item => {
+  ].filter(item => !(universe.mode === "min_share" && item.mode === "industry")).forEach(item => {
     scenarios.push({
       group: "约束敏感性",
       label: item.label,
       factors: cloneComposeFactors(factors),
       N: currentN,
       constraintMode: item.mode,
+      universe,
     });
   });
   if (factors.length >= 2) {
@@ -8340,6 +8664,7 @@ function comboParameterSensitivityScenarios(payload) {
       factors: perturbComboCoreWeight(factors, 1),
       N: currentN,
       constraintMode: currentConstraint,
+      universe,
     });
     scenarios.push({
       group: "权重扰动敏感性",
@@ -8347,6 +8672,7 @@ function comboParameterSensitivityScenarios(payload) {
       factors: perturbComboCoreWeight(factors, -1),
       N: currentN,
       constraintMode: currentConstraint,
+      universe,
     });
   }
   return scenarios;
@@ -8417,13 +8743,18 @@ async function comboParameterSensitivity(payload, startMonth, endMonth) {
         scenario.constraintMode,
         startMonth,
         endMonth,
-        { includeCrowding: false, includeParameterSensitivity: false },
+        {
+          includeCrowding: false,
+          includeParameterSensitivity: false,
+          universe: scenario.universe,
+        },
       );
       const row = {
         group: scenario.group,
         label: scenario.label,
         N: scenario.N,
         constraintMode: normalizeConstraintMode(scenario.constraintMode),
+        universe: normalizeIndexUniverseConfig(scenario.universe),
         rank_ic: p.rankStats?.mean ?? null,
         ic_ir: p.rankStats?.ir ?? null,
         ann_return: p.metrics?.annual ?? null,
@@ -8438,6 +8769,7 @@ async function comboParameterSensitivity(payload, startMonth, endMonth) {
         label: scenario.label,
         N: scenario.N,
         constraintMode: normalizeConstraintMode(scenario.constraintMode),
+        universe: normalizeIndexUniverseConfig(scenario.universe),
         error: err.message || String(err),
         judgement: { label: "需复核", cls: "review", note: err.message || String(err) },
       });
@@ -8601,6 +8933,7 @@ async function runComboAblation() {
     factors: cloneComposeFactors(state.composeFactors),
     N: state.composeN,
     constraintMode: state.composeConstraintMode,
+    universe: normalizeIndexUniverseConfig(state.composeUniverse),
     start: state.composeStart,
     end: state.composeEnd,
   };
@@ -8617,10 +8950,15 @@ async function runComboAblation() {
     state.composeFactors = cloneComposeFactors(original.factors);
     state.composeN = original.N;
     state.composeConstraintMode = normalizeConstraintMode(original.constraintMode);
+    state.composeUniverse = normalizeIndexUniverseConfig(original.universe);
     state.composeStart = original.start;
     state.composeEnd = original.end;
     await ensureComposeBase();
-    const fullPayload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false, includeParameterSensitivity: false });
+    const fullPayload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, {
+      includeCrowding: false,
+      includeParameterSensitivity: false,
+      universe: state.composeUniverse,
+    });
     for (let i = 0; i < original.factors.length; i += 1) {
       const removed = original.factors[i];
       const meta = state.catalog.find(x => x.code === removed.code);
@@ -8630,10 +8968,15 @@ async function runComboAblation() {
         state.composeFactors = cloneComposeFactors(ablatedFactors);
         state.composeN = original.N;
         state.composeConstraintMode = normalizeConstraintMode(original.constraintMode);
+        state.composeUniverse = normalizeIndexUniverseConfig(original.universe);
         state.composeStart = original.start;
         state.composeEnd = original.end;
         await ensureComposeBase();
-        const payload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false, includeParameterSensitivity: false });
+        const payload = await comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, {
+          includeCrowding: false,
+          includeParameterSensitivity: false,
+          universe: state.composeUniverse,
+        });
         results.push({ factor: removed.code, name: meta?.name_cn || "", payload });
       } catch (err) {
         console.warn("combo ablation item failed:", removed.code, err);
@@ -9177,7 +9520,30 @@ function groupIndustryNeutralRowsByMonth(rows, N) {
   return out.sort((a, b) => String(a.signal_dt || a.dt).localeCompare(String(b.signal_dt || b.dt)) || String(a.stock_code).localeCompare(String(b.stock_code)));
 }
 
-function matrixBacktestSql(factors, N, baseTable, constraintMode = state.composeConstraintMode) {
+function groupIndexUniverseRowsByMonth(rows, N, universe) {
+  const byMonth = new Map();
+  for (const row of rows || []) {
+    const key = row.signal_dt || monthOfLabel(row.dt);
+    if (!byMonth.has(key)) byMonth.set(key, []);
+    byMonth.get(key).push(row);
+  }
+  const out = [];
+  for (const candidates of byMonth.values()) {
+    const selection = selectRowsByIndexUniverse(candidates, N, universe);
+    if (!selection.stats.requirement_met) continue;
+    out.push(...selection.rows);
+  }
+  return out.sort((a, b) => String(a.signal_dt || a.dt).localeCompare(String(b.signal_dt || b.dt))
+    || String(a.stock_code).localeCompare(String(b.stock_code)));
+}
+
+function matrixBacktestSql(
+  factors,
+  N,
+  baseTable,
+  constraintMode = state.composeConstraintMode,
+  rawUniverse = state.composeUniverse,
+) {
   const idxMap = new Map(_cpsMatrixCodes.map((key, i) => [key, i]));
   const terms = [];
   const conds = [];
@@ -9193,34 +9559,61 @@ function matrixBacktestSql(factors, N, baseTable, constraintMode = state.compose
   const scoreExpr = terms.length ? terms.join(" + ") : "0";
   const condSql = conds.length ? "AND " + conds.join(" AND ") : "";
   const needsIndustry = normalizeConstraintMode(constraintMode) === "industry";
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  if (needsIndustry && universe.mode === "min_share") return null;
+  const universeActive = universe.mode !== "all";
+  const minimumIndexShare = universe.mode === "min_share";
+  const requiredMemberN = Math.ceil(Math.max(1, Number(N) || 1) * universe.minShare);
   const industrySelect = needsIndustry ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1";
   const industryJoin = needsIndustry ? "LEFT JOIN stock_descriptors d ON d.stock_code = m.stock_code" : "";
-  const rankFilter = needsIndustry ? "" : `WHERE rk <= ${N}`;
+  const availabilityJoin = universeActive ? `
+      JOIN (
+        SELECT DISTINCT signal_date
+        FROM index_weight_monthly
+        WHERE index_alias = '${universe.indexAlias}'
+      ) ua ON ua.signal_date = m.trade_date` : "";
+  const weightJoin = universeActive ? `
+      LEFT JOIN index_weight_monthly iw
+        ON iw.signal_date = m.trade_date
+       AND iw.index_alias = '${universe.indexAlias}'
+       AND iw.stock_code = m.stock_code` : "";
+  const memberSelect = universeActive ? "iw.stock_code IS NOT NULL" : "FALSE";
+  const universeFilter = universe.mode === "index_only" ? "AND iw.stock_code IS NOT NULL" : "";
+  const rankFilter = needsIndustry
+    ? ""
+    : (minimumIndexShare
+      ? `WHERE rk <= ${N} OR (is_index_member AND member_rk <= ${requiredMemberN})`
+      : `WHERE rk <= ${N}`);
   return `
     WITH periods AS (
-      SELECT trade_date, MAX(return_date) AS return_date
-      FROM ${baseTable}
-      GROUP BY trade_date
+      SELECT m.trade_date, MAX(m.return_date) AS return_date
+      FROM ${baseTable} m
+      ${availabilityJoin}
+      GROUP BY m.trade_date
     ),
     scored AS (
       SELECT m.trade_date, m.return_date, m.stock_code, m.fwd_return, ROUND(${scoreExpr}, 6) AS cs,
-             ${industrySelect}
+             ${industrySelect}, ${memberSelect} AS is_index_member
       FROM ${baseTable} m
       ${industryJoin}
-      WHERE (${scoreExpr}) IS NOT NULL ${condSql}
+      ${weightJoin}
+      WHERE (${scoreExpr}) IS NOT NULL ${condSql} ${universeFilter}
     ),
     ranked AS (
-      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1,
-             RANK() OVER (PARTITION BY trade_date ORDER BY cs DESC) AS rk
+      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1, is_index_member,
+             RANK() OVER (PARTITION BY trade_date ORDER BY cs DESC) AS rk,
+             RANK() OVER (PARTITION BY trade_date, is_index_member ORDER BY cs DESC) AS member_rk
       FROM scored
     ),
     selected AS (
-      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1, rk
+      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1, is_index_member,
+             TRUE AS index_available, rk, member_rk
       FROM ranked ${rankFilter}
     )
     SELECT strftime(p.trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS dt,
            s.stock_code, s.fwd_return, s.cs, s.industry_sw1,
+           s.is_index_member, s.index_available,
            p.return_date IS NOT NULL AS period_complete
     FROM periods p
     LEFT JOIN selected s ON s.trade_date = p.trade_date
@@ -9229,20 +9622,33 @@ function matrixBacktestSql(factors, N, baseTable, constraintMode = state.compose
 
 // 给定组合配置 + 基表 → 逐月净值/收益（口径同 renderComposeBacktest）。
 // cps_matrix 是当前因子集宽表快路径；其它表保留长表 SQL 作为对比惰性补算兜底。
-async function comboBacktest(factors, N, baseTable, constraintMode = state.composeConstraintMode) {
+async function comboBacktest(
+  factors,
+  N,
+  baseTable,
+  constraintMode = state.composeConstraintMode,
+  rawUniverse = state.composeUniverse,
+) {
   const normalizedConstraint = normalizeConstraintMode(constraintMode);
-  const cacheKey = baseTable === "cps_matrix" ? composeConfigKey(factors, N, normalizedConstraint) : null;
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  if (normalizedConstraint === "industry" && universe.mode === "min_share") {
+    throw new Error("最低指数成分占比暂不能与行业中性约束同时使用");
+  }
+  const cacheKey = baseTable === "cps_matrix" ? composeConfigKey(factors, N, normalizedConstraint, universe) : null;
   if (cacheKey && _composeBtCache.has(cacheKey)) return cloneBacktest(_composeBtCache.get(cacheKey));
   if (cacheKey && _composeBtBuilds.has(cacheKey)) return cloneBacktest(await _composeBtBuilds.get(cacheKey));
 
-  const fastSql = baseTable === "cps_matrix" ? matrixBacktestSql(factors, N, baseTable, normalizedConstraint) : null;
+  const fastSql = baseTable === "cps_matrix" ? matrixBacktestSql(factors, N, baseTable, normalizedConstraint, universe) : null;
   if (fastSql) {
     const build = (async () => {
       const res = await state.db.query(fastSql);
       const rows = res.toArray();
+      const selectedRows = universe.mode === "min_share"
+        ? groupIndexUniverseRowsByMonth(rows, N, universe)
+        : rows;
       const bt = normalizedConstraint === "industry"
-        ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(rows, N))
-        : buildBacktestFromRows(rows, N);
+        ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(selectedRows, N))
+        : buildBacktestFromRows(selectedRows, N);
       if (cacheKey) rememberComposeBacktest(cacheKey, bt);
       return bt;
     })();
@@ -9260,47 +9666,76 @@ async function comboBacktest(factors, N, baseTable, constraintMode = state.compo
     .map(f => `('${f.code}','${normalizeScoreMode(f.scoreMode)}',${f.weight},${normalizeSide(f.side)})`)
     .join(",");
   const cond = composeCondFor(factors, baseTable);
-  const fallbackRankFilter = normalizedConstraint === "industry" ? "" : `WHERE rk <= ${N}`;
+  const universeActive = universe.mode !== "all";
+  const requiredMemberN = Math.ceil(Math.max(1, Number(N) || 1) * universe.minShare);
+  const fallbackRankFilter = normalizedConstraint === "industry"
+    ? ""
+    : (universe.mode === "min_share"
+      ? `WHERE rk <= ${N} OR (is_index_member AND member_rk <= ${requiredMemberN})`
+      : `WHERE rk <= ${N}`);
+  const fallbackAvailabilityJoin = universeActive ? `
+      JOIN (
+        SELECT DISTINCT signal_date
+        FROM index_weight_monthly
+        WHERE index_alias = '${universe.indexAlias}'
+      ) ua ON ua.signal_date = pbase.trade_date` : "";
+  const fallbackWeightJoin = universeActive ? `
+      LEFT JOIN index_weight_monthly iw
+        ON iw.signal_date = s.trade_date
+       AND iw.index_alias = '${universe.indexAlias}'
+       AND iw.stock_code = s.stock_code` : "";
+  const fallbackUniverseFilter = universe.mode === "index_only" ? "AND iw.stock_code IS NOT NULL" : "";
   const res = await state.db.query(`
     WITH w(code, score_mode, weight, side) AS (VALUES ${vals}),
     periods AS (
-      SELECT trade_date, MAX(return_date) AS return_date
-      FROM ${baseTable}
-      GROUP BY trade_date
+      SELECT pbase.trade_date, MAX(pbase.return_date) AS return_date
+      FROM ${baseTable} pbase
+      ${fallbackAvailabilityJoin}
+      GROUP BY pbase.trade_date
     ),
     ${cond.cte}
     comp AS (
       SELECT s.trade_date, s.stock_code, MAX(s.return_date) AS return_date,
              MAX(s.fwd_return) AS fwd_return,
              ROUND(SUM(s.score * w.side * w.weight), 6) AS cs, COUNT(*) AS cnt,
-             ANY_VALUE(d.industry_sw1) AS industry_sw1
+             ANY_VALUE(d.industry_sw1) AS industry_sw1,
+             ${universeActive ? "BOOL_OR(iw.stock_code IS NOT NULL)" : "FALSE"} AS is_index_member
       FROM ${baseTable} s
       JOIN w ON s.factor_code = w.code AND s.score_mode = w.score_mode
       LEFT JOIN stock_descriptors d ON d.stock_code = s.stock_code
-      WHERE s.score IS NOT NULL GROUP BY s.trade_date, s.stock_code
+      ${fallbackWeightJoin}
+      WHERE s.score IS NOT NULL ${fallbackUniverseFilter}
+      GROUP BY s.trade_date, s.stock_code
     ),
     ranked AS (
       SELECT c.trade_date, c.return_date, c.stock_code, c.fwd_return, c.cs, c.industry_sw1,
-             RANK() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC) AS rk
+             c.is_index_member,
+             RANK() OVER (PARTITION BY c.trade_date ORDER BY c.cs DESC) AS rk,
+             RANK() OVER (PARTITION BY c.trade_date, c.is_index_member ORDER BY c.cs DESC) AS member_rk
       FROM comp c
       ${cond.join}
       WHERE c.cnt = ${nF}
     ),
     selected AS (
-      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1, rk
+      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1,
+             is_index_member, TRUE AS index_available, rk, member_rk
       FROM ranked ${fallbackRankFilter}
     )
     SELECT strftime(p.trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS dt,
            s.stock_code, s.fwd_return, s.cs, s.industry_sw1,
+           s.is_index_member, s.index_available,
            p.return_date IS NOT NULL AS period_complete
     FROM periods p
     LEFT JOIN selected s ON s.trade_date = p.trade_date
     ORDER BY p.trade_date, s.rk, s.stock_code`);
   const rows = res.toArray();
+  const selectedRows = universe.mode === "min_share"
+    ? groupIndexUniverseRowsByMonth(rows, N, universe)
+    : rows;
   return normalizedConstraint === "industry"
-    ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(rows, N))
-    : buildBacktestFromRows(rows, N);
+    ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(selectedRows, N))
+    : buildBacktestFromRows(selectedRows, N);
 }
 
 async function saveCurrentCombo() {
@@ -9308,13 +9743,15 @@ async function saveCurrentCombo() {
   const factors = cloneComposeFactors(state.composeFactors);
   const N = state.composeN;
   const constraintMode = normalizeConstraintMode(state.composeConstraintMode);
+  const universe = normalizeIndexUniverseConfig(state.composeUniverse);
   const i = state.savedCombos.length;
-  const comboKey = composeConfigKey(factors, N, constraintMode);
+  const comboKey = composeConfigKey(factors, N, constraintMode, universe);
   const combo = {
     name: `组合${i + 1}`,
     factors,
     N,
     constraintMode,
+    universe,
     color: STRAT_COLORS[i % STRAT_COLORS.length],
     bt: _composeBtCache.has(comboKey)
       ? cloneBacktest(_composeBtCache.get(comboKey))
@@ -9334,11 +9771,17 @@ async function saveCurrentCombo() {
   if (saveBtn && !combo.bt) { saveBtn.disabled = true; saveBtn.textContent = "计算中…"; }
   try {
     if (!combo.bt) {
-      await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+      await ensureDB({
+        stockMeta: false,
+        descriptors: true,
+        benchmarks: false,
+        corr: false,
+        indexWeights: universe.mode !== "all",
+      });
       await ensureComposeData();
       try {
         await ensureComposeBase();
-        const bt = await comboBacktest(factors, N, "cps_matrix", constraintMode);
+        const bt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe);
         if (bt && bt.x && bt.x.length) combo.bt = bt;
       } catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
     }
@@ -9450,11 +9893,20 @@ async function renderComboCompare() {
     if (titleEl) titleEl.textContent = "暂存组合对比 · 计算中…";
     if (!cpsCompareChart) { navDiv.innerHTML = `<div class="loading">计算暂存组合回测…</div>`; tblDiv.innerHTML = ""; }
     try {
-      await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+      const needsIndexWeights = state.savedCombos.some(c => normalizeIndexUniverseConfig(c.universe).mode !== "all");
+      await ensureDB({
+        stockMeta: false,
+        descriptors: true,
+        benchmarks: false,
+        corr: false,
+        indexWeights: needsIndexWeights,
+      });
       await ensureComposeData();
       const unionFactors = state.savedCombos.flatMap(c => cloneComposeFactors(c.factors));
       await ensureCmpBase(unionFactors);
-      for (const c of missing) c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base", c.constraintMode);
+      for (const c of missing) {
+        c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base", c.constraintMode, c.universe);
+      }
     } catch (e) {
       if (titleEl) titleEl.textContent = "暂存组合对比";
       navDiv.innerHTML = `<div class="empty">对比计算失败：${htmlText(e.message || e)}</div>`; return;
@@ -9467,8 +9919,7 @@ async function renderComboCompare() {
   }));
   const withData = rangedCombos.filter(c => c.viewBt && c.viewBt.x && c.viewBt.x.length);
   const benchmarkRows = [];
-  const bcolors = { HS300: "#c14545", CSI800: "#6e9a4f", CSI500: "#c89c2b" };
-  const bcn = { HS300: "沪深300", CSI800: "中证800", CSI500: "中证500" };
+  const compareBenchmarkCodes = [...new Set(withData.flatMap(c => composeBenchmarkCodes(c.universe)))];
   const bmSnap = withData.length ? await ensureBenchmarkSnapshot() : null;
 
   // —— 净值叠加图（只画有数据的组合）——
@@ -9484,19 +9935,19 @@ async function renderComboCompare() {
         color: c.color, lineStyle: { width: 2 } };
     });
     if (allMonths.length) {
-      for (const idx of ["HS300", "CSI800", "CSI500"]) {
+      for (const idx of compareBenchmarkCodes) {
         const aligned = benchmarkNavForBacktest(bmSnap, allMonths, idx);
         const b = aligned.find(v => v !== null);
-        series.push({ name: `${bcn[idx]}(基准)`, type: "line", symbol: "none", connectNulls: true,
+        series.push({ name: `${benchmarkLabel(idx)}(基准)`, type: "line", symbol: "none", connectNulls: true,
           data: b ? aligned.map(v => v === null ? null : +(v / b).toFixed(3)) : aligned,
-          color: bcolors[idx], lineStyle: { width: 1.2, type: "dashed" } });
+          color: BENCHMARK_COLORS[idx], lineStyle: { width: 1.2, type: "dashed" } });
         const navs = aligned.filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
         if (navs.length >= 2) {
           const rets = navs.slice(1).map((v, k) => v / navs[k] - 1);
           const m = computeMetrics(rets, navs);
           if (m) benchmarkRows.push({
-            label: bcn[idx],
-            labelHtml: `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${bcolors[idx]};margin-right:5px"></span>${bcn[idx]}`,
+            label: benchmarkLabel(idx),
+            labelHtml: `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${BENCHMARK_COLORS[idx]};margin-right:5px"></span>${benchmarkLabel(idx)}`,
             annual: m.annual, vol: m.vol, sharpe: m.sharpe, mdd: m.mdd,
             winRate: m.winRate, ex300: null, navEnd: m.navEnd, isBench: true,
           });
@@ -9550,7 +10001,7 @@ function weightGrid(nF, step) {
 }
 
 // 在 JS 内存里对一组权重跑合成回测，返回指标。conds=[{idx,op,thr}] 先过滤再打分。
-function backtestWeights(monthsArr, weights, N, conds, range = {}) {
+function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = null) {
   let prev = null, nav = 1;
   const navArr = [1], retArr = [];
   for (const mo of monthsArr) {
@@ -9589,14 +10040,35 @@ function backtestWeights(monthsArr, weights, N, conds, range = {}) {
       prev = cur;
       continue;
     }
-    const boundaryScore = nthLargestFinite(compositeScores, Math.min(N, eligibleCount));
-    if (boundaryScore === null) continue;
-    const picks = [];
-    for (let stockIdx = 0; stockIdx < stocks.length; stockIdx += 1) {
-      const comp = compositeScores[stockIdx];
-      if (Number.isFinite(comp) && comp >= boundaryScore) {
+    let picks = [];
+    const universeActive = universe?.mode && universe.mode !== "all";
+    if (universeActive) {
+      const eligibleRows = [];
+      for (let stockIdx = 0; stockIdx < stocks.length; stockIdx += 1) {
+        const comp = compositeScores[stockIdx];
+        if (!Number.isFinite(comp)) continue;
         const stock = stocks[stockIdx];
-        picks.push({ code: stock.code, comp, ret: stock.ret });
+        eligibleRows.push({
+          stock_code: stock.code,
+          score: comp,
+          comp,
+          ret: stock.ret,
+          is_index_member: stock.isIndexMember === true,
+          index_available: stock.indexAvailable === true,
+        });
+      }
+      const selected = selectRowsByIndexUniverse(eligibleRows, N, universe);
+      if (!selected.stats.requirement_met) continue;
+      picks = selected.rows.map(row => ({ code: row.stock_code, comp: row.comp, ret: row.ret }));
+    } else {
+      const boundaryScore = nthLargestFinite(compositeScores, Math.min(N, eligibleCount));
+      if (boundaryScore === null) continue;
+      for (let stockIdx = 0; stockIdx < stocks.length; stockIdx += 1) {
+        const comp = compositeScores[stockIdx];
+        if (Number.isFinite(comp) && comp >= boundaryScore) {
+          const stock = stocks[stockIdx];
+          picks.push({ code: stock.code, comp, ret: stock.ret });
+        }
       }
     }
     if (!picks.some(p => isValidForwardReturn(p.ret))) continue;
@@ -9666,7 +10138,7 @@ async function searchOptimalWeights(monthsArr, grid, N, conds, options = {}) {
   const yieldFn = typeof options.yieldFn === "function" ? options.yieldFn : yieldToEventLoop;
   for (let i = 0; i < grid.length; i += 1) {
     const w = grid[i];
-    const m = backtestWeights(monthsArr, w, N, conds, options.range || {});
+    const m = backtestWeights(monthsArr, w, N, conds, options.range || {}, options.universe || null);
     if (m) {
       if (m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
       if (Number.isFinite(Number(m.sharpe)) && m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
@@ -9692,7 +10164,19 @@ async function optimizeWeights() {
     box.innerHTML = `<div class="empty" style="color:#c14545">最优权重暂仅支持「无约束等权」。请先切回无约束，再搜索权重。</div>`;
     return;
   }
+  const universe = normalizeIndexUniverseConfig(state.composeUniverse);
   box.innerHTML = `<div class="loading">搜索中…</div>`;
+  await ensureDB({
+    stockMeta: false,
+    descriptors: false,
+    benchmarks: false,
+    corr: false,
+    indexWeights: universe.mode !== "all",
+  });
+  if (universe.mode !== "all" && !state.hasIndexWeights) {
+    box.innerHTML = `<div class="empty" style="color:#c14545">指数股票池数据不可用，已停止权重搜索。</div>`;
+    return;
+  }
   await ensureComposeData();
   await ensureComposeBase();
 
@@ -9710,24 +10194,42 @@ async function optimizeWeights() {
   // 持仓必须保留用于确定区间首月换手；只将结束月下推。按整期日期过滤仍会
   // 保留个别收益缺失的成员。
   const optimizerEndSql = rangeWhere(null, state.composeEnd, "p.period_return_date");
+  const optimizerAvailabilityJoin = universe.mode !== "all" ? `
+      JOIN (
+        SELECT DISTINCT signal_date
+        FROM index_weight_monthly
+        WHERE index_alias = '${universe.indexAlias}'
+      ) ua ON ua.signal_date = m.trade_date` : "";
+  const optimizerWeightJoin = universe.mode !== "all" ? `
+      LEFT JOIN index_weight_monthly iw
+        ON iw.signal_date = m.trade_date
+       AND iw.index_alias = '${universe.indexAlias}'
+       AND iw.stock_code = m.stock_code` : "";
+  const optimizerMemberSelect = universe.mode !== "all" ? "iw.stock_code IS NOT NULL" : "FALSE";
+  const optimizerUniverseFilter = universe.mode === "index_only" ? "AND iw.stock_code IS NOT NULL" : "";
   // 使用所有所选因子分数均非空的股票。不能用“任一单因子 Top500 并集”裁剪：
   // 一只股票可以在每个单因子都排 500 名以后，却因多项分数均衡而进入合成 TopN。
   const res = await state.db.query(`
     WITH optimizer_period_dates AS (
-      SELECT trade_date, MAX(return_date) AS period_return_date
-      FROM cps_matrix
-      GROUP BY trade_date
+      SELECT m.trade_date, MAX(m.return_date) AS period_return_date
+      FROM cps_matrix m
+      ${optimizerAvailabilityJoin}
+      GROUP BY m.trade_date
     ),
     optimizer_candidates AS (
-      SELECT *
+      SELECT m.*, ${optimizerMemberSelect} AS is_index_member,
+             ${universe.mode !== "all" ? "TRUE" : "FALSE"} AS index_available
       FROM cps_matrix m
-      WHERE ${scorePresenceSql}
+      ${optimizerWeightJoin}
+      WHERE ${scorePresenceSql} ${optimizerUniverseFilter}
     )
     SELECT strftime(p.trade_date,'%Y-%m') AS signal_ym,
            strftime(COALESCE(p.period_return_date, p.trade_date),'%Y-%m') AS return_ym,
            m.stock_code,
            ${scoreCols},
            m.fwd_return,
+           m.is_index_member,
+           m.index_available,
            p.period_return_date IS NOT NULL AS period_complete
     FROM optimizer_period_dates p
     LEFT JOIN optimizer_candidates m ON m.trade_date = p.trade_date
@@ -9752,6 +10254,8 @@ async function optimizeWeights() {
         scores: codes.map((_, i) => r[`f${i}`]),
         ret: r.fwd_return,
         cnt: nF,
+        isIndexMember: r.is_index_member === true || r.is_index_member === 1,
+        indexAvailable: r.index_available === true || r.index_available === 1,
       });
     }
   }
@@ -9759,7 +10263,13 @@ async function optimizeWeights() {
   for (const [signalYm, mm] of tmp) {
     const returnYm = returnMonthBySignal.get(signalYm) || signalYm;
     const stocks = [];
-    for (const [code, o] of mm) if (o.cnt === nF) stocks.push({ code, scores: o.scores, ret: o.ret });
+    for (const [code, o] of mm) if (o.cnt === nF) stocks.push({
+      code,
+      scores: o.scores,
+      ret: o.ret,
+      isIndexMember: o.isIndexMember,
+      indexAvailable: o.indexAvailable,
+    });
     monthsArr.push({
       ym: signalYm,
       signalDt: signalYm,
@@ -9781,6 +10291,7 @@ async function optimizeWeights() {
   const best = await searchOptimalWeights(monthsArr, grid, state.composeN, conds, {
     yieldEvery: 2,
     range: { startMonth: state.composeStart, endMonth: state.composeEnd },
+    universe,
     onProgress: (completed, total) => {
       const loading = box.querySelector(".loading");
       if (loading) loading.textContent = `搜索中… ${completed}/${total}`;
@@ -9809,7 +10320,7 @@ async function optimizeWeights() {
       <thead><tr><th>优化目标</th><th>最优权重</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>回撤</th><th>操作</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="color:#888;font-size:11px;margin-top:4px">网格步长 ${step}（${grid.length} 组组合），目标基于 top-${state.composeN}、${composeRangeLabel()} 历史回测。点"应用"把权重填回。</p>
+    <p style="color:#888;font-size:11px;margin-top:4px">网格步长${step}（${grid.length}组组合），目标基于Top${state.composeN}、${indexUniverseModeLabel(universe)}、${composeRangeLabel()}历史回测。点“应用”把权重填回。</p>
     <p style="color:#c08040;font-size:11px;margin-top:2px">⚠ 这是<b>样本内</b>最优（当前回测区间内最好的权重），不保证未来同样最优——实务中需警惕过拟合，建议结合因子逻辑而非只追历史最优。</p>`;
   // 应用按钮：把最优权重填回 composeFactors
   box.querySelectorAll(".cps-apply").forEach(btn => {
