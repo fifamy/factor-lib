@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>因子库 v2.1.0</title>
+  <title>因子库 v2.2.0</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260901131109">
+  <link rel="stylesheet" href="styles.css?v=20260901154319">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <h1 class="app-title">因子库 v2.1.0 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
+    <h1 class="app-title">因子库 v2.2.0 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260901131109" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260901154319" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -39,6 +39,7 @@
         <button id="mode-compare" class="mode-btn" type="button" role="tab" aria-selected="false" aria-controls="compare-view" tabindex="-1" data-mode="compare">多因子对比</button>
         <button id="mode-compose" class="mode-btn" type="button" role="tab" aria-selected="false" aria-controls="compose-view" tabindex="-1" data-mode="compose">多因子合成</button>
         <button id="mode-ranking" class="mode-btn" type="button" role="tab" aria-selected="false" aria-controls="ranking-view" tabindex="-1" data-mode="ranking">因子排行榜</button>
+        <button id="mode-stock-pool" class="mode-btn" type="button" role="tab" aria-selected="false" aria-controls="stock-pool-view" tabindex="-1" data-mode="stock-pool">股票池研究</button>
       </div>
 
       <!-- 单因子视图 -->
@@ -446,6 +447,102 @@
         </div>
       </div>
 
+      <!-- 宽基指数 / 申万一级行业股票池因子研究 -->
+      <div id="stock-pool-view" role="tabpanel" aria-labelledby="mode-stock-pool" style="display:none">
+        <section class="panel pool-research-intro" aria-labelledby="pool-research-title">
+          <div class="pool-research-heading">
+            <div>
+              <h2 id="pool-research-title">股票池因子有效性研究</h2>
+              <p>在各宽基指数或申万一级行业的历史时点成分内，比较因子的排序能力、分层收益及 Alpha 来源。</p>
+            </div>
+            <span class="pool-data-badge">6 个宽基 · 31 个行业 · 146 个因子</span>
+          </div>
+          <fieldset class="pool-toolbar">
+            <legend>研究范围</legend>
+            <div class="pool-control-group" role="group" aria-label="股票池类型">
+              <button id="pool-type-index" class="pool-segment active" type="button" data-pool-type="broad_index" aria-pressed="true">宽基指数</button>
+              <button id="pool-type-sw1" class="pool-segment" type="button" data-pool-type="sw1" aria-pressed="false">申万一级行业</button>
+            </div>
+            <label for="pool-selector">股票池</label>
+            <select id="pool-selector" aria-label="选择股票池"></select>
+            <label for="pool-score-mode">得分口径</label>
+            <select id="pool-score-mode">
+              <option value="raw">原始得分</option>
+              <option value="neutral">行业市值中性化</option>
+            </select>
+            <label for="pool-l1-filter">因子大类</label>
+            <select id="pool-l1-filter"><option value="all">全部大类</option></select>
+            <label for="pool-status-filter">有效性</label>
+            <select id="pool-status-filter">
+              <option value="all">全部状态</option>
+              <option value="robust">稳健有效</option>
+              <option value="provisional">观察期有效</option>
+              <option value="not_passed">未通过</option>
+            </select>
+            <label class="pool-search-label" for="pool-factor-search">搜索因子</label>
+            <input id="pool-factor-search" type="search" placeholder="代码或中文名" autocomplete="off">
+          </fieldset>
+          <div id="pool-scope-note" class="pool-scope-note" aria-live="polite">加载股票池信息…</div>
+        </section>
+
+        <section class="panel" aria-labelledby="pool-overview-title">
+          <h3 id="pool-overview-title">研究概览</h3>
+          <div id="pool-overview" class="pool-overview" aria-live="polite"><div class="loading">加载中…</div></div>
+        </section>
+
+        <section class="panel" aria-labelledby="pool-style-title">
+          <div class="pool-section-head">
+            <div>
+              <h3 id="pool-style-title">因子大类有效性</h3>
+              <p>按当前筛选后的因子汇总；有效比例同时包含“稳健有效”和“观察期有效”。</p>
+            </div>
+          </div>
+          <div id="pool-style-summary"><div class="loading">加载中…</div></div>
+        </section>
+
+        <section class="panel" aria-labelledby="pool-ranking-title">
+          <div class="pool-section-head">
+            <div>
+              <h3 id="pool-ranking-title">单因子结果</h3>
+              <p>高分方向已经统一；Q5 为高分组。表内收益均为未扣交易成本的毛收益。</p>
+            </div>
+            <span id="pool-result-count" class="pool-result-count"></span>
+          </div>
+          <div class="pool-table-scroll" role="region" aria-label="股票池因子研究结果，可横向滚动" tabindex="0">
+            <table class="pool-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="pool-left">状态</th>
+                  <th scope="col" class="pool-left" data-pool-sort="factor_code">因子</th>
+                  <th scope="col" class="pool-left">分类</th>
+                  <th scope="col" data-pool-sort="n_months">月数</th>
+                  <th scope="col" data-pool-sort="rank_ic_mean">平均 RankIC</th>
+                  <th scope="col" data-pool-sort="rank_ic_t">HAC t</th>
+                  <th scope="col" data-pool-sort="rank_ic_q_value">FDR q</th>
+                  <th scope="col" data-pool-sort="monotonicity">分层单调性</th>
+                  <th scope="col" data-pool-sort="long_excess_ann_return">Q5 年化超额</th>
+                  <th scope="col" data-pool-sort="long_excess_sharpe">Q5 超额夏普</th>
+                  <th scope="col" data-pool-sort="long_short_ann_return">Q5−Q1 年化</th>
+                  <th scope="col" data-pool-sort="long_short_sharpe">多空夏普</th>
+                  <th scope="col">Alpha 来源</th>
+                  <th scope="col" data-pool-sort="avg_score_coverage">得分覆盖</th>
+                </tr>
+              </thead>
+              <tbody id="pool-factor-table-body"><tr><td colspan="14" class="empty">加载中…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="pool-factor-detail" class="panel pool-factor-detail" aria-labelledby="pool-detail-title" hidden>
+          <div id="pool-factor-detail-content"></div>
+        </section>
+
+        <details class="panel pool-methodology">
+          <summary>查看研究口径与“稳健有效 / 观察期有效”的判定规则</summary>
+          <div id="pool-methodology-content" class="pool-methodology-content"></div>
+        </details>
+      </div>
+
     </main>
   </div>
 
@@ -462,8 +559,9 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260901131109"></script>
-  <script src="app_index_universe.js?v=20260901131109"></script>
-  <script type="module" src="app.js?v=20260901131109"></script>
+  <script src="app_holding_scope.js?v=20260901154319"></script>
+  <script src="app_index_universe.js?v=20260901154319"></script>
+  <script src="app_stock_pool_research.js?v=20260901154319"></script>
+  <script type="module" src="app.js?v=20260901154319"></script>
 </body>
 </html>

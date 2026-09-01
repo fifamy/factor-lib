@@ -1,0 +1,395 @@
+{
+  "schema_version": 1,
+  "methodology": {
+    "signal_timing": "月末 EOD 信号，次交易日收盘进入，持有至下次入场点",
+    "score_direction": "因子方向已统一，高分代表预期更优；Q5 为高分组",
+    "quantile_method": "平均秩处理并列，5 组，组内等权",
+    "index_benchmark": "官方指数同一精确持有期收益",
+    "industry_benchmark": "当期申万一级行业股票池等权收益",
+    "cost_assumption": "未扣交易成本的毛收益",
+    "multiple_testing": "同股票池、同得分口径内对 RankIC 显著性执行 BH-FDR 校正",
+    "robust_rule": "至少 36 个有效月、RankIC FDR q≤10%、平均 RankIC>0、Q5-Q1 夏普>0",
+    "provisional_rule": "至少 12 个有效月、RankIC p≤10%、平均 RankIC>0、Q5-Q1 夏普>0"
+  },
+  "counts": {
+    "pools": 37,
+    "broad_indices": 6,
+    "sw1_industries": 31,
+    "factors": 146,
+    "score_modes": 2,
+    "monthly_rows": 1352756,
+    "summary_rows": 10767
+  },
+  "pools": [
+    {
+      "pool_id": "HS300",
+      "pool_type": "broad_index",
+      "pool_name": "沪深300",
+      "pool_code": "000300.SH",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 667
+    },
+    {
+      "pool_id": "CSI500",
+      "pool_type": "broad_index",
+      "pool_name": "中证500",
+      "pool_code": "000905.SH",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 1356
+    },
+    {
+      "pool_id": "CSI800",
+      "pool_type": "broad_index",
+      "pool_name": "中证800",
+      "pool_code": "000906.SH",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 1577
+    },
+    {
+      "pool_id": "CSI1000",
+      "pool_type": "broad_index",
+      "pool_name": "中证1000",
+      "pool_code": "000852.SH",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 2800
+    },
+    {
+      "pool_id": "CSI2000",
+      "pool_type": "broad_index",
+      "pool_name": "中证2000",
+      "pool_code": "932000.CSI",
+      "first_membership_date": "2023-08-31",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 36,
+      "historical_stock_count": 2934
+    },
+    {
+      "pool_id": "CSIA500",
+      "pool_type": "broad_index",
+      "pool_name": "中证A500",
+      "pool_code": "000510.SH",
+      "first_membership_date": "2024-09-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 23,
+      "historical_stock_count": 595
+    },
+    {
+      "pool_id": "SW1_801170",
+      "pool_type": "sw1",
+      "pool_name": "交通运输",
+      "pool_code": "801170.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 154
+    },
+    {
+      "pool_id": "SW1_801760",
+      "pool_type": "sw1",
+      "pool_name": "传媒",
+      "pool_code": "801760.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 171
+    },
+    {
+      "pool_id": "SW1_801160",
+      "pool_type": "sw1",
+      "pool_name": "公用事业",
+      "pool_code": "801160.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 155
+    },
+    {
+      "pool_id": "SW1_801010",
+      "pool_type": "sw1",
+      "pool_name": "农林牧渔",
+      "pool_code": "801010.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 136
+    },
+    {
+      "pool_id": "SW1_801150",
+      "pool_type": "sw1",
+      "pool_name": "医药生物",
+      "pool_code": "801150.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 523
+    },
+    {
+      "pool_id": "SW1_801200",
+      "pool_type": "sw1",
+      "pool_name": "商贸零售",
+      "pool_code": "801200.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 157
+    },
+    {
+      "pool_id": "SW1_801740",
+      "pool_type": "sw1",
+      "pool_name": "国防军工",
+      "pool_code": "801740.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 158
+    },
+    {
+      "pool_id": "SW1_801030",
+      "pool_type": "sw1",
+      "pool_name": "基础化工",
+      "pool_code": "801030.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 556
+    },
+    {
+      "pool_id": "SW1_801110",
+      "pool_type": "sw1",
+      "pool_name": "家用电器",
+      "pool_code": "801110.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 108
+    },
+    {
+      "pool_id": "SW1_801710",
+      "pool_type": "sw1",
+      "pool_name": "建筑材料",
+      "pool_code": "801710.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 116
+    },
+    {
+      "pool_id": "SW1_801720",
+      "pool_type": "sw1",
+      "pool_name": "建筑装饰",
+      "pool_code": "801720.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 194
+    },
+    {
+      "pool_id": "SW1_801180",
+      "pool_type": "sw1",
+      "pool_name": "房地产",
+      "pool_code": "801180.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 177
+    },
+    {
+      "pool_id": "SW1_801050",
+      "pool_type": "sw1",
+      "pool_name": "有色金属",
+      "pool_code": "801050.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 191
+    },
+    {
+      "pool_id": "SW1_801890",
+      "pool_type": "sw1",
+      "pool_name": "机械设备",
+      "pool_code": "801890.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 678
+    },
+    {
+      "pool_id": "SW1_801880",
+      "pool_type": "sw1",
+      "pool_name": "汽车",
+      "pool_code": "801880.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 312
+    },
+    {
+      "pool_id": "SW1_801950",
+      "pool_type": "sw1",
+      "pool_name": "煤炭",
+      "pool_code": "801950.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 42
+    },
+    {
+      "pool_id": "SW1_801970",
+      "pool_type": "sw1",
+      "pool_name": "环保",
+      "pool_code": "801970.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 146
+    },
+    {
+      "pool_id": "SW1_801730",
+      "pool_type": "sw1",
+      "pool_name": "电力设备",
+      "pool_code": "801730.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 424
+    },
+    {
+      "pool_id": "SW1_801080",
+      "pool_type": "sw1",
+      "pool_name": "电子",
+      "pool_code": "801080.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 579
+    },
+    {
+      "pool_id": "SW1_801960",
+      "pool_type": "sw1",
+      "pool_name": "石油石化",
+      "pool_code": "801960.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 57
+    },
+    {
+      "pool_id": "SW1_801210",
+      "pool_type": "sw1",
+      "pool_name": "社会服务",
+      "pool_code": "801210.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 107
+    },
+    {
+      "pool_id": "SW1_801130",
+      "pool_type": "sw1",
+      "pool_name": "纺织服饰",
+      "pool_code": "801130.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 144
+    },
+    {
+      "pool_id": "SW1_801230",
+      "pool_type": "sw1",
+      "pool_name": "综合",
+      "pool_code": "801230.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 127
+    },
+    {
+      "pool_id": "SW1_801980",
+      "pool_type": "sw1",
+      "pool_name": "美容护理",
+      "pool_code": "801980.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 33
+    },
+    {
+      "pool_id": "SW1_801750",
+      "pool_type": "sw1",
+      "pool_name": "计算机",
+      "pool_code": "801750.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 381
+    },
+    {
+      "pool_id": "SW1_801140",
+      "pool_type": "sw1",
+      "pool_name": "轻工制造",
+      "pool_code": "801140.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 172
+    },
+    {
+      "pool_id": "SW1_801770",
+      "pool_type": "sw1",
+      "pool_name": "通信",
+      "pool_code": "801770.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 146
+    },
+    {
+      "pool_id": "SW1_801040",
+      "pool_type": "sw1",
+      "pool_name": "钢铁",
+      "pool_code": "801040.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 53
+    },
+    {
+      "pool_id": "SW1_801780",
+      "pool_type": "sw1",
+      "pool_name": "银行",
+      "pool_code": "801780.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 42
+    },
+    {
+      "pool_id": "SW1_801790",
+      "pool_type": "sw1",
+      "pool_name": "非银金融",
+      "pool_code": "801790.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 95
+    },
+    {
+      "pool_id": "SW1_801120",
+      "pool_type": "sw1",
+      "pool_name": "食品饮料",
+      "pool_code": "801120.SI",
+      "first_membership_date": "2015-01-30",
+      "last_membership_date": "2026-07-31",
+      "membership_months": 139,
+      "historical_stock_count": 140
+    }
+  ]
+}

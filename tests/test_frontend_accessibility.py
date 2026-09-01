@@ -36,8 +36,8 @@ def test_all_static_analysis_controls_have_accessible_names():
 
 def test_analysis_modes_use_keyboard_tab_semantics():
     assert 'id="mode-switch" role="tablist"' in INDEX
-    assert INDEX.count('role="tab"') == 4
-    assert INDEX.count('role="tabpanel"') == 4
+    assert INDEX.count('role="tab"') == 5
+    assert INDEX.count('role="tabpanel"') == 5
     assert 'b.setAttribute("aria-selected", String(active))' in APP
     assert 'e.key === "ArrowRight" || e.key === "ArrowDown"' in APP
     assert 'if (e.key === "Home") nextIndex = 0' in APP

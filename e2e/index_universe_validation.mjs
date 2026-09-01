@@ -1,4 +1,4 @@
-// 五指数股票池约束浏览器验收。用法：node e2e/index_universe_validation.mjs [url]
+// 六指数股票池约束浏览器验收。用法：node e2e/index_universe_validation.mjs [url]
 import { chromium } from "playwright-core";
 
 const url = process.argv[2] || process.env.ONLINE_E2E_URL || "http://127.0.0.1:8798/";
@@ -85,7 +85,7 @@ try {
     await page.screenshot({ path: process.env.INDEX_UNIVERSE_SCREENSHOT, fullPage: true });
   }
   if (pageErrors.length) throw new Error(`页面错误：${pageErrors.join("\n")}`);
-  console.log(`✅ 五指数股票池浏览器验收通过 · 中证1000最低占比=${(minimumShare.share * 100).toFixed(0)}% · 中证A500=${a500.total}只${benchmarkLegend.includes("中证A500") ? " · A500基准已显示" : ""}`);
+  console.log(`✅ 六指数股票池浏览器验收通过 · 中证1000最低占比=${(minimumShare.share * 100).toFixed(0)}% · 中证A500=${a500.total}只${benchmarkLegend.includes("中证A500") ? " · A500基准已显示" : ""}`);
 } finally {
   await browser.close();
 }

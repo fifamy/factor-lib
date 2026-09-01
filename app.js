@@ -47,7 +47,7 @@ const state = {
   scanMetric: "annual",    // 指标-N 曲线的纵轴：annual / sharpe / mdd / vol
   singleStart: null,       // 单因子回测区间起/止月（YYYY-MM）；null=不限
   singleEnd: null,
-  mode: "single",          // single | compare | compose | library | ranking
+  mode: "single",          // single | compare | compose | library | ranking | stock-pool
   compareFactors: [],      // 对比模式：[{code, n, side}]，每个因子可设不同持仓数/方向
   compareDefaultN: 30,     // 新加入因子的默认持仓数
   compareStart: null,      // 多因子对比回测区间；null=不限
@@ -108,6 +108,7 @@ let cpsNavChart = null;
 let cpsIcDecayChart = null;
 let comboGroup10Chart = null;
 let comboRolling36mChart = null;
+let stockPoolResearchController = null;
 
 // 多条策略线的配色（按 selectedNs 顺序取）
 const STRAT_COLORS = ["#1a4d80", "#e07b39", "#3a9d6e", "#9b59b6", "#c0392b", "#16a085"];
@@ -116,6 +117,7 @@ const BENCHMARK_OPTIONS = [
   { code: "CSI500", label: "中证500" },
   { code: "CSI800", label: "中证800" },
   { code: "CSI1000", label: "中证1000" },
+  { code: "CSI2000", label: "中证2000" },
   { code: "CSIA500", label: "中证A500" },
 ];
 const BENCHMARK_COLORS = {
@@ -123,6 +125,7 @@ const BENCHMARK_COLORS = {
   CSI500: "#c89c2b",
   CSI800: "#6e9a4f",
   CSI1000: "#8b6bb1",
+  CSI2000: "#5f7f96",
   CSIA500: "#2f8f83",
 };
 
@@ -4237,7 +4240,7 @@ function switchMode(mode) {
     const active = b.dataset.mode === mode;
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", String(active));
-    b.tabIndex = active || !["single", "compare", "compose", "ranking"].includes(mode) ? 0 : -1;
+    b.tabIndex = active || !["single", "compare", "compose", "ranking", "stock-pool"].includes(mode) ? 0 : -1;
   });
   document.getElementById("single-view").style.display = mode === "single" ? "flex" : "none";
   document.getElementById("compare-view").style.display = mode === "compare" ? "flex" : "none";
@@ -4245,6 +4248,7 @@ function switchMode(mode) {
   document.getElementById("combo-library-view").style.display = mode === "library" ? "flex" : "none";
   document.getElementById("admin-view").style.display = mode === "admin" ? "flex" : "none";
   document.getElementById("ranking-view").style.display = mode === "ranking" ? "flex" : "none";
+  document.getElementById("stock-pool-view").style.display = mode === "stock-pool" ? "flex" : "none";
   updateTreeHighlight();
   if (mode === "compare") {
     initCompareRangeControls().catch(e => console.warn("compare range init failed:", e));
@@ -4262,6 +4266,25 @@ function switchMode(mode) {
     }
   }
   if (mode === "ranking") renderRanking();
+  if (mode === "stock-pool") ensureStockPoolResearchController().render();
+}
+
+function ensureStockPoolResearchController() {
+  if (stockPoolResearchController) return stockPoolResearchController;
+  if (!window.FactorStockPoolResearch?.create) {
+    throw new Error("股票池研究模块未加载，请刷新页面重试");
+  }
+  stockPoolResearchController = window.FactorStockPoolResearch.create({
+    dataDir: DATA_DIR,
+    version: V,
+    ensureDB,
+    dbState: state,
+    openSingleFactor: code => {
+      switchMode("single");
+      selectFactor(code, { preserveParams: true });
+    },
+  });
+  return stockPoolResearchController;
 }
 
 function addCompareFactor(code) {
@@ -10580,6 +10603,7 @@ window.addEventListener("resize", () => {
     cpsNavChart, cpsIcDecayChart, cpsCompareChart,
     topMktcapChart, topIndustryChart,
   ].forEach(ch => { if (ch && ch.resize) ch.resize(); });
+  stockPoolResearchController?.resize();
 });
 
 bindScanButtons();

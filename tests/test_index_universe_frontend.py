@@ -84,13 +84,14 @@ console.log(JSON.stringify(h.selectRowsByIndexUniverse(
     assert payload["stats"]["requirement_met"] is False
 
 
-def test_frontend_contract_exposes_five_indices_and_persists_universe_config():
+def test_frontend_contract_exposes_six_indices_and_persists_universe_config():
     helper = HELPER.read_text(encoding="utf-8")
     app = (FRONTEND / "app.js").read_text(encoding="utf-8")
     index = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
-    for alias in ["HS300", "CSI500", "CSI800", "CSI1000", "CSIA500"]:
+    for alias in ["HS300", "CSI500", "CSI800", "CSI1000", "CSI2000", "CSIA500"]:
         assert alias in helper
+    assert "2023-08-14" in helper
     assert "2024-09-24" in helper
     assert "index_weight_monthly.parquet" in app
     assert "cps-universe-mode" in app
@@ -118,5 +119,7 @@ def test_monthly_index_weights_keep_independent_index_histories():
 
     assert rows["HS300"]["first_signal_date"] == date(2015, 1, 30)
     assert rows["CSI1000"]["signal_count"] == 139
+    assert rows["CSI2000"]["first_signal_date"] == date(2023, 8, 31)
+    assert rows["CSI2000"]["signal_count"] == 36
     assert rows["CSIA500"]["first_signal_date"] == date(2024, 9, 30)
     assert rows["CSIA500"]["signal_count"] == 23

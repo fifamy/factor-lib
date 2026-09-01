@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-01 11:32:38",
+  "generated_at": "2026-09-01 14:55:11",
   "factor_count": 146,
   "backtest_start_month": "2015-03",
   "backtest_end_month": "2026-07",
@@ -20,14 +20,16 @@
   "has_compose_scores_raw": true,
   "has_compose_scores_neutral": false,
   "has_index_universe": true,
-  "index_universe_policy": "五个指数按各自可用区间使用月末时点成分；沪深300、中证500、中证800、中证1000从2015年开始，中证A500官方成分从2024-09-24开始，不将发布前回溯行情倒推为官方成分。",
+  "has_stock_pool_research": true,
+  "index_universe_policy": "六个指数按各自可用区间使用月末时点成分；沪深300、中证500、中证800、中证1000从2015年开始，中证2000官方权重从2023-08-14开始，中证A500官方权重从2024-09-24开始；不将指数发布前回溯行情倒推为官方成分。",
   "capabilities": {
     "compose_scores_raw": true,
     "compose_scores_neutral": false,
     "segment_validation_parquet": false,
     "rolling_validation_parquet": false,
     "single_snapshots": false,
-    "index_universe": true
+    "index_universe": true,
+    "stock_pool_research": true
   },
   "has_neutralized_scores": true,
   "neutralization": "中性化口径使用月末时点有效的申万一级行业哑变量 + log(市值) 截面回归残差。",
@@ -38,8 +40,8 @@
     "warning_level": "warning",
     "total_rows": 59835980,
     "quality_counts": {
-      "ok": 59390992,
       "missing_input": 444336,
+      "ok": 59390992,
       "insufficient_sample": 652
     },
     "insufficient_sample_rows": 652,

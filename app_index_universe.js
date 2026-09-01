@@ -4,6 +4,7 @@ const INDEX_UNIVERSE_OPTIONS = [
   { alias: "CSI500", code: "000905.SH", label: "中证500", firstWeightDate: "2015-01-05" },
   { alias: "CSI800", code: "000906.SH", label: "中证800", firstWeightDate: "2015-01-05" },
   { alias: "CSI1000", code: "000852.SH", label: "中证1000", firstWeightDate: "2015-01-05" },
+  { alias: "CSI2000", code: "932000.CSI", label: "中证2000", firstWeightDate: "2023-08-14" },
   { alias: "CSIA500", code: "000510.SH", label: "中证A500", firstWeightDate: "2024-09-24" },
 ];
 
