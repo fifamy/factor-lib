@@ -1,20 +1,20 @@
 {
-  "generated_at": "2026-09-01T04:41:04+00:00",
-  "deploy_version": "20260901124041",
+  "generated_at": "2026-09-01T05:11:19+00:00",
+  "deploy_version": "20260901131109",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
-  "source_revision": "0461857e0aba96349528c32a48d80dcbc48b419e7f7147e90bbf5996decd5fbd",
+  "source_revision": "a7ffe669c57d6a28971a09a6f9c2795fd74bd985709abba5a3dcf4c040a4f6c4",
   "source_revision_kind": "content_sha256",
-  "source_content_sha256": "0461857e0aba96349528c32a48d80dcbc48b419e7f7147e90bbf5996decd5fbd",
+  "source_content_sha256": "a7ffe669c57d6a28971a09a6f9c2795fd74bd985709abba5a3dcf4c040a4f6c4",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "bb79c7b8e64f680b6e8025f31b04bbd346133aed",
+  "pages_worktree_git_commit_before_sync": "4f85029fa6918764f4b8e4149762df248f1e445e",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "9a8f81fca88bc50579098fd766f2df650622c61a4ab2e7c6feec55dd6b98de4f",
-      "bytes": 33863
+      "sha256": "b1287023b49459f1284d40c38f1a8fb060c1228b0079e251658b9bfa06cf4d03",
+      "bytes": 33861
     },
     "app.js": {
       "sha256": "2b2ac708b2a63708e881cce0505a030427ec205331587e5c462d49e6d0bf1337",
@@ -29,8 +29,8 @@
       "bytes": 39644
     },
     "factor_audit.html": {
-      "sha256": "48fa99eca0d9ba9f93e71d71ab56210480fdfa32257e624b63c3b3d521665928",
-      "bytes": 8628
+      "sha256": "7e964081ce644ef2d6d88bb194700aad02c9c40e35033b749c292acca5c31bea",
+      "bytes": 8627
     },
     "factor_audit.js": {
       "sha256": "7a9c649a51a53014ac7a31d24b2d60daa612324842a4a3ad7d097b5fa842e743",
@@ -113,8 +113,8 @@
     "scripts": {
       "exists": true,
       "file_count": 130,
-      "bytes": 1796751,
-      "sha256": "cb9bc87dd024dafce3f822c65bac753f7b4fb7622d1c648fb83cb739f409a5eb"
+      "bytes": 1796750,
+      "sha256": "e874b8fa5e3c38b134f20ff2add56b2fc015e1803ba1be13ce877258d3f85cf2"
     },
     "config": {
       "exists": true,
