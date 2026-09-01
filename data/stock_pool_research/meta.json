@@ -18,7 +18,9 @@
     "factors": 146,
     "score_modes": 2,
     "monthly_rows": 1352756,
-    "summary_rows": 10767
+    "summary_rows": 10804,
+    "expected_summary_rows": 10804,
+    "no_data_rows": 809
   },
   "pools": [
     {
@@ -29,7 +31,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 667
+      "historical_stock_count": 667,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "CSI500",
@@ -39,7 +43,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 1356
+      "historical_stock_count": 1356,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "CSI800",
@@ -49,7 +55,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 1577
+      "historical_stock_count": 1577,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "CSI1000",
@@ -59,7 +67,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 2800
+      "historical_stock_count": 2800,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "CSI2000",
@@ -69,7 +79,9 @@
       "first_membership_date": "2023-08-31",
       "last_membership_date": "2026-07-31",
       "membership_months": 36,
-      "historical_stock_count": 2934
+      "historical_stock_count": 2934,
+      "max_effective_months": 34,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "CSIA500",
@@ -79,7 +91,9 @@
       "first_membership_date": "2024-09-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 23,
-      "historical_stock_count": 595
+      "historical_stock_count": 595,
+      "max_effective_months": 21,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801170",
@@ -89,7 +103,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 154
+      "historical_stock_count": 154,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801760",
@@ -99,7 +115,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 171
+      "historical_stock_count": 171,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801160",
@@ -109,7 +127,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 155
+      "historical_stock_count": 155,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801010",
@@ -119,7 +139,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 136
+      "historical_stock_count": 136,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801150",
@@ -129,7 +151,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 523
+      "historical_stock_count": 523,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801200",
@@ -139,7 +163,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 157
+      "historical_stock_count": 157,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801740",
@@ -149,7 +175,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 158
+      "historical_stock_count": 158,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801030",
@@ -159,7 +187,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 556
+      "historical_stock_count": 556,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801110",
@@ -169,7 +199,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 108
+      "historical_stock_count": 108,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801710",
@@ -179,7 +211,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 116
+      "historical_stock_count": 116,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801720",
@@ -189,7 +223,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 194
+      "historical_stock_count": 194,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801180",
@@ -199,7 +235,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 177
+      "historical_stock_count": 177,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801050",
@@ -209,7 +247,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 191
+      "historical_stock_count": 191,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801890",
@@ -219,7 +259,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 678
+      "historical_stock_count": 678,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801880",
@@ -229,7 +271,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 312
+      "historical_stock_count": 312,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801950",
@@ -239,7 +283,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 42
+      "historical_stock_count": 42,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801970",
@@ -249,7 +295,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 146
+      "historical_stock_count": 146,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801730",
@@ -259,7 +307,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 424
+      "historical_stock_count": 424,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801080",
@@ -269,7 +319,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 579
+      "historical_stock_count": 579,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801960",
@@ -279,7 +331,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 57
+      "historical_stock_count": 57,
+      "max_effective_months": 121,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801210",
@@ -289,7 +343,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 107
+      "historical_stock_count": 107,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801130",
@@ -299,7 +355,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 144
+      "historical_stock_count": 144,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801230",
@@ -309,7 +367,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 127
+      "historical_stock_count": 127,
+      "max_effective_months": 78,
+      "last_research_date": "2021-06-30"
     },
     {
       "pool_id": "SW1_801980",
@@ -319,7 +379,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 33
+      "historical_stock_count": 33,
+      "max_effective_months": 59,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801750",
@@ -329,7 +391,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 381
+      "historical_stock_count": 381,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801140",
@@ -339,7 +403,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 172
+      "historical_stock_count": 172,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801770",
@@ -349,7 +415,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 146
+      "historical_stock_count": 146,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801040",
@@ -359,7 +427,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 53
+      "historical_stock_count": 53,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801780",
@@ -369,7 +439,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 42
+      "historical_stock_count": 42,
+      "max_effective_months": 114,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801790",
@@ -379,7 +451,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 95
+      "historical_stock_count": 95,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     },
     {
       "pool_id": "SW1_801120",
@@ -389,7 +463,9 @@
       "first_membership_date": "2015-01-30",
       "last_membership_date": "2026-07-31",
       "membership_months": 139,
-      "historical_stock_count": 140
+      "historical_stock_count": 140,
+      "max_effective_months": 137,
+      "last_research_date": "2026-05-29"
     }
   ]
 }

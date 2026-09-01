@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>因子库 v2.2.0</title>
+  <title>因子库 v2.2.1</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260901154319">
+  <link rel="stylesheet" href="styles.css?v=20260901165755">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <h1 class="app-title">因子库 v2.2.0 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
+    <h1 class="app-title">因子库 v2.2.1 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260901154319" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260901165755" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -455,7 +455,7 @@
               <h2 id="pool-research-title">股票池因子有效性研究</h2>
               <p>在各宽基指数或申万一级行业的历史时点成分内，比较因子的排序能力、分层收益及 Alpha 来源。</p>
             </div>
-            <span class="pool-data-badge">6 个宽基 · 31 个行业 · 146 个因子</span>
+            <span class="pool-data-badge">6 个宽基 · 31 个行业 · 146 个待检验因子</span>
           </div>
           <fieldset class="pool-toolbar">
             <legend>研究范围</legend>
@@ -478,6 +478,7 @@
               <option value="robust">稳健有效</option>
               <option value="provisional">观察期有效</option>
               <option value="not_passed">未通过</option>
+              <option value="no_data">无有效样本</option>
             </select>
             <label class="pool-search-label" for="pool-factor-search">搜索因子</label>
             <input id="pool-factor-search" type="search" placeholder="代码或中文名" autocomplete="off">
@@ -494,7 +495,7 @@
           <div class="pool-section-head">
             <div>
               <h3 id="pool-style-title">因子大类有效性</h3>
-              <p>按当前筛选后的因子汇总；有效比例同时包含“稳健有效”和“观察期有效”。</p>
+              <p>按当前筛选后的因子汇总；有效比例同时包含“稳健有效”和“观察期有效”，以至少有 1 个有效研究月的因子为分母。</p>
             </div>
           </div>
           <div id="pool-style-summary"><div class="loading">加载中…</div></div>
@@ -559,9 +560,9 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260901154319"></script>
-  <script src="app_index_universe.js?v=20260901154319"></script>
-  <script src="app_stock_pool_research.js?v=20260901154319"></script>
-  <script type="module" src="app.js?v=20260901154319"></script>
+  <script src="app_holding_scope.js?v=20260901165755"></script>
+  <script src="app_index_universe.js?v=20260901165755"></script>
+  <script src="app_stock_pool_research.js?v=20260901165755"></script>
+  <script type="module" src="app.js?v=20260901165755"></script>
 </body>
 </html>

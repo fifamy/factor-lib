@@ -28,20 +28,30 @@ try {
   await waitForResults();
 
   const hs300Rows = await page.locator("#pool-factor-table-body tr").count();
-  if (hs300Rows < 140) throw new Error(`沪深300因子结果不足：${hs300Rows}`);
+  if (hs300Rows !== 146) throw new Error(`沪深300因子结果应完整列示 146 个，实际：${hs300Rows}`);
 
   await page.locator("#pool-selector").selectOption("CSI2000");
   await waitForResults();
   const csi2000Scope = await page.locator("#pool-scope-note").innerText();
-  if (!csi2000Scope.includes("中证2000") || !csi2000Scope.includes("2023-08-31")) {
+  if (!csi2000Scope.includes("中证2000") || !csi2000Scope.includes("2023-08-31") || !csi2000Scope.includes("最多 34 个")) {
     throw new Error(`中证2000独立历史范围异常：${csi2000Scope}`);
   }
 
   await page.locator("#pool-type-sw1").click();
+  await page.locator("#pool-selector").selectOption("SW1_801780");
+  await waitForResults();
+  await page.locator("#pool-status-filter").selectOption("no_data");
+  const noDataRows = await page.locator("#pool-factor-table-body tr").count();
+  const noDataStatuses = await page.locator("#pool-factor-table-body .pool-status").allTextContents();
+  if (!noDataRows || noDataStatuses.some(status => status !== "无有效样本")) {
+    throw new Error(`银行无有效样本筛选异常：rows=${noDataRows}, statuses=${noDataStatuses}`);
+  }
+
+  await page.locator("#pool-status-filter").selectOption("all");
   await page.locator("#pool-selector").selectOption("SW1_801080");
   await waitForResults();
   const industryScope = await page.locator("#pool-scope-note").innerText();
-  if (!industryScope.includes("电子") || !industryScope.includes("139 个成分时点") || !industryScope.includes("股票池等权收益")) {
+  if (!industryScope.includes("电子") || !industryScope.includes("139 个成分时点") || !industryScope.includes("成分时点数不等于有效研究月数") || !industryScope.includes("股票池等权收益")) {
     throw new Error(`申万一级行业口径提示异常：${industryScope}`);
   }
 
@@ -74,7 +84,7 @@ try {
     await page.screenshot({ path: process.env.STOCK_POOL_SCREENSHOT, fullPage: true });
   }
   if (pageErrors.length) throw new Error(`页面错误：${pageErrors.join("\n")}`);
-  console.log(`✅ 股票池研究浏览器验收通过 · 沪深300 ${hs300Rows} 个因子 · 电子行业稳健有效 ${robustRows} 个`);
+  console.log(`✅ 股票池研究浏览器验收通过 · 沪深300 ${hs300Rows} 个因子 · 银行无有效样本 ${noDataRows} 个 · 电子行业稳健有效 ${robustRows} 个`);
 } finally {
   await browser.close();
 }

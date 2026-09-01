@@ -566,10 +566,12 @@ table.kpi-table td:first-child { text-align: left; font-weight: 600; color: #1a4
 .pool-status.robust { color: #17613e; background: #e9f5ee; border: 1px solid #c7e1d2; }
 .pool-status.provisional { color: #795500; background: #fff8e3; border: 1px solid #e7d498; }
 .pool-status.not-passed { color: #5e6875; background: #f1f3f5; border: 1px solid #dce1e6; }
+.pool-status.no-data { color: #4b5563; background: #eef2f5; border: 1px dashed #b9c2cc; }
 .pool-alpha-source.both { color: #315d87; background: #edf4fa; }
 .pool-alpha-source.long { color: #17613e; background: #e9f5ee; }
 .pool-alpha-source.short { color: #795500; background: #fff8e3; }
 .pool-alpha-source.weak { color: #5e6875; background: #f1f3f5; }
+.pool-alpha-source.unavailable { color: #4b5563; background: #eef2f5; }
 
 .pool-factor-detail { scroll-margin-top: calc(var(--topbar-height) + 10px); }
 .pool-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

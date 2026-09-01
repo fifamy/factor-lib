@@ -5,12 +5,14 @@
     robust: { label: "稳健有效", className: "robust" },
     provisional: { label: "观察期有效", className: "provisional" },
     not_passed: { label: "未通过", className: "not-passed" },
+    no_data: { label: "无有效样本", className: "no-data" },
   };
   const ALPHA_SOURCE = {
     both: "多头 + 剔除",
     long: "多头端",
     short: "空头剔除",
     weak: "贡献不明显",
+    unavailable: "无有效样本",
   };
 
   function text(value) {
@@ -240,9 +242,11 @@
       const pool = poolMeta();
       if (!pool) return;
       const benchmark = pool.pool_type === "broad_index" ? "官方指数精确持有期收益" : "当期行业股票池等权收益";
+      const researchEnd = pool.last_research_date ? `，截至 ${text(pool.last_research_date)}` : "";
       element("pool-scope-note").innerHTML = `
         <b>${text(pool.pool_name)}</b>
         <span>${text(pool.first_membership_date)} 至 ${text(pool.last_membership_date)}，${Number(pool.membership_months)} 个成分时点，历史涉及 ${Number(pool.historical_stock_count).toLocaleString("zh-CN")} 只股票。</span>
+        <span>单因子有效研究月最多 ${Number(pool.max_effective_months || 0)} 个${researchEnd}；成分时点数不等于有效研究月数。</span>
         <span>超额基准：${benchmark}；各股票池从自身成分数据起点开始，不强行统一日期。</span>`;
     }
 
@@ -262,7 +266,7 @@
       const rows = local.rows;
       const robust = rows.filter(row => row.effective_status === "robust").length;
       const provisional = rows.filter(row => row.effective_status === "provisional").length;
-      const shortDriven = rows.filter(row => row.alpha_source === "short").length;
+      const noData = rows.filter(row => row.effective_status === "no_data").length;
       const coverage = median(rows.map(row => row.avg_score_coverage));
       const rankIc = median(rows.map(row => row.rank_ic_mean));
       const pool = poolMeta();
@@ -273,7 +277,7 @@
           <div class="pool-overview-item"><span>观察期有效</span><strong>${provisional}</strong><small>样本较短或仅通过未校正检验</small></div>
           <div class="pool-overview-item"><span>中位 RankIC</span><strong>${decimal(rankIc, 3, true)}</strong><small>当前股票池全部因子</small></div>
           <div class="pool-overview-item"><span>中位得分覆盖</span><strong>${percent(coverage, 1)}</strong><small>因子得分 / 时点成分数</small></div>
-          <div class="pool-overview-item"><span>空头剔除型</span><strong>${shortDriven}</strong><small>收益主要来自避开 Q1</small></div>
+          <div class="pool-overview-item"><span>无有效样本</span><strong>${noData}</strong><small>已列示但不纳入有效率</small></div>
         </div>`;
     }
 
@@ -285,16 +289,18 @@
         grouped.get(key).push(row);
       }
       const styles = [...grouped.entries()].map(([name, rows]) => {
-        const effective = rows.filter(row => row.effective_status !== "not_passed").length;
+        const testableRows = rows.filter(row => Number(row.n_months || 0) > 0);
+        const effective = testableRows.filter(row => row.effective_status === "robust" || row.effective_status === "provisional").length;
         const robust = rows.filter(row => row.effective_status === "robust").length;
-        const best = rows.slice().sort((a, b) => (number(b.rank_ic_mean) ?? -Infinity) - (number(a.rank_ic_mean) ?? -Infinity))[0];
+        const best = testableRows.slice().sort((a, b) => (number(b.rank_ic_mean) ?? -Infinity) - (number(a.rank_ic_mean) ?? -Infinity))[0];
         return {
           name,
           count: rows.length,
+          testable: testableRows.length,
           effective,
           robust,
-          share: rows.length ? effective / rows.length : 0,
-          medianIc: median(rows.map(row => row.rank_ic_mean)),
+          share: testableRows.length ? effective / testableRows.length : 0,
+          medianIc: median(testableRows.map(row => row.rank_ic_mean)),
           best,
         };
       }).sort((a, b) => b.share - a.share || (b.medianIc ?? -Infinity) - (a.medianIc ?? -Infinity));
@@ -304,7 +310,7 @@
       }
       element("pool-style-summary").innerHTML = `<div class="pool-style-list">${styles.map(style => `
         <div class="pool-style-row">
-          <div class="pool-style-name"><b>${text(style.name)}</b><span>${style.count} 个因子 · 稳健 ${style.robust}</span></div>
+          <div class="pool-style-name"><b>${text(style.name)}</b><span>可检验 ${style.testable}/${style.count} · 稳健 ${style.robust}</span></div>
           <div class="pool-style-track" aria-label="${text(style.name)}有效比例 ${percent(style.share, 0)}"><span style="width:${Math.max(2, style.share * 100).toFixed(1)}%"></span></div>
           <div class="pool-style-value"><b>${percent(style.share, 0)}</b><span>中位 IC ${decimal(style.medianIc, 3, true)}</span></div>
           <div class="pool-style-best">领先：${style.best ? `${text(style.best.factor_code)} · ${text(style.best.name_cn || "")}` : "—"}</div>
