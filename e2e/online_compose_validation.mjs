@@ -86,26 +86,33 @@ async function waitForLiveRelease(expectedVersion) {
 
 async function validateLiveResources(expectedManifest) {
   const version = expectedManifest.deploy_version;
-  const [index, app, dataManifest, catalog, auditIndex] = await Promise.all([
+  const [index, app, indexUniverseHelper, dataManifest, catalog, auditIndex] = await Promise.all([
     fetchText("index.html"),
     fetchText(`app.js?v=${version}`),
+    fetchText(`app_index_universe.js?v=${version}`),
     fetchJson("data/data_manifest.json"),
     fetchJson("data/factor_catalog.json"),
     fetchJson("data/factor_audit/index.json"),
   ]);
-  for (const asset of [`app.js?v=${version}`, `styles.css?v=${version}`]) {
+  for (const asset of [`app_index_universe.js?v=${version}`, `app.js?v=${version}`, `styles.css?v=${version}`]) {
     if (!index.includes(asset)) throw new Error(`线上首页未引用本次发布资源：${asset}`);
   }
   if (index.includes("DEPLOY_VERSION")) throw new Error("线上首页仍含 DEPLOY_VERSION 占位符");
   const appMarkers = [
     "组合内相对低流动性占比",
-    "comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth)",
+    "async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, rawUniverse",
+    "composeLatestHoldingSelection(candidateRows, state.composeN, constraint, universe)",
     "factor_corr_neutral",
     "htmlText(JSON.stringify(payload, null, 2))",
   ];
   const missingAppMarkers = appMarkers.filter(marker => !app.includes(marker));
   if (missingAppMarkers.length) {
     throw new Error(`线上 app.js 缺少关键功能标记：${missingAppMarkers.join(", ")}`);
+  }
+  for (const marker of ["CSIA500", "selectRowsByIndexUniverse", "2024-09-24"]) {
+    if (!indexUniverseHelper.includes(marker)) {
+      throw new Error(`线上指数股票池辅助脚本缺少关键功能标记：${marker}`);
+    }
   }
   if (catalog.length !== expectedManifest.factor_count) {
     throw new Error(`线上目录因子数不一致：${catalog.length} != ${expectedManifest.factor_count}`);
@@ -118,6 +125,9 @@ async function validateLiveResources(expectedManifest) {
   }
   if (dataManifest.factor_count !== expectedManifest.factor_count) {
     throw new Error("线上 data_manifest 因子数与发布清单不一致");
+  }
+  if (dataManifest.capabilities?.index_universe !== true || dataManifest.has_index_universe !== true) {
+    throw new Error("线上data_manifest未启用指数股票池能力");
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataManifest.return_end_date || "")) {
     throw new Error("线上 data_manifest 缺少有效 return_end_date");
