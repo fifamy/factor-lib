@@ -1948,7 +1948,7 @@ def test_online_compose_validation_script_exists_and_checks_live_site():
 
     assert "https://fifamy.github.io/factor-lib/" in text
     assert "组合内相对低流动性占比" in text
-    assert "comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth)" in text
+    assert "async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, rawUniverse" in text
     assert "factor_corr_neutral" in text
     assert '"online-compose-validation": "node online_compose_validation.mjs"' in package_json
 
