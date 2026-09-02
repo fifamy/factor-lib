@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>因子库 v2.2.1</title>
+  <title>因子库 v2.3.0</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260901165755">
+  <link rel="stylesheet" href="styles.css?v=20260902111942">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <h1 class="app-title">因子库 v2.2.1 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
+    <h1 class="app-title">因子库 v2.3.0 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260901165755" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260902111942" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -483,6 +483,34 @@
             <label class="pool-search-label" for="pool-factor-search">搜索因子</label>
             <input id="pool-factor-search" type="search" placeholder="代码或中文名" autocomplete="off">
           </fieldset>
+          <fieldset class="pool-toolbar pool-time-toolbar">
+            <legend>时间、验证与成本</legend>
+            <label for="pool-as-of">信息截止</label>
+            <select id="pool-as-of" aria-label="选择信息截止日期"></select>
+            <label for="pool-window">观察窗口</label>
+            <select id="pool-window">
+              <option value="full">全部可见历史</option>
+              <option value="60">长期 · 60 月</option>
+              <option value="36">中期 · 36 月</option>
+              <option value="12">短期 · 12 月</option>
+              <option value="custom">自定义</option>
+            </select>
+            <span id="pool-custom-range" class="pool-custom-range" hidden>
+              <label for="pool-custom-start">起始月</label><input id="pool-custom-start" type="month">
+              <label for="pool-custom-end">结束月</label><input id="pool-custom-end" type="month">
+            </span>
+            <label for="pool-cost-bps">单边成本</label>
+            <select id="pool-cost-bps">
+              <option value="0">0 bp</option>
+              <option value="10" selected>10 bp</option>
+              <option value="20">20 bp</option>
+              <option value="50">50 bp</option>
+            </select>
+            <label for="pool-train-window">样本外训练</label>
+            <select id="pool-train-window"><option value="36">36 月</option><option value="60">60 月</option></select>
+            <label for="pool-forward-horizon">前瞻检验</label>
+            <select id="pool-forward-horizon"><option value="3">未来 3 月</option><option value="6">未来 6 月</option><option value="12">未来 12 月</option></select>
+          </fieldset>
           <div id="pool-scope-note" class="pool-scope-note" aria-live="polite">加载股票池信息…</div>
         </section>
 
@@ -495,7 +523,7 @@
           <div class="pool-section-head">
             <div>
               <h3 id="pool-style-title">因子大类有效性</h3>
-              <p>按当前筛选后的因子汇总；有效比例同时包含“稳健有效”和“观察期有效”，以至少有 1 个有效研究月的因子为分母。</p>
+              <p>按当前筛选后的因子汇总候选数量、中位RankIC和大类领先因子；候选仍需进入组合页继续检验。</p>
             </div>
           </div>
           <div id="pool-style-summary"><div class="loading">加载中…</div></div>
@@ -505,28 +533,28 @@
           <div class="pool-section-head">
             <div>
               <h3 id="pool-ranking-title">单因子结果</h3>
-              <p>高分方向已经统一；Q5 为高分组。表内收益均为未扣交易成本的毛收益。</p>
+              <p>高分方向已经统一；Q5 为高分组。候选分综合样本外、稳定性、近期强度、成本后表现与独特性，不代表未来收益承诺。</p>
             </div>
-            <span id="pool-result-count" class="pool-result-count"></span>
+            <div class="pool-ranking-actions"><span id="pool-result-count" class="pool-result-count"></span><button id="pool-select-top" type="button">选择前 10 候选</button><button id="pool-send-compose" type="button">加入多因子合成</button><button id="pool-clear-selection" type="button">清空</button></div>
           </div>
           <div class="pool-table-scroll" role="region" aria-label="股票池因子研究结果，可横向滚动" tabindex="0">
             <table class="pool-table">
               <thead>
                 <tr>
+                  <th scope="col" class="pool-left"><input id="pool-check-all" type="checkbox" aria-label="全选当前因子"></th>
                   <th scope="col" class="pool-left">状态</th>
                   <th scope="col" class="pool-left" data-pool-sort="factor_code">因子</th>
                   <th scope="col" class="pool-left">分类</th>
+                  <th scope="col" data-pool-sort="stability_rank">时变状态</th>
                   <th scope="col" data-pool-sort="n_months">月数</th>
                   <th scope="col" data-pool-sort="rank_ic_mean">平均 RankIC</th>
-                  <th scope="col" data-pool-sort="rank_ic_t">HAC t</th>
                   <th scope="col" data-pool-sort="rank_ic_q_value">FDR q</th>
-                  <th scope="col" data-pool-sort="monotonicity">分层单调性</th>
-                  <th scope="col" data-pool-sort="long_excess_ann_return">Q5 年化超额</th>
-                  <th scope="col" data-pool-sort="long_excess_sharpe">Q5 超额夏普</th>
-                  <th scope="col" data-pool-sort="long_short_ann_return">Q5−Q1 年化</th>
-                  <th scope="col" data-pool-sort="long_short_sharpe">多空夏普</th>
-                  <th scope="col">Alpha 来源</th>
-                  <th scope="col" data-pool-sort="avg_score_coverage">得分覆盖</th>
+                  <th scope="col" data-pool-sort="net_long_excess_ann_return">成本后 Q5 超额</th>
+                  <th scope="col" data-pool-sort="avg_q5_turnover">Q5 换手</th>
+                  <th scope="col" data-pool-sort="oos_rank_ic_mean">样本外 IC</th>
+                  <th scope="col" data-pool-sort="oos_ic_positive_rate">样本外命中</th>
+                  <th scope="col" data-pool-sort="uniqueness_score">独特性</th>
+                  <th scope="col" data-pool-sort="candidate_score">前瞻候选分</th>
                 </tr>
               </thead>
               <tbody id="pool-factor-table-body"><tr><td colspan="14" class="empty">加载中…</td></tr></tbody>
@@ -560,9 +588,9 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260901165755"></script>
-  <script src="app_index_universe.js?v=20260901165755"></script>
-  <script src="app_stock_pool_research.js?v=20260901165755"></script>
-  <script type="module" src="app.js?v=20260901165755"></script>
+  <script src="app_holding_scope.js?v=20260902111942"></script>
+  <script src="app_index_universe.js?v=20260902111942"></script>
+  <script src="app_stock_pool_research.js?v=20260902111942"></script>
+  <script type="module" src="app.js?v=20260902111942"></script>
 </body>
 </html>

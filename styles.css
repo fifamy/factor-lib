@@ -681,6 +681,20 @@ table.opt-table th:last-child, table.opt-table td:last-child { text-align: cente
 th[tabindex="0"] { cursor: pointer; }
 th[aria-sort="ascending"], th[aria-sort="descending"] { color: var(--brand); }
 
+.pool-time-toolbar { background: #f7f9fb; border-color: #d3dde7; }
+.pool-custom-range { display: inline-flex; align-items: center; gap: 6px; }
+.pool-custom-range[hidden] { display: none; }
+.pool-ranking-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
+.pool-ranking-actions button { min-height: 28px; padding: 4px 9px; border: 1px solid #b9c7d4; border-radius: 4px; background: #fff; color: var(--brand); cursor: pointer; }
+.pool-ranking-actions #pool-send-compose { background: var(--brand); border-color: var(--brand); color: #fff; }
+.pool-row-check, #pool-check-all { width: 15px; height: 15px; accent-color: var(--brand); }
+.pool-stability { display: inline-flex; white-space: nowrap; border-radius: 10px; padding: 2px 7px; background: #eef2f5; color: #4a5b6b; font-weight: 700; font-size: 10px; }
+.pool-stability.stable, .pool-stability.strengthening { background: #e5f2ec; color: #21654a; }
+.pool-stability.emerging { background: #eaf1fb; color: #275f96; }
+.pool-stability.decaying, .pool-stability.reversal { background: #faece9; color: #913d33; }
+.pool-stability.cyclical { background: #f6efe2; color: #825d20; }
+.pool-candidate-score { color: var(--brand); font-size: 12px; }
+
 @media (max-width: 760px) {
   body { display: block; min-height: 100dvh; }
   #topbar { position: static; align-items: flex-start; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
@@ -706,6 +720,9 @@ th[aria-sort="ascending"], th[aria-sort="descending"] { color: var(--brand); }
   .pool-toolbar { align-items: stretch; }
   .pool-toolbar label:not(.pool-search-label) { flex-basis: 100%; margin-top: 2px; }
   .pool-toolbar select, .pool-toolbar input, .pool-control-group { width: 100%; }
+  .pool-custom-range { width: 100%; display: grid; grid-template-columns: 70px minmax(0, 1fr); }
+  .pool-custom-range[hidden] { display: none; }
+  .pool-ranking-actions { justify-content: flex-start; width: 100%; }
   .pool-segment { flex: 1 1 50%; }
   .pool-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pool-overview-item:nth-child(3) { border-right: 1px solid #e0e6ec; }

@@ -29,11 +29,28 @@ try {
 
   const hs300Rows = await page.locator("#pool-factor-table-body tr").count();
   if (hs300Rows !== 146) throw new Error(`沪深300因子结果应完整列示 146 个，实际：${hs300Rows}`);
+  const controls = await page.locator("#pool-as-of, #pool-window, #pool-cost-bps, #pool-train-window, #pool-forward-horizon").count();
+  if (controls !== 5) throw new Error(`时间、成本和样本外控件不完整：${controls}`);
+  const candidateCells = await page.locator(".pool-candidate-score").count();
+  if (candidateCells !== 146) throw new Error(`候选分列未完整渲染：${candidateCells}`);
+
+  await page.locator("#pool-window").selectOption("12");
+  await page.waitForTimeout(300);
+  const maxWindowMonths = await page.locator("#pool-factor-table-body tr td:nth-child(6)").evaluateAll(nodes => Math.max(...nodes.map(node => Number(node.textContent) || 0)));
+  if (maxWindowMonths > 12) throw new Error(`12 月窗口仍混入更早样本：${maxWindowMonths}`);
+  await page.locator("#pool-window").selectOption("full");
+
+  await page.locator("#pool-cost-bps").selectOption("0");
+  const grossNetValues = await page.locator("#pool-factor-table-body tr td:nth-child(9)").allTextContents();
+  await page.locator("#pool-cost-bps").selectOption("50");
+  const highCostValues = await page.locator("#pool-factor-table-body tr td:nth-child(9)").allTextContents();
+  if (grossNetValues.join("|") === highCostValues.join("|")) throw new Error("交易成本情景未改变成本后收益");
+  await page.locator("#pool-cost-bps").selectOption("10");
 
   await page.locator("#pool-selector").selectOption("CSI2000");
   await waitForResults();
   const csi2000Scope = await page.locator("#pool-scope-note").innerText();
-  if (!csi2000Scope.includes("中证2000") || !csi2000Scope.includes("2023-08-31") || !csi2000Scope.includes("最多 34 个")) {
+  if (!csi2000Scope.includes("中证2000") || !csi2000Scope.includes("2023-08-31") || !csi2000Scope.includes("信息截止")) {
     throw new Error(`中证2000独立历史范围异常：${csi2000Scope}`);
   }
 
@@ -51,7 +68,7 @@ try {
   await page.locator("#pool-selector").selectOption("SW1_801080");
   await waitForResults();
   const industryScope = await page.locator("#pool-scope-note").innerText();
-  if (!industryScope.includes("电子") || !industryScope.includes("139 个成分时点") || !industryScope.includes("成分时点数不等于有效研究月数") || !industryScope.includes("股票池等权收益")) {
+  if (!industryScope.includes("电子") || !industryScope.includes("严格") && !industryScope.includes("只使用截止日以前已实现的收益") || !industryScope.includes("各股票池不强行统一起点")) {
     throw new Error(`申万一级行业口径提示异常：${industryScope}`);
   }
 
@@ -65,9 +82,22 @@ try {
   await page.waitForSelector("#pool-factor-detail:not([hidden])", { timeout: 15000 });
   await page.waitForFunction(() => document.querySelectorAll("#pool-monthly-chart canvas").length > 0, null, { timeout: 120000 });
   const detailText = await page.locator("#pool-factor-detail").innerText();
-  if (!detailText.includes("Alpha 贡献拆分") || !detailText.includes("月度 RankIC")) {
+  if (!detailText.includes("能否用于未来候选") || !detailText.includes("12/36/60 月滚动均值") || !detailText.includes("样本外证据")) {
     throw new Error("因子下钻详情内容不完整");
   }
+
+  await page.locator("#pool-detail-close").click();
+  await page.locator("#pool-type-index").click();
+  await page.locator("#pool-selector").selectOption("HS300");
+  await page.locator("#pool-status-filter").selectOption("all");
+  await waitForResults();
+  await page.locator("#pool-select-top").click();
+  await page.locator("#pool-send-compose").click();
+  await page.waitForSelector("#compose-view", { state: "visible", timeout: 30000 });
+  const composeFactors = await page.locator("#cps-controls .cps-frow").count();
+  if (composeFactors !== 10) throw new Error(`股票池候选未完整带入多因子合成：${composeFactors}`);
+  await page.locator('.mode-btn[data-mode="stock-pool"]').click();
+  await waitForResults();
 
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileLayout = await page.evaluate(() => ({

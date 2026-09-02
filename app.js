@@ -4283,6 +4283,29 @@ function ensureStockPoolResearchController() {
       switchMode("single");
       selectFactor(code, { preserveParams: true });
     },
+    openComposeFactors: (codes, requestedScoreMode) => {
+      let scoreMode = normalizeScoreMode(requestedScoreMode);
+      if (scoreMode === "neutral" && !hasComposeNeutralScores()) {
+        alert(`${composeNeutralUnavailableMessage()}\n\n本次将改用原始得分进入多因子合成。`);
+        scoreMode = "raw";
+      }
+      const factors = codes.map(code => ({
+        code,
+        weight: 1,
+        side: 1,
+        scoreMode,
+        op: ">=",
+        thr: null,
+      }));
+      const violations = comboConstraintViolations(factors);
+      if (violations.length) {
+        alert(`候选因子不能直接带入新组合：\n${violations.join("\n")}`);
+        return;
+      }
+      state.composeFactors = factors;
+      state.composeConstraintMode = "none";
+      switchMode("compose");
+    },
   });
   return stockPoolResearchController;
 }

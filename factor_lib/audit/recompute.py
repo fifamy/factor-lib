@@ -2177,6 +2177,35 @@ def word_v2_recon(code: str, factor_raw: pl.DataFrame, ctx: dict, src_dir: str, 
     )
     ref_df = _word_v2_reference_code(code, factor_raw, ctx, src_dir, units)
     if ref_df.is_empty():
+        # 已声明独立参考实现的定向审计，若抽中的生产值存在但参考端没有产出，
+        # 应视为单边不一致，而不是退化成“没有参考”。这也避免源扫描在资源压力下
+        # 偶发返回空表时，让破坏检测静默通过为 no_ref。
+        if code in INDEPENDENT_WORD_V2_AUDIT_CODES and units:
+            stored = {
+                (row["stock_code"], row["trade_date"]): _finite_or_none(row["raw_value"])
+                for row in factor_slice.select(["stock_code", "trade_date", "raw_value"]).to_dicts()
+            }
+            stored_only = [
+                (stock, asof, stored.get((stock, asof)))
+                for stock, asof in units
+                if stored.get((stock, asof)) is not None
+            ]
+            if stored_only:
+                base.update(
+                    status="mismatch",
+                    n_checked=len(stored_only),
+                    n_stored_only=len(stored_only),
+                    mismatches=[
+                        {
+                            "stock_code": stock,
+                            "trade_date": asof.isoformat(),
+                            "ref": None,
+                            "stored": value,
+                            "abs_diff": None,
+                        }
+                        for stock, asof, value in stored_only[:5]
+                    ],
+                )
         return base
     stored = {
         (r["stock_code"], r["trade_date"]): r["raw_value"]
