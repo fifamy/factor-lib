@@ -58,11 +58,6 @@
     if (!/^[A-Z0-9_]+$/.test(normalized)) throw new Error(`无效股票池或因子代码：${normalized}`);
     return normalized;
   }
-  function addMonths(value, months) {
-    const parsed = new Date(`${String(value).slice(0, 10)}T00:00:00Z`);
-    parsed.setUTCMonth(parsed.getUTCMonth() + months);
-    return parsed.toISOString().slice(0, 10);
-  }
   function erf(value) {
     const sign = value < 0 ? -1 : 1, x = Math.abs(value), t = 1 / (1 + 0.3275911 * x);
     const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
@@ -134,7 +129,7 @@
     const local = {
       ready: false, loading: null, meta: null, poolType: "broad_index", poolId: "HS300", scoreMode: "raw",
       l1: "all", status: "all", search: "", asOf: "", window: "full", customStart: "", customEnd: "",
-      costBps: 10, trainWindow: 36, forwardHorizon: 3, summary: [], monthly: [], forward: [], redundancy: [],
+      costBps: 10, trainWindow: 36, forwardHorizon: 3, summary: [], monthly: [], forward: [], redundancy: [], redundancyAsOf: "",
       rows: [], filteredRows: [], sortKey: "candidate_score", sortDirection: "desc", selected: new Set(),
       renderSequence: 0, selectedFactor: null, quantileChart: null, monthlyChart: null,
     };
@@ -219,10 +214,7 @@
     }
 
     function populateDates() {
-      const dates = [...new Set([
-        ...local.monthly.map(row => row.return_date == null ? null : String(row.return_date)),
-        ...local.redundancy.map(row => row.as_of_date == null ? null : String(row.as_of_date)),
-      ].filter(Boolean))].sort();
+      const dates = [...new Set(local.monthly.map(row => row.return_date == null ? null : String(row.return_date)).filter(Boolean))].sort();
       if (!dates.includes(local.asOf)) local.asOf = dates.at(-1) || "";
       element("pool-as-of").innerHTML = dates.slice().reverse().map(value => `<option value="${value}"${value === local.asOf ? " selected" : ""}>${value}</option>`).join("");
       const signals = local.monthly.map(row => String(row.signal_date)).sort();
@@ -241,10 +233,12 @@
     }
 
     function rangeRows(rows, windowValue) {
-      let start = "0000-01-01", end = local.asOf;
-      if (windowValue !== "full" && windowValue !== "custom") start = addMonths(local.asOf, -Number(windowValue));
-      if (windowValue === "custom") { start = `${local.customStart || "0000-01"}-01`; end = `${local.customEnd || local.asOf.slice(0, 7)}-31`; }
-      return rows.filter(row => row.is_usable && String(row.return_date) <= local.asOf && String(row.signal_date) >= start && String(row.signal_date) <= end);
+      const known = rows.filter(row => row.is_usable && row.return_date && String(row.return_date) <= local.asOf)
+        .sort((left, right) => String(left.signal_date).localeCompare(String(right.signal_date)));
+      if (windowValue !== "full" && windowValue !== "custom") return known.slice(-Number(windowValue));
+      if (windowValue !== "custom") return known;
+      const start = `${local.customStart || "0000-01"}-01`, end = `${local.customEnd || local.asOf.slice(0, 7)}-31`;
+      return known.filter(row => String(row.signal_date) >= start && String(row.signal_date) <= end);
     }
 
     function aggregate(meta, rows) {
@@ -290,7 +284,9 @@
     function rebuildRows() {
       const byFactor = new Map();
       local.monthly.forEach(row => { if (!byFactor.has(row.factor_code)) byFactor.set(row.factor_code, []); byFactor.get(row.factor_code).push(row); });
-      const redundancy = new Map(local.redundancy.filter(row => String(row.as_of_date) <= local.asOf).map(row => [row.factor_code, row]));
+      const redundancyDates = local.redundancy.filter(row => row.as_of_date && String(row.as_of_date) <= local.asOf).map(row => String(row.as_of_date)).sort();
+      local.redundancyAsOf = redundancyDates.at(-1) || "";
+      const redundancy = new Map(local.redundancy.filter(row => String(row.as_of_date) === local.redundancyAsOf).map(row => [row.factor_code, row]));
       local.rows = local.summary.map(meta => {
         const months = byFactor.get(meta.factor_code) || [], row = aggregate(meta, months);
         const fixed = { 12: fixedEvidence(months, 12), 36: fixedEvidence(months, 36), 60: fixedEvidence(months, 60) };
@@ -302,7 +298,7 @@
         const positive = number(row.rank_ic_mean) !== null && row.rank_ic_mean > 0 && number(row.net_long_short_sharpe) !== null && row.net_long_short_sharpe > 0;
         row.effective_status = row.n_months === 0 ? "no_data" : row.n_months >= 36 && row.rank_ic_q_value <= 0.10 && positive ? "robust" : row.n_months >= 12 && row.rank_ic_p_value <= 0.10 && positive ? "provisional" : "not_passed";
         row._recent_metric = row._fixed[12].mean;
-        row._implement_metric = number(row.net_long_excess_sharpe) === null ? null : row.net_long_excess_sharpe - (number(row.avg_q5_turnover) || 0) * 0.2;
+        row._implement_metric = number(row.net_long_excess_sharpe) === null ? null : row.net_long_excess_sharpe;
       });
       const oos = percentileMap(local.rows, "oos_rank_ic_mean"), recency = percentileMap(local.rows, "_recent_metric"), implement = percentileMap(local.rows, "_implement_metric"), unique = percentileMap(local.rows, "uniqueness_score");
       local.rows.forEach(row => {
@@ -326,7 +322,8 @@
     function renderScopeNote() {
       const pool = poolMeta(); if (!pool) return;
       const windowLabel = local.window === "full" ? "全部可见历史" : local.window === "custom" ? `${local.customStart} 至 ${local.customEnd}` : `最近 ${local.window} 月`;
-      element("pool-scope-note").innerHTML = `<b>${text(pool.pool_name)}</b><span>信息截止 ${text(local.asOf)}，观察窗口：${text(windowLabel)}；只使用截止日以前已实现的收益。</span><span>样本外：过去 ${local.trainWindow} 月训练、未来 ${local.forwardHorizon} 月验证；单边成本 ${local.costBps} bp。</span><span>历史成分：${text(pool.first_membership_date)} 至 ${text(pool.last_membership_date)}；各股票池不强行统一起点。</span>`;
+      const redundancyLabel = local.redundancyAsOf ? `冗余截面 ${local.redundancyAsOf}` : "冗余截面：截至该收益日无可用数据";
+      element("pool-scope-note").innerHTML = `<b>${text(pool.pool_name)}</b><span>收益截止 ${text(local.asOf)}，观察窗口：${text(windowLabel)}；只使用截止日以前已实现的收益。</span><span>${text(redundancyLabel)}。</span><span>样本外：过去 ${local.trainWindow} 月训练、未来 ${local.forwardHorizon} 月验证；单边成本 ${local.costBps} bp。</span><span>历史成分：${text(pool.first_membership_date)} 至 ${text(pool.last_membership_date)}；各股票池不强行统一起点。</span>`;
     }
     function renderOverview() {
       const robust = local.rows.filter(row => row.effective_status === "robust").length, provisional = local.rows.filter(row => row.effective_status === "provisional").length;
@@ -377,7 +374,7 @@
     function showLoading() { element("pool-overview").innerHTML = '<div class="pool-skeleton"></div>'; element("pool-style-summary").innerHTML = '<div class="pool-skeleton pool-skeleton-wide"></div>'; element("pool-factor-table-body").innerHTML = '<tr><td colspan="14" class="empty">加载月度、样本外与冗余证据…</td></tr>'; }
     function showError(error) { const message = text(error?.message || error || "未知错误"); element("pool-overview").innerHTML = `<div class="pool-error"><b>股票池研究数据加载失败</b><span>${message}</span><button id="pool-retry" type="button">重试</button></div>`; element("pool-style-summary").innerHTML = '<div class="empty">等待数据恢复</div>'; element("pool-factor-table-body").innerHTML = '<tr><td colspan="14" class="empty">暂无可显示结果</td></tr>'; element("pool-retry").onclick = render; }
     function renderMethodology() {
-      element("pool-methodology-content").innerHTML = `<dl><div><dt>严格时点</dt><dd>信息截止日只纳入 return_date 已经到达的结果；样本外训练在选择日 T 仅使用 return_date≤T 的历史，杜绝未来收益泄漏。</dd></div><div><dt>时间窗口</dt><dd>全部、60/36/12 月和自定义窗口都会重新计算 IC、HAC t、FDR、分层与成本后收益；12/36/60 月同时用于判断长期稳定、近期增强、衰减或方向反转。</dd></div><div><dt>样本外</dt><dd>每季度滚动选因子，训练覆盖和未来覆盖均须至少 75%；未来 3/6/12 月折可切换，历史截止视图只展示当时已经完成的折。</dd></div><div><dt>成本与冗余</dt><dd>成本按 Q5/Q1 实际等权换手率逐月扣减；冗余基于股票池最新同一截面因子得分的 Spearman 相关，|ρ|≥0.75 归为同簇。</dd></div><div><dt>候选分</dt><dd>样本外 35%、稳定性 25%、近期强度 15%、成本后可实施性 15%、独特性 10%；少于 4 个样本外折、少于 12 个有效月、方向反转或禁止组合的因子不评分。</dd></div><div><dt>统计边界</dt><dd>动态窗口的 p 值采用 HAC t 的双侧正态近似，再在当前股票池内执行 BH-FDR；候选分用于研究排序，不是未来收益承诺。</dd></div></dl>`;
+      element("pool-methodology-content").innerHTML = `<dl><div><dt>严格时点</dt><dd>收益截止日只纳入 return_date 已经到达的结果；样本外训练在选择日 T 仅使用 return_date≤T 的历史，杜绝未来收益泄漏。</dd></div><div><dt>时间窗口</dt><dd>固定窗口取截至收益截止日最近 60/36/12 个有效信号月；全部历史和自定义窗口同样先排除尚未实现的收益。各窗口都会重新计算 IC、HAC t、FDR、分层与成本后收益。</dd></div><div><dt>样本外</dt><dd>每季度滚动选因子，训练覆盖和未来覆盖均须至少 75%；未来 3/6/12 月折可切换，历史截止视图只展示当时已经完成的折。</dd></div><div><dt>成本与冗余</dt><dd>成本按 Q5/Q1 实际等权换手率逐月扣减；冗余基于不晚于收益截止日的最新同截面因子得分 Spearman 相关，|ρ|≥0.75 归为同簇，并单独显示截面日期。</dd></div><div><dt>候选分</dt><dd>样本外 35%、稳定性 25%、近期强度 15%、成本后 Q5 超额夏普 15%、独特性 10%；成本后夏普已经按所选费率扣费，不再额外惩罚换手。少于 4 个样本外折、少于 12 个有效月、方向反转或禁止组合的因子不评分。</dd></div><div><dt>统计边界</dt><dd>动态窗口的 p 值采用 HAC t 的双侧正态近似，再在当前股票池内执行 BH-FDR；候选分用于研究排序，不是未来收益承诺。</dd></div></dl>`;
     }
     function resize() { if (local.quantileChart) local.quantileChart.resize(); if (local.monthlyChart) local.monthlyChart.resize(); }
     return { render, resize, closeDetail };

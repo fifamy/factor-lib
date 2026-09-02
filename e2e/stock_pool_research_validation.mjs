@@ -33,11 +33,26 @@ try {
   if (controls !== 5) throw new Error(`时间、成本和样本外控件不完整：${controls}`);
   const candidateCells = await page.locator(".pool-candidate-score").count();
   if (candidateCells !== 146) throw new Error(`候选分列未完整渲染：${candidateCells}`);
+  const defaultAsOf = await page.locator("#pool-as-of").inputValue();
+  const asOfOptions = await page.locator("#pool-as-of option").allTextContents();
+  if (defaultAsOf !== "2026-07-01" || asOfOptions.includes("2026-07-31")) {
+    throw new Error(`收益截止日混入冗余截面：default=${defaultAsOf}, options=${asOfOptions}`);
+  }
+  const defaultScope = await page.locator("#pool-scope-note").innerText();
+  if (!defaultScope.includes("收益截止 2026-07-01") || !defaultScope.includes("冗余截面")) {
+    throw new Error(`收益截止与冗余截面未分开说明：${defaultScope}`);
+  }
 
   await page.locator("#pool-window").selectOption("12");
   await page.waitForTimeout(300);
-  const maxWindowMonths = await page.locator("#pool-factor-table-body tr td:nth-child(6)").evaluateAll(nodes => Math.max(...nodes.map(node => Number(node.textContent) || 0)));
-  if (maxWindowMonths > 12) throw new Error(`12 月窗口仍混入更早样本：${maxWindowMonths}`);
+  const window12Months = await page.locator("#pool-factor-table-body tr td:nth-child(6)").evaluateAll(nodes => nodes.map(node => Number(node.textContent) || 0));
+  const full12Count = window12Months.filter(value => value === 12).length;
+  if (Math.max(...window12Months) !== 12 || full12Count !== 136) throw new Error(`12 月窗口未取满最近有效信号月：max=${Math.max(...window12Months)}, full=${full12Count}`);
+  await page.locator("#pool-window").selectOption("36");
+  await page.waitForTimeout(300);
+  const window36Months = await page.locator("#pool-factor-table-body tr td:nth-child(6)").evaluateAll(nodes => nodes.map(node => Number(node.textContent) || 0));
+  const full36Count = window36Months.filter(value => value === 36).length;
+  if (Math.max(...window36Months) !== 36 || full36Count !== 131) throw new Error(`36 月窗口未取满最近有效信号月：max=${Math.max(...window36Months)}, full=${full36Count}`);
   await page.locator("#pool-window").selectOption("full");
 
   await page.locator("#pool-cost-bps").selectOption("0");
@@ -50,7 +65,7 @@ try {
   await page.locator("#pool-selector").selectOption("CSI2000");
   await waitForResults();
   const csi2000Scope = await page.locator("#pool-scope-note").innerText();
-  if (!csi2000Scope.includes("中证2000") || !csi2000Scope.includes("2023-08-31") || !csi2000Scope.includes("信息截止")) {
+  if (!csi2000Scope.includes("中证2000") || !csi2000Scope.includes("2023-08-31") || !csi2000Scope.includes("收益截止")) {
     throw new Error(`中证2000独立历史范围异常：${csi2000Scope}`);
   }
 
@@ -90,8 +105,14 @@ try {
   await page.locator("#pool-type-index").click();
   await page.locator("#pool-selector").selectOption("HS300");
   await page.locator("#pool-status-filter").selectOption("all");
-  await waitForResults();
+  await page.waitForFunction(() => {
+    const scope = document.querySelector("#pool-scope-note")?.textContent || "";
+    const count = document.querySelectorAll("#pool-factor-table-body tr").length;
+    return scope.includes("沪深300") && count === 146;
+  }, null, { timeout: 120000 });
   await page.locator("#pool-select-top").click();
+  const selectedCandidates = await page.locator(".pool-row-check:checked").count();
+  if (selectedCandidates !== 10) throw new Error(`沪深300前瞻候选应选中 10 个，实际：${selectedCandidates}`);
   await page.locator("#pool-send-compose").click();
   await page.waitForSelector("#compose-view", { state: "visible", timeout: 30000 });
   await page.waitForFunction(

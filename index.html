@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>因子库 v2.3.0</title>
+  <title>因子库 v2.3.1</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260902114711">
+  <link rel="stylesheet" href="styles.css?v=20260902143855">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <h1 class="app-title">因子库 v2.3.0 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
+    <h1 class="app-title">因子库 v2.3.1 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260902114711" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260902143855" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -485,8 +485,8 @@
           </fieldset>
           <fieldset class="pool-toolbar pool-time-toolbar">
             <legend>时间、验证与成本</legend>
-            <label for="pool-as-of">信息截止</label>
-            <select id="pool-as-of" aria-label="选择信息截止日期"></select>
+            <label for="pool-as-of">收益截止</label>
+            <select id="pool-as-of" aria-label="选择已实现收益截止日期"></select>
             <label for="pool-window">观察窗口</label>
             <select id="pool-window">
               <option value="full">全部可见历史</option>
@@ -533,7 +533,7 @@
           <div class="pool-section-head">
             <div>
               <h3 id="pool-ranking-title">单因子结果</h3>
-              <p>高分方向已经统一；Q5 为高分组。候选分综合样本外、稳定性、近期强度、成本后表现与独特性，不代表未来收益承诺。</p>
+              <p>高分方向已经统一；Q5 为高分组。候选分综合样本外、稳定性、近期强度、已按所选费率扣费的Q5超额夏普与独特性，不重复惩罚换手，也不代表未来收益承诺。</p>
             </div>
             <div class="pool-ranking-actions"><span id="pool-result-count" class="pool-result-count"></span><button id="pool-select-top" type="button">选择前 10 候选</button><button id="pool-send-compose" type="button">加入多因子合成</button><button id="pool-clear-selection" type="button">清空</button></div>
           </div>
@@ -588,9 +588,9 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260902114711"></script>
-  <script src="app_index_universe.js?v=20260902114711"></script>
-  <script src="app_stock_pool_research.js?v=20260902114711"></script>
-  <script type="module" src="app.js?v=20260902114711"></script>
+  <script src="app_holding_scope.js?v=20260902143855"></script>
+  <script src="app_index_universe.js?v=20260902143855"></script>
+  <script src="app_stock_pool_research.js?v=20260902143855"></script>
+  <script type="module" src="app.js?v=20260902143855"></script>
 </body>
 </html>
