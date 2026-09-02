@@ -935,12 +935,25 @@ function closeDetail() {
     const el = document.querySelector(selector);
     if (el) el.inert = false;
   });
-  const trigger = drawerReturnFocus && document.contains(drawerReturnFocus)
-    ? drawerReturnFocus
-    : (drawerReturnCode ? document.querySelector(`.fa-row[data-code="${CSS.escape(drawerReturnCode)}"]`) : null);
+  const returnCode = drawerReturnCode;
+  const initialTrigger = drawerReturnFocus;
+  const resolveTrigger = () => initialTrigger && document.contains(initialTrigger)
+    ? initialTrigger
+    : (returnCode ? document.querySelector(`.fa-row[data-code="${CSS.escape(returnCode)}"]`) : null);
+  const restoreFocus = () => {
+    const trigger = resolveTrigger();
+    if (trigger) trigger.focus();
+  };
   drawerReturnFocus = null;
   drawerReturnCode = null;
-  if (trigger) requestAnimationFrame(() => trigger.focus());
+  if (resolveTrigger()) {
+    requestAnimationFrame(restoreFocus);
+    // 复核数据可能在抽屉关闭后异步重绘列表。仅当焦点因此掉回页面空白处时，
+    // 再定位同一因子的新行；若用户已经主动移到其他控件，不抢回焦点。
+    [100, 400].forEach(delay => setTimeout(() => {
+      if (!document.activeElement || document.activeElement === document.body) restoreFocus();
+    }, delay));
+  }
 }
 function trapDetailFocus(event) {
   if (event.key === "Escape") {
