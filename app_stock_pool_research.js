@@ -153,14 +153,19 @@
     }
 
     function bindControls() {
+      const resetPoolSpecificFilters = () => {
+        local.status = "all";
+        element("pool-status-filter").value = "all";
+      };
       document.querySelectorAll("[data-pool-type]").forEach(button => {
         button.onclick = () => {
           local.poolType = button.dataset.poolType;
           document.querySelectorAll("[data-pool-type]").forEach(candidate => { const active = candidate.dataset.poolType === local.poolType; candidate.classList.toggle("active", active); candidate.setAttribute("aria-pressed", String(active)); });
+          resetPoolSpecificFilters();
           populatePoolSelector(true); closeDetail(); render();
         };
       });
-      element("pool-selector").onchange = event => { local.poolId = event.target.value; local.selected.clear(); closeDetail(); render(); };
+      element("pool-selector").onchange = event => { local.poolId = event.target.value; resetPoolSpecificFilters(); local.selected.clear(); closeDetail(); render(); };
       element("pool-score-mode").onchange = event => { local.scoreMode = event.target.value; local.selected.clear(); closeDetail(); render(); };
       element("pool-l1-filter").onchange = event => { local.l1 = event.target.value; applyFiltersAndRender(); };
       element("pool-status-filter").onchange = event => { local.status = event.target.value; applyFiltersAndRender(); };
