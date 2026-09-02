@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-02T03:19:56+00:00",
+  "generated_at": "2026-09-02T03:37:35+00:00",
   "deploy_version": "20260902111942",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
@@ -7,7 +7,7 @@
   "source_revision_kind": "content_sha256",
   "source_content_sha256": "b9cbd50cf15641eb4458ee999f79bc1663f1b5923c3aa0a9e9a03db68e2c8d3c",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "13ba6402c8e9b049a47cbb2387fd0a26a9694003",
+  "pages_worktree_git_commit_before_sync": "3763c5afda5c50a549ddbb496b1ed84a86e3b688",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,

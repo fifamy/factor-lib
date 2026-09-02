@@ -94,6 +94,11 @@ try {
   await page.locator("#pool-select-top").click();
   await page.locator("#pool-send-compose").click();
   await page.waitForSelector("#compose-view", { state: "visible", timeout: 30000 });
+  await page.waitForFunction(
+    () => document.querySelectorAll("#cps-controls .cps-frow").length === 10,
+    null,
+    { timeout: 120000 },
+  );
   const composeFactors = await page.locator("#cps-controls .cps-frow").count();
   if (composeFactors !== 10) throw new Error(`股票池候选未完整带入多因子合成：${composeFactors}`);
   await page.locator('.mode-btn[data-mode="stock-pool"]').click();
