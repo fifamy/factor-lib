@@ -72,6 +72,7 @@ jobs:
           node --check e2e/run_compose_validation.mjs
           node --check e2e/online_compose_validation.mjs
           node --check e2e/index_universe_validation.mjs
+          node --check e2e/stock_pool_research_validation.mjs
           node --check e2e/perf_budget.mjs
           node --check e2e/accessibility_validation.mjs
 
@@ -111,6 +112,7 @@ jobs:
         run: |
           node e2e/online_compose_validation.mjs
           node e2e/index_universe_validation.mjs "$ONLINE_E2E_URL"
+          node e2e/stock_pool_research_validation.mjs "$ONLINE_E2E_URL"
 
       - name: Validate Supabase anonymous boundary
         run: python3 scripts/check_supabase_admin_preflight.py

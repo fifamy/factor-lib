@@ -1,19 +1,19 @@
 {
-  "generated_at": "2026-09-02T07:59:48+00:00",
-  "deploy_version": "20260902155929",
+  "generated_at": "2026-09-03T01:55:29+00:00",
+  "deploy_version": "20260903095145",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
-  "source_revision": "35cacc1c08343935451fb3dd96449ed57629063db8360b2b73ac3e9822be785d",
+  "source_revision": "cffb1f28d8f310ab0b94d72a034f2840e892f0b0efb1341d37aca2f08c9dd37c",
   "source_revision_kind": "content_sha256",
-  "source_content_sha256": "35cacc1c08343935451fb3dd96449ed57629063db8360b2b73ac3e9822be785d",
+  "source_content_sha256": "cffb1f28d8f310ab0b94d72a034f2840e892f0b0efb1341d37aca2f08c9dd37c",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "9e17a4773972af593bd193040769cebb3a6778d0",
+  "pages_worktree_git_commit_before_sync": "9443b8ed05497710a4512395069debde3cb475d9",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "1c9ebc298b57046322325247495f91779a5c20556aff1caaa7e74a15b174a994",
+      "sha256": "6a104fc47e7074d8d648dfb1c07a2af9562e618347c84a5a7bd68ad8a30e7139",
       "bytes": 42024
     },
     "app.js": {
@@ -25,15 +25,15 @@
       "bytes": 5702
     },
     "app_stock_pool_research.js": {
-      "sha256": "7b2a7d39fbe81d67d435be71147e43095ae40e2592cbe5325f4b26eec8501c73",
-      "bytes": 38691
+      "sha256": "1f746b518153baafd7863abd50004cafe706d922d6fdcaaf69c50495fb1ea395",
+      "bytes": 38958
     },
     "styles.css": {
       "sha256": "9275296da77b8ab08d53afbb57eef0d810b0b7077751c31441980e026cf06645",
       "bytes": 53081
     },
     "factor_audit.html": {
-      "sha256": "69256b0e1f559a0ef058d6352878484ec4326b542add4967eac9a16418c9a48f",
+      "sha256": "2ca7925fd6b67927cebb20ae2976085dd3acd1554856d7c7e0ab0dedca53f124",
       "bytes": 8627
     },
     "factor_audit.js": {
@@ -73,7 +73,7 @@
       "bytes": 1641199
     },
     "data/factor_audit/index.json": {
-      "sha256": "f1380952a0ad76c50c0fe6bf50220ee0be0424c529af6f3e978874b469606ab5",
+      "sha256": "48a5194a9751d83376f2c74dd6b865a52d90b214e7245e7666ff1562eaaa2642",
       "bytes": 275191
     }
   },
@@ -119,6 +119,12 @@
       "file_count": 37,
       "bytes": 52470823,
       "sha256": "9aa7d866394071cc195f2381838ede5632273084e74646163ece8a1b3c8cfa23"
+    },
+    "data/stock_pool_research/redundancy": {
+      "exists": true,
+      "file_count": 37,
+      "bytes": 5135796,
+      "sha256": "4e10a3c126dc29986691ae6994fabdab0c62d605b522163059282b7ebdb59fdc"
     }
   },
   "source_directory_summaries": {
@@ -131,8 +137,8 @@
     "scripts": {
       "exists": true,
       "file_count": 146,
-      "bytes": 2163417,
-      "sha256": "68504b0795664d1bd7686ad10f4abf93f2eaba45dcccd74dd5171c4d20833899"
+      "bytes": 2168544,
+      "sha256": "3504a0582ae99be8575e115972003221643bd53adf9a20ad549dd3a1f97a2b86"
     },
     "config": {
       "exists": true,

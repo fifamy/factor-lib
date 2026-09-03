@@ -11,7 +11,11 @@ if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
 const browser = await chromium.launch(options);
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const pageErrors = [];
+const stockPoolRequests = [];
 page.on("pageerror", error => pageErrors.push(error.stack || error.message));
+page.on("request", request => {
+  if (request.url().includes("/stock_pool_research/")) stockPoolRequests.push(request.url());
+});
 
 async function waitForResults() {
   await page.waitForFunction(() => {
@@ -27,6 +31,16 @@ try {
   await page.waitForSelector("#stock-pool-view", { state: "visible", timeout: 15000 });
   await waitForResults();
 
+  const initialRedundancyFiles = [...new Set(stockPoolRequests
+    .filter(value => value.includes("/stock_pool_research/redundancy/"))
+    .map(value => value.split("/").at(-1).split("?")[0]))];
+  if (initialRedundancyFiles.length !== 1 || initialRedundancyFiles[0] !== "HS300.parquet") {
+    throw new Error(`初始视图应只懒加载沪深300冗余分片，实际：${initialRedundancyFiles}`);
+  }
+  if (stockPoolRequests.some(value => /\/stock_pool_research\/redundancy\.parquet(?:\?|$)/.test(value))) {
+    throw new Error("初始视图仍在下载全量冗余表");
+  }
+
   const hs300Rows = await page.locator("#pool-factor-table-body tr").count();
   if (hs300Rows !== 146) throw new Error(`沪深300因子结果应完整列示 146 个，实际：${hs300Rows}`);
   const controls = await page.locator("#pool-as-of, #pool-window, #pool-cost-bps, #pool-train-window, #pool-forward-horizon").count();
@@ -39,9 +53,23 @@ try {
     throw new Error(`收益截止日混入冗余截面：default=${defaultAsOf}, options=${asOfOptions}`);
   }
   const defaultScope = await page.locator("#pool-scope-note").innerText();
-  if (!defaultScope.includes("收益截止 2026-07-01") || !defaultScope.includes("冗余截面")) {
+  if (!defaultScope.includes("收益截止 2026-07-01") || !defaultScope.includes("冗余截面 2026-05-29")) {
     throw new Error(`收益截止与冗余截面未分开说明：${defaultScope}`);
   }
+  const defaultUniqueness = await page.locator("#pool-factor-table-body tr td:nth-child(13)").allTextContents();
+  const defaultUniquenessCount = defaultUniqueness.filter(value => !value.trim().startsWith("—")).length;
+  if (defaultUniquenessCount !== 137) {
+    throw new Error(`沪深300默认独特性应有 137 行可计算，实际：${defaultUniquenessCount}`);
+  }
+
+  await page.locator("#pool-as-of").selectOption("2025-01-02");
+  const historicalScope = await page.locator("#pool-scope-note").innerText();
+  const historicalUniqueness = await page.locator("#pool-factor-table-body tr td:nth-child(13)").allTextContents();
+  const historicalUniquenessCount = historicalUniqueness.filter(value => !value.trim().startsWith("—")).length;
+  if (!historicalScope.includes("冗余截面") || historicalScope.includes("无可用数据") || historicalUniquenessCount < 100) {
+    throw new Error(`历史收益截止缺少冗余快照：scope=${historicalScope}, uniqueness=${historicalUniquenessCount}`);
+  }
+  await page.locator("#pool-as-of").selectOption("2026-07-01");
 
   await page.locator("#pool-window").selectOption("12");
   await page.waitForTimeout(300);
@@ -79,9 +107,13 @@ try {
     throw new Error(`银行无有效样本筛选异常：rows=${noDataRows}, statuses=${noDataStatuses}`);
   }
 
-  await page.locator("#pool-status-filter").selectOption("all");
   await page.locator("#pool-selector").selectOption("SW1_801080");
   await waitForResults();
+  const resetStatus = await page.locator("#pool-status-filter").inputValue();
+  const resetRows = await page.locator("#pool-factor-table-body tr").count();
+  if (resetStatus !== "all" || resetRows !== 146) {
+    throw new Error(`切换股票池后有效性筛选未复位：status=${resetStatus}, rows=${resetRows}`);
+  }
   const industryScope = await page.locator("#pool-scope-note").innerText();
   if (!industryScope.includes("电子") || !industryScope.includes("严格") && !industryScope.includes("只使用截止日以前已实现的收益") || !industryScope.includes("各股票池不强行统一起点")) {
     throw new Error(`申万一级行业口径提示异常：${industryScope}`);
@@ -113,6 +145,10 @@ try {
   await page.locator("#pool-select-top").click();
   const selectedCandidates = await page.locator(".pool-row-check:checked").count();
   if (selectedCandidates !== 10) throw new Error(`沪深300前瞻候选应选中 10 个，实际：${selectedCandidates}`);
+  const selectedClusters = await page.locator(".pool-row-check:checked").evaluateAll(nodes => nodes.map(node => node.dataset.cluster));
+  if (selectedClusters.some(cluster => !cluster) || new Set(selectedClusters).size !== selectedClusters.length) {
+    throw new Error(`沪深300前 10 候选未按相关簇去重：${selectedClusters}`);
+  }
   await page.locator("#pool-send-compose").click();
   await page.waitForSelector("#compose-view", { state: "visible", timeout: 30000 });
   await page.waitForFunction(
