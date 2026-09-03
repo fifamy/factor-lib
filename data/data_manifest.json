@@ -29,7 +29,9 @@
     "rolling_validation_parquet": false,
     "single_snapshots": false,
     "index_universe": true,
-    "stock_pool_research": true
+    "stock_pool_research": true,
+    "stock_pool_membership": true,
+    "portfolio_ledger": true
   },
   "has_neutralized_scores": true,
   "neutralization": "中性化口径使用月末时点有效的申万一级行业哑变量 + log(市值) 截面回归残差。",

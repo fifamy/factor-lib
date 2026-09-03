@@ -22,6 +22,7 @@ const CORR_SNAPSHOT = DATA_DIR + "factor_corr_snapshot.json" + V;
 const CORR_NEUTRAL_SNAPSHOT = DATA_DIR + "factor_corr_neutral_snapshot.json" + V;
 const DATA_MANIFEST = DATA_DIR + "data_manifest.json" + V;
 const INDEX_WEIGHT_MONTHLY = DATA_DIR + "index_weight_monthly.parquet" + V;
+const STOCK_POOL_MEMBERSHIP_DIR = DATA_DIR + "stock_pool_research/membership/";
 const SCORE_LATEST_DIR = DATA_DIR + "factor_scores_latest/";
 const BACKTEST_DIR = DATA_DIR + "backtests/";
 const FACTOR_IC_DIR = DATA_DIR + "factor_ics/";
@@ -57,6 +58,9 @@ const state = {
   composeN: 30,
   composeConstraintMode: "none", // none | industry：合成组合最终持仓约束
   composeUniverse: { mode: "all", indexAlias: "HS300", minShare: 0.8 },
+  composeCostBps: 20,
+  composeHoldingMonth: null,
+  composeDecisionContext: null,
   composeStart: null,       // 多因子合成回测区间；null=不限
   composeEnd: null,
   // 暂存的合成组合快照：[{name, factors:[...], N, color}]，供多组合对比
@@ -91,6 +95,7 @@ const state = {
   hasCorr: false,
   hasCorrNeutral: false,
   hasIndexWeights: false,
+  loadedStockPoolId: null,
   duckdb: null,
   db: null,
 };
@@ -565,6 +570,71 @@ function composeUniverseConfig(universe) {
   return { mode: "all", indexAlias: "HS300", minShare: 0.8 };
 }
 
+function isStockPoolUniverse(universe = state.composeUniverse) {
+  return composeUniverseConfig(universe).mode === "stock_pool";
+}
+
+function isIndexUniverse(universe = state.composeUniverse) {
+  return ["index_only", "min_share"].includes(composeUniverseConfig(universe).mode);
+}
+
+function isRestrictedUniverse(universe = state.composeUniverse) {
+  return composeUniverseConfig(universe).mode !== "all";
+}
+
+function composeUniverseTable(universe = state.composeUniverse) {
+  return isStockPoolUniverse(universe) ? "compose_stock_pool_membership" : "index_weight_monthly";
+}
+
+function composeUniverseTableFilter(universe, alias) {
+  const normalized = composeUniverseConfig(universe);
+  return isStockPoolUniverse(normalized) ? "" : ` AND ${alias}.index_alias = '${normalized.indexAlias}'`;
+}
+
+function composeUniverseAvailabilityJoin(universe, dateExpr, alias = "ua") {
+  const normalized = composeUniverseConfig(universe);
+  if (normalized.mode === "all") return "";
+  const table = composeUniverseTable(normalized);
+  const filter = isStockPoolUniverse(normalized) ? "" : ` WHERE index_alias = '${normalized.indexAlias}'`;
+  return `JOIN (SELECT DISTINCT signal_date FROM ${table}${filter}) ${alias} ON ${alias}.signal_date = ${dateExpr}`;
+}
+
+function composeUniverseMemberJoin(universe, dateExpr, stockExpr, alias = "iw", joinType = "LEFT JOIN") {
+  const normalized = composeUniverseConfig(universe);
+  if (normalized.mode === "all") return "";
+  return `${joinType} ${composeUniverseTable(normalized)} ${alias}
+    ON ${alias}.signal_date = ${dateExpr}
+   ${composeUniverseTableFilter(normalized, alias)}
+   AND ${alias}.stock_code = ${stockExpr}`;
+}
+
+async function ensureComposeUniverseData(rawUniverse = state.composeUniverse) {
+  const universe = composeUniverseConfig(rawUniverse);
+  if (universe.mode === "all") return;
+  if (isIndexUniverse(universe)) {
+    await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false, indexWeights: true });
+    if (!state.hasIndexWeights) throw new Error("指数历史成分数据不可用；系统不会退回全市场继续计算。");
+    return;
+  }
+  if (!isStockPoolUniverse(universe)) return;
+  if (state.loadedStockPoolId === universe.poolId) return;
+  const poolId = String(universe.poolId || "");
+  if (!/^[A-Z0-9_]+$/.test(poolId)) throw new Error(`股票池代码无效：${poolId || "空"}`);
+  const path = `${STOCK_POOL_MEMBERSHIP_DIR}${poolId}.parquet${V}`;
+  try {
+    await state.db.query(`
+      CREATE OR REPLACE TABLE compose_stock_pool_membership AS
+      SELECT signal_date, stock_code, benchmark_weight AS weight
+      FROM read_parquet('${path}')
+      WHERE pool_id = '${poolId}'
+    `);
+  } catch (error) {
+    state.loadedStockPoolId = null;
+    throw new Error(`${universe.poolName || poolId}历史成分加载失败：${error.message || error}`);
+  }
+  state.loadedStockPoolId = poolId;
+}
+
 function competitionComposeTopNRows(rows, nominalN) {
   const n = Math.max(1, Number(nominalN) || 1);
   const ranked = (rows || [])
@@ -599,7 +669,7 @@ function composeLatestHoldingSelection(
     rankedCandidates = (candidateRows || []).filter(r => (
       r?.industry_sw1
       && Number.isFinite(composeScoreValue(r))
-      && (normalizedUniverse.mode !== "index_only" || r.is_index_member === true || r.is_index_member === 1)
+      && (!["index_only", "stock_pool"].includes(normalizedUniverse.mode) || r.is_index_member === true || r.is_index_member === 1)
     ));
     picked = available ? industryNeutralPickRows(rankedCandidates, n) : [];
     const indexMemberN = picked.filter(r => r.is_index_member === true || r.is_index_member === 1).length;
@@ -710,6 +780,9 @@ function composeConstraintHoldText(mode = state.composeConstraintMode) {
 
 function composeUniverseMethodNote(universe = state.composeUniverse) {
   const normalized = composeUniverseConfig(universe);
+  if (normalized.mode === "stock_pool") {
+    return `每个月末仅在当时有效的${normalized.poolName || normalized.poolId}历史成分内计算合成排序、IC、分层与持仓。`;
+  }
   const meta = normalized.mode === "all" ? null : indexUniverseMeta(normalized);
   if (normalized.mode === "index_only") {
     return `每个月末仅在当时有效的${meta.label}成分内计算合成排序并选股；官方成分权重自${meta.firstWeightDate}起可用。`;
@@ -717,7 +790,7 @@ function composeUniverseMethodNote(universe = state.composeUniverse) {
   if (normalized.mode === "min_share") {
     return `组合按实际持股数量保证至少${Math.round(normalized.minShare * 100)}%来自当时有效的${meta.label}成分；合成分数IC仍按原股票池计算。官方成分权重自${meta.firstWeightDate}起可用。`;
   }
-  return "合成排序和组合均使用原有Word股票池。";
+  return "合成排序、IC、分层与组合均使用原有 Word 股票池。";
 }
 
 function activeScoreSnapshot(snap) {
@@ -894,11 +967,26 @@ function validatePublishedCombo(raw, idx, validCodes) {
     name: typeof raw?.name === "string" && raw.name.trim() ? raw.name.trim() : `未命名组合 ${idx + 1}`,
     description: typeof raw?.description === "string" ? raw.description.trim() : "",
     N: Number(raw?.N),
+    costBps: COST_SCENARIOS.some(item => item.bps === Number(raw?.costBps)) ? Number(raw.costBps) : 20,
     constraintMode: normalizeConstraintMode(raw?.constraintMode),
     universe: normalizeIndexUniverseConfig(raw?.universe),
     factors: [],
     tags: Array.isArray(raw?.tags) ? raw.tags.filter(t => typeof t === "string" && t.trim()).map(t => t.trim()) : [],
     created_at: typeof raw?.created_at === "string" ? raw.created_at.trim() : "",
+    decisionDate: typeof raw?.decisionDate === "string" ? raw.decisionDate.trim() : "",
+    dataCutoffDate: typeof raw?.dataCutoffDate === "string" ? raw.dataCutoffDate.trim() : "",
+    decisionSignalDate: typeof raw?.decisionSignalDate === "string" ? raw.decisionSignalDate.trim() : "",
+    realizedReturnEndDate: typeof raw?.realizedReturnEndDate === "string" ? raw.realizedReturnEndDate.trim() : "",
+    frozenAt: typeof raw?.frozenAt === "string" ? raw.frozenAt.trim() : "",
+    decisionMetrics: raw?.decisionMetrics && typeof raw.decisionMetrics === "object" ? { ...raw.decisionMetrics } : null,
+    trackingLedger: Array.isArray(raw?.trackingLedger) ? raw.trackingLedger.map(period => ({
+      ...period,
+      holdings: Array.isArray(period?.holdings) ? period.holdings.map(row => ({ ...row })) : [],
+      changes: Array.isArray(period?.changes) ? period.changes.map(row => ({ ...row })) : [],
+      added: Array.isArray(period?.added) ? period.added.slice() : [],
+      removed: Array.isArray(period?.removed) ? period.removed.slice() : [],
+    })) : [],
+    trackingKey: typeof raw?.trackingKey === "string" ? raw.trackingKey.trim() : "",
     source: typeof raw?.source === "string" ? raw.source : "",
     published_id: typeof raw?.published_id === "string" ? raw.published_id : "",
     remote_combo_id: typeof raw?.remote_combo_id === "string" ? raw.remote_combo_id : "",
@@ -1010,17 +1098,42 @@ function createMyComboId(existingIds = new Set()) {
   return id;
 }
 
-function rawComboFromCurrent(name = "我的组合", existingIds = new Set()) {
+function frozenDecisionFields(backtest = null) {
+  const ledger = Array.isArray(backtest?.ledger) ? backtest.ledger : [];
+  const latest = ledger.at(-1) || null;
+  const metrics = backtest?.retArr?.length ? computeMetrics(backtest.retArr, backtest.navArr) : null;
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    decisionDate: today,
+    dataCutoffDate: state.dataManifest?.latest_data_date || latest?.signal_date || today,
+    decisionSignalDate: latest?.signal_date || "",
+    realizedReturnEndDate: latest?.exit_date || state.dataManifest?.return_end_date || "",
+    frozenAt: new Date().toISOString(),
+    decisionMetrics: metrics ? {
+      annual: metrics.annual,
+      vol: metrics.vol,
+      sharpe: metrics.sharpe,
+      mdd: metrics.mdd,
+      winRate: metrics.winRate,
+      completedMonths: backtest.retArr.length,
+    } : null,
+    trackingLedger: [],
+  };
+}
+
+function rawComboFromCurrent(name = "我的组合", existingIds = new Set(), backtest = null) {
   return {
     id: createMyComboId(existingIds),
     name,
     description: "",
     N: state.composeN,
+    costBps: state.composeCostBps,
     constraintMode: normalizeConstraintMode(state.composeConstraintMode),
     universe: normalizeIndexUniverseConfig(state.composeUniverse),
     factors: cloneComposeFactors(state.composeFactors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
+    ...frozenDecisionFields(backtest),
   };
 }
 
@@ -1030,11 +1143,13 @@ function rawComboFromSavedCombo(combo, existingIds = new Set()) {
     name: combo.name || "我的组合",
     description: "",
     N: combo.N,
+    costBps: Number.isFinite(Number(combo.costBps)) ? Number(combo.costBps) : state.composeCostBps,
     constraintMode: normalizeConstraintMode(combo.constraintMode),
     universe: normalizeIndexUniverseConfig(combo.universe),
     factors: cloneComposeFactors(combo.factors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
+    ...frozenDecisionFields(combo.bt),
   };
 }
 
@@ -1084,11 +1199,20 @@ function persistMyCombos() {
     name: c.name,
     description: c.description || "",
     N: c.N,
+    costBps: c.costBps,
     constraintMode: normalizeConstraintMode(c.constraintMode),
     universe: normalizeIndexUniverseConfig(c.universe),
     factors: cloneComposeFactors(c.factors),
     tags: c.tags || [],
     created_at: c.created_at || new Date().toISOString().slice(0, 10),
+    decisionDate: c.decisionDate || "",
+    dataCutoffDate: c.dataCutoffDate || "",
+    decisionSignalDate: c.decisionSignalDate || "",
+    realizedReturnEndDate: c.realizedReturnEndDate || "",
+    frozenAt: c.frozenAt || "",
+    decisionMetrics: c.decisionMetrics || null,
+    trackingLedger: c.trackingLedger || [],
+    trackingKey: c.trackingKey || "",
   }));
   localStorage.setItem(MY_COMBOS_KEY, JSON.stringify(rows, null, 2));
 }
@@ -2147,6 +2271,7 @@ function renderTopStocksRows(code, rows, opts = {}) {
         近一年日均成交额为截至 ${dt} 往前 252 个交易日的日均。${scopeNote}
       </p>`;
   }
+  head += `<div class="single-ledger-action"><button id="single-open-ledger" class="cpsn-btn" type="button">查看 Top${N} 月度持仓与换手</button><span>使用与多因子组合相同的历史账本、成本和导出交互。</span></div>`;
   let html = head + holdingCountNote(N, rows, opts.holdingStats) + `
     <table class="stock-table">
       <thead><tr>
@@ -2191,6 +2316,24 @@ function renderTopStocksRows(code, rows, opts = {}) {
       <div id="top-mktcap-chart" style="width:100%;height:170px"></div>
     </div>`;
   target.innerHTML = html;
+  const ledgerButton = document.getElementById("single-open-ledger");
+  if (ledgerButton) ledgerButton.onclick = () => {
+    state.composeFactors = [{
+      code,
+      weight: 1,
+      side,
+      scoreMode: normalizeScoreMode(state.singleScoreMode),
+      op: ">=",
+      thr: null,
+    }];
+    state.composeN = N;
+    state.composeConstraintMode = normalizeConstraintMode(state.singleConstraintMode);
+    state.composeUniverse = normalizeIndexUniverseConfig({ mode: "all" });
+    state.composeCostBps = 20;
+    clearFrozenDecisionContext();
+    syncComposeNButtons();
+    switchMode("compose");
+  };
   renderTopIndustryChart(rows, N);
   renderTopMarketCapChart(rows);
 }
@@ -2499,15 +2642,16 @@ function weightedReturnFromObserved(holdings) {
   return observedWeight > 0 ? weighted / observedWeight : null;
 }
 
-function tradingCostForTurnover(turnover, isInitialPosition) {
+function tradingCostForTurnover(turnover, isInitialPosition, costPerSide = COST_PER_SIDE) {
   const t = Number.isFinite(Number(turnover)) ? Math.max(0, Number(turnover)) : 0;
-  return (isInitialPosition ? COST_PER_SIDE : 2 * COST_PER_SIDE) * t;
+  const rate = Number.isFinite(Number(costPerSide)) ? Math.max(0, Number(costPerSide)) : COST_PER_SIDE;
+  return (isInitialPosition ? rate : 2 * rate) * t;
 }
 
-function netLongOnlyReturn(grossReturn, turnover, isInitialPosition) {
+function netLongOnlyReturn(grossReturn, turnover, isInitialPosition, costPerSide = COST_PER_SIDE) {
   const gross = Number(grossReturn);
   if (!Number.isFinite(gross)) return null;
-  const cost = tradingCostForTurnover(turnover, isInitialPosition);
+  const cost = tradingCostForTurnover(turnover, isInitialPosition, costPerSide);
   // 费用在持有期末资产上按比例扣减。若持仓已完全损失，不再减出负资产。
   return Math.max(-1.0, (1 + gross) * (1 - cost) - 1);
 }
@@ -2713,7 +2857,19 @@ function sliceBacktestByRange(bt, startMonth, endMonth) {
     const turnover = bt.turnoverArr?.[i];
     turnoverArr.push(turnover === null || turnover === undefined || !Number.isFinite(Number(turnover)) ? null : Number(turnover));
   }
-  return { x, retArr, navArr: navFromReturnsForChart(retArr), turnoverArr };
+  const ledger = Array.isArray(bt.ledger)
+    ? bt.ledger.filter(period => {
+      const month = monthOfLabel(period.exit_date || period.signal_date);
+      return (!startMonth || month >= startMonth) && (!endMonth || month <= endMonth);
+    }).map(period => ({
+      ...period,
+      holdings: (period.holdings || []).map(row => ({ ...row })),
+      changes: (period.changes || []).map(row => ({ ...row })),
+      added: (period.added || []).slice(),
+      removed: (period.removed || []).slice(),
+    }))
+    : [];
+  return { x, retArr, navArr: navFromReturnsForChart(retArr), turnoverArr, ledger };
 }
 
 function snapshotBacktestByRange(snap, n, startMonth = state.singleStart, endMonth = state.singleEnd) {
@@ -4283,7 +4439,7 @@ function ensureStockPoolResearchController() {
       switchMode("single");
       selectFactor(code, { preserveParams: true });
     },
-    openComposeFactors: (codes, requestedScoreMode) => {
+    openComposeFactors: (codes, requestedScoreMode, researchContext = null) => {
       let scoreMode = normalizeScoreMode(requestedScoreMode);
       if (scoreMode === "neutral" && !hasComposeNeutralScores()) {
         alert(`${composeNeutralUnavailableMessage()}\n\n本次将改用原始得分进入多因子合成。`);
@@ -4304,6 +4460,25 @@ function ensureStockPoolResearchController() {
       }
       state.composeFactors = factors;
       state.composeConstraintMode = "none";
+      const poolId = String(researchContext?.poolId || "");
+      const poolType = researchContext?.poolType;
+      if (poolType === "broad_index" && INDEX_UNIVERSE_OPTIONS.some(item => item.alias === poolId)) {
+        state.composeUniverse = normalizeIndexUniverseConfig({ mode: "index_only", indexAlias: poolId });
+      } else if (poolType === "sw1" && poolId) {
+        state.composeUniverse = normalizeIndexUniverseConfig({
+          mode: "stock_pool",
+          poolId,
+          poolName: researchContext?.poolName || poolId,
+          poolType,
+        });
+      } else {
+        state.composeUniverse = normalizeIndexUniverseConfig({ mode: "all" });
+      }
+      if (COST_SCENARIOS.some(item => item.bps === Number(researchContext?.costBps))) {
+        state.composeCostBps = Number(researchContext.costBps);
+      }
+      state.composeDecisionContext = null;
+      state.composeHoldingMonth = null;
       switchMode("compose");
     },
   });
@@ -6078,6 +6253,7 @@ function rankSendTo(mode) {
       alert(`所选因子不能直接带入新组合：\n${violations.join("\n")}`);
       return;
     }
+    clearFrozenDecisionContext();
     state.composeFactors = nextFactors;
     state.composeConstraintMode = constraintMode;
   }
@@ -6209,11 +6385,11 @@ function composeMatrixBuildSql(shards) {
     return _composeFilePaths.get(key) || composeScorePath(item.code, item.scoreMode);
   };
   // 所有因子分片的前瞻收益均来自同一 monthly_return 主键表；只从首个分片
-  // 读取 return_date/fwd_return，避免其余分片重复解码两列完全相同的数据。
+  // 读取 entry_date/return_date/fwd_return，避免其余分片重复解码相同的持有期字段。
   const ctes = shards.map((item, i) => `s${i} AS (
           SELECT trade_date,
                  stock_code,
-                 score AS f${i}${i === 0 ? ",\n                 return_date,\n                 fwd_return" : ""}
+                 score AS f${i}${i === 0 ? ",\n                 return_date,\n                 fwd_return" : ""}${i === 0 ? ",\n                 entry_date" : ""}
           FROM read_parquet('${filePath(item)}')
           WHERE score IS NOT NULL
         )`).join(",\n        ");
@@ -6229,6 +6405,7 @@ function composeMatrixBuildSql(shards) {
   return `CREATE OR REPLACE TABLE cps_matrix AS
       WITH ${ctes}
       SELECT s0.trade_date,
+             s0.entry_date,
              s0.return_date,
              s0.stock_code,
              ${scoreColumns},
@@ -6242,12 +6419,14 @@ function composeConfigKey(
   N = state.composeN,
   constraintMode = state.composeConstraintMode,
   universe = state.composeUniverse,
+  costBps = state.composeCostBps,
 ) {
   const norm = cloneComposeFactors(factors).sort((a, b) => a.code.localeCompare(b.code));
   return JSON.stringify({
     N,
     constraintMode: normalizeConstraintMode(constraintMode),
     universe: normalizeIndexUniverseConfig(universe),
+    costBps: Number.isFinite(Number(costBps)) ? Number(costBps) : 20,
     factors: norm,
   });
 }
@@ -6277,7 +6456,88 @@ function cloneBacktest(bt) {
     navArr: bt.navArr.slice(),
     retArr: bt.retArr.slice(),
     ...(Array.isArray(bt.turnoverArr) ? { turnoverArr: bt.turnoverArr.slice() } : {}),
+    ...(Array.isArray(bt.ledger) ? {
+      ledger: bt.ledger.map(period => ({
+        ...period,
+        holdings: (period.holdings || []).map(row => ({ ...row })),
+        changes: (period.changes || []).map(row => ({ ...row })),
+        added: (period.added || []).slice(),
+        removed: (period.removed || []).slice(),
+      })),
+    } : {}),
   } : null;
+}
+
+function cloneLedgerPeriod(period) {
+  return {
+    ...period,
+    holdings: (period?.holdings || []).map(row => ({ ...row })),
+    changes: (period?.changes || []).map(row => ({ ...row })),
+    added: (period?.added || []).slice(),
+    removed: (period?.removed || []).slice(),
+  };
+}
+
+function backtestFromFrozenLedger(rawLedger) {
+  const ledger = (rawLedger || []).map(cloneLedgerPeriod)
+    .filter(period => period.signal_date && Number.isFinite(Number(period.net_return)))
+    .sort((left, right) => String(left.signal_date).localeCompare(String(right.signal_date)));
+  if (!ledger.length) return { x: [], navArr: [], retArr: [], turnoverArr: [], ledger: [] };
+  let nav = 1;
+  const x = [ledger[0].signal_date];
+  const navArr = [1];
+  const retArr = [];
+  const turnoverArr = [];
+  ledger.forEach(period => {
+    const netReturn = Math.max(-1, Number(period.net_return));
+    nav *= 1 + netReturn;
+    period.nav = nav;
+    x.push(period.exit_date || period.signal_date);
+    navArr.push(nav);
+    retArr.push(netReturn);
+    turnoverArr.push(Number.isFinite(Number(period.turnover)) ? Number(period.turnover) : null);
+  });
+  return { x, navArr, retArr, turnoverArr, ledger };
+}
+
+function frozenContextCombo() {
+  const context = state.composeDecisionContext;
+  if (!context?.comboId) return null;
+  const list = context.source === "mine" ? state.myCombos : state.publishedCombos;
+  return list.find(combo => combo.id === context.comboId && combo.valid) || null;
+}
+
+function appendFrozenTracking(fullBacktest) {
+  const context = state.composeDecisionContext;
+  const combo = frozenContextCombo();
+  const cutoff = context?.decisionSignalDate || combo?.decisionSignalDate || "";
+  if (!combo || !cutoff || !Array.isArray(fullBacktest?.ledger)) return fullBacktest;
+  const stored = (combo.trackingLedger || []).map(cloneLedgerPeriod);
+  const known = new Set(stored.map(period => period.signal_date));
+  let changed = false;
+  for (const period of fullBacktest.ledger) {
+    if (period.signal_date <= cutoff || known.has(period.signal_date)) continue;
+    stored.push(cloneLedgerPeriod(period));
+    known.add(period.signal_date);
+    changed = true;
+  }
+  stored.sort((left, right) => String(left.signal_date).localeCompare(String(right.signal_date)));
+  combo.trackingLedger = stored;
+  if (changed && context.source === "mine") {
+    persistMyCombos();
+    if (combo.trackingKey) {
+      syncFrozenCombo(combo, { silent: true }).catch(error => console.warn("auto-sync frozen combo failed:", error));
+    }
+  }
+  const preDecision = fullBacktest.ledger
+    .filter(period => period.signal_date <= cutoff)
+    .map(cloneLedgerPeriod);
+  return backtestFromFrozenLedger([...preDecision, ...stored]);
+}
+
+function clearFrozenDecisionContext() {
+  state.composeDecisionContext = null;
+  state.composeHoldingMonth = null;
 }
 
 function rememberComposeBacktest(key, bt) {
@@ -6347,6 +6607,7 @@ async function ensureComposeBase() {
 }
 
 function toggleComposeFactor(code) {
+  clearFrozenDecisionContext();
   const i = state.composeFactors.findIndex(f => f.code === code);
   if (i >= 0) state.composeFactors.splice(i, 1);
   else {
@@ -6385,6 +6646,7 @@ function composeCond() {
 }
 
 function removeComposeAt(i) {
+  clearFrozenDecisionContext();
   state.composeFactors.splice(i, 1);
   updateTreeHighlight();
   renderComposeSoon();
@@ -6400,7 +6662,7 @@ function comboSummary(combo) {
   const universe = normalizeIndexUniverseConfig(combo.universe);
   return cloneComposeFactors(combo.factors)
     .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}${f.thr !== null ? `(${f.op}${f.thr})` : ""}`)
-    .join(" + ") + `，top${combo.N}，${composeConstraintModeLabel(constraintMode)}，${indexUniverseModeLabel(universe)}`;
+    .join(" + ") + `，top${combo.N}，${composeConstraintModeLabel(constraintMode)}，${indexUniverseModeLabel(universe)}，单边${Number(combo.costBps ?? 20)}bp`;
 }
 
 function comboDetailHtml(combo) {
@@ -6409,10 +6671,18 @@ function comboDetailHtml(combo) {
     const thr = f.thr === null ? "不过滤" : `得分 ${f.op} ${f.thr}`;
     return `<tr><td>${htmlText(f.code)}</td><td>${htmlText(meta?.name_cn || "")}</td><td>${htmlText(sideLabel(f.side))}</td><td>${htmlText(scoreModeLabel(f.scoreMode))}</td><td>${htmlText(f.weight)}</td><td>${htmlText(thr)}</td></tr>`;
   }).join("");
+  const decisionMetrics = combo.decisionMetrics;
+  const metricText = decisionMetrics ? [
+    `冻结时年化 ${Number.isFinite(Number(decisionMetrics.annual)) ? `${(Number(decisionMetrics.annual) * 100).toFixed(1)}%` : "—"}`,
+    `夏普 ${Number.isFinite(Number(decisionMetrics.sharpe)) ? Number(decisionMetrics.sharpe).toFixed(2) : "—"}`,
+    `最大回撤 ${Number.isFinite(Number(decisionMetrics.mdd)) ? `${(Number(decisionMetrics.mdd) * 100).toFixed(1)}%` : "—"}`,
+    `已完成 ${Number(decisionMetrics.completedMonths || 0)} 个月`,
+  ].join("；") : "";
   return `<div class="published-detail">
     ${combo.description ? `<p>${htmlText(combo.description)}</p>` : ""}
-    <p class="published-meta">组合约束：${composeConstraintModeLabel(normalizeConstraintMode(combo.constraintMode))}；股票池：${indexUniverseModeLabel(combo.universe)}</p>
+    <p class="published-meta">组合约束：${composeConstraintModeLabel(normalizeConstraintMode(combo.constraintMode))}；股票池：${indexUniverseModeLabel(combo.universe)}；单边成本：${Number(combo.costBps ?? 20)}bp</p>
     <table class="published-detail-table"><thead><tr><th>因子</th><th>名称</th><th>方向</th><th>口径</th><th>权重</th><th>过滤</th></tr></thead><tbody>${rows}</tbody></table>
+    ${combo.decisionDate ? `<div class="frozen-combo-meta"><b>冻结决策</b><span>决策日 ${htmlText(combo.decisionDate)}</span><span>因子数据截面 ${htmlText(combo.dataCutoffDate || "—")}</span><span>最后已完成信号 ${htmlText(combo.decisionSignalDate || "—")}</span><span>收益实现截止 ${htmlText(combo.realizedReturnEndDate || "—")}</span><span>已追加 ${Number(combo.trackingLedger?.length || 0)} 个跟踪月</span>${metricText ? `<span>${htmlText(metricText)}</span>` : ""}</div>` : ""}
     <p class="published-meta">${combo.created_at ? "创建：" + htmlText(combo.created_at) + " · " : ""}ID：${htmlText(combo.id)}</p>
   </div>`;
 }
@@ -6422,11 +6692,89 @@ function comboToTempCompare(combo) {
     name: combo.name,
     factors: cloneComposeFactors(combo.factors),
     N: combo.N,
+    costBps: Number(combo.costBps ?? 20),
     constraintMode: normalizeConstraintMode(combo.constraintMode),
     universe: normalizeIndexUniverseConfig(combo.universe),
     color: STRAT_COLORS[state.savedCombos.length % STRAT_COLORS.length],
     bt: null,
   };
+}
+
+function createTrackingKey() {
+  if (globalThis.crypto?.randomUUID) return `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function sha256Hex(textValue) {
+  if (!globalThis.crypto?.subtle) throw new Error("当前浏览器不支持安全跟踪码摘要");
+  const bytes = new TextEncoder().encode(String(textValue));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function syncFrozenCombo(combo, options = {}) {
+  if (!combo?.decisionDate) throw new Error("只有已冻结组合可以同步跟踪账本");
+  if (!combo.trackingKey) combo.trackingKey = createTrackingKey();
+  const trackingKeyHash = await sha256Hex(combo.trackingKey);
+  await supabaseFetch("/rest/v1/tracking_combos?on_conflict=tracking_key_hash", {
+    method: "POST",
+    headers: supabaseHeaders(null, {
+      "x-tracking-key": combo.trackingKey,
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    }),
+    body: JSON.stringify([{
+      tracking_key_hash: trackingKeyHash,
+      combo_payload: comboPublishPayload(combo),
+      updated_at: new Date().toISOString(),
+    }]),
+  });
+  persistMyCombos();
+  if (!options.silent) renderComboLibrary();
+  return combo.trackingKey;
+}
+
+async function syncFrozenComboById(id, button) {
+  const combo = state.myCombos.find(item => item.id === id && item.valid);
+  if (!combo) return;
+  const oldText = button?.textContent;
+  if (button) { button.disabled = true; button.textContent = "同步中…"; }
+  try {
+    const key = await syncFrozenCombo(combo);
+    await copyTextWithFallback(key, "复制私密跟踪码");
+    alert("跟踪账本已同步，私密跟踪码已复制。请妥善保存；丢失后无法从服务器找回。");
+  } catch (error) {
+    alert(supabaseUserMessage(error, "同步跟踪账本"));
+  } finally {
+    if (button) { button.disabled = false; button.textContent = oldText || "同步跟踪"; }
+  }
+}
+
+async function importFrozenComboByTrackingKey() {
+  const trackingKey = prompt("输入私密跟踪码");
+  if (!trackingKey?.trim()) return;
+  const key = trackingKey.trim();
+  const hash = await sha256Hex(key);
+  const rows = await supabaseFetch(`/rest/v1/tracking_combos?tracking_key_hash=eq.${encodeURIComponent(hash)}&select=combo_payload&limit=1`, {
+    headers: supabaseHeaders(null, { "x-tracking-key": key }),
+  });
+  const payload = rows?.[0]?.combo_payload;
+  if (!payload) throw new Error("未找到该跟踪码对应的冻结组合");
+  const validCodes = new Set(state.catalog.map(factor => factor.code));
+  const existingIds = new Set(state.myCombos.map(combo => combo.id));
+  const existingNames = new Set(state.myCombos.map(combo => combo.name));
+  const raw = {
+    ...payload,
+    id: createMyComboId(existingIds),
+    name: uniqueComboName(payload.name || "导入的冻结组合", existingNames),
+    trackingKey: key,
+  };
+  const combo = validatePublishedCombo(raw, state.myCombos.length, validCodes);
+  if (!combo.valid) throw new Error(combo.invalidReason || "远端组合配置无效");
+  combo.source = "mine";
+  state.myCombos.push(combo);
+  persistMyCombos();
+  renderComboLibrary();
+  alert(`已导入“${combo.name}”，包含${combo.trackingLedger.length}个决策后跟踪月。`);
 }
 
 function syncComposeNButtons() {
@@ -6447,8 +6795,17 @@ function loadLibraryCombo(source, id) {
   if (!combo) return;
   state.composeFactors = cloneComposeFactors(combo.factors);
   state.composeN = combo.N;
+  state.composeCostBps = Number(combo.costBps ?? 20);
   state.composeConstraintMode = normalizeConstraintMode(combo.constraintMode);
   state.composeUniverse = normalizeIndexUniverseConfig(combo.universe);
+  state.composeDecisionContext = combo.decisionDate ? {
+    source,
+    comboId: combo.id,
+    decisionDate: combo.decisionDate,
+    dataCutoffDate: combo.dataCutoffDate,
+    decisionSignalDate: combo.decisionSignalDate,
+    realizedReturnEndDate: combo.realizedReturnEndDate,
+  } : null;
   syncComposeNButtons();
   switchMode("compose");
 }
@@ -6502,6 +6859,9 @@ function renderComboCards(box, combos, source, emptyText) {
     const publishBtn = source === "mine"
       ? `<button class="cpsn-btn my-publish" data-source="${safeSource}" data-id="${safeId}"${disabled}>申请发布</button>`
       : "";
+    const trackingButtons = source === "mine" && combo.decisionDate
+      ? `<button class="cpsn-btn my-tracking-sync" data-id="${safeId}"${disabled}>同步跟踪</button>${combo.trackingKey ? `<button class="cpsn-btn my-tracking-copy" data-id="${safeId}"${disabled}>复制跟踪码</button>` : ""}`
+      : "";
     const deleteRequestBtn = source === "published" && combo.source === "supabase"
       ? `<button class="cpsn-btn published-delete-request" data-id="${safeId}"${disabled}>申请删除</button>`
       : "";
@@ -6518,6 +6878,7 @@ function renderComboCards(box, combos, source, emptyText) {
           <button class="cpsn-btn library-compare" data-source="${safeSource}" data-id="${safeId}"${disabled}>加入对比</button>
           <button class="cpsn-btn library-detail-toggle" data-source="${safeSource}" data-id="${safeId}">${openSet.has(combo.id) ? "收起" : "详情"}</button>
           ${renameBtn}
+          ${trackingButtons}
           ${publishBtn}
           ${deleteRequestBtn}
           ${deleteBtn}
@@ -6549,6 +6910,15 @@ function renderComboCards(box, combos, source, emptyText) {
   });
   box.querySelectorAll(".my-publish").forEach(btn => {
     btn.onclick = () => copyMyComboPublishRequest(btn.dataset.id, btn).catch(e => console.error("copy my combo publish request failed", e));
+  });
+  box.querySelectorAll(".my-tracking-sync").forEach(btn => {
+    btn.onclick = () => syncFrozenComboById(btn.dataset.id, btn).catch(error => console.error("sync tracking failed:", error));
+  });
+  box.querySelectorAll(".my-tracking-copy").forEach(btn => {
+    btn.onclick = () => {
+      const combo = state.myCombos.find(item => item.id === btn.dataset.id);
+      if (combo?.trackingKey) copyTextWithFallback(combo.trackingKey, "复制私密跟踪码").catch(error => console.error("copy tracking key failed:", error));
+    };
   });
   box.querySelectorAll(".published-delete-request").forEach(btn => {
     btn.onclick = () => submitDeleteRequestForPublished(btn.dataset.id, btn).catch(e => console.error("submit delete request failed", e));
@@ -6582,12 +6952,17 @@ function renderComboLibrary() {
     btn.classList.toggle("active", active);
   });
   const pub = document.getElementById("cps-published-list");
-  const mine = document.getElementById("cps-my-list");
+  const mine = document.getElementById("cps-my-pane");
   if (pub) pub.style.display = state.comboLibraryTab === "published" ? "" : "none";
   if (mine) mine.style.display = state.comboLibraryTab === "mine" ? "" : "none";
   renderComboRanking();
   renderPublishedCombos();
   renderMyCombos();
+  const importButton = document.getElementById("tracking-import");
+  if (importButton) importButton.onclick = () => importFrozenComboByTrackingKey().catch(error => {
+    console.error("import tracking failed:", error);
+    alert(supabaseUserMessage(error, "导入跟踪账本"));
+  });
   document.querySelectorAll(".combo-tab").forEach(btn => {
     btn.onclick = () => {
       state.comboLibraryTab = btn.dataset.tab === "mine" ? "mine" : "published";
@@ -6684,6 +7059,8 @@ function restoreComposeContext(snapshot) {
   state.composeN = snapshot.N;
   state.composeConstraintMode = normalizeConstraintMode(snapshot.constraintMode);
   state.composeUniverse = normalizeIndexUniverseConfig(snapshot.universe);
+  state.composeCostBps = Number(snapshot.costBps ?? state.composeCostBps);
+  state.composeDecisionContext = snapshot.decisionContext ? { ...snapshot.decisionContext } : null;
   state.composeStart = snapshot.start;
   state.composeEnd = snapshot.end;
   syncComposeNButtons();
@@ -6695,6 +7072,8 @@ async function comboRankingPayloadFor(combo) {
   state.composeN = Number(combo.N);
   state.composeConstraintMode = normalizeConstraintMode(combo.constraintMode);
   state.composeUniverse = normalizeIndexUniverseConfig(combo.universe);
+  state.composeCostBps = Number(combo.costBps ?? 20);
+  state.composeDecisionContext = null;
   state.composeStart = null;
   state.composeEnd = null;
   await ensureDB({
@@ -6702,7 +7081,7 @@ async function comboRankingPayloadFor(combo) {
     descriptors: true,
     benchmarks: false,
     corr: false,
-    indexWeights: state.composeUniverse.mode !== "all",
+    indexWeights: isIndexUniverse(state.composeUniverse),
   });
   await ensureComposeBase();
   return comboValidationPayload(state.composeFactors, state.composeN, state.composeConstraintMode, state.composeStart, state.composeEnd, { includeCrowding: false, includeParameterSensitivity: false });
@@ -6719,6 +7098,8 @@ async function runComboRanking() {
     N: state.composeN,
     constraintMode: state.composeConstraintMode,
     universe: normalizeIndexUniverseConfig(state.composeUniverse),
+    costBps: state.composeCostBps,
+    decisionContext: state.composeDecisionContext ? { ...state.composeDecisionContext } : null,
     start: state.composeStart,
     end: state.composeEnd,
   };
@@ -6854,7 +7235,7 @@ function bindComboRankingHandlers() {
   });
 }
 
-function saveCurrentComboToMine() {
+async function saveCurrentComboToMine() {
   if (!state.composeFactors.length) {
     alert("先选至少一个因子并设好权重，再保存当前组合");
     return;
@@ -6868,18 +7249,52 @@ function saveCurrentComboToMine() {
   }
   const validCodes = new Set(state.catalog.map(f => f.code));
   const existingIds = new Set(state.myCombos.map(c => c.id));
-  const combo = validatePublishedCombo(rawComboFromCurrent(trimmedName, existingIds), state.myCombos.length, validCodes);
+  const saveButton = document.getElementById("cps-save-mine");
+  if (saveButton) { saveButton.disabled = true; saveButton.textContent = "冻结中…"; }
+  let backtest;
+  try {
+    await ensureDB({
+      stockMeta: false,
+      descriptors: normalizeConstraintMode(state.composeConstraintMode) === "industry",
+      benchmarks: false,
+      corr: false,
+      indexWeights: isIndexUniverse(state.composeUniverse),
+    });
+    await ensureComposeUniverseData(state.composeUniverse);
+    await ensureComposeData();
+    await ensureComposeBase();
+    backtest = await comboBacktest(
+      state.composeFactors,
+      state.composeN,
+      "cps_matrix",
+      state.composeConstraintMode,
+      state.composeUniverse,
+      state.composeCostBps,
+    );
+  } finally {
+    if (saveButton) { saveButton.disabled = false; saveButton.textContent = "冻结并跟踪当前组合"; }
+  }
+  const combo = validatePublishedCombo(rawComboFromCurrent(trimmedName, existingIds, backtest), state.myCombos.length, validCodes);
   combo.source = "mine";
   state.myCombos.push(combo);
   persistMyCombos();
+  state.composeDecisionContext = {
+    source: "mine",
+    comboId: combo.id,
+    decisionDate: combo.decisionDate,
+    dataCutoffDate: combo.dataCutoffDate,
+    decisionSignalDate: combo.decisionSignalDate,
+    realizedReturnEndDate: combo.realizedReturnEndDate,
+  };
   state.comboLibraryTab = "mine";
   renderComboLibrary();
+  renderComposeSoon(0);
 }
 
 function saveAllTempCombosToMine() {
-  const validSaved = state.savedCombos.filter(c => c && c.factors && c.factors.length);
+  const validSaved = state.savedCombos.filter(c => c && c.factors && c.factors.length && Array.isArray(c.bt?.ledger) && c.bt.ledger.length);
   if (!validSaved.length) {
-    alert("先把要保存的组合加入临时对比，再一键保存");
+    alert("临时组合的月度账本尚未计算完成；请等待对比计算结束后再冻结保存");
     return;
   }
   const validCodes = new Set(state.catalog.map(f => f.code));
@@ -7207,6 +7622,7 @@ function currentComboPublishPayload() {
     name,
     description: "",
     N: state.composeN,
+    costBps: state.composeCostBps,
     constraintMode: normalizeConstraintMode(state.composeConstraintMode),
     universe: normalizeIndexUniverseConfig(state.composeUniverse),
     factors: cloneComposeFactors(state.composeFactors),
@@ -7221,11 +7637,19 @@ function comboPublishPayload(combo) {
     name: combo.name,
     description: combo.description || "",
     N: combo.N,
+    costBps: Number(combo.costBps ?? 20),
     constraintMode: normalizeConstraintMode(combo.constraintMode),
     universe: normalizeIndexUniverseConfig(combo.universe),
     factors: cloneComposeFactors(combo.factors),
     tags: combo.tags || [],
     created_at: combo.created_at || new Date().toISOString().slice(0, 10),
+    decisionDate: combo.decisionDate || "",
+    dataCutoffDate: combo.dataCutoffDate || "",
+    decisionSignalDate: combo.decisionSignalDate || "",
+    realizedReturnEndDate: combo.realizedReturnEndDate || "",
+    frozenAt: combo.frozenAt || "",
+    decisionMetrics: combo.decisionMetrics || null,
+    trackingLedger: (combo.trackingLedger || []).map(cloneLedgerPeriod),
   };
 }
 
@@ -7242,6 +7666,7 @@ function comboPublishRequestText(payload) {
     "",
     `组合名称：${payload.name}`,
     `选股数：top${payload.N}`,
+    `单边成本：${Number(payload.costBps ?? 20)}bp`,
     `组合约束：${composeConstraintModeLabel(payload.constraintMode)}`,
     `指数股票池：${indexUniverseModeLabel(payload.universe)}`,
     "因子：",
@@ -7399,20 +7824,25 @@ function renderComposeControls() {
     </div>`;
   const universeControls = `
     <fieldset class="index-universe-controls">
-      <legend>指数股票池</legend>
+      <legend>选股域与交易成本</legend>
       <label for="cps-universe-mode">使用方式</label>
       <select id="cps-universe-mode">
         <option value="all"${universe.mode === "all" ? " selected" : ""}>全市场</option>
         <option value="index_only"${universe.mode === "index_only" ? " selected" : ""}>仅指数成分</option>
         <option value="min_share"${universe.mode === "min_share" ? " selected" : ""}>最低成分占比</option>
+        ${universe.mode === "stock_pool" ? `<option value="stock_pool" selected>仅${htmlText(universe.poolName || universe.poolId)}历史成分</option>` : ""}
       </select>
       <label for="cps-universe-index">目标指数</label>
-      <select id="cps-universe-index"${universe.mode === "all" ? " disabled" : ""}>
+      <select id="cps-universe-index"${universe.mode === "all" || universe.mode === "stock_pool" ? " disabled" : ""}>
         ${INDEX_UNIVERSE_OPTIONS.map(item => `<option value="${item.alias}"${universe.indexAlias === item.alias ? " selected" : ""}>${item.label}</option>`).join("")}
       </select>
       <label for="cps-universe-share">最低占比</label>
       <select id="cps-universe-share"${universe.mode === "min_share" ? "" : " disabled"}>
         ${[0.5, 0.6, 0.7, 0.8, 0.9, 1].map(value => `<option value="${value}"${Math.abs(universe.minShare - value) < 1e-9 ? " selected" : ""}>${Math.round(value * 100)}%</option>`).join("")}
+      </select>
+      <label for="cps-cost-bps">单边成本</label>
+      <select id="cps-cost-bps">
+        ${COST_SCENARIOS.map(item => `<option value="${item.bps}"${Number(state.composeCostBps) === item.bps ? " selected" : ""}>${item.label}</option>`).join("")}
       </select>
       <span class="index-universe-summary">${htmlText(composeUniverseMethodNote(universe))}</span>
     </fieldset>`;
@@ -7448,7 +7878,7 @@ function renderComposeControls() {
       <button type="button" class="cps-remove" data-idx="${i}" aria-label="移除合成因子 ${f.code}">×</button>
     </div>`;
   }).join("")
-    : `<div class="empty index-universe-empty">指数股票池设置已生效；从左侧选择因子后开始计算。</div>`;
+    : `<div class="empty index-universe-empty">股票池与成本设置已生效；从左侧选择因子后开始计算。</div>`;
   box.innerHTML = constraintBtns + universeControls + industryApproximationNotice + neutralNotice + usageNotice + factorRows;
   box.querySelectorAll(".cps-w-input").forEach(inp => {
     inp.addEventListener("change", () => {
@@ -7456,6 +7886,7 @@ function renderComposeControls() {
       if (!f) return;
       const w = parseFloat(inp.value);
       if (!Number.isFinite(w)) { inp.value = f.weight; return; }
+      clearFrozenDecisionContext();
       f.weight = w; renderComposeSoon();
     });
   });
@@ -7463,6 +7894,7 @@ function renderComposeControls() {
     sel.onchange = () => {
       const f = state.composeFactors[parseInt(sel.dataset.idx, 10)];
       if (!f) return;
+      clearFrozenDecisionContext();
       f.side = normalizeSide(sel.value);
       clearComposeOptimization();
       renderComposeSoon();
@@ -7472,6 +7904,7 @@ function renderComposeControls() {
     sel.onchange = () => {
       const f = state.composeFactors[parseInt(sel.dataset.idx, 10)];
       if (!f) return;
+      clearFrozenDecisionContext();
       f.scoreMode = normalizeScoreMode(sel.value);
       clearComposeOptimization();
       renderComposeSoon();
@@ -7481,6 +7914,7 @@ function renderComposeControls() {
     btn.onclick = () => {
       const next = normalizeConstraintMode(btn.dataset.mode);
       if (state.composeConstraintMode === next) return;
+      clearFrozenDecisionContext();
       state.composeConstraintMode = next;
       clearComposeOptimization();
       renderComposeSoon();
@@ -7488,6 +7922,7 @@ function renderComposeControls() {
   });
   const universeMode = box.querySelector("#cps-universe-mode");
   if (universeMode) universeMode.onchange = () => {
+    clearFrozenDecisionContext();
     const next = normalizeIndexUniverseConfig({ ...state.composeUniverse, mode: universeMode.value });
     state.composeUniverse = next;
     if (next.mode === "min_share" && normalizeConstraintMode(state.composeConstraintMode) === "industry") {
@@ -7498,17 +7933,27 @@ function renderComposeControls() {
   };
   const universeIndex = box.querySelector("#cps-universe-index");
   if (universeIndex) universeIndex.onchange = () => {
+    clearFrozenDecisionContext();
     state.composeUniverse = normalizeIndexUniverseConfig({ ...state.composeUniverse, indexAlias: universeIndex.value });
     clearComposeOptimization();
     renderComposeSoon();
   };
   const universeShare = box.querySelector("#cps-universe-share");
   if (universeShare) universeShare.onchange = () => {
+    clearFrozenDecisionContext();
     state.composeUniverse = normalizeIndexUniverseConfig({ ...state.composeUniverse, minShare: Number(universeShare.value) });
     clearComposeOptimization();
     renderComposeSoon();
   };
+  const costSelect = box.querySelector("#cps-cost-bps");
+  if (costSelect) costSelect.onchange = () => {
+    clearFrozenDecisionContext();
+    state.composeCostBps = Number(costSelect.value);
+    clearComposeOptimization();
+    renderComposeSoon();
+  };
   box.querySelectorAll(".cps-op").forEach(sel => sel.onchange = () => {
+    clearFrozenDecisionContext();
     state.composeFactors[parseInt(sel.dataset.idx, 10)].op = sel.value;
     if (state.composeFactors[parseInt(sel.dataset.idx, 10)].thr !== null) renderComposeSoon();
   });
@@ -7516,6 +7961,7 @@ function renderComposeControls() {
     inp.addEventListener("change", () => {
       const f = state.composeFactors[parseInt(inp.dataset.idx, 10)];
       if (!f) return;
+      clearFrozenDecisionContext();
       const v = inp.value.trim();
       f.thr = v === "" ? null : (Number.isFinite(parseFloat(v)) ? parseFloat(v) : null);
       renderComposeSoon();
@@ -7576,7 +8022,7 @@ async function renderCompose() {
   }
   try {
     const needsDescriptors = normalizeConstraintMode(state.composeConstraintMode) === "industry";
-    const needsIndexWeights = normalizeIndexUniverseConfig(state.composeUniverse).mode !== "all";
+    const needsIndexWeights = isIndexUniverse(state.composeUniverse);
     await ensureDB({
       stockMeta: false,
       descriptors: needsDescriptors,
@@ -7584,6 +8030,7 @@ async function renderCompose() {
       corr: false,
       indexWeights: needsIndexWeights,
     });
+    await ensureComposeUniverseData(state.composeUniverse);
     if (needsDescriptors && !state.hasDescriptors) {
       throw new Error("静态行业约束不可用：未能加载stock_descriptors.parquet。请补齐描述表后重试，系统不会把缺失行业当作空持仓继续计算。");
     }
@@ -7615,10 +8062,7 @@ async function renderCompose() {
     if (isComposeRenderStale(renderSeq)) return;
     // 先交付用户当前要看的持仓和 KPI。IC 衰减/完整检验会扫描多次历史矩阵，
     // 如果与关键查询同时提交到单一 DuckDB 连接，会让 Top 股票排在重型查询之后。
-    await Promise.all([
-      renderComposeStocks(renderSeq),
-      renderComposeBacktest(renderSeq),
-    ]);
+    await renderComposeBacktest(renderSeq);
     if (isComposeRenderStale(renderSeq)) return;
     const icPromise = renderComposeIcDecay(renderSeq)
       .catch(err => console.warn("合成 IC 衰减计算失败:", err));
@@ -7641,25 +8085,18 @@ async function renderComposeStocks(renderSeq) {
   if (scoreExpr === null || condSql === null) return;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
   const universe = normalizeIndexUniverseConfig(state.composeUniverse);
-  const universeActive = universe.mode !== "all";
-  const universeJoin = universeActive ? `
-    LEFT JOIN index_weight_monthly iw
-      ON iw.signal_date = m.trade_date
-     AND iw.index_alias = '${universe.indexAlias}'
-     AND iw.stock_code = m.stock_code
-    LEFT JOIN (
-      SELECT DISTINCT signal_date
-      FROM index_weight_monthly
-      WHERE index_alias = '${universe.indexAlias}'
-    ) ia ON ia.signal_date = m.trade_date
-  ` : "";
+  const universeActive = isRestrictedUniverse(universe);
+  const universeJoin = universeActive
+    ? `${composeUniverseAvailabilityJoin(universe, "m.trade_date", "ia")}
+       ${composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code")}`
+    : "";
   const res = await state.db.query(`
     SELECT m.stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
            CAST(m.trade_date AS VARCHAR) AS dt,
            CAST(m.trade_date AS VARCHAR) AS as_of_date,
            CAST(m.trade_date AS VARCHAR) AS pool_date,
-           ${universeActive ? "ia.signal_date IS NOT NULL" : "TRUE"} AS index_available,
+           TRUE AS index_available,
            ${universeActive ? "iw.stock_code IS NOT NULL" : "FALSE"} AS is_index_member,
            ${universeActive ? "iw.weight" : "NULL::DOUBLE"} AS benchmark_weight
     FROM cps_latest_matrix m
@@ -7723,18 +8160,164 @@ async function renderComposeStocks(renderSeq) {
   target.innerHTML = html + "</tbody></table>";
 }
 
+function composeLedgerPeriodLabel(period) {
+  return `${period.signal_date} 信号 · ${period.entry_date} 入场 → ${period.exit_date} 退出`;
+}
+
+function composeLedgerActionLabel(action) {
+  return action === "added" ? "调入" : (action === "removed" ? "调出" : "持有");
+}
+
+function composeLedgerCsv(period, metaMap) {
+  const quote = value => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const changeByCode = new Map((period.changes || []).map(row => [row.stock_code, row]));
+  const headers = [
+    "信号日", "入场日", "退出日", "股票代码", "股票名称", "权重", "合成得分",
+    "申万一级(最新快照)", "是否股票池成分", "相对上月", "上月权重", "权重变化",
+    "当月单边换手", "当月毛收益", "当月成本后收益",
+  ];
+  const rows = (period.holdings || []).map(holding => {
+    const meta = metaMap.get(holding.stock_code) || {};
+    const change = changeByCode.get(holding.stock_code) || {};
+    return [
+      period.signal_date, period.entry_date, period.exit_date, holding.stock_code, meta.name || "",
+      holding.weight, holding.score ?? "", meta.industry_sw1 || holding.industry_sw1 || "",
+      holding.is_index_member ? "是" : "否", composeLedgerActionLabel(change.action),
+      change.previous_weight ?? 0, change.weight_change ?? 0, period.turnover,
+      period.gross_return, period.net_return,
+    ];
+  });
+  return `\uFEFF${[headers, ...rows].map(row => row.map(quote).join(",")).join("\r\n")}`;
+}
+
+function downloadComposeLedgerPeriod(period, metaMap) {
+  const blob = new Blob([composeLedgerCsv(period, metaMap)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `factor-portfolio-${period.signal_date}.csv`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
+  if (isComposeRenderStale(renderSeq)) return;
+  const target = document.getElementById("cps-stocks");
+  const ledger = Array.isArray(backtest?.ledger) ? backtest.ledger : [];
+  if (!ledger.length) {
+    target.innerHTML = `<h3>合成组合月度持仓账本</h3><div class="empty">没有已完成持有期。最新信号月尚无退出收益时不会冒充已完成回测。</div>`;
+    return;
+  }
+  const dates = ledger.map(period => period.signal_date);
+  if (!dates.includes(state.composeHoldingMonth)) state.composeHoldingMonth = dates.at(-1);
+  const index = Math.max(0, dates.indexOf(state.composeHoldingMonth));
+  const period = ledger[index];
+  const metaMap = await ensureStockMetaSnapshot();
+  if (isComposeRenderStale(renderSeq)) return;
+  const changeByCode = new Map((period.changes || []).map(row => [row.stock_code, row]));
+  const restricted = isRestrictedUniverse(state.composeUniverse);
+  const decisionContext = state.composeDecisionContext;
+  const decisionSignal = decisionContext?.decisionSignalDate || "";
+  const isTracking = decisionSignal && period.signal_date > decisionSignal;
+  const trackingMonths = decisionSignal
+    ? ledger.filter(item => item.signal_date > decisionSignal).length
+    : 0;
+  const pct = (value, digits = 1, signed = false) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return "—";
+    return `${signed && parsed > 0 ? "+" : ""}${(parsed * 100).toFixed(digits)}%`;
+  };
+  const changeItems = (codes, type) => {
+    if (!codes.length) return `<span class="ledger-change-empty">无${type === "added" ? "调入" : "调出"}</span>`;
+    return codes.map(code => {
+      const meta = metaMap.get(code) || {};
+      return `<span class="ledger-change-chip ${type}">${htmlText(code)}${meta.name ? ` · ${htmlText(meta.name)}` : ""}</span>`;
+    }).join("");
+  };
+  const holdingRows = (period.holdings || []).map((holding, rowIndex) => {
+    const meta = metaMap.get(holding.stock_code) || {};
+    const change = changeByCode.get(holding.stock_code) || {};
+    const action = change.action || "held";
+    return `<tr>
+      <td>${rowIndex + 1}</td>
+      <td><b class="ledger-code">${htmlText(holding.stock_code)}</b></td>
+      <td>${htmlText(meta.name || "—")}</td>
+      <td><span class="ledger-action ${htmlAttr(action)}">${composeLedgerActionLabel(action)}</span></td>
+      <td>${pct(holding.weight, 2)}</td>
+      <td>${pct(change.previous_weight ?? 0, 2)}</td>
+      <td>${pct(change.weight_change ?? 0, 2, true)}</td>
+      <td>${holding.score === null || holding.score === undefined ? "—" : Number(holding.score).toFixed(3)}</td>
+      <td>${htmlText(meta.industry_sw1 || holding.industry_sw1 || "—")}</td>
+      ${restricted ? `<td class="${holding.is_index_member ? "index-member-yes" : "index-member-no"}">${holding.is_index_member ? "是" : "否"}</td>` : ""}
+    </tr>`;
+  }).join("");
+  target.innerHTML = `
+    <div class="ledger-heading">
+      <div>
+        <h3>合成组合月度持仓账本 ${isTracking ? '<span class="ledger-tracking-badge">决策后跟踪</span>' : ""}</h3>
+        <p>${htmlText(composeLedgerPeriodLabel(period))}；${htmlText(indexUniverseModeLabel(state.composeUniverse))}；单边成本 ${Number(state.composeCostBps)} bp。</p>
+      </div>
+      <div class="ledger-toolbar" aria-label="调仓月浏览与导出">
+        <button id="cps-ledger-prev" class="cpsn-btn" type="button"${index === 0 ? " disabled" : ""}>上一月</button>
+        <label for="cps-ledger-month">调仓月</label>
+        <select id="cps-ledger-month" aria-label="选择合成组合调仓月份">
+          ${ledger.slice().reverse().map(item => `<option value="${htmlAttr(item.signal_date)}"${item.signal_date === period.signal_date ? " selected" : ""}>${htmlText(item.signal_date)}${item.initial_position ? "（首期建仓）" : ""}</option>`).join("")}
+        </select>
+        <button id="cps-ledger-next" class="cpsn-btn" type="button"${index === ledger.length - 1 ? " disabled" : ""}>下一月</button>
+        <button id="cps-ledger-export" class="cpsn-btn" type="button">导出本月 CSV</button>
+      </div>
+    </div>
+    ${decisionSignal ? `<div class="frozen-combo-meta"><b>冻结跟踪口径</b><span>决策日 ${htmlText(decisionContext.decisionDate || "—")}</span><span>因子数据截面 ${htmlText(decisionContext.dataCutoffDate || "—")}</span><span>最后已完成信号 ${htmlText(decisionSignal)}</span><span>收益实现截止 ${htmlText(decisionContext.realizedReturnEndDate || "—")}</span><span>${trackingMonths ? `已追加 ${trackingMonths} 个决策后月份` : "尚无新增已完成月份"}</span></div>` : ""}
+    <div class="ledger-kpis">
+      <div><span>实际持股</span><b>${period.holdings.length} 只</b></div>
+      <div><span>${period.initial_position ? "首期建仓" : "当月单边换手"}</span><b>${pct(period.turnover, 1)}</b><small>${period.initial_position ? "不计入常规月均" : `调入 ${period.added.length} / 调出 ${period.removed.length}`}</small></div>
+      <div><span>当月毛收益</span><b>${pct(period.gross_return, 2, true)}</b></div>
+      <div><span>交易成本影响</span><b>${pct(-period.cost_rate, 2, true)}</b></div>
+      <div><span>成本后收益</span><b>${pct(period.net_return, 2, true)}</b></div>
+      <div><span>期末净值</span><b>${Number(period.nav).toFixed(3)}</b></div>
+    </div>
+    <div class="ledger-changes">
+      <div><b>调入</b><div>${changeItems(period.added || [], "added")}</div></div>
+      <div><b>调出</b><div>${period.initial_position ? '<span class="ledger-change-empty">首期建仓，无上月持仓</span>' : changeItems(period.removed || [], "removed")}</div></div>
+    </div>
+    <div class="ledger-table-scroll">
+      <table class="stock-table ledger-table">
+        <thead><tr><th>#</th><th>代码</th><th>名称</th><th>相对上月</th><th>本月权重</th><th>上月权重</th><th>权重变化</th><th>合成得分</th><th>申万一级（最新快照）</th>${restricted ? "<th>股票池成分</th>" : ""}</tr></thead>
+        <tbody>${holdingRows}</tbody>
+      </table>
+    </div>
+    <p class="ledger-method-note">账本只列已完成持有期；调仓按竞争秩边界保留同分股票。换手为前后两期目标权重差绝对值之和的一半；首期建仓固定记 100%，并单独标注。${decisionSignal ? "决策前样本按当前数据与当前引擎复算，冻结时指标保存在组合详情；决策后月份首次出现时追加，已保存月份不覆盖。" : ""}</p>`;
+  document.getElementById("cps-ledger-month").onchange = event => {
+    state.composeHoldingMonth = event.target.value;
+    renderComposeLedger(backtest, renderSeq).catch(error => console.error("render ledger month failed:", error));
+  };
+  document.getElementById("cps-ledger-prev").onclick = () => {
+    state.composeHoldingMonth = dates[index - 1];
+    renderComposeLedger(backtest, renderSeq).catch(error => console.error("render previous ledger month failed:", error));
+  };
+  document.getElementById("cps-ledger-next").onclick = () => {
+    state.composeHoldingMonth = dates[index + 1];
+    renderComposeLedger(backtest, renderSeq).catch(error => console.error("render next ledger month failed:", error));
+  };
+  document.getElementById("cps-ledger-export").onclick = () => downloadComposeLedgerPeriod(period, metaMap);
+}
+
 async function renderComposeBacktest(renderSeq) {
   if (isComposeRenderStale(renderSeq) || state.composeFactors.length === 0) return;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
   const universe = normalizeIndexUniverseConfig(state.composeUniverse);
   document.getElementById("cps-nav-title").textContent =
-    `合成组合净值（top-${state.composeN}，${composeConstraintModeLabel(constraint)}，${indexUniverseModeLabel(universe)}，${composeConstraintHoldText(constraint)}，单边0.2%，按换手扣成本，起点=1.0；${composeRangeLabel()}）`;
-  const key = composeConfigKey(state.composeFactors, state.composeN, constraint, universe);
-  const fullBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix", constraint, universe);
+    `合成组合净值（top-${state.composeN}，${composeConstraintModeLabel(constraint)}，${indexUniverseModeLabel(universe)}，单边${Number(state.composeCostBps)}bp，按换手扣成本；${composeRangeLabel()}）`;
+  const key = composeConfigKey(state.composeFactors, state.composeN, constraint, universe, state.composeCostBps);
+  const computedBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix", constraint, universe, state.composeCostBps);
   if (isComposeRenderStale(renderSeq)) return;
+  const fullBt = appendFrozenTracking(computedBt);
   _latestComposeBtKey = key;
-  _latestComposeBt = cloneBacktest(fullBt);
-  rememberComposeBacktest(key, fullBt);
+  _latestComposeBt = cloneBacktest(computedBt);
+  await renderComposeLedger(fullBt, renderSeq);
+  if (isComposeRenderStale(renderSeq)) return;
   const bt = sliceBacktestByRange(fullBt, state.composeStart, state.composeEnd);
   const { x, navArr, retArr } = bt;
 
@@ -7742,8 +8325,29 @@ async function renderComposeBacktest(renderSeq) {
   const div = document.getElementById("cps-nav-chart");
   if (cpsNavChart) { cpsNavChart.dispose(); cpsNavChart = null; }
   div.innerHTML = "";
-  const series = [{ name: "合成组合", type: "line", symbol: "none", data: navArr,
-                    color: "#1a4d80", lineStyle: { width: 2 } }];
+  const decisionSignal = state.composeDecisionContext?.decisionSignalDate || "";
+  let series;
+  if (decisionSignal && Array.isArray(bt.ledger) && bt.ledger.length) {
+    const firstTrackingPeriod = bt.ledger.findIndex(period => period.signal_date > decisionSignal);
+    const boundary = firstTrackingPeriod < 0 ? navArr.length : Math.max(0, firstTrackingPeriod);
+    series = [
+      { name: "决策前样本（当前口径重算）", type: "line", symbol: "none", data: navArr.map((value, i) => i <= boundary ? value : null),
+        color: "#1a4d80", lineStyle: { width: 2 } },
+      { name: "决策后纸面跟踪", type: "line", symbol: "none", connectNulls: false,
+        data: navArr.map((value, i) => i >= boundary ? value : null), color: "#19734d", lineStyle: { width: 2.4 } },
+    ];
+  } else {
+    series = [{ name: "合成组合", type: "line", symbol: "none", data: navArr,
+      color: "#1a4d80", lineStyle: { width: 2 } }];
+  }
+  series.push({
+    name: "单边换手",
+    type: "bar",
+    yAxisIndex: 1,
+    data: [null, ...(bt.turnoverArr || []).map(value => value === null ? null : +(Number(value) * 100).toFixed(1))],
+    barMaxWidth: 8,
+    itemStyle: { color: "rgba(95,107,122,.28)" },
+  });
   if (x.length) {
     const bm = await ensureBenchmarkSnapshot();
     if (isComposeRenderStale(renderSeq)) return;
@@ -7760,7 +8364,11 @@ async function renderComposeBacktest(renderSeq) {
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
     tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 32 },
     xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
-    yAxis: { type: "value", scale: true }, series,
+    yAxis: [
+      { type: "value", scale: true, name: "净值" },
+      { type: "value", min: 0, name: "换手 %", axisLabel: { formatter: "{value}%" }, splitLine: { show: false } },
+    ],
+    series,
   });
 
   // KPI（合成组合行 + 三基准行）
@@ -7781,19 +8389,29 @@ async function renderComposeBacktest(renderSeq) {
   }
   const ex300 = excess.HS300.annual === null ? "—" : signed(excess.HS300.annual);
   const ex800 = excess.CSI800.annual === null ? "—" : signed(excess.CSI800.annual);
+  const turnoverStats = window.FactorPortfolioLedger.regularTurnoverStats(bt.ledger || []);
   let krows = `<tr><td><b>合成组合</b></td><td>${pct(m.annual)}</td><td>${pct(m.vol)}</td><td>${numText(m.sharpe, 2)}</td><td>${pct(m.mdd)}</td>
-      <td>${(m.winRate*100).toFixed(0)}%</td><td>${ex300}</td><td>${ex800}</td></tr>`;
+      <td>${(m.winRate*100).toFixed(0)}%</td><td>${turnoverStats.average === null ? "—" : pct(turnoverStats.average)}</td><td>${turnoverStats.annualized === null ? "—" : `${turnoverStats.annualized.toFixed(1)} 倍`}</td><td>${ex300}</td><td>${ex800}</td></tr>`;
+  if (decisionSignal && Array.isArray(bt.ledger)) {
+    const tracked = bt.ledger.filter(period => period.signal_date > decisionSignal);
+    if (tracked.length) {
+      const trackedReturns = tracked.map(period => period.net_return);
+      const trackedMetrics = metricsFromReturns(trackedReturns);
+      const trackedTurns = window.FactorPortfolioLedger.regularTurnoverStats(tracked);
+      krows += `<tr class="tracking-kpi-row"><td><b>决策后纸面跟踪</b><small>${tracked.length} 个已实现月</small></td><td>${pct(trackedMetrics?.annual ?? 0)}</td><td>${pct(trackedMetrics?.vol ?? 0)}</td><td>${numText(trackedMetrics?.sharpe, 2)}</td><td>${pct(trackedMetrics?.mdd ?? 0)}</td><td>${pct(trackedMetrics?.winRate ?? 0)}</td><td>${trackedTurns.average === null ? "—" : pct(trackedTurns.average)}</td><td>${trackedTurns.annualized === null ? "—" : `${trackedTurns.annualized.toFixed(1)} 倍`}</td><td>—</td><td>—</td></tr>`;
+    }
+  }
   // 常用基准与当前指数股票池对应基准（绝对指标）
   {
     for (const idx of composeBenchmarkCodes(universe)) {
       const bm = bg[idx]; if (!bm) continue;
       krows += `<tr style="color:#888;border-top:2px solid #ddd">
         <td style="color:#888">${benchmarkLabel(idx)}</td><td>${pct(bm.annual)}</td><td>${pct(bm.vol)}</td><td>${numText(bm.sharpe, 2)}</td>
-        <td>${pct(bm.mdd)}</td><td>${(bm.winRate*100).toFixed(0)}%</td><td>—</td><td>—</td></tr>`;
+        <td>${pct(bm.mdd)}</td><td>${(bm.winRate*100).toFixed(0)}%</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
     }
   }
   kdiv.innerHTML = `<table class="kpi-table">
-    <thead><tr><th>组合 / 基准</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>超额vs300</th><th>超额vs800</th></tr></thead>
+    <thead><tr><th>组合 / 基准</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>最大回撤</th><th>月度胜率</th><th>月均换手</th><th>年化换手</th><th>超额vs300</th><th>超额vs800</th></tr></thead>
     <tbody>${krows}</tbody></table>`;
 }
 
@@ -7815,11 +8433,9 @@ function composeIcDecaySql(
   const condSql = matrixCondSql(factors);
   if (!scoreExpr || condSql === null) return null;
   const universe = normalizeIndexUniverseConfig(rawUniverse);
-  const indexOnlyJoin = universe.mode === "index_only" ? `
-      INNER JOIN index_weight_monthly iw
-        ON iw.signal_date = m.trade_date
-       AND iw.index_alias = '${universe.indexAlias}'
-       AND iw.stock_code = m.stock_code` : "";
+  const indexOnlyJoin = ["index_only", "stock_pool"].includes(universe.mode)
+    ? composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code", "iw", "INNER JOIN")
+    : "";
   const rangeConds = [];
   if (startMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') >= '${startMonth}'`);
   if (endMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') <= '${endMonth}'`);
@@ -8014,7 +8630,7 @@ async function renderComposeIcDecay(renderSeq) {
         <tr><td>${s.h}个月</td><td>${numText(s.mean, 4)}</td><td>${numText(s.ir, 2)}</td><td>${s.n}</td></tr>
       `).join("")}</tbody>
     </table>
-    <p style="color:#888;font-size:11px;margin-top:6px">这里衡量当前合成分数排序对未来1/3/6/12个月收益的预测力；“仅指数成分”会在对应指数的月末时点成分内计算IC，“最低成分占比”只约束持仓、不改变IC样本。</p>
+    <p style="color:#888;font-size:11px;margin-top:6px">这里衡量当前合成分数排序对未来1/3/6/12个月收益的预测力；“仅指数/行业股票池”在对应月末历史成分内计算 IC。“最低成分占比”属于持仓约束，IC 仍明确标注为原 Word 股票池口径，不与组合净值冒充同域。</p>
   `;
 }
 
@@ -8147,11 +8763,9 @@ async function comboGroupValidation(
   const condSql = matrixCondSql(factors);
   if (!scoreExpr || condSql === null) return { groups: [], rows: [], monotonicity: null, ls: null };
   const universe = normalizeIndexUniverseConfig(rawUniverse);
-  const indexOnlyJoin = universe.mode === "index_only" ? `
-      INNER JOIN index_weight_monthly iw
-        ON iw.signal_date = m.trade_date
-       AND iw.index_alias = '${universe.indexAlias}'
-       AND iw.stock_code = m.stock_code` : "";
+  const indexOnlyJoin = ["index_only", "stock_pool"].includes(universe.mode)
+    ? composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code", "iw", "INNER JOIN")
+    : "";
   const rangeConds = [];
   if (startMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') >= '${startMonth}'`);
   if (endMonth) rangeConds.push(`strftime(m.trade_date, '%Y-%m') <= '${endMonth}'`);
@@ -8333,24 +8947,18 @@ async function comboLatestHoldingRows(factors, N, constraintMode, rawUniverse = 
   if (scoreExpr === null || condSql === null) return [];
   const constraint = normalizeConstraintMode(constraintMode);
   const universe = normalizeIndexUniverseConfig(rawUniverse);
-  const universeActive = universe.mode !== "all";
-  const universeJoin = universeActive ? `
-    LEFT JOIN index_weight_monthly iw
-      ON iw.signal_date = m.trade_date
-     AND iw.index_alias = '${universe.indexAlias}'
-     AND iw.stock_code = m.stock_code
-    LEFT JOIN (
-      SELECT DISTINCT signal_date
-      FROM index_weight_monthly
-      WHERE index_alias = '${universe.indexAlias}'
-    ) ia ON ia.signal_date = m.trade_date` : "";
+  const universeActive = isRestrictedUniverse(universe);
+  const universeJoin = universeActive
+    ? `${composeUniverseAvailabilityJoin(universe, "m.trade_date", "ia")}
+       ${composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code")}`
+    : "";
   const res = await state.db.query(`
     SELECT m.stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
            CAST(m.trade_date AS VARCHAR) AS dt,
            CAST(m.trade_date AS VARCHAR) AS as_of_date,
            CAST(m.trade_date AS VARCHAR) AS pool_date,
-           ${universeActive ? "ia.signal_date IS NOT NULL" : "TRUE"} AS index_available,
+           TRUE AS index_available,
            ${universeActive ? "iw.stock_code IS NOT NULL" : "FALSE"} AS is_index_member
     FROM cps_latest_matrix m
     ${universeJoin}
@@ -8609,10 +9217,11 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
   if (normalizeConstraintMode(constraintMode) === "industry") {
     await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
   }
-  if (universe.mode !== "all") {
+  if (isIndexUniverse(universe)) {
     await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false, indexWeights: true });
   }
-  const fullBt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe);
+  await ensureComposeUniverseData(universe);
+  const fullBt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe, options.costBps ?? state.composeCostBps);
   const bt = sliceBacktestByRange(fullBt, startMonth, endMonth);
   const metrics = computeMetrics(bt.retArr, bt.navArr);
   const icDecay = await comboIcDecay(factors, startMonth, endMonth, universe);
@@ -8980,6 +9589,8 @@ async function runComboAblation() {
     N: state.composeN,
     constraintMode: state.composeConstraintMode,
     universe: normalizeIndexUniverseConfig(state.composeUniverse),
+    costBps: state.composeCostBps,
+    decisionContext: state.composeDecisionContext ? { ...state.composeDecisionContext } : null,
     start: state.composeStart,
     end: state.composeEnd,
   };
@@ -9406,7 +10017,7 @@ async function ensureCmpBase(factors) {
     else {
       await ensureComposeFiles(shards);
       await state.db.query(`CREATE OR REPLACE TABLE cps_cmp_base AS
-        SELECT trade_date, return_date, stock_code, factor_code, score, fwd_return,
+        SELECT trade_date, entry_date, return_date, stock_code, factor_code, score, fwd_return,
                CASE WHEN filename LIKE '%compose_scores_neutral/%' THEN 'neutral' ELSE 'raw' END AS score_mode
         FROM read_parquet([${shards.map(item => {
           const itemKey = item.key || composeShardKey(item.code, item.scoreMode);
@@ -9419,44 +10030,38 @@ async function ensureCmpBase(factors) {
   try { await _cmpBaseBuild; } finally { _cmpBaseBuild = null; }
 }
 
-function buildBacktestFromRows(rows, N) {
-  const byMonth = new Map();
-  for (const r of rows) {
-    const key = r.signal_dt || monthOfLabel(r.dt);
-    if (!byMonth.has(key)) {
-      byMonth.set(key, {
-        signalDt: key,
-        returnDt: r.dt || key,
-        completed: false,
-        holdings: [],
-      });
-    }
-    const o = byMonth.get(key);
-    if (r.dt && String(r.dt) > String(o.returnDt)) o.returnDt = String(r.dt);
-    if (r.period_complete === true || r.period_complete === 1) o.completed = true;
-    if (r.stock_code) o.holdings.push({ stock_code: r.stock_code, ret: r.fwd_return });
+function buildBacktestFromRows(rows, N, costPerSide = COST_PER_SIDE) {
+  if (globalThis.FactorPortfolioLedger?.build) {
+    return globalThis.FactorPortfolioLedger.build(rows, { weighted: false, costPerSide });
   }
-  const periods = [...byMonth.values()]
-    .filter(o => o.returnDt && (
-      (o.completed && o.holdings.length === 0)
-      || o.holdings.some(h => isValidForwardReturn(h.ret))
-    ))
-    .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
-  let prev = null, nav = 1; const x = [], navArr = [1], retArr = [], turnoverArr = [];
-  if (periods.length) x.push(periods[0].signalDt);
-  for (const o of periods) {
+  // 无DOM的单元测试兼容路径；正式页面始终走上面的共享账本模块。
+  const byMonth = new Map();
+  for (const row of rows || []) {
+    const key = row.signal_dt || monthOfLabel(row.signal_date || row.dt);
+    if (!byMonth.has(key)) byMonth.set(key, { dt: row.dt || row.exit_date, periodComplete: false, holdings: [] });
+    const group = byMonth.get(key);
+    group.dt = row.dt || row.exit_date || group.dt;
+    group.periodComplete ||= row.period_complete === true || row.period_complete === 1;
+    if (row.stock_code) group.holdings.push({ code: row.stock_code, ret: row.fwd_return });
+  }
+  let prev = null, nav = 1;
+  const x = [], navArr = [1], retArr = [], turnoverArr = [];
+  for (const [signal, o] of [...byMonth].sort((left, right) => String(left[0]).localeCompare(String(right[0])))) {
+    if (!o.periodComplete && !o.holdings.some(h => isValidForwardReturn(h.ret))) continue;
     const weight = o.holdings.length ? 1 / o.holdings.length : 0;
+    const cur = new Map(o.holdings.map(h => [h.code, weight]));
     const gross = o.holdings.length ? equalWeightReturnFromObserved(o.holdings) : 0;
-    const cur = new Map(o.holdings.map(h => [h.stock_code, weight]));
-    const turnover = !prev && cur.size === 0 ? 0 : weightedTurnover(cur, prev);
-    const net = netLongOnlyReturn(gross, turnover, !prev);
-    nav *= (1 + net);
-    x.push(o.returnDt);
-    navArr.push(nav);
-    retArr.push(net);
-    turnoverArr.push(turnover);
+    const turnover = weightedTurnover(cur, prev);
+    const net = costPerSide === COST_PER_SIDE
+      ? netLongOnlyReturn(gross, turnover, !prev)
+      : netLongOnlyReturn(gross, turnover, !prev, costPerSide);
+    if (!x.length) x.push(signal);
+    x.push(o.dt);
+    nav *= 1 + net;
+    navArr.push(nav); retArr.push(net); turnoverArr.push(turnover);
     prev = cur;
   }
+  if (!retArr.length) return { x: [], navArr: [], retArr: [], turnoverArr: [] };
   return { x, navArr, retArr, turnoverArr };
 }
 
@@ -9500,49 +10105,42 @@ function industryNeutralPickRows(candidates, N) {
     .sort((a, b) => Number(b.cs ?? b.comp_score) - Number(a.cs ?? a.comp_score) || String(a.stock_code).localeCompare(String(b.stock_code)));
 }
 
-function buildWeightedBacktestFromRows(rows) {
+function buildWeightedBacktestFromRows(rows, costPerSide = COST_PER_SIDE) {
+  if (globalThis.FactorPortfolioLedger?.build) {
+    return globalThis.FactorPortfolioLedger.build(rows, { weighted: true, costPerSide });
+  }
   const byMonth = new Map();
-  for (const r of rows) {
-    const key = r.signal_dt || monthOfLabel(r.dt);
-    if (!byMonth.has(key)) {
-      byMonth.set(key, {
-        signalDt: key,
-        returnDt: r.dt || key,
-        completed: false,
-        holdings: new Map(),
-      });
-    }
-    const period = byMonth.get(key);
-    if (r.dt && String(r.dt) > String(period.returnDt)) period.returnDt = String(r.dt);
-    if (r.period_complete === true || r.period_complete === 1) period.completed = true;
-    const w = Number(r.weight);
-    if (!r.stock_code || !Number.isFinite(w) || w <= 0) continue;
-    period.holdings.set(r.stock_code, {
-      weight: w,
-      ret: r.fwd_return,
+  for (const row of rows || []) {
+    const key = row.signal_dt || monthOfLabel(row.signal_date || row.dt);
+    if (!byMonth.has(key)) byMonth.set(key, { dt: row.dt || row.exit_date, periodComplete: false, holdings: new Map() });
+    const group = byMonth.get(key);
+    group.dt = row.dt || row.exit_date || group.dt;
+    group.periodComplete ||= row.period_complete === true || row.period_complete === 1;
+    if (row.stock_code) group.holdings.set(row.stock_code, {
+      code: row.stock_code,
+      ret: row.fwd_return,
+      weight: Number(row.weight) || 0,
     });
   }
-  const periods = [...byMonth.values()]
-    .filter(o => (
-      (o.completed && o.holdings.size === 0)
-      || [...o.holdings.values()].some(h => isValidForwardReturn(h.ret))
-    ))
-    .sort((a, b) => a.returnDt.localeCompare(b.returnDt));
   let prev = null, nav = 1;
   const x = [], navArr = [1], retArr = [], turnoverArr = [];
-  if (periods.length) x.push(periods[0].signalDt);
-  for (const o of periods) {
+  for (const [signal, o] of [...byMonth].sort((left, right) => String(left[0]).localeCompare(String(right[0])))) {
+    if (!o.periodComplete && ![...o.holdings.values()].some(h => isValidForwardReturn(h.ret))) continue;
+    const total = [...o.holdings.values()].reduce((sum, holding) => sum + holding.weight, 0);
+    const cur = new Map([...o.holdings].map(([code, holding]) => [code, total > 0 ? holding.weight / total : 0]));
+    o.holdings.forEach((holding, code) => { holding.weight = cur.get(code); });
     const gross = o.holdings.size ? weightedReturnFromObserved([...o.holdings.values()]) : 0;
-    const cur = new Map([...o.holdings.entries()].map(([code, h]) => [code, h.weight]));
-    const turnover = !prev && cur.size === 0 ? 0 : weightedTurnover(cur, prev);
-    const net = netLongOnlyReturn(gross, turnover, !prev);
-    nav *= (1 + net);
-    x.push(o.returnDt);
-    navArr.push(nav);
-    retArr.push(net);
-    turnoverArr.push(turnover);
+    const turnover = weightedTurnover(cur, prev);
+    const net = costPerSide === COST_PER_SIDE
+      ? netLongOnlyReturn(gross, turnover, !prev)
+      : netLongOnlyReturn(gross, turnover, !prev, costPerSide);
+    if (!x.length) x.push(signal);
+    x.push(o.dt);
+    nav *= 1 + net;
+    navArr.push(nav); retArr.push(net); turnoverArr.push(turnover);
     prev = cur;
   }
+  if (!retArr.length) return { x: [], navArr: [], retArr: [], turnoverArr: [] };
   return { x, navArr, retArr, turnoverArr };
 }
 
@@ -9612,19 +10210,10 @@ function matrixBacktestSql(
   const requiredMemberN = Math.ceil(Math.max(1, Number(N) || 1) * universe.minShare);
   const industrySelect = needsIndustry ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1";
   const industryJoin = needsIndustry ? "LEFT JOIN stock_descriptors d ON d.stock_code = m.stock_code" : "";
-  const availabilityJoin = universeActive ? `
-      JOIN (
-        SELECT DISTINCT signal_date
-        FROM index_weight_monthly
-        WHERE index_alias = '${universe.indexAlias}'
-      ) ua ON ua.signal_date = m.trade_date` : "";
-  const weightJoin = universeActive ? `
-      LEFT JOIN index_weight_monthly iw
-        ON iw.signal_date = m.trade_date
-       AND iw.index_alias = '${universe.indexAlias}'
-       AND iw.stock_code = m.stock_code` : "";
+  const availabilityJoin = composeUniverseAvailabilityJoin(universe, "m.trade_date");
+  const weightJoin = composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code");
   const memberSelect = universeActive ? "iw.stock_code IS NOT NULL" : "FALSE";
-  const universeFilter = universe.mode === "index_only" ? "AND iw.stock_code IS NOT NULL" : "";
+  const universeFilter = ["index_only", "stock_pool"].includes(universe.mode) ? "AND iw.stock_code IS NOT NULL" : "";
   const rankFilter = needsIndustry
     ? ""
     : (minimumIndexShare
@@ -9632,7 +10221,7 @@ function matrixBacktestSql(
       : `WHERE rk <= ${N}`);
   return `
     WITH periods AS (
-      SELECT m.trade_date, MAX(m.return_date) AS return_date
+      SELECT m.trade_date, MAX(m.entry_date) AS entry_date, MAX(m.return_date) AS return_date
       FROM ${baseTable} m
       ${availabilityJoin}
       GROUP BY m.trade_date
@@ -9656,7 +10245,10 @@ function matrixBacktestSql(
              TRUE AS index_available, rk, member_rk
       FROM ranked ${rankFilter}
     )
-    SELECT strftime(p.trade_date, '%Y-%m') AS signal_dt,
+    SELECT strftime(p.trade_date, '%Y-%m-%d') AS signal_date,
+           strftime(COALESCE(p.entry_date, p.trade_date), '%Y-%m-%d') AS entry_date,
+           strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS exit_date,
+           strftime(p.trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS dt,
            s.stock_code, s.fwd_return, s.cs, s.industry_sw1,
            s.is_index_member, s.index_available,
@@ -9674,13 +10266,17 @@ async function comboBacktest(
   baseTable,
   constraintMode = state.composeConstraintMode,
   rawUniverse = state.composeUniverse,
+  costBps = state.composeCostBps,
 ) {
   const normalizedConstraint = normalizeConstraintMode(constraintMode);
   const universe = normalizeIndexUniverseConfig(rawUniverse);
   if (normalizedConstraint === "industry" && universe.mode === "min_share") {
     throw new Error("最低指数成分占比暂不能与行业中性约束同时使用");
   }
-  const cacheKey = baseTable === "cps_matrix" ? composeConfigKey(factors, N, normalizedConstraint, universe) : null;
+  await ensureComposeUniverseData(universe);
+  const normalizedCostBps = Number.isFinite(Number(costBps)) ? Math.max(0, Number(costBps)) : 20;
+  const costPerSide = normalizedCostBps / 10000;
+  const cacheKey = baseTable === "cps_matrix" ? composeConfigKey(factors, N, normalizedConstraint, universe, normalizedCostBps) : null;
   if (cacheKey && _composeBtCache.has(cacheKey)) return cloneBacktest(_composeBtCache.get(cacheKey));
   if (cacheKey && _composeBtBuilds.has(cacheKey)) return cloneBacktest(await _composeBtBuilds.get(cacheKey));
 
@@ -9693,8 +10289,8 @@ async function comboBacktest(
         ? groupIndexUniverseRowsByMonth(rows, N, universe)
         : rows;
       const bt = normalizedConstraint === "industry"
-        ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(selectedRows, N))
-        : buildBacktestFromRows(selectedRows, N);
+        ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(selectedRows, N), costPerSide)
+        : buildBacktestFromRows(selectedRows, N, costPerSide);
       if (cacheKey) rememberComposeBacktest(cacheKey, bt);
       return bt;
     })();
@@ -9712,29 +10308,20 @@ async function comboBacktest(
     .map(f => `('${f.code}','${normalizeScoreMode(f.scoreMode)}',${f.weight},${normalizeSide(f.side)})`)
     .join(",");
   const cond = composeCondFor(factors, baseTable);
-  const universeActive = universe.mode !== "all";
+  const universeActive = isRestrictedUniverse(universe);
   const requiredMemberN = Math.ceil(Math.max(1, Number(N) || 1) * universe.minShare);
   const fallbackRankFilter = normalizedConstraint === "industry"
     ? ""
     : (universe.mode === "min_share"
       ? `WHERE rk <= ${N} OR (is_index_member AND member_rk <= ${requiredMemberN})`
       : `WHERE rk <= ${N}`);
-  const fallbackAvailabilityJoin = universeActive ? `
-      JOIN (
-        SELECT DISTINCT signal_date
-        FROM index_weight_monthly
-        WHERE index_alias = '${universe.indexAlias}'
-      ) ua ON ua.signal_date = pbase.trade_date` : "";
-  const fallbackWeightJoin = universeActive ? `
-      LEFT JOIN index_weight_monthly iw
-        ON iw.signal_date = s.trade_date
-       AND iw.index_alias = '${universe.indexAlias}'
-       AND iw.stock_code = s.stock_code` : "";
-  const fallbackUniverseFilter = universe.mode === "index_only" ? "AND iw.stock_code IS NOT NULL" : "";
+  const fallbackAvailabilityJoin = composeUniverseAvailabilityJoin(universe, "pbase.trade_date");
+  const fallbackWeightJoin = composeUniverseMemberJoin(universe, "s.trade_date", "s.stock_code");
+  const fallbackUniverseFilter = ["index_only", "stock_pool"].includes(universe.mode) ? "AND iw.stock_code IS NOT NULL" : "";
   const res = await state.db.query(`
     WITH w(code, score_mode, weight, side) AS (VALUES ${vals}),
     periods AS (
-      SELECT pbase.trade_date, MAX(pbase.return_date) AS return_date
+      SELECT pbase.trade_date, MAX(pbase.entry_date) AS entry_date, MAX(pbase.return_date) AS return_date
       FROM ${baseTable} pbase
       ${fallbackAvailabilityJoin}
       GROUP BY pbase.trade_date
@@ -9767,7 +10354,10 @@ async function comboBacktest(
              is_index_member, TRUE AS index_available, rk, member_rk
       FROM ranked ${fallbackRankFilter}
     )
-    SELECT strftime(p.trade_date, '%Y-%m') AS signal_dt,
+    SELECT strftime(p.trade_date, '%Y-%m-%d') AS signal_date,
+           strftime(COALESCE(p.entry_date, p.trade_date), '%Y-%m-%d') AS entry_date,
+           strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS exit_date,
+           strftime(p.trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS dt,
            s.stock_code, s.fwd_return, s.cs, s.industry_sw1,
            s.is_index_member, s.index_available,
@@ -9780,8 +10370,8 @@ async function comboBacktest(
     ? groupIndexUniverseRowsByMonth(rows, N, universe)
     : rows;
   return normalizedConstraint === "industry"
-    ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(selectedRows, N))
-    : buildBacktestFromRows(selectedRows, N);
+    ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(selectedRows, N), costPerSide)
+    : buildBacktestFromRows(selectedRows, N, costPerSide);
 }
 
 async function saveCurrentCombo() {
@@ -9790,12 +10380,14 @@ async function saveCurrentCombo() {
   const N = state.composeN;
   const constraintMode = normalizeConstraintMode(state.composeConstraintMode);
   const universe = normalizeIndexUniverseConfig(state.composeUniverse);
+  const costBps = state.composeCostBps;
   const i = state.savedCombos.length;
-  const comboKey = composeConfigKey(factors, N, constraintMode, universe);
+  const comboKey = composeConfigKey(factors, N, constraintMode, universe, costBps);
   const combo = {
     name: `组合${i + 1}`,
     factors,
     N,
+    costBps,
     constraintMode,
     universe,
     color: STRAT_COLORS[i % STRAT_COLORS.length],
@@ -9822,12 +10414,12 @@ async function saveCurrentCombo() {
         descriptors: true,
         benchmarks: false,
         corr: false,
-        indexWeights: universe.mode !== "all",
+        indexWeights: isIndexUniverse(universe),
       });
       await ensureComposeData();
       try {
         await ensureComposeBase();
-        const bt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe);
+        const bt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe, costBps);
         if (bt && bt.x && bt.x.length) combo.bt = bt;
       } catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
     }
@@ -9939,7 +10531,7 @@ async function renderComboCompare() {
     if (titleEl) titleEl.textContent = "暂存组合对比 · 计算中…";
     if (!cpsCompareChart) { navDiv.innerHTML = `<div class="loading">计算暂存组合回测…</div>`; tblDiv.innerHTML = ""; }
     try {
-      const needsIndexWeights = state.savedCombos.some(c => normalizeIndexUniverseConfig(c.universe).mode !== "all");
+      const needsIndexWeights = state.savedCombos.some(c => isIndexUniverse(c.universe));
       await ensureDB({
         stockMeta: false,
         descriptors: true,
@@ -9951,7 +10543,7 @@ async function renderComboCompare() {
       const unionFactors = state.savedCombos.flatMap(c => cloneComposeFactors(c.factors));
       await ensureCmpBase(unionFactors);
       for (const c of missing) {
-        c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base", c.constraintMode, c.universe);
+        c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base", c.constraintMode, c.universe, c.costBps);
       }
     } catch (e) {
       if (titleEl) titleEl.textContent = "暂存组合对比";
@@ -10047,7 +10639,7 @@ function weightGrid(nF, step) {
 }
 
 // 在 JS 内存里对一组权重跑合成回测，返回指标。conds=[{idx,op,thr}] 先过滤再打分。
-function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = null) {
+function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = null, costPerSide = COST_PER_SIDE) {
   let prev = null, nav = 1;
   const navArr = [1], retArr = [];
   for (const mo of monthsArr) {
@@ -10079,7 +10671,7 @@ function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = nu
     if (eligibleCount === 0) {
       const cur = new Map();
       const turnover = !prev ? 0 : weightedTurnover(cur, prev);
-      const net = netLongOnlyReturn(0, turnover, !prev);
+      const net = netLongOnlyReturn(0, turnover, !prev, costPerSide);
       if (includeInMetrics) {
         nav *= (1 + net); navArr.push(nav); retArr.push(net);
       }
@@ -10122,7 +10714,9 @@ function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = nu
     const gross = equalWeightReturnFromObserved(picks);
     const cur = new Map(picks.map(p => [p.code, weight]));
     const turnover = weightedTurnover(cur, prev);
-    const net = netLongOnlyReturn(gross, turnover, !prev);
+    const net = costPerSide === COST_PER_SIDE
+      ? netLongOnlyReturn(gross, turnover, !prev)
+      : netLongOnlyReturn(gross, turnover, !prev, costPerSide);
     if (includeInMetrics) {
       nav *= (1 + net); navArr.push(nav); retArr.push(net);
     }
@@ -10184,7 +10778,15 @@ async function searchOptimalWeights(monthsArr, grid, N, conds, options = {}) {
   const yieldFn = typeof options.yieldFn === "function" ? options.yieldFn : yieldToEventLoop;
   for (let i = 0; i < grid.length; i += 1) {
     const w = grid[i];
-    const m = backtestWeights(monthsArr, w, N, conds, options.range || {}, options.universe || null);
+    const m = backtestWeights(
+      monthsArr,
+      w,
+      N,
+      conds,
+      options.range || {},
+      options.universe || null,
+      Number.isFinite(Number(options.costPerSide)) ? Number(options.costPerSide) : COST_PER_SIDE,
+    );
     if (m) {
       if (m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
       if (Number.isFinite(Number(m.sharpe)) && m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
@@ -10217,9 +10819,10 @@ async function optimizeWeights() {
     descriptors: false,
     benchmarks: false,
     corr: false,
-    indexWeights: universe.mode !== "all",
+    indexWeights: isIndexUniverse(universe),
   });
-  if (universe.mode !== "all" && !state.hasIndexWeights) {
+  await ensureComposeUniverseData(universe);
+  if (isIndexUniverse(universe) && !state.hasIndexWeights) {
     box.innerHTML = `<div class="empty" style="color:#c14545">指数股票池数据不可用，已停止权重搜索。</div>`;
     return;
   }
@@ -10240,19 +10843,10 @@ async function optimizeWeights() {
   // 持仓必须保留用于确定区间首月换手；只将结束月下推。按整期日期过滤仍会
   // 保留个别收益缺失的成员。
   const optimizerEndSql = rangeWhere(null, state.composeEnd, "p.period_return_date");
-  const optimizerAvailabilityJoin = universe.mode !== "all" ? `
-      JOIN (
-        SELECT DISTINCT signal_date
-        FROM index_weight_monthly
-        WHERE index_alias = '${universe.indexAlias}'
-      ) ua ON ua.signal_date = m.trade_date` : "";
-  const optimizerWeightJoin = universe.mode !== "all" ? `
-      LEFT JOIN index_weight_monthly iw
-        ON iw.signal_date = m.trade_date
-       AND iw.index_alias = '${universe.indexAlias}'
-       AND iw.stock_code = m.stock_code` : "";
-  const optimizerMemberSelect = universe.mode !== "all" ? "iw.stock_code IS NOT NULL" : "FALSE";
-  const optimizerUniverseFilter = universe.mode === "index_only" ? "AND iw.stock_code IS NOT NULL" : "";
+  const optimizerAvailabilityJoin = composeUniverseAvailabilityJoin(universe, "m.trade_date");
+  const optimizerWeightJoin = composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code");
+  const optimizerMemberSelect = isRestrictedUniverse(universe) ? "iw.stock_code IS NOT NULL" : "FALSE";
+  const optimizerUniverseFilter = ["index_only", "stock_pool"].includes(universe.mode) ? "AND iw.stock_code IS NOT NULL" : "";
   // 使用所有所选因子分数均非空的股票。不能用“任一单因子 Top500 并集”裁剪：
   // 一只股票可以在每个单因子都排 500 名以后，却因多项分数均衡而进入合成 TopN。
   const res = await state.db.query(`
@@ -10264,7 +10858,7 @@ async function optimizeWeights() {
     ),
     optimizer_candidates AS (
       SELECT m.*, ${optimizerMemberSelect} AS is_index_member,
-             ${universe.mode !== "all" ? "TRUE" : "FALSE"} AS index_available
+             ${isRestrictedUniverse(universe) ? "TRUE" : "FALSE"} AS index_available
       FROM cps_matrix m
       ${optimizerWeightJoin}
       WHERE ${scorePresenceSql} ${optimizerUniverseFilter}
@@ -10338,6 +10932,7 @@ async function optimizeWeights() {
     yieldEvery: 2,
     range: { startMonth: state.composeStart, endMonth: state.composeEnd },
     universe,
+    costPerSide: Number(state.composeCostBps) / 10000,
     onProgress: (completed, total) => {
       const loading = box.querySelector(".loading");
       if (loading) loading.textContent = `搜索中… ${completed}/${total}`;
@@ -10373,6 +10968,7 @@ async function optimizeWeights() {
     btn.onclick = () => {
       const b = targets[parseInt(btn.dataset.ti, 10)][1];
       if (!b.w) return;
+      clearFrozenDecisionContext();
       b.w.forEach((wv, i) => { state.composeFactors[i].weight = +(wv).toFixed(3); });
       renderCompose();
     };
@@ -10391,19 +10987,24 @@ function bindComposeButtons() {
     saveCurrentCombo().catch(e => console.error("save combo failed", e));
   };
   const saveMineBtn = document.getElementById("cps-save-mine");
-  if (saveMineBtn) saveMineBtn.onclick = () => saveCurrentComboToMine();
+  if (saveMineBtn) saveMineBtn.onclick = () => saveCurrentComboToMine().catch(e => {
+    console.error("freeze combo failed", e);
+    alert(`冻结组合失败：${e.message || e}`);
+  });
   const saveAllMineBtn = document.getElementById("cps-save-all-mine");
   if (saveAllMineBtn) saveAllMineBtn.onclick = () => saveAllTempCombosToMine();
   const copyBtn = document.getElementById("cps-copy-json");
   if (copyBtn) copyBtn.onclick = () => copyPublishRequest().catch(e => console.error("copy publish request failed", e));
   const resetBtn = document.getElementById("cps-reset");
   if (resetBtn) resetBtn.onclick = () => {
+    clearFrozenDecisionContext();
     state.composeFactors = [];
     updateTreeHighlight();
     renderComposeSoon(0);
   };
   document.querySelectorAll(".cpsn-btn[data-n]").forEach(b => {
     b.onclick = () => {
+      clearFrozenDecisionContext();
       state.composeN = parseInt(b.dataset.n, 10);
       syncComposeNButtons();
       renderComposeSoon();
@@ -10413,6 +11014,7 @@ function bindComposeButtons() {
   document.getElementById("cpsn-add").onclick = () => {
     const n = parseInt(inp.value, 10);
     if (!Number.isFinite(n) || n < 1 || n > 100) { inp.value = ""; return; }
+    clearFrozenDecisionContext();
     state.composeN = n;
     syncComposeNButtons();
     renderComposeSoon();

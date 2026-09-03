@@ -158,6 +158,34 @@ try {
   );
   const composeFactors = await page.locator("#cps-controls .cps-frow").count();
   if (composeFactors !== 10) throw new Error(`股票池候选未完整带入多因子合成：${composeFactors}`);
+  const composeHandoff = {
+    universeMode: await page.locator("#cps-universe-mode").inputValue(),
+    indexAlias: await page.locator("#cps-universe-index").inputValue(),
+    costBps: await page.locator("#cps-cost-bps").inputValue(),
+  };
+  if (composeHandoff.universeMode !== "index_only" || composeHandoff.indexAlias !== "HS300" || composeHandoff.costBps !== "10") {
+    throw new Error(`沪深300研究上下文未完整带入合成：${JSON.stringify(composeHandoff)}`);
+  }
+  await page.locator('.mode-btn[data-mode="stock-pool"]').click();
+  await waitForResults();
+
+  await page.locator("#pool-type-sw1").click();
+  await page.locator("#pool-selector").selectOption("SW1_801080");
+  await waitForResults();
+  await page.locator("#pool-factor-table-body .pool-row-check").first().check();
+  const industryMembershipRequest = page.waitForRequest(
+    request => request.url().includes("/stock_pool_research/membership/SW1_801080.parquet"),
+    { timeout: 120000 },
+  );
+  await page.locator("#pool-send-compose").click();
+  await page.waitForSelector("#compose-view", { state: "visible", timeout: 30000 });
+  await page.waitForFunction(() => {
+    const mode = document.querySelector("#cps-universe-mode")?.value;
+    const text = document.querySelector("#cps-universe-mode option:checked")?.textContent || "";
+    return mode === "stock_pool" && text.includes("电子");
+  }, null, { timeout: 120000 });
+  await industryMembershipRequest;
+  await page.waitForFunction(() => document.querySelectorAll("#cps-ledger-month option").length > 100, null, { timeout: 300000 });
   await page.locator('.mode-btn[data-mode="stock-pool"]').click();
   await waitForResults();
 

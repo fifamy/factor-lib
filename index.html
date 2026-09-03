@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>因子库 v2.3.3</title>
+  <title>因子库 v2.4.0</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260903095145">
+  <link rel="stylesheet" href="styles.css?v=20260903135856">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <h1 class="app-title">因子库 v2.3.3 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
+    <h1 class="app-title">因子库 v2.4.0 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260903095145" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260903135856" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -219,15 +219,15 @@
           </div>
           <div id="cps-save-row" style="margin-top:12px;border-top:1px solid #eee;padding-top:10px">
             <button id="cps-save" class="cpsn-btn" style="border-color:#1a4d80;color:#1a4d80">📌 加入临时对比</button>
-            <button id="cps-save-mine" class="cpsn-btn" style="margin-left:6px;border-color:#1a4d80;color:#1a4d80">保存当前组合</button>
+            <button id="cps-save-mine" class="cpsn-btn" style="margin-left:6px;border-color:#1a4d80;color:#1a4d80">冻结并跟踪当前组合</button>
             <button id="cps-save-all-mine" class="cpsn-btn" style="margin-left:6px;border-color:#1a4d80;color:#1a4d80;display:none">保存全部临时组合</button>
             <button id="cps-copy-json" class="cpsn-btn" style="margin-left:6px;border-color:#6e9a4f;color:#3a7d44">申请发布组合</button>
-            <span style="color:#999;font-size:11px">“当前组合”保存编辑器里这一组；“全部临时组合”会一次保存下方已加入对比的所有组合</span>
+            <span style="color:#999;font-size:11px">冻结时记录规则、决策日和数据截止日；之后只向纸面账本追加新实现月份，不重新优化历史权重</span>
             <div id="cps-saved-list" style="margin-top:8px"></div>
           </div>
         </div>
         <div class="panel" id="cps-stocks">
-          <h3>合成 Top 股票（最新月末截面）</h3>
+          <h3>合成组合月度持仓账本</h3>
           <div class="empty">选因子后显示</div>
         </div>
         <div class="panel">
@@ -281,7 +281,13 @@
             <button class="combo-tab" data-tab="mine">我的组合</button>
           </div>
           <div id="cps-published-list"><div class="empty">组合库加载中…</div></div>
-          <div id="cps-my-list" style="display:none"><div class="empty">还没有我的组合</div></div>
+          <div id="cps-my-pane" style="display:none">
+            <div class="tracking-sync-toolbar">
+              <span>冻结组合可用私密跟踪码跨设备同步；草稿仍只保存在本机。</span>
+              <button id="tracking-import" class="cpsn-btn" type="button">用跟踪码导入</button>
+            </div>
+            <div id="cps-my-list"><div class="empty">还没有我的组合</div></div>
+          </div>
         </div>
       </div>
 
@@ -588,9 +594,10 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260903095145"></script>
-  <script src="app_index_universe.js?v=20260903095145"></script>
-  <script src="app_stock_pool_research.js?v=20260903095145"></script>
-  <script type="module" src="app.js?v=20260903095145"></script>
+  <script src="app_holding_scope.js?v=20260903135856"></script>
+  <script src="app_portfolio_ledger.js?v=20260903135856"></script>
+  <script src="app_index_universe.js?v=20260903135856"></script>
+  <script src="app_stock_pool_research.js?v=20260903135856"></script>
+  <script type="module" src="app.js?v=20260903135856"></script>
 </body>
 </html>

@@ -9,14 +9,24 @@ const INDEX_UNIVERSE_OPTIONS = [
 ];
 
 function normalizeIndexUniverseConfig(raw) {
-  const mode = ["all", "index_only", "min_share"].includes(raw?.mode) ? raw.mode : "all";
+  const mode = ["all", "index_only", "min_share", "stock_pool"].includes(raw?.mode) ? raw.mode : "all";
   const aliases = new Set(INDEX_UNIVERSE_OPTIONS.map(item => item.alias));
   const indexAlias = aliases.has(raw?.indexAlias) ? raw.indexAlias : "HS300";
+  const poolId = /^[A-Z0-9_]+$/.test(String(raw?.poolId || "")) ? String(raw.poolId) : "";
+  const poolName = String(raw?.poolName || poolId || "").trim();
+  const poolType = raw?.poolType === "sw1" ? "sw1" : (raw?.poolType === "broad_index" ? "broad_index" : "");
   let minShare = Number(raw?.minShare);
   if (!Number.isFinite(minShare)) minShare = 0.8;
   if (minShare > 1) minShare /= 100;
   minShare = Math.min(1, Math.max(0.5, minShare));
-  return { mode, indexAlias, minShare };
+  return {
+    mode: mode === "stock_pool" && !poolId ? "all" : mode,
+    indexAlias,
+    minShare,
+    poolId,
+    poolName,
+    poolType,
+  };
 }
 
 function indexUniverseMeta(config) {
@@ -27,6 +37,7 @@ function indexUniverseMeta(config) {
 function indexUniverseModeLabel(config) {
   const normalized = normalizeIndexUniverseConfig(config);
   const meta = indexUniverseMeta(normalized);
+  if (normalized.mode === "stock_pool") return `仅${normalized.poolName || normalized.poolId}历史成分`;
   if (normalized.mode === "index_only") return `仅${meta.label}成分`;
   if (normalized.mode === "min_share") return `至少${Math.round(normalized.minShare * 100)}%来自${meta.label}`;
   return "全市场";
@@ -77,6 +88,7 @@ function selectRowsByIndexUniverse(candidateRows, nominalN, rawConfig) {
       required_index_member_n: 0,
       universe_mode: config.mode,
       index_alias: config.indexAlias,
+      pool_id: config.poolId,
       index_available: available,
       requirement_met: false,
     },
@@ -85,7 +97,7 @@ function selectRowsByIndexUniverse(candidateRows, nominalN, rawConfig) {
 
   let picked;
   let required = 0;
-  if (config.mode === "index_only") {
+  if (config.mode === "index_only" || config.mode === "stock_pool") {
     picked = _competitionIndexTopN(ranked.filter(_isIndexMember), n);
     required = Math.min(n, picked.length);
   } else if (config.mode === "min_share") {
@@ -115,7 +127,7 @@ function selectRowsByIndexUniverse(candidateRows, nominalN, rawConfig) {
   const memberN = picked.filter(_isIndexMember).length;
   const memberShare = picked.length ? memberN / picked.length : null;
   const requirementMet = config.mode === "all"
-    || (config.mode === "index_only" ? memberN === picked.length : memberN >= required);
+    || (["index_only", "stock_pool"].includes(config.mode) ? memberN === picked.length : memberN >= required);
   const equalWeight = picked.length ? 1 / picked.length : 0;
   return {
     rows: picked.map(row => ({ ...row, weight: equalWeight })),
@@ -127,6 +139,7 @@ function selectRowsByIndexUniverse(candidateRows, nominalN, rawConfig) {
       required_index_member_n: required,
       universe_mode: config.mode,
       index_alias: config.indexAlias,
+      pool_id: config.poolId,
       index_available: available,
       requirement_met: requirementMet,
     },

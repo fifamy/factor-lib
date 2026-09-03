@@ -1,39 +1,43 @@
 {
-  "generated_at": "2026-09-03T01:55:29+00:00",
-  "deploy_version": "20260903095145",
+  "generated_at": "2026-09-03T05:59:11+00:00",
+  "deploy_version": "20260903135856",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
-  "source_revision": "cffb1f28d8f310ab0b94d72a034f2840e892f0b0efb1341d37aca2f08c9dd37c",
+  "source_revision": "28c44f6e28707fe77ef258fd45306f575a8eeb74cb6ff6e2b9af0da3fbabe2ee",
   "source_revision_kind": "content_sha256",
-  "source_content_sha256": "cffb1f28d8f310ab0b94d72a034f2840e892f0b0efb1341d37aca2f08c9dd37c",
+  "source_content_sha256": "28c44f6e28707fe77ef258fd45306f575a8eeb74cb6ff6e2b9af0da3fbabe2ee",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "9443b8ed05497710a4512395069debde3cb475d9",
+  "pages_worktree_git_commit_before_sync": "7dc910b5ebb6d89b0e0ac8579c76a2c473a524d6",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "6a104fc47e7074d8d648dfb1c07a2af9562e618347c84a5a7bd68ad8a30e7139",
-      "bytes": 42024
+      "sha256": "27e2a4d70338a878035154c0366a80f66c8a5e0db106a177cbf713f1249a389e",
+      "bytes": 42425
     },
     "app.js": {
-      "sha256": "4749612c424572afce0975bd941685b698198d72965322565a82db1c96cec0d5",
-      "bytes": 487694
+      "sha256": "dd97471c8abc348a07fd8bd3e235961fc8f1200f6e150feb543ff9a828662ccf",
+      "bytes": 522137
+    },
+    "app_portfolio_ledger.js": {
+      "sha256": "38e054ef5be4e68a3bea083a667f57ba2e9c5840ad5924410d97c9665e5257a1",
+      "bytes": 7566
     },
     "app_index_universe.js": {
-      "sha256": "5870fc0d745fc92bbc6752c11a9ab73b2188a964fc1b01a3334d25f6eb34c4cd",
-      "bytes": 5702
+      "sha256": "ac0ba6dbb87420b165cd0ba0ef6d64d8611e35d4eeabe145a5945b98c5d5e3f8",
+      "bytes": 6308
     },
     "app_stock_pool_research.js": {
-      "sha256": "1f746b518153baafd7863abd50004cafe706d922d6fdcaaf69c50495fb1ea395",
-      "bytes": 38958
+      "sha256": "a8799b60c92edb1d2ddda09adfda6cbaab6beb3bc1cee0593f40b89379194693",
+      "bytes": 39178
     },
     "styles.css": {
-      "sha256": "9275296da77b8ab08d53afbb57eef0d810b0b7077751c31441980e026cf06645",
-      "bytes": 53081
+      "sha256": "db0de18f6a4875df8a93360527428f3f7e80758b614062b2e8ec3e02894a403d",
+      "bytes": 56896
     },
     "factor_audit.html": {
-      "sha256": "2ca7925fd6b67927cebb20ae2976085dd3acd1554856d7c7e0ab0dedca53f124",
+      "sha256": "26dd86997d2babb4179df4daeddae2689825b13c44a614312c8cfdbdf77a41b1",
       "bytes": 8627
     },
     "factor_audit.js": {
@@ -73,7 +77,7 @@
       "bytes": 1641199
     },
     "data/factor_audit/index.json": {
-      "sha256": "48a5194a9751d83376f2c74dd6b865a52d90b214e7245e7666ff1562eaaa2642",
+      "sha256": "399454a7e1af027d9c49f13bb7403a7e948f6f2df5867811d7ab2b75a1689f0e",
       "bytes": 275191
     }
   },
@@ -125,6 +129,12 @@
       "file_count": 37,
       "bytes": 5135796,
       "sha256": "4e10a3c126dc29986691ae6994fabdab0c62d605b522163059282b7ebdb59fdc"
+    },
+    "data/stock_pool_research/membership": {
+      "exists": true,
+      "file_count": 37,
+      "bytes": 1186379,
+      "sha256": "8c460d0358c16f55e9643cff272dc9a2e2f519e900c36a55dc4facdf5effb15a"
     }
   },
   "source_directory_summaries": {
@@ -136,9 +146,9 @@
     },
     "scripts": {
       "exists": true,
-      "file_count": 146,
-      "bytes": 2168544,
-      "sha256": "3504a0582ae99be8575e115972003221643bd53adf9a20ad549dd3a1f97a2b86"
+      "file_count": 148,
+      "bytes": 2176357,
+      "sha256": "165f4d840c817cc8552cb13146e99e40e7d2e12aea024ac911694179eadd6239"
     },
     "config": {
       "exists": true,
@@ -246,6 +256,8 @@
     "rolling_validation_parquet": false,
     "single_snapshots": false,
     "index_universe": true,
-    "stock_pool_research": true
+    "stock_pool_research": true,
+    "stock_pool_membership": true,
+    "portfolio_ledger": true
   }
 }

@@ -192,7 +192,13 @@
         const codes = [...local.selected];
         if (!codes.length) return alert("请先选择至少一个候选因子");
         if (codes.length > 12) return alert("一次最多带入 12 个因子，请先缩小选择范围");
-        config.openComposeFactors(codes, local.scoreMode);
+        const pool = poolMeta();
+        config.openComposeFactors(codes, local.scoreMode, {
+          poolId: local.poolId,
+          poolName: pool?.pool_name || local.poolId,
+          poolType: pool?.pool_type || local.poolType,
+          costBps: local.costBps,
+        });
       };
       document.querySelectorAll("[data-pool-sort]").forEach(header => {
         const activate = () => { const key = header.dataset.poolSort; if (local.sortKey === key) local.sortDirection = local.sortDirection === "desc" ? "asc" : "desc"; else { local.sortKey = key; local.sortDirection = key === "factor_code" || key === "rank_ic_q_value" ? "asc" : "desc"; } renderTable(); };
