@@ -17,8 +17,13 @@ async function waitForUniverse(page, label) {
   try {
     await page.waitForFunction(expected => {
       const title = document.querySelector("#cps-nav-title")?.textContent || "";
-      const note = document.querySelector("#cps-stocks .holding-count-note")?.textContent || "";
-      return title.includes(expected) && note.includes("约束已满足");
+      const ledgerTitle = document.querySelector("#cps-stocks .ledger-heading h3")?.textContent || "";
+      const memberCells = document.querySelectorAll(
+        "#cps-stocks td.index-member-yes, #cps-stocks td.index-member-no",
+      ).length;
+      return title.includes(expected)
+        && ledgerTitle.includes("合成组合月度持仓账本")
+        && memberCells > 0;
     }, label, { timeout: 180000 });
   } catch (error) {
     const diagnostics = await page.evaluate(() => ({
@@ -72,8 +77,8 @@ try {
   await page.waitForFunction(() => {
     const yes = document.querySelectorAll("#cps-stocks td.index-member-yes").length;
     const no = document.querySelectorAll("#cps-stocks td.index-member-no").length;
-    const note = document.querySelector("#cps-stocks .holding-count-note")?.textContent || "";
-    return yes > 0 && no === 0 && note.includes("中证A500成分");
+    const ledger = document.querySelector("#cps-stocks")?.textContent || "";
+    return yes > 0 && no === 0 && ledger.includes("仅中证A500成分");
   }, null, { timeout: 180000 });
   const a500 = await holdingMemberStats(page);
   if (!a500.total || a500.no !== 0) {
