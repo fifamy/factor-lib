@@ -228,7 +228,11 @@
     return number(value);
   }
 
-  function auditCustomForwardReturnConsistency(benchmarkRows, factorRows, tolerance = 1e-12) {
+  function auditCustomForwardReturnConsistency(benchmarkRows, factorRows, membership = null, tolerance = 1e-12) {
+    if (typeof membership === "number") { tolerance = membership; membership = null; }
+    const membershipKeys = Array.isArray(membership)
+      ? new Set(membership.map(row => `${row.signal_date}|${row.stock_code}`))
+      : null;
     const benchmarkByKey = new Map();
     for (const row of benchmarkRows || []) {
       const value = validForwardReturn(row.fwd_return);
@@ -236,12 +240,17 @@
       benchmarkByKey.set(`${row.signal_date}|${row.stock_code}`, value);
     }
     let comparedRows = 0, missingBenchmarkRows = 0;
-    const mismatches = [];
+    const mismatches = [], missingBenchmarkKeys = [];
     for (const row of factorRows || []) {
       const value = validForwardReturn(row.fwd_return);
       if (value === null) continue;
       const key = `${row.signal_date}|${row.stock_code}`;
-      if (!benchmarkByKey.has(key)) { missingBenchmarkRows++; continue; }
+      if (membershipKeys && !membershipKeys.has(key)) continue;
+      if (!benchmarkByKey.has(key)) {
+        missingBenchmarkRows++;
+        if (missingBenchmarkKeys.length < 5) missingBenchmarkKeys.push({ factor_code: row.factor_code, signal_date: row.signal_date, stock_code: row.stock_code });
+        continue;
+      }
       comparedRows++;
       const benchmarkValue = benchmarkByKey.get(key);
       if (Math.abs(value - benchmarkValue) > tolerance && mismatches.length < 5) {
@@ -252,6 +261,10 @@
     if (mismatches.length) {
       const first = mismatches[0];
       throw new Error(`前瞻收益分片不一致：${first.factor_code} ${first.signal_date} ${first.stock_code}，因子分片 ${first.factor_return}、基准分片 ${first.benchmark_return}`);
+    }
+    if (missingBenchmarkRows) {
+      const first = missingBenchmarkKeys[0];
+      throw new Error(`LNMV 基准前瞻收益缺键：上传成分域内有 ${missingBenchmarkRows} 条因子收益缺少基准键；首个为 ${first.factor_code} ${first.signal_date} ${first.stock_code}`);
     }
     return { comparedRows, missingBenchmarkRows, mismatchCount: 0 };
   }
@@ -356,7 +369,8 @@
         long_short_return: visible(qReturns[4] === null || qReturns[0] === null ? null : qReturns[4] - qReturns[0]),
         long_excess_return: visible(qReturns[4] === null || benchmarkReturn === null ? null : qReturns[4] - benchmarkReturn),
         short_avoid_return: visible(qReturns[0] === null || benchmarkReturn === null ? null : benchmarkReturn - qReturns[0]),
-        q1_turnover: q1Turnover, q5_turnover: q5Turnover, long_short_turnover: q1Turnover + q5Turnover,
+        q1_turnover: q1Turnover, q5_turnover: q5Turnover,
+        long_short_turnover: q1Turnover === null || q5Turnover === null ? null : q1Turnover + q5Turnover,
       });
     }
     return output;
@@ -696,7 +710,7 @@
         const registered = await config.registerCustomPool({ poolId, poolName, membership: aligned.rows });
         const progress = message => { button.textContent = "检验中…"; renderCustomStatus(message); };
         const data = await config.loadCustomFactorData(codes, "raw", progress);
-        const returnAudit = auditCustomForwardReturnConsistency(data.benchmarkRows, data.factorRows);
+        const returnAudit = auditCustomForwardReturnConsistency(data.benchmarkRows, data.factorRows, aligned.rows);
         const monthly = codes.flatMap(code => computeCustomFactorMonthly({
           factorCode: code, scoreMode: "raw", poolId, membership: aligned.rows,
           benchmarkRows: data.benchmarkRows, factorRows: data.factorRows,
@@ -899,7 +913,7 @@
     function showLoading() { element("pool-overview").innerHTML = '<div class="pool-skeleton"></div>'; element("pool-style-summary").innerHTML = '<div class="pool-skeleton pool-skeleton-wide"></div>'; element("pool-factor-table-body").innerHTML = '<tr><td colspan="14" class="empty">加载月度、样本外与冗余证据…</td></tr>'; }
     function showError(error) { const message = text(error?.message || error || "未知错误"); element("pool-overview").innerHTML = `<div class="pool-error"><b>股票池研究数据加载失败</b><span>${message}</span><button id="pool-retry" type="button">重试</button></div>`; element("pool-style-summary").innerHTML = '<div class="empty">等待数据恢复</div>'; element("pool-factor-table-body").innerHTML = '<tr><td colspan="14" class="empty">暂无可显示结果</td></tr>'; element("pool-retry").onclick = render; }
     function renderMethodology() {
-      element("pool-methodology-content").innerHTML = `<dl><div><dt>严格时点</dt><dd>收益截止日只纳入 return_date 已经到达的结果；样本外训练在选择日 T 仅使用 return_date≤T 的历史，杜绝未来收益泄漏。</dd></div><div><dt>时间窗口</dt><dd>固定窗口取截至收益截止日最近 60/36/12 个有效信号月；全部历史和自定义窗口同样先排除尚未实现的收益。各窗口都会重新计算 IC、HAC t、FDR、分层与成本后收益。</dd></div><div><dt>自定义股票池</dt><dd>上传日期按月份映射到系统实际信号月末；代码和月份去重。页面分别披露上传成员、有效收益以及因子得分与收益共同样本，后者每月至少 30 只才可检验。有限前瞻收益均保留，包括 -100%；基准为当期上传股票池等权收益。</dd></div><div><dt>样本外</dt><dd>自定义池只用上传并成功对齐的月份作为自己的研究日历，不用全市场月份填补空档。每季度滚动选因子，训练覆盖和未来覆盖均须至少 75%；未来 3/6/12 月折可切换，历史截止视图只展示当时已经完成的折。</dd></div><div><dt>收益一致性</dt><dd>全市场 LNMV 分片只提供月份映射和股票池等权基准；运行时逐键核对它与所选因子分片在共同股票-月份上的前瞻收益，不一致即停止检验。</dd></div><div><dt>成本与冗余</dt><dd>成本按 Q5/Q1 实际等权换手率逐月扣减；冗余基于不晚于收益截止日的最新同截面因子得分 Spearman 相关，|ρ|≥0.75 归为同簇，并单独显示截面日期。</dd></div><div><dt>候选分</dt><dd>一次最多选择 12 个因子，候选分和冗余仅在已选因子内相对比较。候选分由样本外 35%、稳定性 25%、近期强度 15%、成本后 Q5 超额夏普 15%、独特性 10%组成；少于 4 个样本外折、少于 12 个有效月、方向反转或禁止组合的因子不评分。</dd></div><div><dt>统计边界</dt><dd>动态窗口的 p 值采用 HAC t 的双侧正态近似，再在当前股票池内执行 BH-FDR；候选分用于研究排序，不是未来收益承诺。</dd></div></dl>`;
+      element("pool-methodology-content").innerHTML = `<dl><div><dt>严格时点</dt><dd>收益截止日只纳入 return_date 已经到达的结果；样本外训练在选择日 T 仅使用 return_date≤T 的历史，杜绝未来收益泄漏。</dd></div><div><dt>时间窗口</dt><dd>固定窗口取截至收益截止日最近 60/36/12 个有效信号月；全部历史和自定义窗口同样先排除尚未实现的收益。各窗口都会重新计算 IC、HAC t、FDR、分层与成本后收益。</dd></div><div><dt>自定义股票池</dt><dd>上传日期按月份映射到系统实际信号月末；代码和月份去重。页面分别披露上传成员、有效收益以及因子得分与收益共同样本，后者每月至少 30 只才可检验。有限前瞻收益均保留，包括 -100%；基准为当期上传股票池等权收益。</dd></div><div><dt>样本外</dt><dd>自定义池只用上传并成功对齐的月份作为自己的研究日历，不用全市场月份填补空档。每季度滚动选因子，训练覆盖和未来覆盖均须至少 75%；未来 3/6/12 月折可切换，历史截止视图只展示当时已经完成的折。</dd></div><div><dt>收益一致性</dt><dd>全市场 LNMV 分片只提供月份映射和股票池等权基准；运行时在上传成分域内逐键核对它与所选因子分片的前瞻收益，数值不一致或因子分片存在有限收益但 LNMV 缺键时均停止检验。</dd></div><div><dt>成本与冗余</dt><dd>成本按 Q5/Q1 实际等权换手率逐月扣减；无有效样本时换手保持为空。冗余基于不晚于收益截止日的最新同截面因子得分 Spearman 相关，|ρ|≥0.75 归为同簇，并单独显示截面日期。</dd></div><div><dt>候选分</dt><dd>一次最多选择 12 个因子，候选分和冗余仅在已选因子内相对比较。候选分由样本外 35%、稳定性 25%、近期强度 15%、成本后 Q5 超额夏普 15%、独特性 10%组成；少于 4 个样本外折、少于 12 个有效月、方向反转或禁止组合的因子不评分。</dd></div><div><dt>统计边界</dt><dd>动态窗口的 p 值采用 HAC t 的双侧正态近似，再在当前股票池内执行 BH-FDR；候选分用于研究排序，不是未来收益承诺。</dd></div></dl>`;
     }
     function resize() { if (local.quantileChart) local.quantileChart.resize(); if (local.monthlyChart) local.monthlyChart.resize(); }
     return { render, resize, closeDetail };
