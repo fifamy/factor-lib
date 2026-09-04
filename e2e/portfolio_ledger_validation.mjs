@@ -97,8 +97,55 @@ try {
       && text.includes("尚无新增已完成月份")
       && text.includes("决策前样本按当前数据与当前引擎复算");
   }, null, { timeout: 300000 });
+
+  // 历史回放回归：把冻结边界回拨一个真实信号月，使现有最后一个完整持有期
+  // 成为“新增月”，验证首次追加后重复载入不会用重算值覆盖已保存记录。
+  await page.evaluate(({ comboName, replayCutoff }) => {
+    const key = "factorlib.compose.myCombos.v1";
+    const rows = JSON.parse(localStorage.getItem(key) || "[]");
+    const combo = rows.find(item => item.name === comboName);
+    if (!combo) throw new Error("未找到冻结组合");
+    combo.decisionSignalDate = replayCutoff;
+    combo.trackingLedger = [];
+    localStorage.setItem(key, JSON.stringify(rows));
+  }, { comboName: "E2E冻结组合", replayCutoff: previousMonth });
+
+  const loadFrozenCombo = async () => {
+    await page.locator("#combo-manager-btn").click();
+    await page.locator('.combo-tab[data-tab="mine"]').click();
+    const card = page.locator(".my-combo-card", { hasText: "E2E冻结组合" });
+    await card.waitFor({ state: "visible", timeout: 15000 });
+    await card.getByRole("button", { name: "载入", exact: true }).click();
+    await page.waitForFunction(() => {
+      const text = document.querySelector("#cps-stocks")?.textContent || "";
+      return text.includes("已追加 1 个决策后月份");
+    }, null, { timeout: 300000 });
+  };
+
+  await page.reload({ waitUntil: "networkidle", timeout: 90000 });
+  await loadFrozenCombo();
+  const firstAppend = await page.evaluate(comboName => {
+    const rows = JSON.parse(localStorage.getItem("factorlib.compose.myCombos.v1") || "[]");
+    const combo = rows.find(item => item.name === comboName);
+    return combo?.trackingLedger || [];
+  }, "E2E冻结组合");
+  if (firstAppend.length !== 1 || firstAppend[0].signal_date !== initial.selectedMonth) {
+    throw new Error(`冻结账本没有只追加真实下一期：${JSON.stringify(firstAppend)}`);
+  }
+  const firstAppendJson = JSON.stringify(firstAppend);
+
+  await page.reload({ waitUntil: "networkidle", timeout: 90000 });
+  await loadFrozenCombo();
+  const secondAppend = await page.evaluate(comboName => {
+    const rows = JSON.parse(localStorage.getItem("factorlib.compose.myCombos.v1") || "[]");
+    const combo = rows.find(item => item.name === comboName);
+    return combo?.trackingLedger || [];
+  }, "E2E冻结组合");
+  if (JSON.stringify(secondAppend) !== firstAppendJson) {
+    throw new Error("重复载入改写了已冻结的跟踪月份");
+  }
   if (pageErrors.length) throw new Error(`页面错误：${pageErrors.join("\n")}`);
-  console.log(`✅ 月度组合账本浏览器验收通过 · ${initial.monthCount}个已完成调仓月 · 最新${initial.selectedMonth}`);
+  console.log(`✅ 月度组合账本浏览器验收通过 · ${initial.monthCount}个已完成调仓月 · 最新${initial.selectedMonth} · 历史回放追加1期且重复载入未覆盖`);
 } finally {
   await browser.close();
 }

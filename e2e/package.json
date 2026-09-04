@@ -7,8 +7,10 @@
     "accessibility-validation": "node accessibility_validation.mjs",
     "benchmark-compose-optimizer": "node benchmark_compose_optimizer.mjs",
     "compose-validation": "node run_compose_validation.mjs",
+    "compose-walk-forward-validation": "node compose_walk_forward_validation.mjs",
     "index-universe-validation": "node index_universe_validation.mjs",
     "portfolio-ledger-validation": "node portfolio_ledger_validation.mjs",
+    "frozen-tracking-baseline-validation": "node frozen_tracking_baseline_validation.mjs",
     "stock-pool-research-validation": "node stock_pool_research_validation.mjs",
     "online-compose-validation": "node online_compose_validation.mjs",
     "test": "node --check ../frontend/app.js && node --check ../frontend/factor_audit.js && node --check test.mjs"

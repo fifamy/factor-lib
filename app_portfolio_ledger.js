@@ -185,7 +185,38 @@
     return { average, annualized: average * 12, count: regular.length };
   }
 
-  const api = { build, turnover, changeRows, regularTurnoverStats };
+  function clonePeriod(period) {
+    return {
+      ...period,
+      holdings: (period?.holdings || []).map(row => ({ ...row })),
+      changes: (period?.changes || []).map(row => ({ ...row })),
+      added: (period?.added || []).slice(),
+      removed: (period?.removed || []).slice(),
+    };
+  }
+
+  function appendOnlyAfterCutoff(fullLedger, storedLedger, cutoff) {
+    const stored = [];
+    const known = new Set();
+    for (const period of storedLedger || []) {
+      const signalDate = String(period?.signal_date || "");
+      if (!signalDate || known.has(signalDate)) continue;
+      stored.push(clonePeriod(period));
+      known.add(signalDate);
+    }
+    const appendedSignalDates = [];
+    for (const period of fullLedger || []) {
+      const signalDate = String(period?.signal_date || "");
+      if (!signalDate || signalDate <= cutoff || known.has(signalDate)) continue;
+      stored.push(clonePeriod(period));
+      known.add(signalDate);
+      appendedSignalDates.push(signalDate);
+    }
+    stored.sort((left, right) => String(left.signal_date).localeCompare(String(right.signal_date)));
+    return { trackingLedger: stored, appendedSignalDates };
+  }
+
+  const api = { build, turnover, changeRows, regularTurnoverStats, appendOnlyAfterCutoff };
   global.FactorPortfolioLedger = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);

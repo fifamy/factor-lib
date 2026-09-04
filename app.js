@@ -6512,16 +6512,13 @@ function appendFrozenTracking(fullBacktest) {
   const combo = frozenContextCombo();
   const cutoff = context?.decisionSignalDate || combo?.decisionSignalDate || "";
   if (!combo || !cutoff || !Array.isArray(fullBacktest?.ledger)) return fullBacktest;
-  const stored = (combo.trackingLedger || []).map(cloneLedgerPeriod);
-  const known = new Set(stored.map(period => period.signal_date));
-  let changed = false;
-  for (const period of fullBacktest.ledger) {
-    if (period.signal_date <= cutoff || known.has(period.signal_date)) continue;
-    stored.push(cloneLedgerPeriod(period));
-    known.add(period.signal_date);
-    changed = true;
-  }
-  stored.sort((left, right) => String(left.signal_date).localeCompare(String(right.signal_date)));
+  const appendResult = FactorPortfolioLedger.appendOnlyAfterCutoff(
+    fullBacktest.ledger,
+    combo.trackingLedger || [],
+    cutoff,
+  );
+  const stored = appendResult.trackingLedger;
+  const changed = appendResult.appendedSignalDates.length > 0;
   combo.trackingLedger = stored;
   if (changed && context.source === "mine") {
     persistMyCombos();
@@ -6665,6 +6662,78 @@ function comboSummary(combo) {
     .join(" + ") + `，top${combo.N}，${composeConstraintModeLabel(constraintMode)}，${indexUniverseModeLabel(universe)}，单边${Number(combo.costBps ?? 20)}bp`;
 }
 
+function comboTrackingDecayStatus(combo) {
+  const cutoff = String(combo?.decisionSignalDate || "");
+  const rows = (Array.isArray(combo?.trackingLedger) ? combo.trackingLedger : [])
+    .filter(period => period?.signal_date && (!cutoff || String(period.signal_date) > cutoff))
+    .map(period => ({
+      signalDate: String(period.signal_date),
+      ret: snapshotNumber(period.net_return),
+    }))
+    .filter(period => period.ret !== null)
+    .sort((left, right) => left.signalDate.localeCompare(right.signalDate));
+  const returns = rows.map(row => Math.max(-1, row.ret));
+  const cumulative = returns.length
+    ? returns.reduce((nav, value) => nav * (1 + value), 1) - 1
+    : null;
+  const last3Returns = returns.slice(-3);
+  const last3 = last3Returns.length === 3
+    ? last3Returns.reduce((nav, value) => nav * (1 + value), 1) - 1
+    : null;
+  const metrics = metricsFromReturns(returns);
+  const baseAnnual = snapshotNumber(combo?.decisionMetrics?.annual);
+  const latestSignalDate = rows.at(-1)?.signalDate || "";
+  if (!returns.length) {
+    return {
+      level: "muted", label: "等待新数据", n: 0, cumulative, last3,
+      maxDrawdown: null, latestSignalDate,
+      reason: "决策后尚无新增已完成持有期，不生成强弱结论。",
+    };
+  }
+  if (returns.length < 3) {
+    return {
+      level: "muted", label: "样本不足", n: returns.length, cumulative, last3,
+      maxDrawdown: metrics?.mdd ?? null, latestSignalDate,
+      reason: "决策后有效月份不足 3 个，仅记录表现，不触发衰减判断。",
+    };
+  }
+  const drawdown = metrics?.mdd ?? null;
+  if ((drawdown !== null && drawdown <= -0.10) || (last3 !== null && last3 <= -0.08)) {
+    const reason = drawdown !== null && drawdown <= -0.10
+      ? "决策后最大回撤达到 10% 预警线。"
+      : "最近 3 个已完成月份累计收益达到 -8% 预警线。";
+    return { level: "alert", label: "衰减预警", n: returns.length, cumulative, last3, maxDrawdown: drawdown, latestSignalDate, reason };
+  }
+  const annualGap = baseAnnual !== null && metrics?.annual !== null ? metrics.annual - baseAnnual : null;
+  if ((cumulative !== null && cumulative <= 0) || (last3 !== null && last3 <= 0) || (annualGap !== null && annualGap <= -0.15)) {
+    let reason = "决策后累计收益尚未转正。";
+    if (last3 !== null && last3 <= 0) reason = "最近 3 个已完成月份累计收益为负。";
+    if (annualGap !== null && annualGap <= -0.15) reason = "决策后年化收益较冻结时全历史年化低 15 个百分点以上。";
+    return { level: "watch", label: "继续观察", n: returns.length, cumulative, last3, maxDrawdown: drawdown, latestSignalDate, reason };
+  }
+  return {
+    level: "strong", label: "未见明显衰减", n: returns.length, cumulative, last3,
+    maxDrawdown: drawdown, latestSignalDate,
+    reason: "决策后累计与最近 3 个月收益为正，且未触发回撤预警线。",
+  };
+}
+
+function comboTrackingDecayBadge(combo) {
+  if (!combo?.decisionDate) return "";
+  const status = comboTrackingDecayStatus(combo);
+  return `<span class="tracking-decay-badge tracking-decay-${status.level}" title="${htmlAttr(status.reason)}">月度监控 · ${htmlText(status.label)}</span>`;
+}
+
+function comboTrackingDecayHtml(combo) {
+  if (!combo?.decisionDate) return "";
+  const status = comboTrackingDecayStatus(combo);
+  return `<div class="tracking-decay-summary tracking-decay-${status.level}" role="status">
+    <b>${htmlText(status.label)}</b>
+    <span>决策后 ${numText(status.n, 0)} 个月${status.latestSignalDate ? ` · 最新信号 ${htmlText(status.latestSignalDate)}` : ""} · 累计 ${signedPctText(status.cumulative)} · 近 3 月 ${signedPctText(status.last3)} · 最大回撤 ${pctText(status.maxDrawdown)}</span>
+    <small>${htmlText(status.reason)}这是按月规则预警，不是数据错误认定或未来收益承诺。</small>
+  </div>`;
+}
+
 function comboDetailHtml(combo) {
   const rows = cloneComposeFactors(combo.factors).map(f => {
     const meta = state.catalog.find(x => x.code === f.code);
@@ -6683,6 +6752,7 @@ function comboDetailHtml(combo) {
     <p class="published-meta">组合约束：${composeConstraintModeLabel(normalizeConstraintMode(combo.constraintMode))}；股票池：${indexUniverseModeLabel(combo.universe)}；单边成本：${Number(combo.costBps ?? 20)}bp</p>
     <table class="published-detail-table"><thead><tr><th>因子</th><th>名称</th><th>方向</th><th>口径</th><th>权重</th><th>过滤</th></tr></thead><tbody>${rows}</tbody></table>
     ${combo.decisionDate ? `<div class="frozen-combo-meta"><b>冻结决策</b><span>决策日 ${htmlText(combo.decisionDate)}</span><span>因子数据截面 ${htmlText(combo.dataCutoffDate || "—")}</span><span>最后已完成信号 ${htmlText(combo.decisionSignalDate || "—")}</span><span>收益实现截止 ${htmlText(combo.realizedReturnEndDate || "—")}</span><span>已追加 ${Number(combo.trackingLedger?.length || 0)} 个跟踪月</span>${metricText ? `<span>${htmlText(metricText)}</span>` : ""}</div>` : ""}
+    ${comboTrackingDecayHtml(combo)}
     <p class="published-meta">${combo.created_at ? "创建：" + htmlText(combo.created_at) + " · " : ""}ID：${htmlText(combo.id)}</p>
   </div>`;
 }
@@ -6871,6 +6941,7 @@ function renderComboCards(box, combos, source, emptyText) {
           <b class="published-combo-name">${htmlText(combo.name)}</b>
           <span class="published-n">top${htmlText(combo.N)}</span>
           ${tags}
+          ${comboTrackingDecayBadge(combo)}
         </div>
         <div class="published-actions">
           <button class="cpsn-btn library-load" data-source="${safeSource}" data-id="${safeId}"${disabled}>载入</button>
@@ -9900,8 +9971,192 @@ function renderComboValidationWarning(payload) {
   if ((payload.rankStats?.n || 0) < 36) {
     warnings.push(`样本不足：多因子合成有效月份 ${numText(payload.rankStats?.n, 0)}，不足 36，排序信号和组合收益只适合做初步观察`);
   }
+  if (normalizeIndexUniverseConfig(payload?.universe).mode === "min_share") {
+    warnings.push("最低指数成分占比是持仓配额，不是静态选股域：RankIC 与 10 组收益按原 Word 候选域计算；组合收益、持仓、换手和拥挤度按实际配额持仓计算，两类结果已分域标注，不直接作同口径数值比较");
+  }
   if (Array.isArray(payload.correlation?.warnings)) warnings.push(...payload.correlation.warnings);
   return warnings.length ? `<div class="validation-short-sample"><b>提示</b><span>${htmlText(warnings.join("；").replace(/。+$/u, ""))}。</span></div>` : "";
+}
+
+function comboValidationDomainLabels(rawUniverse) {
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  if (universe.mode === "min_share") {
+    return {
+      ranking: "排序信号（原 Word 候选域）",
+      grouping: "10组单调性（原 Word 候选域）",
+      portfolio: `组合表现（${indexUniverseModeLabel(universe)}实际持仓域）`,
+      note: `<div class="combo-domain-map" role="note" aria-label="最低指数成分占比检验域说明">
+        <span><b>IC / 10 组</b>原 Word 候选域，用于判断合成分数的全候选截面排序能力</span>
+        <span><b>净值 / 持仓 / 换手 / 拥挤度</b>${htmlText(indexUniverseModeLabel(universe))}的实际配额持仓域</span>
+      </div>`,
+    };
+  }
+  const scope = universe.mode === "all" ? "原 Word 股票池" : indexUniverseModeLabel(universe);
+  return {
+    ranking: `排序信号（${scope}）`,
+    grouping: `10组单调性（${scope}）`,
+    portfolio: `组合表现（${scope}）`,
+    note: "",
+  };
+}
+
+function renderComboWalkForwardShell(payload) {
+  const factorCount = payload?.factors?.length || 0;
+  const industryUnsupported = normalizeConstraintMode(payload?.constraintMode) === "industry";
+  const tooManyFactors = factorCount > 4;
+  const disabled = industryUnsupported || tooManyFactors;
+  const reason = industryUnsupported
+    ? "行业中性持仓的滚动权重搜索尚未接入；当前不会退回无约束口径代算。"
+    : (tooManyFactors ? "滚动权重搜索最多支持 4 个因子，以控制浏览器计算量。" : "");
+  return `<div class="combo-walk-forward">
+    <div class="combo-walk-forward-head">
+      <div>
+        <b>严格时点化权重检验</b>
+        <span>季度决策日 T 仅使用当时已经实现的收益重选非负权重；训练 36/60 个月，未来 3/6/12 个月，训练与未来覆盖均不低于 75%。</span>
+      </div>
+      <button id="combo-walk-forward-run" class="cpsn-btn" type="button"${disabled ? " disabled" : ""}>运行滚动样本外</button>
+    </div>
+    <p class="combo-walk-forward-boundary">方向、分数口径、过滤阈值、TopN、股票池和成本在运行前固定；每折只重新选择因子权重。结果使用完整历史，不受当前页面区间筛选影响。阈值与 TopN 尚未自动滚动调优，不把本项表述为全部参数样本外闭环。</p>
+    ${reason ? `<div class="combo-walk-forward-unavailable">${htmlText(reason)}</div>` : ""}
+    <div id="combo-walk-forward-result" aria-live="polite"><div class="empty">按需运行，避免进入页面时阻塞持仓和常规检验。</div></div>
+  </div>`;
+}
+
+function comboWalkForwardStatus(summary) {
+  if ((summary?.nFolds || 0) < 4) return { label: "样本不足", level: "muted" };
+  const positive = Number(summary.oosPositiveRate);
+  const annual = Number(summary.oosAnnualMedian);
+  if (Number.isFinite(positive) && positive >= 0.6 && Number.isFinite(annual) && annual > 0) {
+    return { label: "相对稳健", level: "strong" };
+  }
+  if (Number.isFinite(positive) && positive < 0.4) return { label: "样本外预警", level: "alert" };
+  return { label: "继续观察", level: "watch" };
+}
+
+function renderComboWalkForwardResult(result, codes, context = {}) {
+  const summaries = result?.summaries || [];
+  const folds = result?.folds || [];
+  if (!summaries.length) {
+    return `<div class="empty">没有同时满足训练与未来覆盖门槛的完整折；短历史股票池应继续保留“样本外不足”，不放宽时点规则。</div>`;
+  }
+  const summaryRows = summaries.map(row => {
+    const status = comboWalkForwardStatus(row);
+    return `<tr>
+      <td>${row.trainMonths}M → ${row.horizonMonths}M</td>
+      <td><span class="validation-signal signal-${status.level}"><span class="signal-dot">${status.level === "alert" ? "!" : (status.level === "strong" ? "●" : "○")}</span>${status.label}</span></td>
+      <td>${numText(row.nFolds, 0)}</td>
+      <td>${pctText(row.trainCoverageMean)}</td>
+      <td>${pctText(row.futureCoverageMean)}</td>
+      <td>${signedPctText(row.oosAnnualMedian)}</td>
+      <td>${signedNumText(row.oosSharpeMedian, 2)}</td>
+      <td>${pctText(row.oosPositiveRate)}</td>
+      <td>${htmlText(row.latestSelectionDate)}</td>
+      <td class="combo-walk-forward-weights">${htmlText(walkForwardWeightLabel(row.latestWeights, codes))}</td>
+    </tr>`;
+  }).join("");
+  const foldRows = folds.slice().reverse().map(row => `<tr>
+    <td>${htmlText(row.selectionDate)}</td>
+    <td>${row.trainMonths}M → ${row.horizonMonths}M</td>
+    <td>${htmlText(row.trainEndDate)}</td>
+    <td>${htmlText(row.testEndDate)}</td>
+    <td>${pctText(row.trainCoverage)}</td>
+    <td>${pctText(row.futureCoverage)}</td>
+    <td>${signedPctText(row.trainAnnual)}</td>
+    <td>${signedPctText(row.oosAnnual)}</td>
+    <td>${signedNumText(row.oosSharpe, 2)}</td>
+    <td class="combo-walk-forward-weights">${htmlText(walkForwardWeightLabel(row.weights, codes))}</td>
+  </tr>`).join("");
+  return `<div class="combo-walk-forward-evidence">
+    <div class="combo-walk-forward-meta">
+      <span><b>数据截止</b>${htmlText(context.dataCutoffDate || "—")}</span>
+      <span><b>收益截止</b>${htmlText(context.returnEndDate || "—")}</span>
+      <span><b>权重候选</b>${numText(result.candidateCount, 0)} 组</span>
+      <span><b>优化目标</b>训练期成本后夏普</span>
+      <span><b>单边成本</b>${numText(context.costBps, 0)} bp</span>
+    </div>
+    <div class="combo-walk-forward-scroll">
+      <table class="validation-table combo-walk-forward-table">
+        <thead><tr><th>训练 → 未来</th><th>判断</th><th>有效折</th><th>训练覆盖</th><th>未来覆盖</th><th>样本外年化中位数</th><th>样本外夏普中位数</th><th>正收益折占比</th><th>最近决策日</th><th>最近冻结权重</th></tr></thead>
+        <tbody>${summaryRows}</tbody>
+      </table>
+    </div>
+    <details class="combo-walk-forward-folds">
+      <summary>查看全部 ${numText(folds.length, 0)} 个有效折</summary>
+      <div class="combo-walk-forward-scroll"><table class="validation-table combo-walk-forward-fold-table">
+        <thead><tr><th>决策日 T</th><th>训练 → 未来</th><th>训练收益截止</th><th>未来收益截止</th><th>训练覆盖</th><th>未来覆盖</th><th>训练年化</th><th>样本外年化</th><th>样本外夏普</th><th>冻结权重</th></tr></thead>
+        <tbody>${foldRows}</tbody>
+      </table></div>
+    </details>
+    <p class="validation-note">“训练收益截止”必须不晚于决策日 T，“未来收益截止”必须晚于 T。汇总使用各折年化和夏普的中位数，重叠未来窗口不拼接成一条伪独立净值。</p>
+  </div>`;
+}
+
+function bindComboWalkForwardHandler(renderSeq) {
+  const button = document.getElementById("combo-walk-forward-run");
+  const output = document.getElementById("combo-walk-forward-result");
+  if (!button || !output || button.disabled) return;
+  button.onclick = async () => {
+    const factors = cloneComposeFactors(state.composeFactors);
+    const N = state.composeN;
+    const universe = normalizeIndexUniverseConfig(state.composeUniverse);
+    const costBps = Number(state.composeCostBps);
+    const nF = factors.length;
+    button.disabled = true;
+    button.textContent = "准备数据…";
+    output.innerHTML = `<div class="loading">正在读取组合历史矩阵…</div>`;
+    try {
+      await ensureDB({
+        stockMeta: false,
+        descriptors: false,
+        benchmarks: false,
+        corr: false,
+        indexWeights: isIndexUniverse(universe),
+      });
+      await ensureComposeUniverseData(universe);
+      if (isIndexUniverse(universe) && !state.hasIndexWeights) throw new Error("指数股票池数据不可用");
+      await ensureComposeData();
+      await ensureComposeBase();
+      if (isComposeRenderStale(renderSeq)) return;
+      const months = await loadComposeOptimizerMonths(factors, universe, null);
+      const conds = factors
+        .map((factor, index) => factor.thr !== null && Number.isFinite(Number(factor.thr))
+          ? { idx: index, op: factor.op, thr: Number(factor.thr) }
+          : null)
+        .filter(Boolean);
+      const step = nF === 1 ? 1 : (nF === 2 ? 0.05 : (nF === 3 ? 0.1 : 0.2));
+      const grid = nF === 1 ? [[1]] : weightGrid(nF, step);
+      const result = await rollingWeightWalkForward(months, grid, N, conds, {
+        trainWindows: [36, 60],
+        horizons: [3, 6, 12],
+        minCoverage: 0.75,
+        currentWeights: factors.map(factor => Number(factor.weight)),
+        universe,
+        costPerSide: costBps / 10000,
+        yieldEvery: 2,
+        onProgress: (completed, total) => {
+          if (isComposeRenderStale(renderSeq)) return;
+          button.textContent = `计算权重 ${completed}/${total}`;
+          const loading = output.querySelector(".loading");
+          if (loading) loading.textContent = `正在计算 ${total} 组候选权重的完整月度收益… ${completed}/${total}`;
+        },
+      });
+      if (isComposeRenderStale(renderSeq)) return;
+      output.innerHTML = renderComboWalkForwardResult(result, factors.map(factor => factor.code), {
+        dataCutoffDate: state.dataManifest?.latest_data_date,
+        returnEndDate: state.dataManifest?.return_end_date,
+        costBps,
+      });
+    } catch (error) {
+      if (!isComposeRenderStale(renderSeq)) {
+        output.innerHTML = `<div class="combo-walk-forward-unavailable">滚动样本外计算失败：${htmlText(error?.message || error)}</div>`;
+      }
+    } finally {
+      if (!isComposeRenderStale(renderSeq)) {
+        button.disabled = false;
+        button.textContent = "重新运行滚动样本外";
+      }
+    }
+  };
 }
 
 async function renderComposeValidation(renderSeq) {
@@ -9928,6 +10183,7 @@ async function renderComposeValidation(renderSeq) {
     const ex800 = payload.benchmarkExcess?.CSI800?.annual ?? null;
     const groupMono = payload.group10?.monotonicity ?? null;
     const ls = payload.group10?.ls;
+    const domains = comboValidationDomainLabels(payload.universe);
     const horizons = (payload.icDecay?.stats || []).map(s => `<tr>
       <td>${s.h}M</td><td>${signalValue("rank_ic", s.mean, signedPctText(s.mean))}</td><td>${signalValue("ic_ir", s.ir, signedNumText(s.ir, 2))}</td><td>${signalValue("sample_months", s.n, numText(s.n, 0))}</td>
     </tr>`).join("");
@@ -9937,9 +10193,10 @@ async function renderComposeValidation(renderSeq) {
           <b>多因子检验</b>：多因子检验先看合成分数的 RankIC 与 IC_IR，再看 TopN 组合收益和 10 组单调性。若多因子收益高但 RankIC 不稳定，或组合内因子高度相关，应降低结论权重。
         </div>
         ${renderComboValidationWarning(payload)}
+        ${domains.note}
         <div class="combo-validation-grid">
           <div class="combo-validation-section">
-            <h4>排序信号</h4>
+            <h4>${htmlText(domains.ranking)}</h4>
             ${validationValueBlock([
               ["RankIC均值", signalValue("rank_ic", rank.mean, signedPctText(rank.mean))],
               ["IC_IR", signalValue("ic_ir", rank.ir, signedNumText(rank.ir, 2))],
@@ -9948,7 +10205,7 @@ async function renderComposeValidation(renderSeq) {
             ])}
           </div>
           <div class="combo-validation-section">
-            <h4>组合表现</h4>
+            <h4>${htmlText(domains.portfolio)}</h4>
             ${validationValueBlock([
               ["TopN年化", signalValue("ann_return", m?.annual, pctText(m?.annual))],
               ["夏普", signalValue("sharpe", m?.sharpe, signedNumText(m?.sharpe, 2))],
@@ -9959,7 +10216,7 @@ async function renderComposeValidation(renderSeq) {
             ])}
           </div>
           <div class="combo-validation-section">
-            <h4>10组单调性</h4>
+            <h4>${htmlText(domains.grouping)}</h4>
             ${validationValueBlock([
               ["10组单调性", signalValue("monotonicity", groupMono, numText(groupMono, 2))],
               ["LS毛年化", signalValue("ann_return", ls?.annual, pctText(ls?.annual))],
@@ -9970,9 +10227,11 @@ async function renderComposeValidation(renderSeq) {
         </div>
         <h4 class="validation-subtitle">前瞻期 RankIC</h4>
         <table class="validation-table"><thead><tr><th>前瞻期</th><th>RankIC均值</th><th>IC_IR</th><th>样本月数</th></tr></thead><tbody>${horizons}</tbody></table>
-        <h4 class="validation-subtitle">10组收益</h4>
+        <h4 class="validation-subtitle">10组收益 · ${htmlText(domains.ranking)}</h4>
         ${renderComboGroup10Table(payload.group10)}
         <div id="combo-group10-chart" class="combo-validation-chart"></div>
+        <h4 class="validation-subtitle">季度滚动权重样本外</h4>
+        ${renderComboWalkForwardShell(payload)}
         <h4 class="validation-subtitle">样本切片</h4>
         ${renderComboRollingTable(payload)}
         <div id="combo-rolling36-chart" class="combo-validation-chart"></div>
@@ -9989,12 +10248,13 @@ async function renderComposeValidation(renderSeq) {
         ${renderComboCorrelationCrowdingDiagnostics(payload)}
         <h4 class="validation-subtitle">与最佳单因子对比</h4>
         ${renderComboSingleComparison(payload)}
-        <p class="validation-note">当前检验跟随多因子合成编辑器的方向、权重、阈值、TopN、回测区间和分数口径；行业中性约束影响组合表现，但 RankIC 检验仍衡量合成分数本身的排序能力。</p>
+        <p class="validation-note">当前检验跟随多因子合成编辑器的方向、权重、阈值、TopN、回测区间和分数口径；行业中性约束影响组合表现，但 RankIC 检验仍衡量合成分数本身的排序能力。最低指数成分占比模式已将候选域排序证据与实际配额持仓证据分开标注。</p>
       </div>
     `;
     renderComboGroup10Chart(payload);
     renderComboRolling36mChart(payload);
     bindComboAblationHandlers();
+    bindComboWalkForwardHandler(renderSeq);
   } catch (err) {
     if (isComposeRenderStale(renderSeq)) return;
     console.error("render compose validation failed:", err);
@@ -10641,7 +10901,7 @@ function weightGrid(nF, step) {
 // 在 JS 内存里对一组权重跑合成回测，返回指标。conds=[{idx,op,thr}] 先过滤再打分。
 function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = null, costPerSide = COST_PER_SIDE) {
   let prev = null, nav = 1;
-  const navArr = [1], retArr = [];
+  const navArr = [1], retArr = [], rows = [];
   for (const mo of monthsArr) {
     const returnMonth = String(mo.returnDt || mo.returnYm || "").slice(0, 7);
     if (range.endMonth && returnMonth && returnMonth > range.endMonth) break;
@@ -10674,6 +10934,13 @@ function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = nu
       const net = netLongOnlyReturn(0, turnover, !prev, costPerSide);
       if (includeInMetrics) {
         nav *= (1 + net); navArr.push(nav); retArr.push(net);
+        rows.push({
+          signalDate: String(mo.signalDate || mo.signalDt || mo.ym || ""),
+          returnDate: String(mo.returnDate || mo.returnDt || mo.returnYm || ""),
+          signalMonth: String(mo.signalDt || mo.ym || mo.signalDate || "").slice(0, 7),
+          returnMonth,
+          ret: net,
+        });
       }
       prev = cur;
       continue;
@@ -10719,10 +10986,18 @@ function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = nu
       : netLongOnlyReturn(gross, turnover, !prev, costPerSide);
     if (includeInMetrics) {
       nav *= (1 + net); navArr.push(nav); retArr.push(net);
+      rows.push({
+        signalDate: String(mo.signalDate || mo.signalDt || mo.ym || ""),
+        returnDate: String(mo.returnDate || mo.returnDt || mo.returnYm || ""),
+        signalMonth: String(mo.signalDt || mo.ym || mo.signalDate || "").slice(0, 7),
+        returnMonth,
+        ret: net,
+      });
     }
     prev = cur;
   }
-  return computeMetrics(retArr, navArr);
+  const metrics = computeMetrics(retArr, navArr);
+  return range.returnSeries === true ? { metrics, rows } : metrics;
 }
 
 function nthLargestFinite(values, n) {
@@ -10802,6 +11077,251 @@ async function searchOptimalWeights(monthsArr, grid, N, conds, options = {}) {
   return best;
 }
 
+function uniqueWeightGrid(grid, currentWeights = []) {
+  const rows = [];
+  const seen = new Set();
+  const add = raw => {
+    const values = (raw || []).map(Number);
+    const total = values.reduce((sum, value) => sum + (Number.isFinite(value) && value > 0 ? value : 0), 0);
+    if (!values.length || total <= 0) return;
+    const normalized = values.map(value => (Number.isFinite(value) && value > 0 ? value / total : 0));
+    const key = normalized.map(value => value.toFixed(8)).join("|");
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push(normalized);
+  };
+  (grid || []).forEach(add);
+  add(currentWeights);
+  return rows;
+}
+
+function medianFinite(values) {
+  const clean = (values || []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!clean.length) return null;
+  const middle = Math.floor(clean.length / 2);
+  return clean.length % 2 ? clean[middle] : (clean[middle - 1] + clean[middle]) / 2;
+}
+
+function walkForwardWeightLabel(weights, codes) {
+  return (codes || []).map((code, index) => `${code} ${(Number(weights?.[index] || 0) * 100).toFixed(0)}%`).join(" / ");
+}
+
+async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {}) {
+  const trainWindows = options.trainWindows || [36, 60];
+  const horizons = options.horizons || [3, 6, 12];
+  const minCoverage = Number.isFinite(Number(options.minCoverage)) ? Number(options.minCoverage) : 0.75;
+  const universe = options.universe || null;
+  const costPerSide = Number.isFinite(Number(options.costPerSide)) ? Number(options.costPerSide) : COST_PER_SIDE;
+  const yieldEvery = Math.max(1, Math.floor(Number(options.yieldEvery) || 2));
+  const yieldFn = typeof options.yieldFn === "function" ? options.yieldFn : yieldToEventLoop;
+  const calendar = (monthsArr || [])
+    .filter(month => month && month.signalDate)
+    .slice()
+    .sort((left, right) => String(left.signalDate).localeCompare(String(right.signalDate)));
+  const candidates = uniqueWeightGrid(grid, options.currentWeights || []);
+  const candidateSeries = [];
+  for (let index = 0; index < candidates.length; index += 1) {
+    const detail = backtestWeights(
+      calendar,
+      candidates[index],
+      N,
+      conds,
+      { returnSeries: true },
+      universe,
+      costPerSide,
+    );
+    candidateSeries.push(new Map((detail?.rows || []).map(row => [row.signalDate, row])));
+    const completed = index + 1;
+    if (typeof options.onProgress === "function") options.onProgress(completed, candidates.length);
+    if (completed < candidates.length && completed % yieldEvery === 0) await yieldFn();
+  }
+
+  const folds = [];
+  const decisions = calendar
+    .map((month, index) => ({ month, index }))
+    .filter(item => [3, 6, 9, 12].includes(Number(String(item.month.signalDate).slice(5, 7))));
+  for (const trainMonths of trainWindows) {
+    for (const decision of decisions) {
+      const expectedTrain = calendar.slice(decision.index - trainMonths, decision.index);
+      if (expectedTrain.length < trainMonths) continue;
+      const selectionDate = String(decision.month.signalDate);
+      let best = null;
+      for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
+        const series = candidateSeries[candidateIndex];
+        const trainRows = expectedTrain
+          .map(month => series.get(String(month.signalDate)))
+          .filter(row => row && row.returnDate && row.returnDate <= selectionDate);
+        const coverage = trainRows.length / trainMonths;
+        if (coverage + 1e-12 < minCoverage) continue;
+        const metrics = metricsFromReturns(trainRows.map(row => row.ret));
+        if (!metrics) continue;
+        const sharpe = Number(metrics.sharpe);
+        const annual = Number(metrics.annual);
+        const score = Number.isFinite(sharpe) ? sharpe : (Number.isFinite(annual) ? -1e6 + annual : -Infinity);
+        if (!best || score > best.score || (score === best.score && annual > best.annual)) {
+          best = {
+            candidateIndex,
+            score,
+            annual,
+            metrics,
+            trainRows,
+            trainCoverage: coverage,
+          };
+        }
+      }
+      if (!best) continue;
+      const bestSeries = candidateSeries[best.candidateIndex];
+      const trainEndDate = best.trainRows.reduce(
+        (latest, row) => String(row.returnDate) > latest ? String(row.returnDate) : latest,
+        "",
+      );
+      for (const horizonMonths of horizons) {
+        const expectedFuture = calendar.slice(decision.index, decision.index + horizonMonths);
+        if (expectedFuture.length < horizonMonths) continue;
+        const futureRows = expectedFuture
+          .map(month => bestSeries.get(String(month.signalDate)))
+          .filter(row => row && row.returnDate && row.returnDate > selectionDate);
+        const futureCoverage = futureRows.length / horizonMonths;
+        if (futureCoverage + 1e-12 < minCoverage) continue;
+        const futureMetrics = metricsFromReturns(futureRows.map(row => row.ret));
+        if (!futureMetrics) continue;
+        const testEndDate = futureRows.reduce(
+          (latest, row) => String(row.returnDate) > latest ? String(row.returnDate) : latest,
+          "",
+        );
+        folds.push({
+          selectionDate,
+          trainMonths,
+          horizonMonths,
+          trainStartDate: String(expectedTrain[0].signalDate),
+          trainEndDate,
+          testEndDate,
+          trainNMonths: best.trainRows.length,
+          futureNMonths: futureRows.length,
+          trainCoverage: best.trainCoverage,
+          futureCoverage,
+          trainAnnual: best.metrics.annual,
+          trainSharpe: best.metrics.sharpe,
+          oosAnnual: futureMetrics.annual,
+          oosSharpe: futureMetrics.sharpe,
+          oosMaxDrawdown: futureMetrics.mdd,
+          oosPositive: futureMetrics.annual > 0,
+          weights: candidates[best.candidateIndex].slice(),
+        });
+      }
+    }
+  }
+
+  const summaries = [];
+  for (const trainMonths of trainWindows) {
+    for (const horizonMonths of horizons) {
+      const rows = folds.filter(row => row.trainMonths === trainMonths && row.horizonMonths === horizonMonths);
+      if (!rows.length) continue;
+      const latest = rows[rows.length - 1];
+      summaries.push({
+        trainMonths,
+        horizonMonths,
+        nFolds: rows.length,
+        trainCoverageMean: rows.reduce((sum, row) => sum + row.trainCoverage, 0) / rows.length,
+        futureCoverageMean: rows.reduce((sum, row) => sum + row.futureCoverage, 0) / rows.length,
+        oosAnnualMedian: medianFinite(rows.map(row => row.oosAnnual)),
+        oosSharpeMedian: medianFinite(rows.map(row => row.oosSharpe)),
+        oosPositiveRate: rows.filter(row => row.oosPositive).length / rows.length,
+        latestSelectionDate: latest.selectionDate,
+        latestWeights: latest.weights.slice(),
+      });
+    }
+  }
+  return { folds, summaries, candidateCount: candidates.length, minCoverage };
+}
+
+async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null) {
+  const normalizedFactors = cloneComposeFactors(factors);
+  const codes = normalizedFactors.map(factor => factor.code);
+  const nF = codes.length;
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  const idxMap = new Map(_cpsMatrixCodes.map((key, index) => [key, index]));
+  const matrixIndexes = normalizedFactors.map(factor => idxMap.get(composeShardKey(factor.code, factor.scoreMode)));
+  if (matrixIndexes.some(index => index === undefined)) {
+    throw new Error("当前因子数据未加载完整，请稍后重试");
+  }
+  const scoreCols = normalizedFactors
+    .map((factor, index) => `${effectiveScoreSql(`m.f${matrixIndexes[index]}`, factor.side)} AS f${index}`)
+    .join(", ");
+  const scorePresenceSql = matrixIndexes.map(index => `m.f${index} IS NOT NULL`).join(" AND ");
+  const optimizerEndSql = rangeWhere(null, endMonth, "p.period_return_date");
+  const optimizerAvailabilityJoin = composeUniverseAvailabilityJoin(universe, "m.trade_date");
+  const optimizerWeightJoin = composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code");
+  const optimizerMemberSelect = isRestrictedUniverse(universe) ? "iw.stock_code IS NOT NULL" : "FALSE";
+  const optimizerUniverseFilter = ["index_only", "stock_pool"].includes(universe.mode) ? "AND iw.stock_code IS NOT NULL" : "";
+  const res = await state.db.query(`
+    WITH optimizer_period_dates AS (
+      SELECT m.trade_date, MAX(m.return_date) AS period_return_date
+      FROM cps_matrix m
+      ${optimizerAvailabilityJoin}
+      GROUP BY m.trade_date
+    ),
+    optimizer_candidates AS (
+      SELECT m.*, ${optimizerMemberSelect} AS is_index_member,
+             ${isRestrictedUniverse(universe) ? "TRUE" : "FALSE"} AS index_available
+      FROM cps_matrix m
+      ${optimizerWeightJoin}
+      WHERE ${scorePresenceSql} ${optimizerUniverseFilter}
+    )
+    SELECT strftime(p.trade_date,'%Y-%m-%d') AS signal_date,
+           strftime(p.trade_date,'%Y-%m') AS signal_ym,
+           strftime(COALESCE(p.period_return_date, p.trade_date),'%Y-%m-%d') AS return_date,
+           strftime(COALESCE(p.period_return_date, p.trade_date),'%Y-%m') AS return_ym,
+           m.stock_code,
+           ${scoreCols},
+           m.fwd_return,
+           m.is_index_member,
+           m.index_available,
+           p.period_return_date IS NOT NULL AS period_complete
+    FROM optimizer_period_dates p
+    LEFT JOIN optimizer_candidates m ON m.trade_date = p.trade_date
+    WHERE TRUE${optimizerEndSql}
+    ORDER BY p.trade_date, m.stock_code
+  `);
+  const tmp = new Map();
+  const periodBySignal = new Map();
+  for (const row of res.toArray()) {
+    const signalDate = String(row.signal_date || "");
+    if (!tmp.has(signalDate)) tmp.set(signalDate, new Map());
+    const month = tmp.get(signalDate);
+    periodBySignal.set(signalDate, {
+      signalDate,
+      signalYm: String(row.signal_ym || signalDate).slice(0, 7),
+      returnDate: String(row.return_date || signalDate),
+      returnYm: String(row.return_ym || row.return_date || signalDate).slice(0, 7),
+      periodComplete: row.period_complete === true || row.period_complete === 1,
+    });
+    if (row.stock_code && !month.has(row.stock_code)) {
+      month.set(row.stock_code, {
+        scores: codes.map((_, index) => row[`f${index}`]),
+        ret: row.fwd_return,
+        isIndexMember: row.is_index_member === true || row.is_index_member === 1,
+        indexAvailable: row.index_available === true || row.index_available === 1,
+      });
+    }
+  }
+  const months = [];
+  for (const [signalDate, stocksByCode] of tmp) {
+    const period = periodBySignal.get(signalDate);
+    const stocks = [...stocksByCode].map(([code, row]) => ({ code, ...row }));
+    months.push({
+      ym: period.signalYm,
+      signalDate: period.signalDate,
+      signalDt: period.signalYm,
+      returnDate: period.returnDate,
+      returnDt: period.returnYm,
+      periodComplete: period.periodComplete,
+      stocks,
+    });
+  }
+  return months.sort((left, right) => left.signalDate.localeCompare(right.signalDate));
+}
+
 async function optimizeWeights() {
   const box = document.getElementById("cps-opt");
   const codes = state.composeFactors.map(f => f.code);
@@ -10828,97 +11348,8 @@ async function optimizeWeights() {
   }
   await ensureComposeData();
   await ensureComposeBase();
-
-  const idxMap = new Map(_cpsMatrixCodes.map((key, i) => [key, i]));
-  const matrixIndexes = state.composeFactors.map(f => idxMap.get(composeShardKey(f.code, f.scoreMode)));
-  if (matrixIndexes.some(idx => idx === undefined)) {
-    box.innerHTML = `<div class="empty" style="color:#c14545">当前因子数据未加载完整，请稍后重试</div>`;
-    return;
-  }
-  const scoreCols = state.composeFactors
-    .map((f, i) => `${effectiveScoreSql(`m.f${matrixIndexes[i]}`, f.side)} AS f${i}`)
-    .join(", ");
-  const scorePresenceSql = matrixIndexes.map(idx => `m.f${idx} IS NOT NULL`).join(" AND ");
-  // 为与主回测“先全期计算换手，再按收益实现月 slice”一致，开始月之前的
-  // 持仓必须保留用于确定区间首月换手；只将结束月下推。按整期日期过滤仍会
-  // 保留个别收益缺失的成员。
-  const optimizerEndSql = rangeWhere(null, state.composeEnd, "p.period_return_date");
-  const optimizerAvailabilityJoin = composeUniverseAvailabilityJoin(universe, "m.trade_date");
-  const optimizerWeightJoin = composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code");
-  const optimizerMemberSelect = isRestrictedUniverse(universe) ? "iw.stock_code IS NOT NULL" : "FALSE";
-  const optimizerUniverseFilter = ["index_only", "stock_pool"].includes(universe.mode) ? "AND iw.stock_code IS NOT NULL" : "";
-  // 使用所有所选因子分数均非空的股票。不能用“任一单因子 Top500 并集”裁剪：
-  // 一只股票可以在每个单因子都排 500 名以后，却因多项分数均衡而进入合成 TopN。
-  const res = await state.db.query(`
-    WITH optimizer_period_dates AS (
-      SELECT m.trade_date, MAX(m.return_date) AS period_return_date
-      FROM cps_matrix m
-      ${optimizerAvailabilityJoin}
-      GROUP BY m.trade_date
-    ),
-    optimizer_candidates AS (
-      SELECT m.*, ${optimizerMemberSelect} AS is_index_member,
-             ${isRestrictedUniverse(universe) ? "TRUE" : "FALSE"} AS index_available
-      FROM cps_matrix m
-      ${optimizerWeightJoin}
-      WHERE ${scorePresenceSql} ${optimizerUniverseFilter}
-    )
-    SELECT strftime(p.trade_date,'%Y-%m') AS signal_ym,
-           strftime(COALESCE(p.period_return_date, p.trade_date),'%Y-%m') AS return_ym,
-           m.stock_code,
-           ${scoreCols},
-           m.fwd_return,
-           m.is_index_member,
-           m.index_available,
-           p.period_return_date IS NOT NULL AS period_complete
-    FROM optimizer_period_dates p
-    LEFT JOIN optimizer_candidates m ON m.trade_date = p.trade_date
-    WHERE TRUE${optimizerEndSql}
-    ORDER BY p.trade_date, m.stock_code
-  `);
-  // 组织成 months[signal_ym]，信号月与收益月分开保留，避免把
-  // 已完成持有期与末期未完成信号月合并。
-  const tmp = new Map();   // signal_ym -> Map(code -> {scores:[], ret, cnt})
-  const returnMonthBySignal = new Map();
-  const completedBySignal = new Map();
-  for (const r of res.toArray()) {
-    if (!tmp.has(r.signal_ym)) tmp.set(r.signal_ym, new Map());
-    const mm = tmp.get(r.signal_ym);
-    if (r.period_complete === true || r.period_complete === 1) completedBySignal.set(r.signal_ym, true);
-    const previousReturnMonth = returnMonthBySignal.get(r.signal_ym);
-    if (!previousReturnMonth || String(r.return_ym) > String(previousReturnMonth)) {
-      returnMonthBySignal.set(r.signal_ym, r.return_ym);
-    }
-    if (r.stock_code && !mm.has(r.stock_code)) {
-      mm.set(r.stock_code, {
-        scores: codes.map((_, i) => r[`f${i}`]),
-        ret: r.fwd_return,
-        cnt: nF,
-        isIndexMember: r.is_index_member === true || r.is_index_member === 1,
-        indexAvailable: r.index_available === true || r.index_available === 1,
-      });
-    }
-  }
-  const monthsArr = [];
-  for (const [signalYm, mm] of tmp) {
-    const returnYm = returnMonthBySignal.get(signalYm) || signalYm;
-    const stocks = [];
-    for (const [code, o] of mm) if (o.cnt === nF) stocks.push({
-      code,
-      scores: o.scores,
-      ret: o.ret,
-      isIndexMember: o.isIndexMember,
-      indexAvailable: o.indexAvailable,
-    });
-    monthsArr.push({
-      ym: signalYm,
-      signalDt: signalYm,
-      returnDt: returnYm,
-      periodComplete: completedBySignal.get(signalYm) === true,
-      stocks,
-    });
-  }
-  monthsArr.sort((a, b) => a.ym < b.ym ? -1 : 1);
+  // 使用全部所选因子均有分数的股票；不能按单因子 Top500 并集裁剪。
+  const monthsArr = await loadComposeOptimizerMonths(state.composeFactors, universe, state.composeEnd);
 
   // 过滤条件（JS 端）：因子在 codes 中的位置 idx + op + 阈值
   const conds = state.composeFactors

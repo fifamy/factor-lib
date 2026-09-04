@@ -359,6 +359,7 @@ def test_frontend_weighted_and_optimizer_paths_keep_signal_and_return_months_sep
     metrics = _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns")
     industry_paths = _source_between(source, "function industryNeutralPickRows", "function matrixBacktestSql")
     optimizer = _source_between(source, "function backtestWeights", "async function optimizeWeights")
+    optimizer_loader = _source_between(source, "async function loadComposeOptimizerMonths", "async function optimizeWeights")
     optimize_ui = _source_between(source, "async function optimizeWeights", "function bindComposeButtons")
 
     result = _frontend_eval_json([
@@ -390,8 +391,9 @@ def test_frontend_weighted_and_optimizer_paths_keep_signal_and_return_months_sep
     assert result["weightedX"] == []
     assert result["groupedSignals"] == ["2026-06", "2026-07"]
     assert result["optimizedNavEnd"] is None
-    assert "strftime(p.trade_date,'%Y-%m') AS signal_ym" in optimize_ui
-    assert "AS return_ym" in optimize_ui
+    assert "strftime(p.trade_date,'%Y-%m') AS signal_ym" in optimizer_loader
+    assert "AS return_ym" in optimizer_loader
+    assert "loadComposeOptimizerMonths(state.composeFactors, universe, state.composeEnd)" in optimize_ui
 
 
 def test_compose_long_only_total_loss_never_creates_negative_nav():
@@ -598,6 +600,7 @@ def test_compose_latest_render_and_validation_share_selection_contract():
 def test_optimizer_uses_full_common_universe_not_single_factor_top500_union():
     source = APP_JS.read_text(encoding="utf-8")
     optimizer = _source_between(source, "async function optimizeWeights", "function bindComposeButtons")
+    loader = _source_between(source, "async function loadComposeOptimizerMonths", "async function optimizeWeights")
     result = _frontend_eval_json([
         "const rows = [];",
         "for (let i = 0; i < 500; i += 1) {",
@@ -612,20 +615,21 @@ def test_optimizer_uses_full_common_universe_not_single_factor_top500_union():
 
     assert result["factorRanks"] == [501, 501]
     assert result["compositeTop"] == "BALANCED"
-    assert "WITH cand AS" not in optimizer
-    assert "JOIN cand" not in optimizer
-    assert "rk <= 500" not in optimizer
-    assert 'const optimizerEndSql = rangeWhere(null, state.composeEnd, "p.period_return_date")' in optimizer
-    assert "WITH optimizer_period_dates AS" in optimizer
-    assert "MAX(m.return_date) AS period_return_date" in optimizer
-    assert "optimizer_candidates AS" in optimizer
-    assert "LEFT JOIN optimizer_candidates m ON m.trade_date = p.trade_date" in optimizer
-    assert "COALESCE(p.period_return_date, p.trade_date)" in optimizer
-    assert "WHERE TRUE${optimizerEndSql}" in optimizer
-    assert "periodComplete: completedBySignal.get(signalYm) === true" in optimizer
+    assert "WITH cand AS" not in loader
+    assert "JOIN cand" not in loader
+    assert "rk <= 500" not in loader
+    assert 'const optimizerEndSql = rangeWhere(null, endMonth, "p.period_return_date")' in loader
+    assert "WITH optimizer_period_dates AS" in loader
+    assert "MAX(m.return_date) AS period_return_date" in loader
+    assert "optimizer_candidates AS" in loader
+    assert "LEFT JOIN optimizer_candidates m ON m.trade_date = p.trade_date" in loader
+    assert "COALESCE(p.period_return_date, p.trade_date)" in loader
+    assert "WHERE TRUE${optimizerEndSql}" in loader
+    assert "periodComplete: row.period_complete === true" in loader
+    assert "loadComposeOptimizerMonths(state.composeFactors, universe, state.composeEnd)" in optimizer
     assert "range: { startMonth: state.composeStart, endMonth: state.composeEnd }" in optimizer
-    assert "if (stocks.length) monthsArr.push" not in optimizer
-    assert "stocks.length >= state.composeN" not in optimizer
+    assert "if (stocks.length) months.push" not in loader
+    assert "stocks.length >= state.composeN" not in loader
 
 
 def test_optimizer_matches_historical_when_pool_is_underfilled_or_filter_has_zero_candidates():
@@ -766,6 +770,128 @@ def test_optimizer_search_yields_every_two_grid_points_and_matches_manual_best()
 
     assert result["yields"] == 2
     assert result["searched"] == result["manual"]
+
+
+def test_combo_rolling_weight_walk_forward_excludes_future_returns_from_training():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+    metrics = _source_between(source, "function computeMetrics(rets, navs)", "function monthIdFromLabel")
+    optimizer_helpers = _source_between(source, "function backtestWeights", "async function loadComposeOptimizerMonths")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
+        helpers,
+        metrics,
+        optimizer_helpers,
+        "const iso = d => d.toISOString().slice(0, 10);",
+        "const monthEnd = index => new Date(Date.UTC(2020, index + 1, 0));",
+        "const months = [];",
+        "for (let index = 0; index < 48; index += 1) {",
+        "  const signal = monthEnd(index);",
+        "  const returnDate = monthEnd(index + 2);",
+        "  const futureRegime = iso(signal) >= '2023-03-31';",
+        "  months.push({",
+        "    signalDate: iso(signal), signalDt: iso(signal).slice(0, 7),",
+        "    returnDate: iso(returnDate), returnDt: iso(returnDate).slice(0, 7), periodComplete: true,",
+        "    stocks: [",
+        "      {code: 'A', scores: [1, 0], ret: futureRegime ? -0.50 : 0.05},",
+        "      {code: 'B', scores: [0, 1], ret: futureRegime ? 5.00 : -0.05},",
+        "    ],",
+        "  });",
+        "}",
+        "(async () => {",
+        "  const out = await rollingWeightWalkForward(months, [[1, 0], [0, 1]], 1, [], {",
+        "    trainWindows: [36], horizons: [3], minCoverage: 0.75, costPerSide: 0,",
+        "    yieldFn: async () => {},",
+        "  });",
+        "  console.log(JSON.stringify(out.folds[0]));",
+        "})();",
+    ])
+
+    assert result["selectionDate"] == "2023-03-31"
+    assert result["weights"] == [1, 0]
+    assert result["trainEndDate"] <= result["selectionDate"]
+    assert result["testEndDate"] > result["selectionDate"]
+    assert result["trainCoverage"] >= 0.75
+    assert result["futureCoverage"] >= 0.75
+    assert result["oosAnnual"] < 0
+
+
+def test_combo_walk_forward_ui_states_scope_and_all_required_windows():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    shell = _source_between(source, "function renderComboWalkForwardShell", "function comboWalkForwardStatus")
+    handler = _source_between(source, "function bindComboWalkForwardHandler", "async function renderComposeValidation")
+
+    assert "训练 36/60 个月" in shell
+    assert "未来 3/6/12 个月" in shell
+    assert "覆盖均不低于 75%" in shell
+    assert "阈值与 TopN 尚未自动滚动调优" in shell
+    assert "trainWindows: [36, 60]" in handler
+    assert "horizons: [3, 6, 12]" in handler
+    assert "minCoverage: 0.75" in handler
+    assert "loadComposeOptimizerMonths(factors, universe, null)" in handler
+    assert ".combo-walk-forward-scroll" in styles
+
+
+def test_minimum_index_share_validation_separates_candidate_and_holding_domains():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    labels = _source_between(source, "function comboValidationDomainLabels", "function renderComboWalkForwardShell")
+    renderer = _source_between(source, "async function renderComposeValidation", "// ============ 暂存组合")
+
+    assert "最低指数成分占比是持仓配额，不是静态选股域" in source
+    assert "RankIC 与 10 组收益按原 Word 候选域计算" in source
+    assert "组合收益、持仓、换手和拥挤度按实际配额持仓计算" in source
+    assert "排序信号（原 Word 候选域）" in labels
+    assert "实际持仓域" in labels
+    assert "domains.ranking" in renderer
+    assert "domains.portfolio" in renderer
+    assert ".combo-domain-map" in styles
+
+
+def test_frozen_combo_monthly_decay_alerts_are_rule_based_and_short_sample_safe():
+    source = APP_JS.read_text(encoding="utf-8")
+    metrics = _source_between(source, "function computeMetrics(rets, navs)", "function monthIdFromLabel")
+    status_fn = _source_between(source, "function comboTrackingDecayStatus", "function comboTrackingDecayBadge")
+    result = _frontend_eval_json([
+        "const snapshotNumber = value => value === null || value === undefined || !Number.isFinite(Number(value)) ? null : Number(value);",
+        metrics,
+        status_fn,
+        "const combo = returns => ({",
+        "  decisionSignalDate: '2026-01-31', decisionMetrics: {annual: 0.20},",
+        "  trackingLedger: returns.map((value, index) => ({signal_date: `2026-0${index + 2}-28`, net_return: value})),",
+        "});",
+        "console.log(JSON.stringify({",
+        "  waiting: comboTrackingDecayStatus(combo([])),",
+        "  short: comboTrackingDecayStatus(combo([0.01, -0.01])),",
+        "  alert: comboTrackingDecayStatus(combo([-0.03, -0.03, -0.03])),",
+        "  watch: comboTrackingDecayStatus(combo([0.02, -0.01, -0.01])),",
+        "  strong: comboTrackingDecayStatus(combo([0.02, 0.01, 0.01])),",
+        "}));",
+    ])
+
+    assert result["waiting"]["label"] == "等待新数据"
+    assert result["short"]["label"] == "样本不足"
+    assert result["alert"]["label"] == "衰减预警"
+    assert result["watch"]["label"] == "继续观察"
+    assert result["strong"]["label"] == "未见明显衰减"
+    assert "规则预警，不是数据错误认定或未来收益承诺" in source
+    assert "最近 3 个已完成月份累计收益达到 -8% 预警线" in source
+    assert "决策后最大回撤达到 10% 预警线" in source
+
+
+def test_frozen_combo_cards_expose_monthly_decay_badges_and_detail():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    cards = _source_between(source, "function renderComboCards", "function renderPublishedCombos")
+    detail = _source_between(source, "function comboDetailHtml", "function comboToTempCompare")
+
+    assert "comboTrackingDecayBadge(combo)" in cards
+    assert "comboTrackingDecayHtml(combo)" in detail
+    assert ".tracking-decay-badge" in styles
+    assert ".tracking-decay-alert" in styles
+    assert ".tracking-decay-strong" in styles
 
 
 def test_optimizer_source_avoids_full_object_sort_and_has_benchmark_script():
@@ -1840,8 +1966,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.0</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.0 ' in index
+    assert "<title>因子库 v2.4.1</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.1 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

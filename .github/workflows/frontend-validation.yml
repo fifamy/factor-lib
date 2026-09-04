@@ -69,6 +69,7 @@ jobs:
             node --check app.js
           fi
           node --check e2e/compose_validation.mjs
+          node --check e2e/compose_walk_forward_validation.mjs
           node --check e2e/run_compose_validation.mjs
           node --check e2e/online_compose_validation.mjs
           node --check e2e/index_universe_validation.mjs
@@ -112,12 +113,21 @@ jobs:
           PERF_BUDGET_MULTIPLIER: "1.5"
         run: |
           node e2e/online_compose_validation.mjs
+          node e2e/compose_walk_forward_validation.mjs "$ONLINE_E2E_URL"
           node e2e/index_universe_validation.mjs "$ONLINE_E2E_URL"
           node e2e/portfolio_ledger_validation.mjs "$ONLINE_E2E_URL"
           node e2e/stock_pool_research_validation.mjs "$ONLINE_E2E_URL"
 
       - name: Validate Supabase anonymous boundary
         run: python3 scripts/check_supabase_admin_preflight.py
+
+      - name: Validate Supabase private tracking ledger
+        if: vars.SUPABASE_TRACKING_ENABLED == 'true'
+        run: python3 scripts/check_supabase_tracking_preflight.py --write-test
+
+      - name: Report disabled Supabase private tracking validation
+        if: vars.SUPABASE_TRACKING_ENABLED != 'true'
+        run: echo "::notice::tracking_combos迁移尚未标记启用；已跳过私密跟踪账本在线写入验收。迁移后设置仓库变量SUPABASE_TRACKING_ENABLED=true即可启用强制门槛。"
 
       - name: Validate credentialed admin read flow when secrets are configured
         env:
