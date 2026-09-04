@@ -1,24 +1,24 @@
 {
-  "generated_at": "2026-09-04T01:22:10+00:00",
-  "deploy_version": "20260904092154",
+  "generated_at": "2026-09-04T03:55:13+00:00",
+  "deploy_version": "20260904115457",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
   "source_revision": "9bd830e9b21dfabcd6553f3a307f20713a1069b4d61c25634830708d06c01fb4",
   "source_revision_kind": "content_sha256",
   "source_content_sha256": "9bd830e9b21dfabcd6553f3a307f20713a1069b4d61c25634830708d06c01fb4",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "86f7bdb49fd52e6d5a967bde45a73fc6f07c6795",
+  "pages_worktree_git_commit_before_sync": "9194dc66427b4148205196190715fcc2eaa1b3bf",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "c23c3b2a099e760f5c324193436f7f5d27de9cea139ff386b918883f1e8c391a",
+      "sha256": "e07f61ea702af634e9b5044f8322b15f3e400dec761caec5451ef55c36458987",
       "bytes": 42425
     },
     "app.js": {
-      "sha256": "edb7e7810b72eb379e45c8bd3c26f3c3dc33f1eef08af2de340dfe2d751b81aa",
-      "bytes": 544075
+      "sha256": "89fd74a36a2dda9374a4aad1080b09926cb955931f29e1a5c39ae5b5cce1ec7c",
+      "bytes": 549569
     },
     "app_portfolio_ledger.js": {
       "sha256": "f704a82bc2b366fdf482c87f1f801ec85e1ec8050e332f49e2edb53bfe7a7904",
@@ -37,7 +37,7 @@
       "bytes": 59666
     },
     "factor_audit.html": {
-      "sha256": "8b1cdf950bfc17044eaaba4922ec4a32a1225e5430823f59dd38d10632835978",
+      "sha256": "a1723e37865da8797f82775a2807d698c06d653e1ccf7329aa11dd2fc679650c",
       "bytes": 8627
     },
     "factor_audit.js": {
@@ -77,7 +77,7 @@
       "bytes": 1641199
     },
     "data/factor_audit/index.json": {
-      "sha256": "344977feded730871cbccb801a0fd761e74e75645f4e8105ab9cd987c65b56f2",
+      "sha256": "4f71e5191cee5f0e2e7b4b2584ee21b774dd768b650bec9cca06be7d57ff9195",
       "bytes": 275191
     }
   },

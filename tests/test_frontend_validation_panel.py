@@ -802,19 +802,80 @@ def test_combo_rolling_weight_walk_forward_excludes_future_returns_from_training
         "(async () => {",
         "  const out = await rollingWeightWalkForward(months, [[1, 0], [0, 1]], 1, [], {",
         "    trainWindows: [36], horizons: [3], minCoverage: 0.75, costPerSide: 0,",
+        "    topNCandidates: [1, 2],",
+        "    thresholdProfiles: [{name: '不限', conds: []}, {name: '双因子严格', conds: [{idx: 0, op: '>=', thr: 0.5}, {idx: 1, op: '>=', thr: 0.5}]}],",
         "    yieldFn: async () => {},",
         "  });",
-        "  console.log(JSON.stringify(out.folds[0]));",
+        "  console.log(JSON.stringify({fold: out.folds[0], candidateCount: out.candidateCount}));",
         "})();",
     ])
 
-    assert result["selectionDate"] == "2023-03-31"
-    assert result["weights"] == [1, 0]
-    assert result["trainEndDate"] <= result["selectionDate"]
-    assert result["testEndDate"] > result["selectionDate"]
-    assert result["trainCoverage"] >= 0.75
-    assert result["futureCoverage"] >= 0.75
-    assert result["oosAnnual"] < 0
+    fold = result["fold"]
+    assert result["candidateCount"] == 8
+    assert fold["selectionDate"] == "2023-03-31"
+    assert fold["weights"] == [1, 0]
+    assert fold["topN"] == 1
+    assert fold["thresholdName"] == "不限"
+    assert fold["thresholds"] == []
+    assert fold["trainEndDate"] <= fold["selectionDate"]
+    assert fold["testEndDate"] > fold["selectionDate"]
+    assert fold["trainCoverage"] >= 0.75
+    assert fold["futureCoverage"] >= 0.75
+    assert fold["oosAnnual"] < 0
+
+
+def test_combo_walk_forward_parameter_grid_includes_topn_and_threshold_profiles():
+    source = APP_JS.read_text(encoding="utf-8")
+    optimizer_helpers = _source_between(source, "function backtestWeights", "async function loadComposeOptimizerMonths")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
+        "const normalizeComposeScoreMode = value => value === 'neutral' ? 'neutral' : 'raw';",
+        "const normalizeScoreMode = normalizeComposeScoreMode;",
+        "const normalizeSide = value => Number(value) === -1 ? -1 : 1;",
+        "const cloneComposeFactors = factors => factors.map(factor => ({...factor, op: factor.op === '<=' ? '<=' : '>=', thr: factor.thr == null ? null : Number(factor.thr)}));",
+        optimizer_helpers,
+        "const factors = [",
+        "  {code: 'A', weight: 1, side: 1, scoreMode: 'raw', op: '>=', thr: null},",
+        "  {code: 'B', weight: 1, side: 1, scoreMode: 'raw', op: '>=', thr: null},",
+        "];",
+        "const topNs = walkForwardTopNCandidates(30);",
+        "const profiles = walkForwardThresholdProfiles(factors, []);",
+        "const weightRows = Array.from({length: 11}, (_, i) => [i / 10, 1 - i / 10]);",
+        "const grid = walkForwardParameterCandidates(weightRows, [1, 1], 30, [], {topNCandidates: topNs, thresholdProfiles: profiles});",
+        "console.log(JSON.stringify({topNs, profileNames: profiles.map(x => x.name), count: grid.candidates.length, weights: grid.weightCandidateCount, topNCount: grid.topNCandidateCount, thresholdCount: grid.thresholdProfileCount}));",
+    ])
+
+    assert result == {
+        "topNs": [20, 30, 50],
+        "profileNames": ["不设阈值", "标准分 0", "标准分 ±0.5"],
+        "count": 99,
+        "weights": 11,
+        "topNCount": 3,
+        "thresholdCount": 3,
+    }
+
+
+def test_walk_forward_window_rebases_initial_position_cost():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
+    metrics = _source_between(source, "function computeMetrics(rets, navs)", "function monthIdFromLabel")
+    optimizer_helpers = _source_between(source, "function backtestWeights", "async function loadComposeOptimizerMonths")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0.002;",
+        "const MIN_VALID_FORWARD_RETURN = -1.0;",
+        helpers,
+        metrics,
+        optimizer_helpers,
+        "const out = walkForwardMetricsFromRows([",
+        "  {grossReturn: 0, holdings: [['A', 1]]},",
+        "  {grossReturn: 0, holdings: [['A', 1]]},",
+        "], 0.1);",
+        "console.log(JSON.stringify(out));",
+    ])
+
+    assert result["annual"] == pytest.approx((0.9 ** 6) - 1)
+    assert result["mdd"] == pytest.approx(-0.1)
 
 
 def test_combo_walk_forward_ui_states_scope_and_all_required_windows():
@@ -826,10 +887,13 @@ def test_combo_walk_forward_ui_states_scope_and_all_required_windows():
     assert "训练 36/60 个月" in shell
     assert "未来 3/6/12 个月" in shell
     assert "覆盖均不低于 75%" in shell
-    assert "阈值与 TopN 尚未自动滚动调优" in shell
+    assert "联合选择非负权重、TopN 与阈值方案" in shell
+    assert "不设阈值 / 当前阈值 / 标准分 0 / 标准分 ±0.5" in shell
     assert "trainWindows: [36, 60]" in handler
     assert "horizons: [3, 6, 12]" in handler
     assert "minCoverage: 0.75" in handler
+    assert "topNCandidates" in handler
+    assert "thresholdProfiles" in handler
     assert "loadComposeOptimizerMonths(factors, universe, null)" in handler
     assert ".combo-walk-forward-scroll" in styles
 
@@ -1966,8 +2030,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.1</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.1 ' in index
+    assert "<title>因子库 v2.4.2</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.2 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

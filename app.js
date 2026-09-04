@@ -10011,12 +10011,12 @@ function renderComboWalkForwardShell(payload) {
   return `<div class="combo-walk-forward">
     <div class="combo-walk-forward-head">
       <div>
-        <b>严格时点化权重检验</b>
-        <span>季度决策日 T 仅使用当时已经实现的收益重选非负权重；训练 36/60 个月，未来 3/6/12 个月，训练与未来覆盖均不低于 75%。</span>
+        <b>严格时点化参数检验</b>
+        <span>季度决策日 T 仅使用当时已经实现的收益联合选择非负权重、TopN 与阈值方案；训练 36/60 个月，未来 3/6/12 个月，训练与未来覆盖均不低于 75%。</span>
       </div>
-      <button id="combo-walk-forward-run" class="cpsn-btn" type="button"${disabled ? " disabled" : ""}>运行滚动样本外</button>
+      <button id="combo-walk-forward-run" class="cpsn-btn" type="button"${disabled ? " disabled" : ""}>运行参数滚动样本外</button>
     </div>
-    <p class="combo-walk-forward-boundary">方向、分数口径、过滤阈值、TopN、股票池和成本在运行前固定；每折只重新选择因子权重。结果使用完整历史，不受当前页面区间筛选影响。阈值与 TopN 尚未自动滚动调优，不把本项表述为全部参数样本外闭环。</p>
+    <p class="combo-walk-forward-boundary">方向、分数口径、阈值运算符、股票池和成本在运行前固定；每折在训练期内联合比较权重网格、当前 TopN 相邻档位，以及“不设阈值 / 当前阈值 / 标准分 0 / 标准分 ±0.5”方案。结果使用完整历史，不受当前页面区间筛选影响。</p>
     ${reason ? `<div class="combo-walk-forward-unavailable">${htmlText(reason)}</div>` : ""}
     <div id="combo-walk-forward-result" aria-live="polite"><div class="empty">按需运行，避免进入页面时阻塞持仓和常规检验。</div></div>
   </div>`;
@@ -10051,6 +10051,8 @@ function renderComboWalkForwardResult(result, codes, context = {}) {
       <td>${signedNumText(row.oosSharpeMedian, 2)}</td>
       <td>${pctText(row.oosPositiveRate)}</td>
       <td>${htmlText(row.latestSelectionDate)}</td>
+      <td>Top${numText(row.latestTopN, 0)}</td>
+      <td>${htmlText(row.latestThresholdName)} · ${htmlText(walkForwardThresholdLabel(row.latestThresholds, codes))}</td>
       <td class="combo-walk-forward-weights">${htmlText(walkForwardWeightLabel(row.latestWeights, codes))}</td>
     </tr>`;
   }).join("");
@@ -10064,26 +10066,29 @@ function renderComboWalkForwardResult(result, codes, context = {}) {
     <td>${signedPctText(row.trainAnnual)}</td>
     <td>${signedPctText(row.oosAnnual)}</td>
     <td>${signedNumText(row.oosSharpe, 2)}</td>
+    <td>Top${numText(row.topN, 0)}</td>
+    <td>${htmlText(row.thresholdName)} · ${htmlText(walkForwardThresholdLabel(row.thresholds, codes))}</td>
     <td class="combo-walk-forward-weights">${htmlText(walkForwardWeightLabel(row.weights, codes))}</td>
   </tr>`).join("");
   return `<div class="combo-walk-forward-evidence">
     <div class="combo-walk-forward-meta">
       <span><b>数据截止</b>${htmlText(context.dataCutoffDate || "—")}</span>
       <span><b>收益截止</b>${htmlText(context.returnEndDate || "—")}</span>
-      <span><b>权重候选</b>${numText(result.candidateCount, 0)} 组</span>
+      <span><b>参数候选</b>${numText(result.candidateCount, 0)} 组</span>
+      <span><b>网格拆分</b>权重 ${numText(result.weightCandidateCount, 0)} × TopN ${numText(result.topNCandidateCount, 0)} × 阈值 ${numText(result.thresholdProfileCount, 0)}</span>
       <span><b>优化目标</b>训练期成本后夏普</span>
       <span><b>单边成本</b>${numText(context.costBps, 0)} bp</span>
     </div>
     <div class="combo-walk-forward-scroll">
       <table class="validation-table combo-walk-forward-table">
-        <thead><tr><th>训练 → 未来</th><th>判断</th><th>有效折</th><th>训练覆盖</th><th>未来覆盖</th><th>样本外年化中位数</th><th>样本外夏普中位数</th><th>正收益折占比</th><th>最近决策日</th><th>最近冻结权重</th></tr></thead>
+        <thead><tr><th>训练 → 未来</th><th>判断</th><th>有效折</th><th>训练覆盖</th><th>未来覆盖</th><th>样本外年化中位数</th><th>样本外夏普中位数</th><th>正收益折占比</th><th>最近决策日</th><th>最近 TopN</th><th>最近阈值</th><th>最近冻结权重</th></tr></thead>
         <tbody>${summaryRows}</tbody>
       </table>
     </div>
     <details class="combo-walk-forward-folds">
       <summary>查看全部 ${numText(folds.length, 0)} 个有效折</summary>
       <div class="combo-walk-forward-scroll"><table class="validation-table combo-walk-forward-fold-table">
-        <thead><tr><th>决策日 T</th><th>训练 → 未来</th><th>训练收益截止</th><th>未来收益截止</th><th>训练覆盖</th><th>未来覆盖</th><th>训练年化</th><th>样本外年化</th><th>样本外夏普</th><th>冻结权重</th></tr></thead>
+        <thead><tr><th>决策日 T</th><th>训练 → 未来</th><th>训练收益截止</th><th>未来收益截止</th><th>训练覆盖</th><th>未来覆盖</th><th>训练年化</th><th>样本外年化</th><th>样本外夏普</th><th>冻结 TopN</th><th>冻结阈值</th><th>冻结权重</th></tr></thead>
         <tbody>${foldRows}</tbody>
       </table></div>
     </details>
@@ -10123,21 +10128,25 @@ function bindComboWalkForwardHandler(renderSeq) {
           ? { idx: index, op: factor.op, thr: Number(factor.thr) }
           : null)
         .filter(Boolean);
-      const step = nF === 1 ? 1 : (nF === 2 ? 0.05 : (nF === 3 ? 0.1 : 0.2));
+      const step = nF === 1 ? 1 : (nF === 2 ? 0.1 : (nF === 3 ? 0.25 : 0.5));
       const grid = nF === 1 ? [[1]] : weightGrid(nF, step);
+      const topNCandidates = walkForwardTopNCandidates(N);
+      const thresholdProfiles = walkForwardThresholdProfiles(factors, conds);
       const result = await rollingWeightWalkForward(months, grid, N, conds, {
         trainWindows: [36, 60],
         horizons: [3, 6, 12],
         minCoverage: 0.75,
         currentWeights: factors.map(factor => Number(factor.weight)),
+        topNCandidates,
+        thresholdProfiles,
         universe,
         costPerSide: costBps / 10000,
         yieldEvery: 2,
         onProgress: (completed, total) => {
           if (isComposeRenderStale(renderSeq)) return;
-          button.textContent = `计算权重 ${completed}/${total}`;
+          button.textContent = `计算参数 ${completed}/${total}`;
           const loading = output.querySelector(".loading");
-          if (loading) loading.textContent = `正在计算 ${total} 组候选权重的完整月度收益… ${completed}/${total}`;
+          if (loading) loading.textContent = `正在计算 ${total} 组候选参数的完整月度收益… ${completed}/${total}`;
         },
       });
       if (isComposeRenderStale(renderSeq)) return;
@@ -10153,7 +10162,7 @@ function bindComboWalkForwardHandler(renderSeq) {
     } finally {
       if (!isComposeRenderStale(renderSeq)) {
         button.disabled = false;
-        button.textContent = "重新运行滚动样本外";
+        button.textContent = "重新运行参数样本外";
       }
     }
   };
@@ -10940,6 +10949,8 @@ function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = nu
           signalMonth: String(mo.signalDt || mo.ym || mo.signalDate || "").slice(0, 7),
           returnMonth,
           ret: net,
+          grossReturn: 0,
+          holdings: [],
         });
       }
       prev = cur;
@@ -10992,6 +11003,8 @@ function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = nu
         signalMonth: String(mo.signalDt || mo.ym || mo.signalDate || "").slice(0, 7),
         returnMonth,
         ret: net,
+        grossReturn: gross,
+        holdings: [...cur.entries()],
       });
     }
     prev = cur;
@@ -11106,6 +11119,89 @@ function walkForwardWeightLabel(weights, codes) {
   return (codes || []).map((code, index) => `${code} ${(Number(weights?.[index] || 0) * 100).toFixed(0)}%`).join(" / ");
 }
 
+function walkForwardTopNCandidates(currentN) {
+  const current = Math.min(100, Math.max(1, Math.round(Number(currentN) || 30)));
+  const anchors = [10, 20, 30, 50, 100];
+  const lower = anchors.filter(value => value < current).at(-1)
+    ?? (current > 1 ? Math.max(1, Math.floor(current / 2)) : null);
+  const upper = anchors.find(value => value > current)
+    ?? (current < 100 ? Math.min(100, Math.ceil(current * 1.5)) : null);
+  return [...new Set([lower, current, upper].filter(value => Number.isInteger(value) && value >= 1 && value <= 100))]
+    .sort((left, right) => left - right);
+}
+
+function walkForwardThresholdLabel(conds, codes) {
+  if (!(conds || []).length) return "不限";
+  return conds.map(cond => `${codes?.[cond.idx] || `因子${cond.idx + 1}`} ${cond.op} ${Number(cond.thr).toFixed(1)}`).join(" / ");
+}
+
+function walkForwardThresholdProfiles(factors, currentConds = []) {
+  const profiles = [];
+  const seen = new Set();
+  const add = (name, rawConds) => {
+    const conds = (rawConds || [])
+      .map(cond => ({ idx: Number(cond.idx), op: cond.op === "<=" ? "<=" : ">=", thr: Number(cond.thr) }))
+      .filter(cond => Number.isInteger(cond.idx) && cond.idx >= 0 && Number.isFinite(cond.thr))
+      .sort((left, right) => left.idx - right.idx);
+    const key = conds.map(cond => `${cond.idx}:${cond.op}:${cond.thr.toFixed(6)}`).join("|");
+    if (seen.has(key)) return;
+    seen.add(key);
+    profiles.push({ name, conds });
+  };
+  add("不设阈值", []);
+  add("当前阈值", currentConds);
+  const normalized = cloneComposeFactors(factors);
+  add("标准分 0", normalized.map((factor, idx) => ({ idx, op: factor.op, thr: 0 })));
+  add("标准分 ±0.5", normalized.map((factor, idx) => ({
+    idx,
+    op: factor.op,
+    thr: factor.op === "<=" ? -0.5 : 0.5,
+  })));
+  return profiles;
+}
+
+function walkForwardParameterCandidates(grid, currentWeights, N, conds, options = {}) {
+  const weights = uniqueWeightGrid(grid, currentWeights);
+  const topNs = (options.topNCandidates || [N])
+    .map(value => Math.min(100, Math.max(1, Math.round(Number(value) || Number(N) || 30))));
+  const thresholdProfiles = (options.thresholdProfiles || [{ name: "当前阈值", conds }])
+    .map(profile => ({ name: String(profile?.name || "阈值方案"), conds: profile?.conds || [] }));
+  const candidates = [];
+  const seen = new Set();
+  for (const candidateWeights of weights) {
+    for (const topN of topNs) {
+      for (const profile of thresholdProfiles) {
+        const normalizedConds = profile.conds
+          .map(cond => ({ idx: Number(cond.idx), op: cond.op === "<=" ? "<=" : ">=", thr: Number(cond.thr) }))
+          .filter(cond => Number.isInteger(cond.idx) && cond.idx >= 0 && Number.isFinite(cond.thr));
+        const key = `${candidateWeights.map(value => value.toFixed(8)).join("|")}::${topN}::${normalizedConds.map(cond => `${cond.idx}:${cond.op}:${cond.thr.toFixed(6)}`).join("|")}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        candidates.push({ weights: candidateWeights.slice(), topN, thresholdName: profile.name, conds: normalizedConds });
+      }
+    }
+  }
+  return {
+    candidates,
+    weightCandidateCount: weights.length,
+    topNCandidateCount: new Set(topNs).size,
+    thresholdProfileCount: thresholdProfiles.length,
+  };
+}
+
+function walkForwardMetricsFromRows(rows, costPerSide) {
+  let previous = null;
+  const returns = [];
+  for (const row of rows || []) {
+    const current = new Map(row?.holdings || []);
+    const turnover = weightedTurnover(current, previous);
+    const gross = Number.isFinite(Number(row?.grossReturn)) ? Number(row.grossReturn) : 0;
+    returns.push(netLongOnlyReturn(gross, turnover, previous === null, costPerSide));
+    previous = current;
+  }
+  return metricsFromReturns(returns);
+}
+
 async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {}) {
   const trainWindows = options.trainWindows || [36, 60];
   const horizons = options.horizons || [3, 6, 12];
@@ -11118,14 +11214,22 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
     .filter(month => month && month.signalDate)
     .slice()
     .sort((left, right) => String(left.signalDate).localeCompare(String(right.signalDate)));
-  const candidates = uniqueWeightGrid(grid, options.currentWeights || []);
+  const parameterGrid = walkForwardParameterCandidates(
+    grid,
+    options.currentWeights || [],
+    N,
+    conds,
+    options,
+  );
+  const candidates = parameterGrid.candidates;
   const candidateSeries = [];
   for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
     const detail = backtestWeights(
       calendar,
-      candidates[index],
-      N,
-      conds,
+      candidate.weights,
+      candidate.topN,
+      candidate.conds,
       { returnSeries: true },
       universe,
       costPerSide,
@@ -11153,7 +11257,7 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
           .filter(row => row && row.returnDate && row.returnDate <= selectionDate);
         const coverage = trainRows.length / trainMonths;
         if (coverage + 1e-12 < minCoverage) continue;
-        const metrics = metricsFromReturns(trainRows.map(row => row.ret));
+        const metrics = walkForwardMetricsFromRows(trainRows, costPerSide);
         if (!metrics) continue;
         const sharpe = Number(metrics.sharpe);
         const annual = Number(metrics.annual);
@@ -11183,7 +11287,7 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
           .filter(row => row && row.returnDate && row.returnDate > selectionDate);
         const futureCoverage = futureRows.length / horizonMonths;
         if (futureCoverage + 1e-12 < minCoverage) continue;
-        const futureMetrics = metricsFromReturns(futureRows.map(row => row.ret));
+        const futureMetrics = walkForwardMetricsFromRows(futureRows, costPerSide);
         if (!futureMetrics) continue;
         const testEndDate = futureRows.reduce(
           (latest, row) => String(row.returnDate) > latest ? String(row.returnDate) : latest,
@@ -11206,7 +11310,10 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
           oosSharpe: futureMetrics.sharpe,
           oosMaxDrawdown: futureMetrics.mdd,
           oosPositive: futureMetrics.annual > 0,
-          weights: candidates[best.candidateIndex].slice(),
+          weights: candidates[best.candidateIndex].weights.slice(),
+          topN: candidates[best.candidateIndex].topN,
+          thresholdName: candidates[best.candidateIndex].thresholdName,
+          thresholds: candidates[best.candidateIndex].conds.map(cond => ({ ...cond })),
         });
       }
     }
@@ -11229,10 +11336,21 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
         oosPositiveRate: rows.filter(row => row.oosPositive).length / rows.length,
         latestSelectionDate: latest.selectionDate,
         latestWeights: latest.weights.slice(),
+        latestTopN: latest.topN,
+        latestThresholdName: latest.thresholdName,
+        latestThresholds: latest.thresholds.map(cond => ({ ...cond })),
       });
     }
   }
-  return { folds, summaries, candidateCount: candidates.length, minCoverage };
+  return {
+    folds,
+    summaries,
+    candidateCount: candidates.length,
+    weightCandidateCount: parameterGrid.weightCandidateCount,
+    topNCandidateCount: parameterGrid.topNCandidateCount,
+    thresholdProfileCount: parameterGrid.thresholdProfileCount,
+    minCoverage,
+  };
 }
 
 async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null) {

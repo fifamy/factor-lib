@@ -1,4 +1,4 @@
-// 浏览器回归：多因子季度滚动权重样本外必须按需运行并给出六组窗口结果。
+// 浏览器回归：多因子季度滚动参数样本外必须按需运行并给出六组窗口结果。
 // 前提：frontend/serve.py 已在本地启动。用法：node e2e/compose_walk_forward_validation.mjs [url]
 import { chromium } from "playwright-core";
 
@@ -20,7 +20,7 @@ try {
   await page.locator('.tree-l3[data-code="DASTD"]').click();
   await page.waitForFunction(() => {
     const text = document.querySelector("#combo-validation")?.innerText || "";
-    return text.includes("季度滚动权重样本外") && text.includes("阈值与 TopN 尚未自动滚动调优");
+    return text.includes("严格时点化参数检验") && text.includes("联合选择非负权重、TopN 与阈值方案");
   }, null, { timeout: 300000 });
 
   const startedAt = Date.now();
@@ -43,7 +43,9 @@ try {
   if (summaryRows !== 6) throw new Error(`预期 6 组训练/未来窗口，实际 ${summaryRows}`);
   if (foldRows < 4) throw new Error(`有效折不足，实际 ${foldRows}`);
   if (leakageRows) throw new Error(`发现 ${leakageRows} 折训练/未来时点不合法`);
-  if (!/权重候选\s*21\s*组/u.test(text)) throw new Error("两因子权重网格数量不是 21 组");
+  if (!/参数候选\s*99\s*组/u.test(text)) throw new Error("两因子联合参数网格数量不是 99 组");
+  if (!text.includes("权重 11 × TopN 3 × 阈值 3")) throw new Error("联合参数网格拆分不符合预期");
+  if (!text.includes("最近 TopN") || !text.includes("最近阈值")) throw new Error("滚动结果未披露 TopN 或阈值方案");
   console.log(JSON.stringify({ summaryRows, foldRows, leakageRows, elapsedMs }));
 } finally {
   await browser.close();
