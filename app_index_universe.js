@@ -14,7 +14,7 @@ function normalizeIndexUniverseConfig(raw) {
   const indexAlias = aliases.has(raw?.indexAlias) ? raw.indexAlias : "HS300";
   const poolId = /^[A-Z0-9_]+$/.test(String(raw?.poolId || "")) ? String(raw.poolId) : "";
   const poolName = String(raw?.poolName || poolId || "").trim();
-  const poolType = raw?.poolType === "sw1" ? "sw1" : (raw?.poolType === "broad_index" ? "broad_index" : "");
+  const poolType = ["sw1", "broad_index", "custom"].includes(raw?.poolType) ? raw.poolType : "";
   let minShare = Number(raw?.minShare);
   if (!Number.isFinite(minShare)) minShare = 0.8;
   if (minShare > 1) minShare /= 100;

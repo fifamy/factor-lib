@@ -96,6 +96,7 @@ const state = {
   hasCorrNeutral: false,
   hasIndexWeights: false,
   loadedStockPoolId: null,
+  customStockPools: new Map(),
   duckdb: null,
   db: null,
 };
@@ -574,6 +575,11 @@ function isStockPoolUniverse(universe = state.composeUniverse) {
   return composeUniverseConfig(universe).mode === "stock_pool";
 }
 
+function isCustomStockPoolUniverse(universe = state.composeUniverse) {
+  const normalized = composeUniverseConfig(universe);
+  return normalized.mode === "stock_pool" && normalized.poolType === "custom";
+}
+
 function isIndexUniverse(universe = state.composeUniverse) {
   return ["index_only", "min_share"].includes(composeUniverseConfig(universe).mode);
 }
@@ -620,6 +626,14 @@ async function ensureComposeUniverseData(rawUniverse = state.composeUniverse) {
   if (state.loadedStockPoolId === universe.poolId) return;
   const poolId = String(universe.poolId || "");
   if (!/^[A-Z0-9_]+$/.test(poolId)) throw new Error(`股票池代码无效：${poolId || "空"}`);
+  if (universe.poolType === "custom") {
+    const definition = state.customStockPools.get(poolId) || await readCustomStockPoolDefinition(poolId);
+    if (!definition) {
+      throw new Error(`${universe.poolName || poolId}的月末成分未保存在当前浏览器，请回到股票池研究页重新上传。`);
+    }
+    await registerCustomStockPoolDefinition(definition, { persist: false });
+    return;
+  }
   const path = `${STOCK_POOL_MEMBERSHIP_DIR}${poolId}.parquet${V}`;
   try {
     await state.db.query(`
@@ -4435,6 +4449,10 @@ function ensureStockPoolResearchController() {
     version: V,
     ensureDB,
     dbState: state,
+    catalog: state.catalog,
+    getCustomSignalDates,
+    registerCustomPool: registerCustomStockPoolDefinition,
+    loadCustomFactorData: loadCustomStockPoolFactorData,
     openSingleFactor: code => {
       switchMode("single");
       selectFactor(code, { preserveParams: true });
@@ -4464,7 +4482,7 @@ function ensureStockPoolResearchController() {
       const poolType = researchContext?.poolType;
       if (poolType === "broad_index" && INDEX_UNIVERSE_OPTIONS.some(item => item.alias === poolId)) {
         state.composeUniverse = normalizeIndexUniverseConfig({ mode: "index_only", indexAlias: poolId });
-      } else if (poolType === "sw1" && poolId) {
+      } else if (["sw1", "custom"].includes(poolType) && poolId) {
         state.composeUniverse = normalizeIndexUniverseConfig({
           mode: "stock_pool",
           poolId,
@@ -6370,6 +6388,166 @@ async function ensureComposeFiles(items) {
   }));
 }
 
+const CUSTOM_POOL_DB_NAME = "factor-lib-local-artifacts";
+const CUSTOM_POOL_STORE = "custom_stock_pools";
+const MAX_CUSTOM_POOL_ROWS = 50000;
+let _customPoolDbPromise = null;
+
+function openCustomPoolDb() {
+  if (_customPoolDbPromise) return _customPoolDbPromise;
+  _customPoolDbPromise = new Promise((resolve, reject) => {
+    if (!globalThis.indexedDB) {
+      reject(new Error("当前浏览器不支持 IndexedDB"));
+      return;
+    }
+    const request = indexedDB.open(CUSTOM_POOL_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(CUSTOM_POOL_STORE)) {
+        db.createObjectStore(CUSTOM_POOL_STORE, { keyPath: "poolId" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("本地股票池存储打开失败"));
+  }).catch(error => {
+    _customPoolDbPromise = null;
+    throw error;
+  });
+  return _customPoolDbPromise;
+}
+
+async function writeCustomStockPoolDefinition(definition) {
+  const db = await openCustomPoolDb();
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(CUSTOM_POOL_STORE, "readwrite");
+    transaction.objectStore(CUSTOM_POOL_STORE).put(definition);
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error || new Error("自定义股票池本地保存失败"));
+    transaction.onabort = () => reject(transaction.error || new Error("自定义股票池本地保存已中止"));
+  });
+}
+
+async function readCustomStockPoolDefinition(poolId) {
+  try {
+    const db = await openCustomPoolDb();
+    const definition = await new Promise((resolve, reject) => {
+      const request = db.transaction(CUSTOM_POOL_STORE, "readonly")
+        .objectStore(CUSTOM_POOL_STORE).get(poolId);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error("自定义股票池本地读取失败"));
+    });
+    if (definition) state.customStockPools.set(poolId, definition);
+    return definition;
+  } catch (error) {
+    console.warn("read custom stock pool failed:", error);
+    return null;
+  }
+}
+
+function validCustomStockPoolDefinition(raw) {
+  const poolId = String(raw?.poolId || "");
+  const poolName = String(raw?.poolName || poolId).trim().slice(0, 80);
+  const membership = Array.isArray(raw?.membership) ? raw.membership : [];
+  if (!/^CUSTOM_[A-F0-9]{8}$/.test(poolId)) throw new Error("自定义股票池标识无效");
+  if (!membership.length) throw new Error("自定义股票池没有可用月末成分");
+  if (membership.length > MAX_CUSTOM_POOL_ROWS) throw new Error(`自定义股票池最多允许 ${MAX_CUSTOM_POOL_ROWS} 行月末成分`);
+  const seen = new Set();
+  const rows = [];
+  for (const item of membership) {
+    const signalDate = String(item?.signal_date || "");
+    const stockCode = String(item?.stock_code || "").toUpperCase();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(signalDate) || !/^\d{6}\.(SH|SZ|BJ)$/.test(stockCode)) {
+      throw new Error("自定义股票池含无效日期或股票代码");
+    }
+    const key = `${signalDate}|${stockCode}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ signal_date: signalDate, stock_code: stockCode });
+  }
+  return { poolId, poolName: poolName || poolId, membership: rows, updatedAt: raw?.updatedAt || new Date().toISOString() };
+}
+
+async function registerCustomStockPoolDefinition(raw, options = {}) {
+  await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
+  const definition = validCustomStockPoolDefinition(raw);
+  await state.db.query(`CREATE OR REPLACE TABLE compose_stock_pool_membership (
+    signal_date DATE, stock_code VARCHAR, weight DOUBLE
+  )`);
+  const chunkSize = 1000;
+  for (let start = 0; start < definition.membership.length; start += chunkSize) {
+    const values = definition.membership.slice(start, start + chunkSize)
+      .map(row => `(DATE '${row.signal_date}', '${row.stock_code}', 1.0)`)
+      .join(",");
+    await state.db.query(`INSERT INTO compose_stock_pool_membership VALUES ${values}`);
+  }
+  state.customStockPools.set(definition.poolId, definition);
+  state.loadedStockPoolId = definition.poolId;
+  let persisted = false;
+  if (options.persist !== false) {
+    try {
+      await writeCustomStockPoolDefinition(definition);
+      persisted = true;
+    } catch (error) {
+      console.warn("persist custom stock pool failed:", error);
+    }
+  }
+  return { ...definition, persisted };
+}
+
+async function getCustomSignalDates() {
+  await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
+  await ensureComposeData();
+  const item = { code: "LNMV", scoreMode: "raw", key: composeShardKey("LNMV", "raw") };
+  await ensureComposeFiles([item]);
+  const path = _composeFilePaths.get(item.key);
+  const result = await state.db.query(`
+    SELECT DISTINCT strftime(trade_date, '%Y-%m-%d') AS signal_date
+    FROM read_parquet('${path}')
+    ORDER BY signal_date
+  `);
+  return result.toArray().map(row => String(row.signal_date));
+}
+
+async function loadCustomStockPoolFactorData(codes, requestedScoreMode, onProgress = null) {
+  const scoreMode = normalizeScoreMode(requestedScoreMode);
+  if (scoreMode === "neutral" && !hasComposeNeutralScores()) {
+    throw new Error("正式静态站未发布行业市值中性化历史得分；自定义股票池本次只能使用原始得分。");
+  }
+  const wanted = uniqueValidCodes(codes);
+  if (!wanted.length) throw new Error("请至少选择一个有效因子");
+  if (wanted.length > 12) throw new Error("自定义股票池一次最多检验 12 个因子");
+  await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false });
+  await ensureComposeData();
+  const benchmarkItem = { code: "LNMV", scoreMode: "raw", key: composeShardKey("LNMV", "raw") };
+  const items = wanted.map(code => ({ code, scoreMode, key: composeShardKey(code, scoreMode) }));
+  onProgress?.(`正在下载 ${items.length} 个因子历史分片…`);
+  await ensureComposeFiles([...items, benchmarkItem]);
+  const benchmarkPath = _composeFilePaths.get(benchmarkItem.key);
+  const benchmarkResult = await state.db.query(`
+    SELECT strftime(s.trade_date, '%Y-%m-%d') AS signal_date,
+           strftime(s.entry_date, '%Y-%m-%d') AS entry_date,
+           strftime(s.return_date, '%Y-%m-%d') AS return_date,
+           s.stock_code, s.fwd_return
+    FROM read_parquet('${benchmarkPath}') s
+    INNER JOIN compose_stock_pool_membership m
+      ON m.signal_date = s.trade_date AND m.stock_code = s.stock_code
+  `);
+  const paths = items.map(item => `'${_composeFilePaths.get(item.key)}'`).join(",");
+  onProgress?.("正在按上传月末成分过滤得分与收益…");
+  const factorResult = await state.db.query(`
+    SELECT strftime(s.trade_date, '%Y-%m-%d') AS signal_date,
+           strftime(s.entry_date, '%Y-%m-%d') AS entry_date,
+           strftime(s.return_date, '%Y-%m-%d') AS return_date,
+           s.stock_code, s.factor_code, s.score, s.fwd_return
+    FROM read_parquet([${paths}]) s
+    INNER JOIN compose_stock_pool_membership m
+      ON m.signal_date = s.trade_date AND m.stock_code = s.stock_code
+    WHERE s.score IS NOT NULL
+    ORDER BY s.factor_code, s.trade_date, s.stock_code
+  `);
+  return { benchmarkRows: benchmarkResult.toArray(), factorRows: factorResult.toArray() };
+}
+
 function composeScoreReadExpr(items) {
   const paths = items.map(item => {
     const key = item.key || composeShardKey(item.code, item.scoreMode);
@@ -6784,6 +6962,9 @@ async function sha256Hex(textValue) {
 
 async function syncFrozenCombo(combo, options = {}) {
   if (!combo?.decisionDate) throw new Error("只有已冻结组合可以同步跟踪账本");
+  if (isCustomStockPoolUniverse(combo.universe)) {
+    throw new Error("自定义股票池成分只保存在当前浏览器，不能同步到跨设备跟踪服务");
+  }
   if (!combo.trackingKey) combo.trackingKey = createTrackingKey();
   const trackingKeyHash = await sha256Hex(combo.trackingKey);
   await supabaseFetch("/rest/v1/tracking_combos?on_conflict=tracking_key_hash", {
@@ -6926,11 +7107,13 @@ function renderComboCards(box, combos, source, emptyText) {
     const renameBtn = source === "mine"
       ? `<button class="cpsn-btn my-rename" data-source="${safeSource}" data-id="${safeId}"${disabled}>改名</button>`
       : "";
+    const externalBlocked = isCustomStockPoolUniverse(combo.universe);
+    const externalDisabled = externalBlocked ? ' disabled title="自定义股票池成分不上传，不能公开发布或跨设备同步"' : disabled;
     const publishBtn = source === "mine"
-      ? `<button class="cpsn-btn my-publish" data-source="${safeSource}" data-id="${safeId}"${disabled}>申请发布</button>`
+      ? `<button class="cpsn-btn my-publish" data-source="${safeSource}" data-id="${safeId}"${externalDisabled}>申请发布</button>`
       : "";
     const trackingButtons = source === "mine" && combo.decisionDate
-      ? `<button class="cpsn-btn my-tracking-sync" data-id="${safeId}"${disabled}>同步跟踪</button>${combo.trackingKey ? `<button class="cpsn-btn my-tracking-copy" data-id="${safeId}"${disabled}>复制跟踪码</button>` : ""}`
+      ? `<button class="cpsn-btn my-tracking-sync" data-id="${safeId}"${externalDisabled}>同步跟踪</button>${combo.trackingKey && !externalBlocked ? `<button class="cpsn-btn my-tracking-copy" data-id="${safeId}"${disabled}>复制跟踪码</button>` : ""}`
       : "";
     const deleteRequestBtn = source === "published" && combo.source === "supabase"
       ? `<button class="cpsn-btn published-delete-request" data-id="${safeId}"${disabled}>申请删除</button>`
@@ -7846,6 +8029,10 @@ async function copyPublishRequest() {
     alert(`当前组合不能申请发布：\n${violations.join("\n")}`);
     return;
   }
+  if (isCustomStockPoolUniverse(state.composeUniverse)) {
+    alert("自定义股票池成分只保存在当前浏览器，不能提交到公开组合库。可继续保存为本地冻结组合。");
+    return;
+  }
   const btn = document.getElementById("cps-copy-json");
   await submitPublishRequestFromButton(currentComboPublishPayload(), btn);
 }
@@ -7854,6 +8041,10 @@ async function copyMyComboPublishRequest(id, btn) {
   const combo = state.myCombos.find(c => c.id === id && c.valid);
   if (!combo) {
     alert("这个组合配置无效，不能申请发布");
+    return;
+  }
+  if (isCustomStockPoolUniverse(combo.universe)) {
+    alert("自定义股票池成分只保存在当前浏览器，不能提交到公开组合库。");
     return;
   }
   await submitPublishRequestFromButton(comboPublishPayload(combo), btn);

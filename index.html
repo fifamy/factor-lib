@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>因子库 v2.4.2</title>
+  <title>因子库 v2.4.3</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260904115457">
+  <link rel="stylesheet" href="styles.css?v=20260904145832">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <h1 class="app-title">因子库 v2.4.2 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
+    <h1 class="app-title">因子库 v2.4.3 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260904115457" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260904145832" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -461,13 +461,14 @@
               <h2 id="pool-research-title">股票池因子有效性研究</h2>
               <p>在各宽基指数或申万一级行业的历史时点成分内，比较因子的排序能力、分层收益及 Alpha 来源。</p>
             </div>
-            <span class="pool-data-badge">6 个宽基 · 31 个行业 · 146 个待检验因子</span>
+            <span class="pool-data-badge">6 个宽基 · 31 个行业 · 支持自定义上传</span>
           </div>
           <fieldset class="pool-toolbar">
             <legend>研究范围</legend>
             <div class="pool-control-group" role="group" aria-label="股票池类型">
               <button id="pool-type-index" class="pool-segment active" type="button" data-pool-type="broad_index" aria-pressed="true">宽基指数</button>
               <button id="pool-type-sw1" class="pool-segment" type="button" data-pool-type="sw1" aria-pressed="false">申万一级行业</button>
+              <button id="pool-type-custom" class="pool-segment" type="button" data-pool-type="custom" aria-pressed="false">自定义上传</button>
             </div>
             <label for="pool-selector">股票池</label>
             <select id="pool-selector" aria-label="选择股票池"></select>
@@ -489,6 +490,32 @@
             <label class="pool-search-label" for="pool-factor-search">搜索因子</label>
             <input id="pool-factor-search" type="search" placeholder="代码或中文名" autocomplete="off">
           </fieldset>
+          <section id="pool-custom-upload" class="pool-custom-upload" aria-labelledby="pool-custom-upload-title" hidden>
+            <div class="pool-custom-upload-heading">
+              <div>
+                <h3 id="pool-custom-upload-title">上传月末成分名单</h3>
+                <p id="pool-custom-format-help">UTF-8 CSV 或 TSV，至少包含日期和股票代码两列；支持 <code>date,code</code>、<code>月末日期,股票代码</code>。日期可写 YYYY-MM 或 YYYY-MM-DD。</p>
+              </div>
+              <button id="pool-custom-template" type="button">下载模板</button>
+            </div>
+            <div class="pool-custom-upload-controls">
+              <label for="pool-custom-name">股票池名称</label>
+              <input id="pool-custom-name" type="text" maxlength="80" value="自定义股票池" autocomplete="off">
+              <label for="pool-custom-file">成分文件</label>
+              <input id="pool-custom-file" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" aria-describedby="pool-custom-format-help pool-custom-status">
+              <label for="pool-custom-factor-search">筛选待检验因子</label>
+              <input id="pool-custom-factor-search" type="search" placeholder="代码或中文名" autocomplete="off">
+              <label for="pool-custom-factors">待检验因子</label>
+              <select id="pool-custom-factors" multiple size="6" aria-describedby="pool-custom-factor-help"></select>
+              <span id="pool-custom-factor-help" class="pool-custom-factor-help">按住 Command/Ctrl 可多选；一次最多 12 个，仅下载所选历史分片。</span>
+            </div>
+            <div class="pool-custom-upload-actions">
+              <button id="pool-custom-run" type="button" disabled>运行自定义池检验</button>
+              <button id="pool-custom-clear" type="button">清除</button>
+              <span id="pool-custom-status" role="status" aria-live="polite">请选择成分文件和待检验因子。</span>
+            </div>
+            <p class="pool-custom-boundary">有效研究月要求至少 30 只有效收益股票。上传内容仅在浏览器本地处理；成分会保存到当前浏览器，供本地组合刷新后复用，但不会上传到网站、公开组合库或跨设备跟踪服务。</p>
+          </section>
           <fieldset class="pool-toolbar pool-time-toolbar">
             <legend>时间、验证与成本</legend>
             <label for="pool-as-of">收益截止</label>
@@ -594,10 +621,10 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260904115457"></script>
-  <script src="app_portfolio_ledger.js?v=20260904115457"></script>
-  <script src="app_index_universe.js?v=20260904115457"></script>
-  <script src="app_stock_pool_research.js?v=20260904115457"></script>
-  <script type="module" src="app.js?v=20260904115457"></script>
+  <script src="app_holding_scope.js?v=20260904145832"></script>
+  <script src="app_portfolio_ledger.js?v=20260904145832"></script>
+  <script src="app_index_universe.js?v=20260904145832"></script>
+  <script src="app_stock_pool_research.js?v=20260904145832"></script>
+  <script type="module" src="app.js?v=20260904145832"></script>
 </body>
 </html>
