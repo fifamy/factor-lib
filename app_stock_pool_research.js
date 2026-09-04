@@ -225,8 +225,67 @@
   }
 
   function validForwardReturn(value) {
-    const parsed = number(value);
-    return parsed !== null && parsed > -1 ? parsed : null;
+    return number(value);
+  }
+
+  function auditCustomForwardReturnConsistency(benchmarkRows, factorRows, tolerance = 1e-12) {
+    const benchmarkByKey = new Map();
+    for (const row of benchmarkRows || []) {
+      const value = validForwardReturn(row.fwd_return);
+      if (value === null) continue;
+      benchmarkByKey.set(`${row.signal_date}|${row.stock_code}`, value);
+    }
+    let comparedRows = 0, missingBenchmarkRows = 0;
+    const mismatches = [];
+    for (const row of factorRows || []) {
+      const value = validForwardReturn(row.fwd_return);
+      if (value === null) continue;
+      const key = `${row.signal_date}|${row.stock_code}`;
+      if (!benchmarkByKey.has(key)) { missingBenchmarkRows++; continue; }
+      comparedRows++;
+      const benchmarkValue = benchmarkByKey.get(key);
+      if (Math.abs(value - benchmarkValue) > tolerance && mismatches.length < 5) {
+        mismatches.push({ factor_code: row.factor_code, signal_date: row.signal_date, stock_code: row.stock_code,
+          factor_return: value, benchmark_return: benchmarkValue });
+      }
+    }
+    if (mismatches.length) {
+      const first = mismatches[0];
+      throw new Error(`前瞻收益分片不一致：${first.factor_code} ${first.signal_date} ${first.stock_code}，因子分片 ${first.factor_return}、基准分片 ${first.benchmark_return}`);
+    }
+    return { comparedRows, missingBenchmarkRows, mismatchCount: 0 };
+  }
+
+  function summarizeCustomCoverage(membership, benchmarkRows, monthlyRows) {
+    const membersByDate = new Map(), returnsByDate = new Map();
+    for (const row of membership || []) {
+      const date = String(row.signal_date), code = String(row.stock_code);
+      if (!membersByDate.has(date)) membersByDate.set(date, new Set());
+      membersByDate.get(date).add(code);
+    }
+    for (const row of benchmarkRows || []) {
+      if (validForwardReturn(row.fwd_return) === null) continue;
+      const date = String(row.signal_date), code = String(row.stock_code);
+      if (!returnsByDate.has(date)) returnsByDate.set(date, new Set());
+      returnsByDate.get(date).add(code);
+    }
+    const months = [...membersByDate.keys()].sort().map(date => ({
+      date,
+      n_constituents: membersByDate.get(date).size,
+      n_valid_returns: returnsByDate.get(date)?.size || 0,
+    }));
+    const factorMonths = monthlyRows || [];
+    return {
+      monthCount: months.length,
+      membershipQualifiedMonths: months.filter(row => row.n_constituents >= CUSTOM_POOL_MIN_CROSS_SECTION).length,
+      validReturnQualifiedMonths: months.filter(row => row.n_valid_returns >= CUSTOM_POOL_MIN_CROSS_SECTION).length,
+      factorMonthCount: factorMonths.length,
+      usableFactorMonths: factorMonths.filter(row => row.is_usable).length,
+      membershipUnderfilledMonths: months.filter(row => row.n_constituents < CUSTOM_POOL_MIN_CROSS_SECTION),
+      validReturnUnderfilledMonths: months.filter(row => row.n_valid_returns < CUSTOM_POOL_MIN_CROSS_SECTION),
+      factorUnderfilledMonths: factorMonths.filter(row => Number(row.n_valid) < CUSTOM_POOL_MIN_CROSS_SECTION)
+        .map(row => ({ date: row.signal_date, factor_code: row.factor_code, count: Number(row.n_valid) || 0 })),
+    };
   }
 
   function equalWeightTurnover(currentCodes, previousCodes) {
@@ -260,12 +319,11 @@
     }
     let previousQ1 = null, previousQ5 = null;
     const output = [];
-    for (const signalDate of [...factorsByDate.keys()].sort()) {
-      const factorRows = factorsByDate.get(signalDate), members = membersByDate.get(signalDate) || new Set();
+    for (const signalDate of [...membersByDate.keys()].sort()) {
+      const factorRows = factorsByDate.get(signalDate) || [], members = membersByDate.get(signalDate) || new Set();
       const nScore = factorRows.filter(row => number(row.score) !== null).length;
       const valid = factorRows.map(row => ({ ...row, _score: number(row.score), _return: validForwardReturn(row.fwd_return) }))
         .filter(row => row._score !== null && row._return !== null);
-      if (!valid.length) continue;
       const scoreRanks = ranks(valid.map(row => row._score)), returnRanks = ranks(valid.map(row => row._return));
       valid.forEach((row, index) => {
         row._scoreRank = scoreRanks[index]; row._returnRank = returnRanks[index];
@@ -277,8 +335,9 @@
       const qReturns = [1, 2, 3, 4, 5].map(quantile => mean(valid.filter(row => row._quantile === quantile).map(row => row._return)));
       const q1Codes = valid.filter(row => row._quantile === 1).map(row => String(row.stock_code));
       const q5Codes = valid.filter(row => row._quantile === 5).map(row => String(row.stock_code));
-      const q1Turnover = equalWeightTurnover(q1Codes, previousQ1), q5Turnover = equalWeightTurnover(q5Codes, previousQ5);
-      previousQ1 = q1Codes; previousQ5 = q5Codes;
+      const q1Turnover = valid.length ? equalWeightTurnover(q1Codes, previousQ1) : null;
+      const q5Turnover = valid.length ? equalWeightTurnover(q5Codes, previousQ5) : null;
+      if (valid.length) { previousQ1 = q1Codes; previousQ5 = q5Codes; }
       const isUsable = valid.length >= CUSTOM_POOL_MIN_CROSS_SECTION && benchmarkReturn !== null && rankIc !== null && qReturns[0] !== null && qReturns[4] !== null;
       const visible = value => isUsable ? value : null;
       const dates = benchmarkRows.length ? benchmarkRows : factorRows;
@@ -436,6 +495,10 @@
           if (local.poolType === "custom") {
             local.scoreMode = "raw";
             element("pool-score-mode").value = "raw";
+            if (!local.customResult) {
+              local.l1 = "all"; local.status = "all"; local.search = ""; local.asOf = "";
+              element("pool-factor-search").value = "";
+            }
           }
           element("pool-score-mode").disabled = local.poolType === "custom";
           element("pool-custom-upload").hidden = local.poolType !== "custom";
@@ -527,6 +590,7 @@
       const dates = [...new Set(local.monthly.map(row => row.return_date == null ? null : String(row.return_date)).filter(Boolean))].sort();
       if (!dates.includes(local.asOf)) local.asOf = dates.at(-1) || "";
       element("pool-as-of").innerHTML = dates.slice().reverse().map(value => `<option value="${value}"${value === local.asOf ? " selected" : ""}>${value}</option>`).join("");
+      element("pool-as-of").disabled = false;
       const signals = local.monthly.map(row => String(row.signal_date)).sort();
       if (!local.customStart) local.customStart = signals[0]?.slice(0, 7) || "";
       if (!local.customEnd) local.customEnd = signals.at(-1)?.slice(0, 7) || "";
@@ -632,28 +696,42 @@
         const registered = await config.registerCustomPool({ poolId, poolName, membership: aligned.rows });
         const progress = message => { button.textContent = "检验中…"; renderCustomStatus(message); };
         const data = await config.loadCustomFactorData(codes, "raw", progress);
+        const returnAudit = auditCustomForwardReturnConsistency(data.benchmarkRows, data.factorRows);
         const monthly = codes.flatMap(code => computeCustomFactorMonthly({
           factorCode: code, scoreMode: "raw", poolId, membership: aligned.rows,
           benchmarkRows: data.benchmarkRows, factorRows: data.factorRows,
         }));
-        const forward = buildCustomForwardRows(monthly, signalDates);
+        const alignedSignalDates = [...new Set(aligned.rows.map(row => String(row.signal_date)))].sort();
+        const forward = buildCustomForwardRows(monthly, alignedSignalDates);
         const redundancy = buildCustomRedundancy(data.factorRows);
+        const coverage = summarizeCustomCoverage(aligned.rows, data.benchmarkRows, monthly);
         const catalog = new Map((config.catalog || []).map(row => [row.code, row]));
         const summary = codes.map(code => ({ ...catalog.get(code), factor_code: code, pool_id: poolId, pool_type: "custom", score_mode: "raw" }));
         const dates = aligned.rows.map(row => row.signal_date).sort();
         local.customResult = {
           pool: { pool_id: poolId, pool_name: poolName, pool_type: "custom", first_membership_date: dates[0], last_membership_date: dates.at(-1),
             membership_rows: aligned.rows.length, membership_months: aligned.monthCount, persisted: registered.persisted, tested_factors: codes.length,
-            missing_months: aligned.missingMonths, underfilled_months: aligned.underfilledMonths },
+            missing_months: aligned.missingMonths, underfilled_months: aligned.underfilledMonths,
+            membership_qualified_months: coverage.membershipQualifiedMonths,
+            valid_return_qualified_months: coverage.validReturnQualifiedMonths,
+            usable_factor_months: coverage.usableFactorMonths, factor_months: coverage.factorMonthCount,
+            return_audit: returnAudit },
           summary, monthly, forward, redundancy,
         };
         local.poolId = poolId; local.selected.clear(); local.asOf = "";
         populatePoolSelector(true); await render();
         const notes = [];
         if (aligned.missingMonths.length) notes.push(`${aligned.missingMonths.length} 个月超出数据范围已忽略`);
-        if (aligned.underfilledMonths.length) notes.push(`${aligned.underfilledMonths.length} 个月少于 ${CUSTOM_POOL_MIN_CROSS_SECTION} 只，将判为不可用`);
+        notes.push(`成员人数达标 ${coverage.membershipQualifiedMonths}/${coverage.monthCount} 个月`);
+        notes.push(`有效收益人数达标 ${coverage.validReturnQualifiedMonths}/${coverage.monthCount} 个月`);
+        notes.push(`因子可用截面 ${coverage.usableFactorMonths}/${coverage.factorMonthCount} 组`);
+        if (aligned.underfilledMonths.length) notes.push(`${aligned.underfilledMonths.length} 个月上传成员少于 ${CUSTOM_POOL_MIN_CROSS_SECTION} 只`);
+        if (coverage.validReturnUnderfilledMonths.length) notes.push(`${coverage.validReturnUnderfilledMonths.length} 个月有效收益少于 ${CUSTOM_POOL_MIN_CROSS_SECTION} 只`);
+        if (coverage.factorUnderfilledMonths.length) notes.push(`${coverage.factorUnderfilledMonths.length} 个因子-月份的得分与收益共同样本少于 ${CUSTOM_POOL_MIN_CROSS_SECTION} 只`);
+        notes.push(`${returnAudit.comparedRows} 条共同键前瞻收益一致`);
         if (!registered.persisted) notes.push("当前浏览器未能持久保存，刷新后需重新上传");
-        renderCustomStatus(`检验完成：${aligned.monthCount} 个月、${aligned.rows.length} 行成分、${codes.length} 个因子${notes.length ? `；${notes.join("；")}` : ""}。`, notes.length ? "warning" : "success");
+        const hasCoverageWarning = coverage.membershipQualifiedMonths < coverage.monthCount || coverage.validReturnQualifiedMonths < coverage.monthCount || coverage.usableFactorMonths < coverage.factorMonthCount;
+        renderCustomStatus(`检验完成：${aligned.monthCount} 个月、${aligned.rows.length} 行成分、${codes.length} 个因子；${notes.join("；")}。`, hasCoverageWarning || !registered.persisted ? "warning" : "success");
       } catch (error) {
         console.error("custom stock pool research failed:", error);
         renderCustomStatus(error.message || String(error), "error");
@@ -664,6 +742,10 @@
     }
 
     function renderCustomEmpty() {
+      local.asOf = ""; local.l1 = "all"; local.status = "all"; local.search = "";
+      element("pool-as-of").innerHTML = '<option value="">等待检验</option>'; element("pool-as-of").disabled = true;
+      element("pool-l1-filter").innerHTML = '<option value="all">全部大类</option>';
+      element("pool-status-filter").value = "all"; element("pool-factor-search").value = "";
       element("pool-scope-note").innerHTML = "<b>自定义月末股票池</b><span>上传代码和日期后，系统只下载所选因子的历史分片，并按固定股票池相同的时点、有效月、分组、换手和样本外规则检验。</span>";
       element("pool-overview").innerHTML = '<div class="empty">上传月末成分并选择 1 至 12 个因子后运行检验。</div>';
       element("pool-style-summary").innerHTML = '<div class="empty">运行后显示已选因子的大类证据。</div>';
@@ -763,7 +845,7 @@
       const windowLabel = local.window === "full" ? "全部可见历史" : local.window === "custom" ? `${local.customStart} 至 ${local.customEnd}` : `最近 ${local.window} 月`;
       const redundancyLabel = local.redundancyAsOf ? `冗余截面 ${local.redundancyAsOf}` : "冗余截面：截至该收益日无可用数据";
       const customNote = local.poolType === "custom"
-        ? `<span>上传 ${number(pool.membership_rows) || 0} 行、${number(pool.membership_months) || 0} 个月；候选分和冗余只在本次选择的 ${number(pool.tested_factors) || 0} 个因子内比较。</span><span>${pool.persisted ? "成分已保存到当前浏览器。" : "成分仅在当前标签页可用。"}</span>`
+        ? `<span>上传 ${number(pool.membership_rows) || 0} 行、${number(pool.membership_months) || 0} 个月；成员人数达标 ${number(pool.membership_qualified_months) || 0}/${number(pool.membership_months) || 0} 个月，有效收益人数达标 ${number(pool.valid_return_qualified_months) || 0}/${number(pool.membership_months) || 0} 个月，因子可用截面 ${number(pool.usable_factor_months) || 0}/${number(pool.factor_months) || 0} 组。</span><span>候选分和冗余只在本次选择的 ${number(pool.tested_factors) || 0} 个因子内比较；${pool.persisted ? "成分已保存到当前浏览器。" : "成分仅在当前标签页可用。"}</span>`
         : `<span>历史成分：${text(pool.first_membership_date)} 至 ${text(pool.last_membership_date)}；各股票池不强行统一起点。</span>`;
       element("pool-scope-note").innerHTML = `<b>${text(pool.pool_name)}</b><span>收益截止 ${text(local.asOf)}，观察窗口：${text(windowLabel)}；只使用截止日以前已实现的收益。</span><span>${text(redundancyLabel)}。</span><span>样本外：过去 ${local.trainWindow} 月训练、未来 ${local.forwardHorizon} 月验证；单边成本 ${local.costBps} bp。</span>${customNote}`;
     }
@@ -817,7 +899,7 @@
     function showLoading() { element("pool-overview").innerHTML = '<div class="pool-skeleton"></div>'; element("pool-style-summary").innerHTML = '<div class="pool-skeleton pool-skeleton-wide"></div>'; element("pool-factor-table-body").innerHTML = '<tr><td colspan="14" class="empty">加载月度、样本外与冗余证据…</td></tr>'; }
     function showError(error) { const message = text(error?.message || error || "未知错误"); element("pool-overview").innerHTML = `<div class="pool-error"><b>股票池研究数据加载失败</b><span>${message}</span><button id="pool-retry" type="button">重试</button></div>`; element("pool-style-summary").innerHTML = '<div class="empty">等待数据恢复</div>'; element("pool-factor-table-body").innerHTML = '<tr><td colspan="14" class="empty">暂无可显示结果</td></tr>'; element("pool-retry").onclick = render; }
     function renderMethodology() {
-      element("pool-methodology-content").innerHTML = `<dl><div><dt>严格时点</dt><dd>收益截止日只纳入 return_date 已经到达的结果；样本外训练在选择日 T 仅使用 return_date≤T 的历史，杜绝未来收益泄漏。</dd></div><div><dt>时间窗口</dt><dd>固定窗口取截至收益截止日最近 60/36/12 个有效信号月；全部历史和自定义窗口同样先排除尚未实现的收益。各窗口都会重新计算 IC、HAC t、FDR、分层与成本后收益。</dd></div><div><dt>自定义股票池</dt><dd>上传日期按月份映射到系统实际信号月末；代码和月份去重。每月至少 30 只有效收益股票才可检验，基准为当期上传股票池等权收益。一次最多选择 12 个因子，候选分和冗余仅在已选因子内相对比较。</dd></div><div><dt>样本外</dt><dd>每季度滚动选因子，训练覆盖和未来覆盖均须至少 75%；未来 3/6/12 月折可切换，历史截止视图只展示当时已经完成的折。</dd></div><div><dt>成本与冗余</dt><dd>成本按 Q5/Q1 实际等权换手率逐月扣减；冗余基于不晚于收益截止日的最新同截面因子得分 Spearman 相关，|ρ|≥0.75 归为同簇，并单独显示截面日期。</dd></div><div><dt>候选分</dt><dd>样本外 35%、稳定性 25%、近期强度 15%、成本后 Q5 超额夏普 15%、独特性 10%；成本后夏普已经按所选费率扣费，不再额外惩罚换手。少于 4 个样本外折、少于 12 个有效月、方向反转或禁止组合的因子不评分。</dd></div><div><dt>统计边界</dt><dd>动态窗口的 p 值采用 HAC t 的双侧正态近似，再在当前股票池内执行 BH-FDR；候选分用于研究排序，不是未来收益承诺。</dd></div></dl>`;
+      element("pool-methodology-content").innerHTML = `<dl><div><dt>严格时点</dt><dd>收益截止日只纳入 return_date 已经到达的结果；样本外训练在选择日 T 仅使用 return_date≤T 的历史，杜绝未来收益泄漏。</dd></div><div><dt>时间窗口</dt><dd>固定窗口取截至收益截止日最近 60/36/12 个有效信号月；全部历史和自定义窗口同样先排除尚未实现的收益。各窗口都会重新计算 IC、HAC t、FDR、分层与成本后收益。</dd></div><div><dt>自定义股票池</dt><dd>上传日期按月份映射到系统实际信号月末；代码和月份去重。页面分别披露上传成员、有效收益以及因子得分与收益共同样本，后者每月至少 30 只才可检验。有限前瞻收益均保留，包括 -100%；基准为当期上传股票池等权收益。</dd></div><div><dt>样本外</dt><dd>自定义池只用上传并成功对齐的月份作为自己的研究日历，不用全市场月份填补空档。每季度滚动选因子，训练覆盖和未来覆盖均须至少 75%；未来 3/6/12 月折可切换，历史截止视图只展示当时已经完成的折。</dd></div><div><dt>收益一致性</dt><dd>全市场 LNMV 分片只提供月份映射和股票池等权基准；运行时逐键核对它与所选因子分片在共同股票-月份上的前瞻收益，不一致即停止检验。</dd></div><div><dt>成本与冗余</dt><dd>成本按 Q5/Q1 实际等权换手率逐月扣减；冗余基于不晚于收益截止日的最新同截面因子得分 Spearman 相关，|ρ|≥0.75 归为同簇，并单独显示截面日期。</dd></div><div><dt>候选分</dt><dd>一次最多选择 12 个因子，候选分和冗余仅在已选因子内相对比较。候选分由样本外 35%、稳定性 25%、近期强度 15%、成本后 Q5 超额夏普 15%、独特性 10%组成；少于 4 个样本外折、少于 12 个有效月、方向反转或禁止组合的因子不评分。</dd></div><div><dt>统计边界</dt><dd>动态窗口的 p 值采用 HAC t 的双侧正态近似，再在当前股票池内执行 BH-FDR；候选分用于研究排序，不是未来收益承诺。</dd></div></dl>`;
     }
     function resize() { if (local.quantileChart) local.quantileChart.resize(); if (local.monthlyChart) local.monthlyChart.resize(); }
     return { render, resize, closeDetail };
@@ -825,6 +907,7 @@
 
   window.FactorStockPoolResearch = {
     create, parseCustomPoolText, alignCustomPoolMembership, customPoolId,
+    validForwardReturn, auditCustomForwardReturnConsistency, summarizeCustomCoverage,
     computeCustomFactorMonthly, buildCustomForwardRows, buildCustomRedundancy,
   };
 })();

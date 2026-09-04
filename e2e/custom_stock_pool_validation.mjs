@@ -49,6 +49,15 @@ try {
   );
   await page.locator("#pool-type-custom").click();
   await page.waitForSelector("#pool-custom-upload", { state: "visible", timeout: 15000 });
+  const emptyState = {
+    asOfDisabled: await page.locator("#pool-as-of").isDisabled(),
+    asOfText: await page.locator("#pool-as-of").innerText(),
+    categoryOptions: await page.locator("#pool-l1-filter option").count(),
+    category: await page.locator("#pool-l1-filter").inputValue(),
+  };
+  if (!emptyState.asOfDisabled || !emptyState.asOfText.includes("等待检验") || emptyState.categoryOptions !== 1 || emptyState.category !== "all") {
+    throw new Error(`切入自定义上传后仍残留固定池日期或筛选：${JSON.stringify(emptyState)}`);
+  }
   await page.locator("#pool-custom-name").fill("浏览器验收股票池");
   await page.locator("#pool-custom-file").setInputFiles({
     name: "custom-stock-pool.csv",
@@ -86,6 +95,9 @@ try {
   if (!status.includes(`${months.length} 个月`) || !status.includes(`${months.length * stableCodes.length} 行成分`)) {
     throw new Error(`上传月份或成分行数与输入不一致：${status}`);
   }
+  if (!status.includes("成员人数达标") || !status.includes("有效收益人数达标") || !status.includes("因子可用截面") || !status.includes("共同键前瞻收益一致")) {
+    throw new Error(`自定义池覆盖与收益一致性披露不完整：${status}`);
+  }
   if (rows !== 2 || !resultCodes.some(value => value.includes("MOM20")) || !resultCodes.some(value => value.includes("ROE"))) {
     throw new Error(`所选因子未完整输出：${JSON.stringify(resultCodes)}`);
   }
@@ -96,7 +108,10 @@ try {
     throw new Error(`自定义池未按所选因子分片加载：${loaded}`);
   }
 
-  await page.locator("#pool-factor-table-body .pool-row-check").first().check();
+  const resultChecks = page.locator("#pool-factor-table-body .pool-row-check");
+  for (let index = 0; index < await resultChecks.count(); index += 1) {
+    await resultChecks.nth(index).check();
+  }
   await page.locator("#pool-send-compose").click();
   await page.waitForSelector("#compose-view", { state: "visible", timeout: 30000 });
   await page.waitForFunction(
@@ -109,7 +124,7 @@ try {
     label: await page.locator("#cps-universe-mode option:checked").innerText(),
     factors: await page.locator("#cps-controls .cps-frow").count(),
   };
-  if (handoff.mode !== "stock_pool" || !handoff.label.includes("浏览器验收股票池") || handoff.factors !== 1) {
+  if (handoff.mode !== "stock_pool" || !handoff.label.includes("浏览器验收股票池") || handoff.factors !== 2) {
     throw new Error(`自定义股票池未正确交接到组合：${JSON.stringify(handoff)}`);
   }
 

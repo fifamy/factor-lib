@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>因子库 v2.4.3</title>
+  <title>因子库 v2.4.4</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260904145832">
+  <link rel="stylesheet" href="styles.css?v=20260904161713">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <h1 class="app-title">因子库 v2.4.3 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
+    <h1 class="app-title">因子库 v2.4.4 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260904145832" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260904161713" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -459,7 +459,7 @@
           <div class="pool-research-heading">
             <div>
               <h2 id="pool-research-title">股票池因子有效性研究</h2>
-              <p>在各宽基指数或申万一级行业的历史时点成分内，比较因子的排序能力、分层收益及 Alpha 来源。</p>
+              <p>在宽基指数、申万一级行业或上传的自定义月末成分内，比较因子的排序能力、分层收益及 Alpha 来源。</p>
             </div>
             <span class="pool-data-badge">6 个宽基 · 31 个行业 · 支持自定义上传</span>
           </div>
@@ -514,7 +514,7 @@
               <button id="pool-custom-clear" type="button">清除</button>
               <span id="pool-custom-status" role="status" aria-live="polite">请选择成分文件和待检验因子。</span>
             </div>
-            <p class="pool-custom-boundary">有效研究月要求至少 30 只有效收益股票。上传内容仅在浏览器本地处理；成分会保存到当前浏览器，供本地组合刷新后复用，但不会上传到网站、公开组合库或跨设备跟踪服务。</p>
+            <p class="pool-custom-boundary">上传成员人数、有效收益人数、因子得分与收益共同样本会分别统计；后者每月至少 30 只才是有效研究月。上传内容仅在浏览器本地处理；成分会保存到当前浏览器，供本地组合刷新后复用，但不会上传到网站、公开组合库或跨设备跟踪服务。</p>
           </section>
           <fieldset class="pool-toolbar pool-time-toolbar">
             <legend>时间、验证与成本</legend>
@@ -621,10 +621,10 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260904145832"></script>
-  <script src="app_portfolio_ledger.js?v=20260904145832"></script>
-  <script src="app_index_universe.js?v=20260904145832"></script>
-  <script src="app_stock_pool_research.js?v=20260904145832"></script>
-  <script type="module" src="app.js?v=20260904145832"></script>
+  <script src="app_holding_scope.js?v=20260904161713"></script>
+  <script src="app_portfolio_ledger.js?v=20260904161713"></script>
+  <script src="app_index_universe.js?v=20260904161713"></script>
+  <script src="app_stock_pool_research.js?v=20260904161713"></script>
+  <script type="module" src="app.js?v=20260904161713"></script>
 </body>
 </html>
