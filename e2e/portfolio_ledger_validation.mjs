@@ -58,9 +58,10 @@ try {
     throw new Error(`月度持仓执行导出文件名无效：${download.suggestedFilename()}`);
   }
   const csv = await readFile(await download.path(), "utf8");
-  for (const required of ["交易方向", "拟交易金额(万元)", "入场日成交额(万元)", "执行风险提示"]) {
+  for (const required of ["交易方向", "拟交易金额(万元)", "入场日成交额(万元)", "参与率容量(万元)", "执行风险提示"]) {
     if (!csv.includes(required)) throw new Error(`月度持仓执行CSV缺少${required}`);
   }
+  if (csv.includes("估算可用额度(万元)")) throw new Error("月度持仓执行CSV仍使用旧容量列名");
 
   await page.locator("#cps-execution-capital").fill("500");
   await page.locator("#cps-execution-capital").press("Enter");

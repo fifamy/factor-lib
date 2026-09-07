@@ -1,24 +1,24 @@
 {
-  "generated_at": "2026-09-07T06:54:12+00:00",
-  "deploy_version": "20260907145402",
+  "generated_at": "2026-09-07T08:05:43+00:00",
+  "deploy_version": "20260907160527",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
-  "source_revision": "f40ce1c6c6ba87ddf0c68cccec13c8d69b924f625623dcde974e714b6f117f01",
+  "source_revision": "d48d400934759533bce1ad3158da994ff43937f4b308f6a94521fff52c4eb93f",
   "source_revision_kind": "content_sha256",
-  "source_content_sha256": "f40ce1c6c6ba87ddf0c68cccec13c8d69b924f625623dcde974e714b6f117f01",
+  "source_content_sha256": "d48d400934759533bce1ad3158da994ff43937f4b308f6a94521fff52c4eb93f",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "2a47000201e21c262f78281de31ad33d88c3172f",
+  "pages_worktree_git_commit_before_sync": "e6d538296e44baf59f8857f08e68767bbd2b6195",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "857042fc8667cbe8824d4386d6fa453d9db5891538f02ae1aae3e315d6ff2b0f",
+      "sha256": "ef2c02a1579ffdc803bdb3396bfdf1cf5d3eed3f5f866473e50121b58299dc73",
       "bytes": 45178
     },
     "app.js": {
-      "sha256": "8ea60d8d96a05f8a0b0fa72869c056cd6f4322b5db89f2cc14da1db2c902aca3",
-      "bytes": 594756
+      "sha256": "3844764016948751a7aa8358e89998e5f0f7c8f087d843e6136859911b20c6b3",
+      "bytes": 594753
     },
     "app_portfolio_ledger.js": {
       "sha256": "25ac349f7a8cfcd7812872f705d71bed4821924eeba4c08d293d62de1bab06b7",
@@ -37,7 +37,7 @@
       "bytes": 66424
     },
     "factor_audit.html": {
-      "sha256": "0bb39c350b224b1dccb10a86d466e9bf0345f520ced565fb064230d36bc88a44",
+      "sha256": "6b1f7ef22965c0b487219686a5546fdd0ff4bc002e75fb5bf44d01e3814001c5",
       "bytes": 8627
     },
     "factor_audit.js": {
@@ -81,7 +81,7 @@
       "bytes": 1641199
     },
     "data/factor_audit/index.json": {
-      "sha256": "eddfedc38a13be6d3477bfda45fe163d27931467ca3e59299bdfb24e36ac98f8",
+      "sha256": "26e24a02145f3aceece9cb907cd09a32207fd32b911a7316ae725017a511a477",
       "bytes": 275191
     }
   },
@@ -152,7 +152,7 @@
       "exists": true,
       "file_count": 152,
       "bytes": 2224612,
-      "sha256": "e130e05fb20928faa08346b9838f25b4c4ee566782b6530493cf7509f5d21015"
+      "sha256": "96d355b0ec17fa6e2735f49545908b03135b1fa7f052a349c1e0163576fb6571"
     },
     "config": {
       "exists": true,
