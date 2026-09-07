@@ -964,6 +964,38 @@ def test_frozen_combo_cards_expose_monthly_decay_badges_and_detail():
     assert ".tracking-decay-strong" in styles
 
 
+def test_frozen_combo_monitoring_center_filters_marks_updates_and_exports_safe_csv():
+    source = APP_JS.read_text(encoding="utf-8")
+    index = INDEX_HTML.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+    filter_fn = _source_between(source, "function trackingMonitoringFilterMatches", "function readTrackingMonitorSeen")
+    result = _frontend_eval_json([
+        filter_fn,
+        "const rows = [",
+        "  {status: {level: 'alert'}, unread: false},",
+        "  {status: {level: 'watch'}, unread: true},",
+        "  {status: {level: 'strong'}, unread: false},",
+        "];",
+        "console.log(JSON.stringify({",
+        "  all: rows.filter(row => trackingMonitoringFilterMatches(row, 'all')).length,",
+        "  attention: rows.filter(row => trackingMonitoringFilterMatches(row, 'attention')).length,",
+        "  alert: rows.filter(row => trackingMonitoringFilterMatches(row, 'alert')).length,",
+        "  unread: rows.filter(row => trackingMonitoringFilterMatches(row, 'unread')).length,",
+        "}));",
+    ])
+
+    assert result == {"all": 3, "attention": 2, "alert": 1, "unread": 1}
+    assert 'id="tracking-monitoring"' in index
+    assert "TRACKING_MONITOR_SEEN_KEY" in source
+    assert "comboTrackingStatusFingerprint" in source
+    assert "markTrackingMonitoringSeen(rows)" in source
+    assert '"状态原因"' in source
+    assert "CSV 不含私密跟踪码" in source
+    assert "这里不是邮件、企业微信等外部定时通知" in source
+    assert ".tracking-monitoring-stats" in styles
+    assert "trackingKey" not in _source_between(source, "function comboMonitoringCsv", "function downloadTrackingMonitoring")
+
+
 def test_optimizer_source_avoids_full_object_sort_and_has_benchmark_script():
     source = APP_JS.read_text(encoding="utf-8")
     backtest = _source_between(source, "function backtestWeights", "function nthLargestFinite")
@@ -2037,8 +2069,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.6</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.6 ' in index
+    assert "<title>因子库 v2.4.7</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.7 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

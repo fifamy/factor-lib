@@ -30,6 +30,7 @@ const COMPOSE_SCORE_DIR = DATA_DIR + "compose_scores/";
 const COMPOSE_SCORE_NEUTRAL_DIR = DATA_DIR + "compose_scores_neutral/";
 const MARKET_CAP_MONTHLY = DATA_DIR + "market_cap_monthly.parquet" + V;
 const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
+const TRACKING_MONITOR_SEEN_KEY = "factorlib.compose.trackingMonitorSeen.v1";
 const COST_PER_SIDE = 0.002;
 const MIN_VALID_FORWARD_RETURN = -1.0;
 const EXTREME_FORWARD_RETURN_WARNING = 5.0;
@@ -75,6 +76,7 @@ const state = {
   publishedComboOpen: new Set(),
   myCombos: [],
   myComboOpen: new Set(),
+  comboMonitoringFilter: "all",
   comboLibraryTab: "published",
   comboRankingRows: [],
   comboRankingSortKey: "score",
@@ -7048,6 +7050,128 @@ function comboTrackingDecayHtml(combo) {
   </div>`;
 }
 
+function comboTrackingStatusFingerprint(row) {
+  const status = row?.status || {};
+  return [status.level || "", status.latestSignalDate || "", Number(status.n || 0)].join("|");
+}
+
+function trackingMonitoringFilterMatches(row, filter = "all") {
+  if (filter === "attention") return ["alert", "watch"].includes(row?.status?.level);
+  if (filter === "alert") return row?.status?.level === "alert";
+  if (filter === "unread") return row?.unread === true;
+  return true;
+}
+
+function readTrackingMonitorSeen() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TRACKING_MONITOR_SEEN_KEY) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (error) {
+    console.warn("tracking monitor seen state ignored:", error);
+    return {};
+  }
+}
+
+function trackingMonitoringRows() {
+  const seen = readTrackingMonitorSeen();
+  return state.myCombos
+    .filter(combo => combo?.valid && combo?.decisionDate)
+    .map(combo => {
+      const status = comboTrackingDecayStatus(combo);
+      const row = { combo, status };
+      row.fingerprint = comboTrackingStatusFingerprint(row);
+      row.unread = seen[combo.id] !== row.fingerprint;
+      return row;
+    });
+}
+
+function trackingMonitoringRank(level) {
+  return ({ alert: 0, watch: 1, muted: 2, strong: 3 })[level] ?? 4;
+}
+
+function comboMonitoringCsv(rows) {
+  const quote = value => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const headers = ["组合ID", "组合名称", "监控状态", "决策日", "最新跟踪信号日", "决策后月份", "累计收益", "近3月收益", "最大回撤", "状态原因"];
+  const body = rows.map(({ combo, status }) => [
+    combo.id, combo.name, status.label, combo.decisionDate, status.latestSignalDate,
+    status.n, status.cumulative, status.last3, status.maxDrawdown, status.reason,
+  ]);
+  return `\uFEFF${[headers, ...body].map(row => row.map(quote).join(",")).join("\r\n")}`;
+}
+
+function downloadTrackingMonitoring(rows) {
+  const blob = new Blob([comboMonitoringCsv(rows)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `factor-tracking-monitor-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function markTrackingMonitoringSeen(rows) {
+  const seen = readTrackingMonitorSeen();
+  rows.forEach(row => { seen[row.combo.id] = row.fingerprint; });
+  localStorage.setItem(TRACKING_MONITOR_SEEN_KEY, JSON.stringify(seen));
+}
+
+function renderTrackingMonitoring() {
+  const target = document.getElementById("tracking-monitoring");
+  const rows = trackingMonitoringRows();
+  if (!target) return rows;
+  if (!rows.length) {
+    target.innerHTML = `<div class="tracking-monitoring-empty"><b>冻结组合月度监控</b><span>保存并冻结组合后，这里会集中显示决策后的月度状态。</span></div>`;
+    return rows;
+  }
+  const counts = rows.reduce((result, row) => {
+    result[row.status.level] = (result[row.status.level] || 0) + 1;
+    if (row.unread) result.unread += 1;
+    return result;
+  }, { alert: 0, watch: 0, muted: 0, strong: 0, unread: 0 });
+  const filter = ["all", "attention", "alert", "unread"].includes(state.comboMonitoringFilter)
+    ? state.comboMonitoringFilter : "all";
+  state.comboMonitoringFilter = filter;
+  target.innerHTML = `<div class="tracking-monitoring-head">
+    <div><b>冻结组合月度监控</b><span>${rows.length} 个冻结组合 · ${counts.unread} 项状态有更新</span></div>
+    <div class="tracking-monitoring-actions">
+      <label for="tracking-monitor-filter">显示</label>
+      <select id="tracking-monitor-filter">
+        <option value="all"${filter === "all" ? " selected" : ""}>全部冻结组合</option>
+        <option value="attention"${filter === "attention" ? " selected" : ""}>预警与观察</option>
+        <option value="alert"${filter === "alert" ? " selected" : ""}>仅衰减预警</option>
+        <option value="unread"${filter === "unread" ? " selected" : ""}>状态有更新</option>
+      </select>
+      <button id="tracking-monitor-export" class="cpsn-btn" type="button">导出监控 CSV</button>
+      <button id="tracking-monitor-read" class="cpsn-btn" type="button"${counts.unread ? "" : " disabled"}>标记当前已读</button>
+    </div>
+  </div>
+  <div class="tracking-monitoring-stats">
+    <button type="button" data-monitor-filter="alert" class="tracking-monitoring-stat tracking-decay-alert"><span>衰减预警</span><b>${counts.alert}</b></button>
+    <button type="button" data-monitor-filter="attention" class="tracking-monitoring-stat tracking-decay-watch"><span>继续观察</span><b>${counts.watch}</b></button>
+    <div class="tracking-monitoring-stat tracking-decay-muted"><span>等待 / 样本不足</span><b>${counts.muted}</b></div>
+    <div class="tracking-monitoring-stat tracking-decay-strong"><span>未见明显衰减</span><b>${counts.strong}</b></div>
+  </div>
+  <p class="tracking-monitoring-boundary">状态在打开本页并载入本机跟踪账本时更新；CSV 不含私密跟踪码。这里不是邮件、企业微信等外部定时通知。</p>`;
+  target.querySelector("#tracking-monitor-filter").onchange = event => {
+    state.comboMonitoringFilter = event.target.value;
+    renderMyCombos();
+  };
+  target.querySelectorAll("[data-monitor-filter]").forEach(button => {
+    button.onclick = () => {
+      state.comboMonitoringFilter = button.dataset.monitorFilter;
+      renderMyCombos();
+    };
+  });
+  target.querySelector("#tracking-monitor-export").onclick = () => downloadTrackingMonitoring(rows);
+  target.querySelector("#tracking-monitor-read").onclick = () => {
+    markTrackingMonitoringSeen(rows);
+    renderMyCombos();
+  };
+  return rows;
+}
+
 function comboDetailHtml(combo) {
   const rows = cloneComposeFactors(combo.factors).map(f => {
     const meta = state.catalog.find(x => x.code === f.code);
@@ -7338,7 +7462,19 @@ function renderPublishedCombos() {
 }
 
 function renderMyCombos() {
-  renderComboCards(document.getElementById("cps-my-list"), state.myCombos, "mine", "还没有我的组合。可在多因子合成里保存当前组合，或先加入临时对比后一次保存全部。");
+  const monitoringRows = renderTrackingMonitoring();
+  let combos = state.myCombos;
+  if (state.comboMonitoringFilter !== "all") {
+    combos = monitoringRows
+      .filter(row => trackingMonitoringFilterMatches(row, state.comboMonitoringFilter))
+      .sort((left, right) => trackingMonitoringRank(left.status.level) - trackingMonitoringRank(right.status.level)
+        || String(right.status.latestSignalDate).localeCompare(String(left.status.latestSignalDate)))
+      .map(row => row.combo);
+  }
+  const emptyText = state.comboMonitoringFilter === "all"
+    ? "还没有我的组合。可在多因子合成里保存当前组合，或先加入临时对比后一次保存全部。"
+    : "当前筛选下没有冻结组合。";
+  renderComboCards(document.getElementById("cps-my-list"), combos, "mine", emptyText);
 }
 
 function renderComboLibrary() {

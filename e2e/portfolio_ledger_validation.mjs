@@ -82,6 +82,28 @@ try {
   await page.locator('.combo-tab[data-tab="mine"]').click();
   const frozenCard = page.locator(".my-combo-card", { hasText: "E2E冻结组合" });
   await frozenCard.waitFor({ state: "visible", timeout: 15000 });
+  const monitoring = page.locator("#tracking-monitoring");
+  const monitoringText = await monitoring.innerText();
+  for (const required of ["冻结组合月度监控", "1 个冻结组合", "1 项状态有更新", "等待 / 样本不足", "外部定时通知"]) {
+    if (!monitoringText.includes(required)) throw new Error(`冻结组合监控缺少${required}`);
+  }
+  const monitorDownloadPromise = page.waitForEvent("download");
+  await monitoring.locator("#tracking-monitor-export").click();
+  const monitorDownload = await monitorDownloadPromise;
+  if (!monitorDownload.suggestedFilename().startsWith("factor-tracking-monitor-") || !monitorDownload.suggestedFilename().endsWith(".csv")) {
+    throw new Error(`冻结组合监控导出文件名无效：${monitorDownload.suggestedFilename()}`);
+  }
+  await monitoring.locator("#tracking-monitor-read").click();
+  await page.waitForFunction(() => (document.querySelector("#tracking-monitoring")?.textContent || "").includes("0 项状态有更新"));
+  const monitoringLayout = await page.evaluate(() => ({
+    viewport: innerWidth,
+    pageWidth: document.documentElement.scrollWidth,
+    monitorWidth: document.querySelector("#tracking-monitoring")?.getBoundingClientRect().width || 0,
+    contentWidth: document.querySelector("#content")?.getBoundingClientRect().width || 0,
+  }));
+  if (monitoringLayout.pageWidth > monitoringLayout.viewport + 2 || monitoringLayout.monitorWidth > monitoringLayout.contentWidth + 2) {
+    throw new Error(`冻结组合监控移动端页面级溢出：${JSON.stringify(monitoringLayout)}`);
+  }
   await frozenCard.locator(".library-detail-toggle").click();
   const frozenText = await frozenCard.innerText();
   for (const required of ["冻结决策", "决策日", "因子数据截面", "最后已完成信号", "收益实现截止", "冻结时年化"]) {
