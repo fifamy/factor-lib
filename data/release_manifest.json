@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-09-04T09:27:37+00:00",
-  "deploy_version": "20260904172723",
+  "generated_at": "2026-09-07T02:40:27+00:00",
+  "deploy_version": "20260907103955",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
-  "source_revision": "cb31cd9d0bbef7228c44afb949599309edfb2430c1ce1289954f9bb9456b2a73",
+  "source_revision": "8b5b346d368ce2370f5801d90dd6b32dc998fe68b685cc711e00a2bf646c5e91",
   "source_revision_kind": "content_sha256",
-  "source_content_sha256": "cb31cd9d0bbef7228c44afb949599309edfb2430c1ce1289954f9bb9456b2a73",
+  "source_content_sha256": "8b5b346d368ce2370f5801d90dd6b32dc998fe68b685cc711e00a2bf646c5e91",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "c7909acfcd831f23eda849730d3c98a91925381c",
+  "pages_worktree_git_commit_before_sync": "a25f97e30ff42fbc70870bc86bda8c46f5b8ffc7",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "e005cf526cb84d3d88168f9fdceb9fc394d7e5abc0bdddde812895ac33762832",
+      "sha256": "d41b865de066a3aa4a1a5257887dc09c74b21387fe40c05194f99a33b0d58dea",
       "bytes": 45036
     },
     "app.js": {
-      "sha256": "6756e444b00eb8f786f63be69828076af6ef1046407410f4e37773c2aedd0bc9",
-      "bytes": 558660
+      "sha256": "23cff18df65e2eca8cd68b465fe6fac00520254c9167893e80f3d93874ad7356",
+      "bytes": 578727
     },
     "app_portfolio_ledger.js": {
-      "sha256": "f704a82bc2b366fdf482c87f1f801ec85e1ec8050e332f49e2edb53bfe7a7904",
-      "bytes": 8757
+      "sha256": "d2c9b9f1726fee295fb515d67ce8b85ca94d18d531799bb32a004fcee4cfcf4f",
+      "bytes": 15831
     },
     "app_index_universe.js": {
       "sha256": "3660b08f5cfff1363a6dc32889d1facb224b9b69e72f8e56fe62a711bdfd3db8",
@@ -33,11 +33,11 @@
       "bytes": 73173
     },
     "styles.css": {
-      "sha256": "f4347a9dff0a39d16869174f80074f5ec39615bd02301396e83901d07cc7d270",
-      "bytes": 62678
+      "sha256": "4124f560f55f4397f6a3fbb12507ec69f7510364cc04bba7a6e213190e668c6c",
+      "bytes": 62887
     },
     "factor_audit.html": {
-      "sha256": "062831a38ed08284e18bf6c1f6cf2f32e2dce1b843e4633dacb8eb4c2fb27196",
+      "sha256": "0efc00307b01b1d4f79b507e7f03c482c92e525ca0f95eae40ee62538cbfc619",
       "bytes": 8627
     },
     "factor_audit.js": {
@@ -68,6 +68,10 @@
       "sha256": "1f1a47395ec7ccf5432c7f5332cceaa026f3991b15197eecc9d89dc51496cad7",
       "bytes": 1934190
     },
+    "data/market_cap_monthly.parquet": {
+      "sha256": "47f0488414b7b05832448852ccb0382bf736b7bd4dde53bf043e562a460c3bbf",
+      "bytes": 5456029
+    },
     "data/stock_pool_research/meta.json": {
       "sha256": "4a7b9335853aac090f8d5f7cbe1fd364da164b5016d7495966f4a2d0b05aee8a",
       "bytes": 15576
@@ -77,7 +81,7 @@
       "bytes": 1641199
     },
     "data/factor_audit/index.json": {
-      "sha256": "e7b7b7741706b6d4defee38b210aa53a1b388a4d73df76d41df034ee431b6aa2",
+      "sha256": "3bfa8ae10b246fac388ba098043a42a729c420357ded3696af88ab500f4ace6c",
       "bytes": 275191
     }
   },
@@ -146,9 +150,9 @@
     },
     "scripts": {
       "exists": true,
-      "file_count": 150,
-      "bytes": 2192191,
-      "sha256": "dc21dd8b3f0d804b3dea62b45e698c80c75f9ed0755317aaf628b63736a2a70a"
+      "file_count": 152,
+      "bytes": 2222119,
+      "sha256": "729998fe126cfeeb5cdeea9c836a00697373c2c5444f57f897b00180b068e173"
     },
     "config": {
       "exists": true,
@@ -258,6 +262,7 @@
     "index_universe": true,
     "stock_pool_research": true,
     "stock_pool_membership": true,
-    "portfolio_ledger": true
+    "portfolio_ledger": true,
+    "portfolio_allocation": true
   }
 }

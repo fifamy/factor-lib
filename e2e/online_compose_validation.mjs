@@ -100,6 +100,8 @@ async function validateLiveResources(expectedManifest) {
   if (index.includes("DEPLOY_VERSION")) throw new Error("线上首页仍含 DEPLOY_VERSION 占位符");
   const appMarkers = [
     "组合内相对低流动性占比",
+    "市值加权（PIT）",
+    "月度换手上限",
     "async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, rawUniverse",
     "composeLatestHoldingSelection(candidateRows, state.composeN, constraint, universe)",
     "factor_corr_neutral",
@@ -128,6 +130,9 @@ async function validateLiveResources(expectedManifest) {
   }
   if (dataManifest.capabilities?.index_universe !== true || dataManifest.has_index_universe !== true) {
     throw new Error("线上data_manifest未启用指数股票池能力");
+  }
+  if (dataManifest.capabilities?.portfolio_allocation !== true) {
+    throw new Error("线上data_manifest未启用组合权重与交易约束能力");
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataManifest.return_end_date || "")) {
     throw new Error("线上 data_manifest 缺少有效 return_end_date");

@@ -26,6 +26,12 @@ def _skip_without_full_project_docs():
         pytest.skip("publish worktree ships only static frontend files")
 
 
+def test_full_compose_validation_charts_resize_with_viewport():
+    source = APP_JS.read_text(encoding="utf-8")
+    resize = source.split('window.addEventListener("resize", () => {', 1)[1].split("bindScanButtons();", 1)[0]
+    assert "comboGroup10Chart, comboRolling36mChart" in resize
+
+
 def _source_between(source: str, start: str, end: str) -> str:
     start_idx = source.index(start)
     end_idx = source.index(end, start_idx)
@@ -593,7 +599,7 @@ def test_compose_latest_render_and_validation_share_selection_contract():
     assert "composeLatestHoldingSelection(candidateRows, N, constraint, universe)" in validation_holdings
     assert "WHERE (${scoreExpr}) IS NOT NULL ${condSql}" in validation_holdings
     assert "candidateRows.slice(0, N)" not in validation_holdings
-    assert "return selection.rows.map" in validation_holdings
+    assert "applyComposeTargetWeights(selection.rows, constraint, portfolio)" in validation_holdings
     assert "renderCompose();" in optimizer
 
 
@@ -1748,7 +1754,8 @@ def test_combo_best_single_comparison_uses_current_factor_configuration():
 
     assert "async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, rawUniverse" in source
     assert "comboIcDecay([singleFactor], startMonth, endMonth, universe)" in body
-    assert 'comboBacktest([singleFactor], N, "cps_matrix", constraintMode, universe)' in body
+    assert 'comboBacktest([singleFactor], N, "cps_matrix", constraintMode, universe, options.costBps' in body
+    assert 'portfolio.weightingMode, portfolio.maxStockWeight, portfolio.turnoverCap' in body
     assert "rankIcStatsFromSeries(ic?.series?.[\"1\"] || [])" in body
     assert "thr: null" in body
     assert "loadActiveSingleSnapshot" not in body
@@ -2030,8 +2037,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.5</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.5 ' in index
+    assert "<title>因子库 v2.4.6</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.6 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

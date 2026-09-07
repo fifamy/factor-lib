@@ -129,7 +129,9 @@ body.modal-open { overflow: hidden; }
 .ledger-change-chip.added { color: #21654a; background: #eef8f3; border-color: #bcdcca; }
 .ledger-change-chip.removed { color: #913d33; background: #fff3f1; border-color: #e5c3bd; }
 .ledger-change-empty { color: var(--text-muted); font-size: 10px; }
-.ledger-table-scroll { max-width: 100%; overflow-x: auto; }
+.ledger-table-scroll { max-width: 100%; max-height: 560px; overflow: auto; }
+.ledger-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-muted); }
+.ledger-table-scroll:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .ledger-table { min-width: 920px; }
 .ledger-code { color: var(--brand); }
 .ledger-action { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; }

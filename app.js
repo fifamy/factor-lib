@@ -28,6 +28,7 @@ const BACKTEST_DIR = DATA_DIR + "backtests/";
 const FACTOR_IC_DIR = DATA_DIR + "factor_ics/";
 const COMPOSE_SCORE_DIR = DATA_DIR + "compose_scores/";
 const COMPOSE_SCORE_NEUTRAL_DIR = DATA_DIR + "compose_scores_neutral/";
+const MARKET_CAP_MONTHLY = DATA_DIR + "market_cap_monthly.parquet" + V;
 const MY_COMBOS_KEY = "factorlib.compose.myCombos.v1";
 const COST_PER_SIDE = 0.002;
 const MIN_VALID_FORWARD_RETURN = -1.0;
@@ -59,6 +60,9 @@ const state = {
   composeConstraintMode: "none", // none | industry：合成组合最终持仓约束
   composeUniverse: { mode: "all", indexAlias: "HS300", minShare: 0.8 },
   composeCostBps: 20,
+  composeWeightingMode: "equal", // equal | score | market_cap：入选股票目标权重
+  composeMaxStockWeight: 1,
+  composeTurnoverCap: 1,
   composeHoldingMonth: null,
   composeDecisionContext: null,
   composeStart: null,       // 多因子合成回测区间；null=不限
@@ -496,6 +500,93 @@ function constraintModeLabel(mode = state.singleConstraintMode) {
   return normalizeConstraintMode(mode) === "industry" ? "行业中性" : "无约束等权";
 }
 
+function normalizeComposeWeightingMode(mode) {
+  return ["equal", "score", "market_cap"].includes(mode) ? mode : "equal";
+}
+
+function normalizeComposeFraction(value, fallback = 1) {
+  if (value === null || value === undefined || value === "") return fallback;
+  let parsed = Number(value);
+  if (!Number.isFinite(parsed)) parsed = fallback;
+  if (parsed > 1) parsed /= 100;
+  return Math.min(1, Math.max(0, parsed));
+}
+
+function normalizeComposePortfolioConfig(raw = {}) {
+  raw = raw || {};
+  return {
+    weightingMode: normalizeComposeWeightingMode(raw.weightingMode),
+    maxStockWeight: normalizeComposeFraction(raw.maxStockWeight, 1),
+    turnoverCap: normalizeComposeFraction(raw.turnoverCap, 1),
+  };
+}
+
+function currentComposePortfolioConfig() {
+  return normalizeComposePortfolioConfig({
+    weightingMode: state.composeWeightingMode,
+    maxStockWeight: state.composeMaxStockWeight,
+    turnoverCap: state.composeTurnoverCap,
+  });
+}
+
+function composeWeightingModeLabel(mode = state.composeWeightingMode) {
+  return ({ equal: "等权", score: "分数加权", market_cap: "市值加权" })[normalizeComposeWeightingMode(mode)];
+}
+
+function composeCapLabel(value, unlimitedLabel = "不限") {
+  const normalized = normalizeComposeFraction(value, 1);
+  return normalized >= 1 ? unlimitedLabel : `${(normalized * 100).toFixed(normalized * 100 % 1 ? 1 : 0)}%`;
+}
+
+function composePortfolioMethodLabel(raw = currentComposePortfolioConfig()) {
+  const config = normalizeComposePortfolioConfig(raw);
+  return `${composeWeightingModeLabel(config.weightingMode)}，个股上限${composeCapLabel(config.maxStockWeight)}，月度换手上限${composeCapLabel(config.turnoverCap)}`;
+}
+
+function composePortfolioConstraintError(N, raw = currentComposePortfolioConfig()) {
+  const config = normalizeComposePortfolioConfig(raw);
+  const nominalN = Math.max(1, Math.floor(Number(N) || 1));
+  if (config.maxStockWeight <= 0 || config.maxStockWeight * nominalN < 1 - 1e-10) {
+    return `个股权重上限${composeCapLabel(config.maxStockWeight)}与名义 Top${nominalN} 不可行；上限至少需要${Math.ceil(100 / nominalN)}%。`;
+  }
+  return "";
+}
+
+function composePortfolioCompatibilityError(constraintMode, universe, raw) {
+  const config = normalizeComposePortfolioConfig(raw);
+  if (config.turnoverCap < 1 && (normalizeConstraintMode(constraintMode) === "industry" || normalizeIndexUniverseConfig(universe).mode !== "all")) {
+    return "换手上限目前仅支持全市场、无行业约束组合；保留旧持仓可能违反本期股票池或行业配额，请将换手上限设为不限。";
+  }
+  return "";
+}
+
+function resetComposePortfolioConfig() {
+  state.composeWeightingMode = "equal";
+  state.composeMaxStockWeight = 1;
+  state.composeTurnoverCap = 1;
+}
+
+function hasCustomComposePortfolio(raw = currentComposePortfolioConfig()) {
+  const config = normalizeComposePortfolioConfig(raw);
+  return config.weightingMode !== "equal" || config.maxStockWeight < 1 || config.turnoverCap < 1;
+}
+
+function applyComposeTargetWeights(rows, constraintMode, rawConfig = currentComposePortfolioConfig()) {
+  const config = normalizeComposePortfolioConfig(rawConfig);
+  if (!globalThis.FactorPortfolioLedger?.targetWeights) throw new Error("组合权重模块未加载");
+  let weights;
+  try {
+    weights = globalThis.FactorPortfolioLedger.targetWeights(rows, {
+      weightingMode: config.weightingMode,
+      maxStockWeight: config.maxStockWeight,
+      groupField: normalizeConstraintMode(constraintMode) === "industry" ? "industry_sw1" : "",
+    });
+  } catch (error) {
+    throw new Error(`目标权重不可行：${error.message || error}`);
+  }
+  return (rows || []).map(row => ({ ...row, weight: weights.get(String(row.stock_code)) || 0 }));
+}
+
 function constraintHoldText(mode = state.singleConstraintMode) {
   return normalizeConstraintMode(mode) === "industry"
     ? "按申万一级行业目标权重持有"
@@ -783,13 +874,13 @@ function composeHoldingCountNote(nominalN, displayedRows, stats) {
 }
 
 function composeConstraintModeLabel(mode = state.composeConstraintMode) {
-  return normalizeConstraintMode(mode) === "industry" ? "静态行业约束" : "无约束等权";
+  return normalizeConstraintMode(mode) === "industry" ? "静态行业约束" : "无行业约束";
 }
 
 function composeConstraintHoldText(mode = state.composeConstraintMode) {
   return normalizeConstraintMode(mode) === "industry"
     ? "按完整有效候选集的最新静态申万一级行业占比近似配权"
-    : "Top股票等权持有";
+    : `Top股票按${composeWeightingModeLabel(state.composeWeightingMode)}持有`;
 }
 
 function composeUniverseMethodNote(universe = state.composeUniverse) {
@@ -984,6 +1075,7 @@ function validatePublishedCombo(raw, idx, validCodes) {
     costBps: COST_SCENARIOS.some(item => item.bps === Number(raw?.costBps)) ? Number(raw.costBps) : 20,
     constraintMode: normalizeConstraintMode(raw?.constraintMode),
     universe: normalizeIndexUniverseConfig(raw?.universe),
+    ...normalizeComposePortfolioConfig(raw),
     factors: [],
     tags: Array.isArray(raw?.tags) ? raw.tags.filter(t => typeof t === "string" && t.trim()).map(t => t.trim()) : [],
     created_at: typeof raw?.created_at === "string" ? raw.created_at.trim() : "",
@@ -1011,6 +1103,14 @@ function validatePublishedCombo(raw, idx, validCodes) {
   if (!raw?.id || typeof raw.id !== "string" || !raw.id.trim()) reasons.push("缺少 id");
   if (!raw?.name || typeof raw.name !== "string" || !raw.name.trim()) reasons.push("缺少名称");
   if (!Number.isInteger(combo.N) || combo.N < 1 || combo.N > 100) reasons.push("topN 必须在 1-100");
+  const portfolioConstraintError = composePortfolioConstraintError(combo.N, combo);
+  if (portfolioConstraintError) reasons.push(portfolioConstraintError);
+  const compatibilityError = composePortfolioCompatibilityError(combo.constraintMode, combo.universe, combo);
+  if (compatibilityError) reasons.push(compatibilityError);
+  if (raw?.weightingMode !== undefined && !["equal", "score", "market_cap"].includes(raw.weightingMode)) reasons.push("持仓加权方式无效");
+  for (const key of ["maxStockWeight", "turnoverCap"]) {
+    if (raw?.[key] !== undefined && (typeof raw[key] !== "number" || !Number.isFinite(raw[key]) || raw[key] <= 0 || raw[key] > 1)) reasons.push(`${key}必须为大于0且不超过1的数值`);
+  }
   if (combo.constraintMode === "industry" && combo.universe.mode === "min_share") {
     reasons.push("行业中性约束暂不能与最低指数成分占比同时使用");
   }
@@ -1144,6 +1244,7 @@ function rawComboFromCurrent(name = "我的组合", existingIds = new Set(), bac
     costBps: state.composeCostBps,
     constraintMode: normalizeConstraintMode(state.composeConstraintMode),
     universe: normalizeIndexUniverseConfig(state.composeUniverse),
+    ...currentComposePortfolioConfig(),
     factors: cloneComposeFactors(state.composeFactors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
@@ -1160,6 +1261,7 @@ function rawComboFromSavedCombo(combo, existingIds = new Set()) {
     costBps: Number.isFinite(Number(combo.costBps)) ? Number(combo.costBps) : state.composeCostBps,
     constraintMode: normalizeConstraintMode(combo.constraintMode),
     universe: normalizeIndexUniverseConfig(combo.universe),
+    ...normalizeComposePortfolioConfig(combo),
     factors: cloneComposeFactors(combo.factors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
@@ -1216,6 +1318,7 @@ function persistMyCombos() {
     costBps: c.costBps,
     constraintMode: normalizeConstraintMode(c.constraintMode),
     universe: normalizeIndexUniverseConfig(c.universe),
+    ...normalizeComposePortfolioConfig(c),
     factors: cloneComposeFactors(c.factors),
     tags: c.tags || [],
     created_at: c.created_at || new Date().toISOString().slice(0, 10),
@@ -2344,6 +2447,7 @@ function renderTopStocksRows(code, rows, opts = {}) {
     state.composeConstraintMode = normalizeConstraintMode(state.singleConstraintMode);
     state.composeUniverse = normalizeIndexUniverseConfig({ mode: "all" });
     state.composeCostBps = 20;
+    resetComposePortfolioConfig();
     clearFrozenDecisionContext();
     syncComposeNButtons();
     switchMode("compose");
@@ -4478,6 +4582,7 @@ function ensureStockPoolResearchController() {
       }
       state.composeFactors = factors;
       state.composeConstraintMode = "none";
+      resetComposePortfolioConfig();
       const poolId = String(researchContext?.poolId || "");
       const poolType = researchContext?.poolType;
       if (poolType === "broad_index" && INDEX_UNIVERSE_OPTIONS.some(item => item.alias === poolId)) {
@@ -6288,6 +6393,8 @@ let _cpsBaseBuild = null;     // 进行中的重建 promise（串行锁）
 let _cpsMatrixCodes = [];
 const _composeFilePaths = new Map();
 const _composeFileLoads = new Map();
+let _composeMarketCapPath = null;
+let _composeMarketCapLoad = null;
 const _composePrefetches = new Map();
 const _composePrefetchBuffers = new Map();
 let _latestComposeBtKey = null;
@@ -6386,6 +6493,27 @@ async function ensureComposeFiles(items) {
     }
     await _composeFileLoads.get(key);
   }));
+}
+
+async function ensureComposeMarketCapFile() {
+  if (_composeMarketCapPath) return _composeMarketCapPath;
+  if (!_composeMarketCapLoad) {
+    _composeMarketCapLoad = (async () => {
+      const response = await fetch(MARKET_CAP_MONTHLY);
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${MARKET_CAP_MONTHLY}`);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const path = "/market_cap_monthly.parquet";
+      await state.duckdb.registerFileBuffer(path, bytes);
+      _composeMarketCapPath = path;
+      return path;
+    })();
+  }
+  try {
+    return await _composeMarketCapLoad;
+  } catch (error) {
+    _composeMarketCapLoad = null;
+    throw error;
+  }
 }
 
 const CUSTOM_POOL_DB_NAME = "factor-lib-local-artifacts";
@@ -6587,9 +6715,12 @@ function composeMatrixBuildSql(shards) {
              s0.return_date,
              s0.stock_code,
              ${scoreColumns},
+             mv.ln_mv,
              s0.fwd_return
       FROM s0
-      ${joins}`;
+      ${joins}
+      LEFT JOIN read_parquet('${_composeMarketCapPath}') mv
+        ON mv.trade_date = s0.trade_date AND mv.stock_code = s0.stock_code`;
 }
 
 function composeConfigKey(
@@ -6598,6 +6729,9 @@ function composeConfigKey(
   constraintMode = state.composeConstraintMode,
   universe = state.composeUniverse,
   costBps = state.composeCostBps,
+  weightingMode = state.composeWeightingMode,
+  maxStockWeight = state.composeMaxStockWeight,
+  turnoverCap = state.composeTurnoverCap,
 ) {
   const norm = cloneComposeFactors(factors).sort((a, b) => a.code.localeCompare(b.code));
   return JSON.stringify({
@@ -6605,6 +6739,7 @@ function composeConfigKey(
     constraintMode: normalizeConstraintMode(constraintMode),
     universe: normalizeIndexUniverseConfig(universe),
     costBps: Number.isFinite(Number(costBps)) ? Number(costBps) : 20,
+    ...normalizeComposePortfolioConfig({ weightingMode, maxStockWeight, turnoverCap }),
     factors: norm,
   });
 }
@@ -6744,8 +6879,8 @@ function matrixScoreSql(factors = state.composeFactors) {
   return terms.length ? terms.join(" + ") : "0";
 }
 
-async function ensureComposeBase() {
-  const shards = composeFactorShards(state.composeFactors);
+async function ensureComposeBase(factors = state.composeFactors) {
+  const shards = composeFactorShards(factors);
   const key = shards.map(item => item.key).join(",");
   // 若已有重建在跑，先等它结束（快速连点多个因子时，多次 renderCompose 并发调用本函数；
   // 不串行化会让 DROP/CREATE 交错 → "Table cps_base already exists"）。等完后用最新 key 复判。
@@ -6759,7 +6894,7 @@ async function ensureComposeBase() {
       await state.db.query(`DROP TABLE IF EXISTS cps_latest_matrix`);
       _cpsMatrixCodes = [];
     } else {
-      await ensureComposeFiles(shards);
+      await Promise.all([ensureComposeFiles(shards), ensureComposeMarketCapFile()]);
       // 只读取选中因子的历史分片。后续所有合成查询不再碰远程 parquet。
       const matrixStarted = performance.now();
       await state.db.query(composeMatrixBuildSql(shards));
@@ -6835,9 +6970,10 @@ function composeValues() {
 function comboSummary(combo) {
   const constraintMode = normalizeConstraintMode(combo.constraintMode);
   const universe = normalizeIndexUniverseConfig(combo.universe);
+  const portfolio = normalizeComposePortfolioConfig(combo);
   return cloneComposeFactors(combo.factors)
     .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}×${f.weight}${f.thr !== null ? `(${f.op}${f.thr})` : ""}`)
-    .join(" + ") + `，top${combo.N}，${composeConstraintModeLabel(constraintMode)}，${indexUniverseModeLabel(universe)}，单边${Number(combo.costBps ?? 20)}bp`;
+    .join(" + ") + `，top${combo.N}，${composeConstraintModeLabel(constraintMode)}，${indexUniverseModeLabel(universe)}，${composePortfolioMethodLabel(portfolio)}，单边${Number(combo.costBps ?? 20)}bp`;
 }
 
 function comboTrackingDecayStatus(combo) {
@@ -6927,7 +7063,7 @@ function comboDetailHtml(combo) {
   ].join("；") : "";
   return `<div class="published-detail">
     ${combo.description ? `<p>${htmlText(combo.description)}</p>` : ""}
-    <p class="published-meta">组合约束：${composeConstraintModeLabel(normalizeConstraintMode(combo.constraintMode))}；股票池：${indexUniverseModeLabel(combo.universe)}；单边成本：${Number(combo.costBps ?? 20)}bp</p>
+    <p class="published-meta">组合约束：${composeConstraintModeLabel(normalizeConstraintMode(combo.constraintMode))}；股票池：${indexUniverseModeLabel(combo.universe)}；${htmlText(composePortfolioMethodLabel(combo))}；单边成本：${Number(combo.costBps ?? 20)}bp</p>
     <table class="published-detail-table"><thead><tr><th>因子</th><th>名称</th><th>方向</th><th>口径</th><th>权重</th><th>过滤</th></tr></thead><tbody>${rows}</tbody></table>
     ${combo.decisionDate ? `<div class="frozen-combo-meta"><b>冻结决策</b><span>决策日 ${htmlText(combo.decisionDate)}</span><span>因子数据截面 ${htmlText(combo.dataCutoffDate || "—")}</span><span>最后已完成信号 ${htmlText(combo.decisionSignalDate || "—")}</span><span>收益实现截止 ${htmlText(combo.realizedReturnEndDate || "—")}</span><span>已追加 ${Number(combo.trackingLedger?.length || 0)} 个跟踪月</span>${metricText ? `<span>${htmlText(metricText)}</span>` : ""}</div>` : ""}
     ${comboTrackingDecayHtml(combo)}
@@ -6943,6 +7079,7 @@ function comboToTempCompare(combo) {
     costBps: Number(combo.costBps ?? 20),
     constraintMode: normalizeConstraintMode(combo.constraintMode),
     universe: normalizeIndexUniverseConfig(combo.universe),
+    ...normalizeComposePortfolioConfig(combo),
     color: STRAT_COLORS[state.savedCombos.length % STRAT_COLORS.length],
     bt: null,
   };
@@ -7049,6 +7186,10 @@ function loadLibraryCombo(source, id) {
   state.composeCostBps = Number(combo.costBps ?? 20);
   state.composeConstraintMode = normalizeConstraintMode(combo.constraintMode);
   state.composeUniverse = normalizeIndexUniverseConfig(combo.universe);
+  const portfolio = normalizeComposePortfolioConfig(combo);
+  state.composeWeightingMode = portfolio.weightingMode;
+  state.composeMaxStockWeight = portfolio.maxStockWeight;
+  state.composeTurnoverCap = portfolio.turnoverCap;
   state.composeDecisionContext = combo.decisionDate ? {
     source,
     comboId: combo.id,
@@ -7314,6 +7455,10 @@ function restoreComposeContext(snapshot) {
   state.composeConstraintMode = normalizeConstraintMode(snapshot.constraintMode);
   state.composeUniverse = normalizeIndexUniverseConfig(snapshot.universe);
   state.composeCostBps = Number(snapshot.costBps ?? state.composeCostBps);
+  const portfolio = normalizeComposePortfolioConfig(snapshot);
+  state.composeWeightingMode = portfolio.weightingMode;
+  state.composeMaxStockWeight = portfolio.maxStockWeight;
+  state.composeTurnoverCap = portfolio.turnoverCap;
   state.composeDecisionContext = snapshot.decisionContext ? { ...snapshot.decisionContext } : null;
   state.composeStart = snapshot.start;
   state.composeEnd = snapshot.end;
@@ -7327,6 +7472,10 @@ async function comboRankingPayloadFor(combo) {
   state.composeConstraintMode = normalizeConstraintMode(combo.constraintMode);
   state.composeUniverse = normalizeIndexUniverseConfig(combo.universe);
   state.composeCostBps = Number(combo.costBps ?? 20);
+  const portfolio = normalizeComposePortfolioConfig(combo);
+  state.composeWeightingMode = portfolio.weightingMode;
+  state.composeMaxStockWeight = portfolio.maxStockWeight;
+  state.composeTurnoverCap = portfolio.turnoverCap;
   state.composeDecisionContext = null;
   state.composeStart = null;
   state.composeEnd = null;
@@ -7353,6 +7502,7 @@ async function runComboRanking() {
     constraintMode: state.composeConstraintMode,
     universe: normalizeIndexUniverseConfig(state.composeUniverse),
     costBps: state.composeCostBps,
+    ...currentComposePortfolioConfig(),
     decisionContext: state.composeDecisionContext ? { ...state.composeDecisionContext } : null,
     start: state.composeStart,
     end: state.composeEnd,
@@ -7879,6 +8029,7 @@ function currentComboPublishPayload() {
     costBps: state.composeCostBps,
     constraintMode: normalizeConstraintMode(state.composeConstraintMode),
     universe: normalizeIndexUniverseConfig(state.composeUniverse),
+    ...currentComposePortfolioConfig(),
     factors: cloneComposeFactors(state.composeFactors),
     tags: [],
     created_at: new Date().toISOString().slice(0, 10),
@@ -7894,6 +8045,7 @@ function comboPublishPayload(combo) {
     costBps: Number(combo.costBps ?? 20),
     constraintMode: normalizeConstraintMode(combo.constraintMode),
     universe: normalizeIndexUniverseConfig(combo.universe),
+    ...normalizeComposePortfolioConfig(combo),
     factors: cloneComposeFactors(combo.factors),
     tags: combo.tags || [],
     created_at: combo.created_at || new Date().toISOString().slice(0, 10),
@@ -7923,6 +8075,7 @@ function comboPublishRequestText(payload) {
     `单边成本：${Number(payload.costBps ?? 20)}bp`,
     `组合约束：${composeConstraintModeLabel(payload.constraintMode)}`,
     `指数股票池：${indexUniverseModeLabel(payload.universe)}`,
+    `持仓权重：${composePortfolioMethodLabel(payload)}`,
     "因子：",
     factorLines,
     "",
@@ -8061,10 +8214,19 @@ function renderComposeSoon(delay = 80) {
 
 function renderComposeControls() {
   const box = document.getElementById("cps-controls");
+  const optimizeButton = document.getElementById("cps-optimize");
+  if (optimizeButton) {
+    optimizeButton.disabled = hasCustomComposePortfolio();
+    optimizeButton.title = optimizeButton.disabled ? "参数优化暂仅支持默认等权、无个股上限和无换手上限" : "搜索因子合成权重";
+  }
   const wsum = state.composeFactors.reduce((s, f) => s + Math.abs(f.weight), 0) || 1;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
   const universe = normalizeIndexUniverseConfig(state.composeUniverse);
+  const portfolio = currentComposePortfolioConfig();
   state.composeUniverse = universe;
+  state.composeWeightingMode = portfolio.weightingMode;
+  state.composeMaxStockWeight = portfolio.maxStockWeight;
+  state.composeTurnoverCap = portfolio.turnoverCap;
   const neutralDisabled = hasComposeNeutralScores() ? "" : " disabled";
   const neutralNotice = hasComposeNeutralScores()
     ? ""
@@ -8077,16 +8239,17 @@ function renderComposeControls() {
     ? `<div class="capability-note"><b>口径限制</b> ${htmlText(composeIndustryApproximationMessage())}</div>`
     : "";
   const industryDisabled = universe.mode === "min_share" ? " disabled" : "";
+  const portfolioNotice = `<div class="capability-note"><b>权重与调仓口径</b> ${portfolio.weightingMode === "score" ? "分数减去组内最小值，再加分差的5%后归一；" : (portfolio.weightingMode === "market_cap" ? "市值权重使用月末PIT对数总市值换算；" : "目标持仓等权；")}行业约束下保留行业预算、仅在行业内重配；个股上限不足以满仓时停止计算。换手上限仅支持全市场且无行业约束，首期建仓不受限，触发后保留部分上期持仓。换手采用相邻调仓权重差，不含收益漂移与现金项。高级权重下缺失收益份额按零收益假设并单独披露；参数优化和参数滚动样本外暂不支持高级权重。</div>`;
   const constraintBtns = `
     <div style="margin:0 0 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">组合约束：</span>
-      <button id="cps-constraint-none" class="cpsn-btn cps-constraint-btn${constraint === "none" ? " active" : ""}" data-mode="none">无约束等权</button>
+      <button id="cps-constraint-none" class="cpsn-btn cps-constraint-btn${constraint === "none" ? " active" : ""}" data-mode="none">无行业约束</button>
       <button id="cps-constraint-industry" class="cpsn-btn cps-constraint-btn${constraint === "industry" ? " active" : ""}" data-mode="industry"${industryDisabled} title="${universe.mode === "min_share" ? "最低指数成分占比暂不与行业中性组合叠加" : "按行业目标权重构建组合"}">静态行业约束</button>
       <span style="color:#888;font-size:11px">完整有效候选集定行业配额，各行业内按合成分数竞争秩选股</span>
     </div>`;
   const universeControls = `
     <fieldset class="index-universe-controls">
-      <legend>选股域与交易成本</legend>
+      <legend>选股域、权重与交易成本</legend>
       <label for="cps-universe-mode">使用方式</label>
       <select id="cps-universe-mode">
         <option value="all"${universe.mode === "all" ? " selected" : ""}>全市场</option>
@@ -8105,6 +8268,20 @@ function renderComposeControls() {
       <label for="cps-cost-bps">单边成本</label>
       <select id="cps-cost-bps">
         ${COST_SCENARIOS.map(item => `<option value="${item.bps}"${Number(state.composeCostBps) === item.bps ? " selected" : ""}>${item.label}</option>`).join("")}
+      </select>
+      <label for="cps-weighting-mode">持仓权重</label>
+      <select id="cps-weighting-mode">
+        <option value="equal"${portfolio.weightingMode === "equal" ? " selected" : ""}>等权</option>
+        <option value="score"${portfolio.weightingMode === "score" ? " selected" : ""}>分数加权</option>
+        <option value="market_cap"${portfolio.weightingMode === "market_cap" ? " selected" : ""}>市值加权（PIT）</option>
+      </select>
+      <label for="cps-max-stock-weight">个股上限</label>
+      <select id="cps-max-stock-weight">
+        ${[1, 0.2, 0.1, 0.05, 0.03].map(value => `<option value="${value}"${Math.abs(portfolio.maxStockWeight - value) < 1e-9 ? " selected" : ""}${value * state.composeN < 1 - 1e-10 ? " disabled" : ""}>${composeCapLabel(value)}</option>`).join("")}
+      </select>
+      <label for="cps-turnover-cap">月度换手上限</label>
+      <select id="cps-turnover-cap">
+        ${[1, 0.75, 0.5, 0.25, 0.1].map(value => `<option value="${value}"${Math.abs(portfolio.turnoverCap - value) < 1e-9 ? " selected" : ""}${value < 1 && (constraint !== "none" || universe.mode !== "all") ? " disabled" : ""}>${composeCapLabel(value)}</option>`).join("")}
       </select>
       <span class="index-universe-summary">${htmlText(composeUniverseMethodNote(universe))}</span>
     </fieldset>`;
@@ -8141,7 +8318,7 @@ function renderComposeControls() {
     </div>`;
   }).join("")
     : `<div class="empty index-universe-empty">股票池与成本设置已生效；从左侧选择因子后开始计算。</div>`;
-  box.innerHTML = constraintBtns + universeControls + industryApproximationNotice + neutralNotice + usageNotice + factorRows;
+  box.innerHTML = constraintBtns + universeControls + portfolioNotice + industryApproximationNotice + neutralNotice + usageNotice + factorRows;
   box.querySelectorAll(".cps-w-input").forEach(inp => {
     inp.addEventListener("change", () => {
       const f = state.composeFactors[parseInt(inp.dataset.idx, 10)];
@@ -8214,6 +8391,27 @@ function renderComposeControls() {
     clearComposeOptimization();
     renderComposeSoon();
   };
+  const weightingModeSelect = box.querySelector("#cps-weighting-mode");
+  if (weightingModeSelect) weightingModeSelect.onchange = () => {
+    clearFrozenDecisionContext();
+    state.composeWeightingMode = normalizeComposeWeightingMode(weightingModeSelect.value);
+    clearComposeOptimization();
+    renderComposeSoon();
+  };
+  const maxStockWeightSelect = box.querySelector("#cps-max-stock-weight");
+  if (maxStockWeightSelect) maxStockWeightSelect.onchange = () => {
+    clearFrozenDecisionContext();
+    state.composeMaxStockWeight = normalizeComposeFraction(maxStockWeightSelect.value, 1);
+    clearComposeOptimization();
+    renderComposeSoon();
+  };
+  const turnoverCapSelect = box.querySelector("#cps-turnover-cap");
+  if (turnoverCapSelect) turnoverCapSelect.onchange = () => {
+    clearFrozenDecisionContext();
+    state.composeTurnoverCap = normalizeComposeFraction(turnoverCapSelect.value, 1);
+    clearComposeOptimization();
+    renderComposeSoon();
+  };
   box.querySelectorAll(".cps-op").forEach(sel => sel.onchange = () => {
     clearFrozenDecisionContext();
     state.composeFactors[parseInt(sel.dataset.idx, 10)].op = sel.value;
@@ -8266,6 +8464,17 @@ async function renderCompose() {
   if (isComposeRenderStale(renderSeq)) return;
   renderComposeControls();
   renderSavedCombos();
+  const portfolioConstraintError = composePortfolioConstraintError(state.composeN)
+    || composePortfolioCompatibilityError(state.composeConstraintMode, state.composeUniverse, currentComposePortfolioConfig());
+  if (portfolioConstraintError) {
+    document.getElementById("cps-stocks").innerHTML = `<h3>合成 Top 股票</h3><div class="empty">${htmlText(portfolioConstraintError)}</div>`;
+    document.getElementById("cps-kpi").innerHTML = `<div class="empty">${htmlText(portfolioConstraintError)}</div>`;
+    if (cpsNavChart) { cpsNavChart.dispose(); cpsNavChart = null; }
+    document.getElementById("cps-nav-chart").innerHTML = "";
+    renderComposeIcDecayUnavailable(portfolioConstraintError);
+    renderComposeValidationUnavailable(portfolioConstraintError);
+    return;
+  }
   const usageViolations = comboConstraintViolations(state.composeFactors);
   if (usageViolations.length) {
     const message = `当前组合已停止计算：${usageViolations.join("；")}`;
@@ -8332,6 +8541,12 @@ async function renderCompose() {
   } catch (err) {
     if (isComposeRenderStale(renderSeq)) return;
     console.error("renderCompose failed:", err);
+    _latestComposeBtKey = null;
+    _latestComposeBt = null;
+    document.getElementById("cps-kpi").innerHTML = `<div class="empty">${htmlText(err.message || err)}</div>`;
+    if (cpsNavChart) { cpsNavChart.dispose(); cpsNavChart = null; }
+    document.getElementById("cps-nav-chart").innerHTML = "";
+    renderComposeValidationUnavailable(String(err.message || err));
     document.getElementById("cps-stocks").innerHTML =
       `<pre style="color:#c00;white-space:pre-wrap;font-size:11px">合成失败：${htmlText(err.message || err)}\n\n${htmlText(err.stack || "")}</pre>`;
   }
@@ -8355,6 +8570,7 @@ async function renderComposeStocks(renderSeq) {
   const res = await state.db.query(`
     SELECT m.stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
+           m.ln_mv,
            CAST(m.trade_date AS VARCHAR) AS dt,
            CAST(m.trade_date AS VARCHAR) AS as_of_date,
            CAST(m.trade_date AS VARCHAR) AS pool_date,
@@ -8373,6 +8589,7 @@ async function renderComposeStocks(renderSeq) {
     .map(r => ({
       ...r,
       cs: Number(r.comp_score),
+      ln_mv: snapshotNumber(r.ln_mv),
       as_of_date: r.as_of_date || r.dt,
       pool_date: r.pool_date || r.as_of_date || r.dt,
       pool_scope: "current_active_non_st",
@@ -8385,7 +8602,7 @@ async function renderComposeStocks(renderSeq) {
       avg_amount: r.meta.avg_amount,
     }));
   const selection = composeLatestHoldingSelection(candidateRows, state.composeN, constraint, universe);
-  const allRows = selection.rows;
+  const allRows = applyComposeTargetWeights(selection.rows, constraint, currentComposePortfolioConfig());
   const rows = allRows.slice(0, MAX_HOLDING_DETAIL_ROWS);
   const condDesc = state.composeFactors.filter(f => f.thr !== null && Number.isFinite(f.thr))
     .map(f => `${factorParamName(f.code, f.side, f.scoreMode)}得分${f.op}${f.thr}`).join(" 且 ");
@@ -8406,10 +8623,11 @@ async function renderComposeStocks(renderSeq) {
   const fmt = (v, dp = 2) => (v === null || v === undefined ? "—" : Number(v).toFixed(dp));
   const fmtMV = (v) => (v === null || v === undefined ? "—" : (Number(v) / 1e4).toFixed(0));
   let html = `<h3>合成名义 Top ${state.composeN} 股票（当前最新持仓展示，截面日 ${htmlText(dt)}）<span class="click-hint">🔍 点任一行 → 看该股「为什么入选」</span></h3>
+    <p class="capability-note">此表展示当前目标持仓，未应用换手限额；已完成月份的受限持仓以月度账本为准。</p>
     <p style="color:#888;font-size:11px;margin:-4px 0 8px 0">合成得分 = ${htmlText(wdesc)}（高斯秩标准化分数加权和）${condDesc ? "；过滤：" + htmlText(condDesc) : ""}；组合约束：${htmlText(composeConstraintModeLabel(constraint))}；股票池：${htmlText(indexUniverseModeLabel(universe))}。${htmlText(scopeNote)}</p>
     ${composeHoldingCountNote(state.composeN, rows, selection.stats)}
     <table class="stock-table"><thead><tr>
-      <th>#</th><th>代码</th><th>名称</th><th>得分截面</th><th>展示池日期</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${universeActive ? "<th>指数成分</th><th>指数权重</th>" : ""}${constraint === "industry" ? "<th>组合权重</th>" : ""}<th>合成得分</th>
+      <th>#</th><th>代码</th><th>名称</th><th>得分截面</th><th>展示池日期</th><th>申万一级</th><th>市值(亿)</th><th>PE</th><th>PB</th>${universeActive ? "<th>指数成分</th><th>指数权重</th>" : ""}<th>目标权重</th><th>合成得分</th>
     </tr></thead><tbody>`;
   rows.forEach((r, i) => {
     const as_of_date = holdingAsOfDate(r);
@@ -8417,7 +8635,7 @@ async function renderComposeStocks(renderSeq) {
     html += `<tr class="stock-row" data-stock="${htmlAttr(r.stock_code)}" data-name="${htmlAttr(r.name || "")}" title="点击看该股各因子打分（为什么入选）"><td>${i + 1}</td><td><button type="button" class="stock-detail-btn" aria-label="查看 ${htmlAttr(r.stock_code)} ${htmlAttr(r.name || "")} 的因子打分">${htmlText(r.stock_code)}</button></td><td>${htmlText(r.name || "")}</td>
       <td>${htmlText(as_of_date)}</td><td>${htmlText(pool_date)}</td>
       <td>${htmlText(r.industry_sw1 || "—")}</td><td>${fmtMV(r.market_cap)}</td>
-      <td>${fmt(r.pe, 1)}</td><td>${fmt(r.pb, 2)}</td>${universeActive ? `<td class="${r.is_index_member ? "index-member-yes" : "index-member-no"}">${r.is_index_member ? "是" : "否"}</td><td>${r.is_index_member ? pctText(Number(r.benchmark_weight)) : "—"}</td>` : ""}${constraint === "industry" ? `<td>${pctText(Number(r.weight))}</td>` : ""}<td>${fmt(r.comp_score, 3)}</td></tr>`;
+      <td>${fmt(r.pe, 1)}</td><td>${fmt(r.pb, 2)}</td>${universeActive ? `<td class="${r.is_index_member ? "index-member-yes" : "index-member-no"}">${r.is_index_member ? "是" : "否"}</td><td>${r.is_index_member ? pctText(Number(r.benchmark_weight)) : "—"}</td>` : ""}<td>${pctText(Number(r.weight))}</td><td>${fmt(r.comp_score, 3)}</td></tr>`;
   });
   target.innerHTML = html + "</tbody></table>";
 }
@@ -8437,6 +8655,7 @@ function composeLedgerCsv(period, metaMap) {
     "信号日", "入场日", "退出日", "股票代码", "股票名称", "权重", "合成得分",
     "申万一级(最新快照)", "是否股票池成分", "相对上月", "上月权重", "权重变化",
     "当月单边换手", "当月毛收益", "当月成本后收益",
+    "持仓规则", "现金权重", "缺失收益权重", "是否触发换手上限",
   ];
   const rows = (period.holdings || []).map(holding => {
     const meta = metaMap.get(holding.stock_code) || {};
@@ -8447,6 +8666,8 @@ function composeLedgerCsv(period, metaMap) {
       holding.is_index_member ? "是" : "否", composeLedgerActionLabel(change.action),
       change.previous_weight ?? 0, change.weight_change ?? 0, period.turnover,
       period.gross_return, period.net_return,
+      composePortfolioMethodLabel(), period.cash_weight ?? 0,
+      period.missing_return_weight ?? 0, period.turnover_limited ? "是" : "否",
     ];
   });
   return `\uFEFF${[headers, ...rows].map(row => row.map(quote).join(",")).join("\r\n")}`;
@@ -8507,7 +8728,7 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
       <td><b class="ledger-code">${htmlText(holding.stock_code)}</b></td>
       <td>${htmlText(meta.name || "—")}</td>
       <td><span class="ledger-action ${htmlAttr(action)}">${composeLedgerActionLabel(action)}</span></td>
-      <td>${pct(holding.weight, 2)}</td>
+      <td>${pct(holding.weight, holding.weight < 0.0001 ? 4 : 2)}</td>
       <td>${pct(change.previous_weight ?? 0, 2)}</td>
       <td>${pct(change.weight_change ?? 0, 2, true)}</td>
       <td>${holding.score === null || holding.score === undefined ? "—" : Number(holding.score).toFixed(3)}</td>
@@ -8519,7 +8740,7 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
     <div class="ledger-heading">
       <div>
         <h3>合成组合月度持仓账本 ${isTracking ? '<span class="ledger-tracking-badge">决策后跟踪</span>' : ""}</h3>
-        <p>${htmlText(composeLedgerPeriodLabel(period))}；${htmlText(indexUniverseModeLabel(state.composeUniverse))}；单边成本 ${Number(state.composeCostBps)} bp。</p>
+        <p>${htmlText(composeLedgerPeriodLabel(period))}；${htmlText(indexUniverseModeLabel(state.composeUniverse))}；${htmlText(composePortfolioMethodLabel())}；单边成本 ${Number(state.composeCostBps)} bp。</p>
       </div>
       <div class="ledger-toolbar" aria-label="调仓月浏览与导出">
         <button id="cps-ledger-prev" class="cpsn-btn" type="button"${index === 0 ? " disabled" : ""}>上一月</button>
@@ -8533,6 +8754,7 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
     </div>
     ${decisionSignal ? `<div class="frozen-combo-meta"><b>冻结跟踪口径</b><span>决策日 ${htmlText(decisionContext.decisionDate || "—")}</span><span>因子数据截面 ${htmlText(decisionContext.dataCutoffDate || "—")}</span><span>最后已完成信号 ${htmlText(decisionSignal)}</span><span>收益实现截止 ${htmlText(decisionContext.realizedReturnEndDate || "—")}</span><span>${trackingMonths ? `已追加 ${trackingMonths} 个决策后月份` : "尚无新增已完成月份"}</span></div>` : ""}
     <div class="ledger-kpis">
+      <div><span>现金权重</span><b>${pct(period.cash_weight ?? 0, 2)}</b><small>${period.turnover_limited ? "本月换手上限生效" : "本月未触发换手上限"}</small></div>
       <div><span>实际持股</span><b>${period.holdings.length} 只</b></div>
       <div><span>${period.initial_position ? "首期建仓" : "当月单边换手"}</span><b>${pct(period.turnover, 1)}</b><small>${period.initial_position ? "不计入常规月均" : `调入 ${period.added.length} / 调出 ${period.removed.length}`}</small></div>
       <div><span>当月毛收益</span><b>${pct(period.gross_return, 2, true)}</b></div>
@@ -8540,17 +8762,18 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
       <div><span>成本后收益</span><b>${pct(period.net_return, 2, true)}</b></div>
       <div><span>期末净值</span><b>${Number(period.nav).toFixed(3)}</b></div>
     </div>
+    ${(period.missing_return_weight || 0) > 1e-10 ? `<p class="capability-note">当期${pct(period.missing_return_weight, 2)}持仓权重缺少有效收益；${hasCustomComposePortfolio() ? "该部分按零收益假设计入，未放大其他持仓权重" : "沿用旧版有效收益持仓归一口径"}。这属于数据缺失，不代表实际收益为零。</p>` : ""}
     <div class="ledger-changes">
       <div><b>调入</b><div>${changeItems(period.added || [], "added")}</div></div>
       <div><b>调出</b><div>${period.initial_position ? '<span class="ledger-change-empty">首期建仓，无上月持仓</span>' : changeItems(period.removed || [], "removed")}</div></div>
     </div>
-    <div class="ledger-table-scroll">
+    <div class="ledger-table-scroll" tabindex="0" role="region" aria-label="月度持仓明细，可滚动查看全部股票">
       <table class="stock-table ledger-table">
         <thead><tr><th>#</th><th>代码</th><th>名称</th><th>相对上月</th><th>本月权重</th><th>上月权重</th><th>权重变化</th><th>合成得分</th><th>申万一级（最新快照）</th>${restricted ? "<th>股票池成分</th>" : ""}</tr></thead>
         <tbody>${holdingRows}</tbody>
       </table>
     </div>
-    <p class="ledger-method-note">账本只列已完成持有期；调仓按竞争秩边界保留同分股票。换手为前后两期目标权重差绝对值之和的一半；首期建仓固定记 100%，并单独标注。${decisionSignal ? "决策前样本按当前数据与当前引擎复算，冻结时指标保存在组合详情；决策后月份首次出现时追加，已保存月份不覆盖。" : ""}</p>`;
+    <p class="ledger-method-note">账本只列已完成持有期；调仓按竞争秩边界保留同分股票。${htmlText(composePortfolioMethodLabel())}。换手为相邻两次调仓权重差绝对值之和的一半，不计月内收益漂移和现金项，不等同于实盘成交换手；首期建仓固定记 100%且不受换手上限约束。上限触发时，实际权重沿上期持仓到本期目标权重的路径同比例调整，未调整部分继续持有，实际持股数可能超过TopN；成本按受限换手扣除。${decisionSignal ? "决策前样本按当前数据与当前引擎复算，冻结时指标保存在组合详情；决策后月份首次出现时追加，已保存月份不覆盖。" : ""}</p>`;
   document.getElementById("cps-ledger-month").onchange = event => {
     state.composeHoldingMonth = event.target.value;
     renderComposeLedger(backtest, renderSeq).catch(error => console.error("render ledger month failed:", error));
@@ -8571,7 +8794,7 @@ async function renderComposeBacktest(renderSeq) {
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
   const universe = normalizeIndexUniverseConfig(state.composeUniverse);
   document.getElementById("cps-nav-title").textContent =
-    `合成组合净值（top-${state.composeN}，${composeConstraintModeLabel(constraint)}，${indexUniverseModeLabel(universe)}，单边${Number(state.composeCostBps)}bp，按换手扣成本；${composeRangeLabel()}）`;
+    `合成组合净值（top-${state.composeN}，${composeConstraintModeLabel(constraint)}，${indexUniverseModeLabel(universe)}，${composePortfolioMethodLabel()}，单边${Number(state.composeCostBps)}bp，按实际换手扣成本；${composeRangeLabel()}）`;
   const key = composeConfigKey(state.composeFactors, state.composeN, constraint, universe, state.composeCostBps);
   const computedBt = await comboBacktest(state.composeFactors, state.composeN, "cps_matrix", constraint, universe, state.composeCostBps);
   if (isComposeRenderStale(renderSeq)) return;
@@ -9202,7 +9425,7 @@ function comboCorrelationSummary(correlation, factorCount) {
   };
 }
 
-async function comboLatestHoldingRows(factors, N, constraintMode, rawUniverse = state.composeUniverse) {
+async function comboLatestHoldingRows(factors, N, constraintMode, rawUniverse = state.composeUniverse, portfolio = currentComposePortfolioConfig()) {
   const metaMap = await ensureStockMetaSnapshot();
   const scoreExpr = matrixScoreSql(factors);
   const condSql = matrixCondSql(factors);
@@ -9217,6 +9440,7 @@ async function comboLatestHoldingRows(factors, N, constraintMode, rawUniverse = 
   const res = await state.db.query(`
     SELECT m.stock_code,
            ROUND(${scoreExpr}, 6) AS comp_score,
+           m.ln_mv,
            CAST(m.trade_date AS VARCHAR) AS dt,
            CAST(m.trade_date AS VARCHAR) AS as_of_date,
            CAST(m.trade_date AS VARCHAR) AS pool_date,
@@ -9234,6 +9458,7 @@ async function comboLatestHoldingRows(factors, N, constraintMode, rawUniverse = 
       stock_code: r.stock_code,
       comp_score: snapshotNumber(r.comp_score),
       cs: snapshotNumber(r.comp_score),
+      ln_mv: snapshotNumber(r.ln_mv),
       dt: String(r.dt || ""),
       as_of_date: String(r.as_of_date || r.dt || ""),
       pool_date: String(r.pool_date || r.as_of_date || r.dt || ""),
@@ -9247,7 +9472,7 @@ async function comboLatestHoldingRows(factors, N, constraintMode, rawUniverse = 
       is_index_member: r.is_index_member === true,
     }));
   const selection = composeLatestHoldingSelection(candidateRows, N, constraint, universe);
-  return selection.rows.map(r => ({ ...r, weight: snapshotNumber(r.weight) ?? 0 }));
+  return applyComposeTargetWeights(selection.rows, constraint, portfolio);
 }
 
 function comboBacktestAvgTurnover(backtest, N) {
@@ -9390,9 +9615,12 @@ async function comboCrowdingFactorExposures(holdings) {
 }
 
 async function comboCrowdingDiagnostics(payload) {
-  const holdings = await comboLatestHoldingRows(payload.factors, payload.N, payload.constraintMode, payload.universe);
+  const holdings = await comboLatestHoldingRows(payload.factors, payload.N, payload.constraintMode, payload.universe, payload);
   let avgTurnover = comboBacktestAvgTurnover(payload.backtest, payload.N);
-  if (avgTurnover === null) {
+  if (Array.isArray(payload.backtest?.ledger)) {
+    avgTurnover = globalThis.FactorPortfolioLedger.regularTurnoverStats(payload.backtest.ledger).average;
+  }
+  if (avgTurnover === null && !Array.isArray(payload.backtest?.ledger)) {
     avgTurnover = await comboHistoricalAvgTurnover(payload.factors, payload.N, payload.constraintMode, payload.universe);
   }
   const amounts = holdings.map(r => r.avg_amount).filter(v => snapshotNumber(v) !== null);
@@ -9432,8 +9660,9 @@ async function comboCrowdingDiagnostics(payload) {
   return metrics;
 }
 
-async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, rawUniverse = state.composeUniverse) {
+async function comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, rawUniverse = state.composeUniverse, options = {}) {
   const universe = normalizeIndexUniverseConfig(rawUniverse);
+  const portfolio = normalizeComposePortfolioConfig(options.portfolio ?? currentComposePortfolioConfig());
   const normFactors = cloneComposeFactors(factors);
   if (!normFactors.length) return null;
   const rows = [];
@@ -9446,7 +9675,8 @@ async function comboBestSingleComparison(factors, N, constraintMode, startMonth,
     try {
       const ic = await comboIcDecay([singleFactor], startMonth, endMonth, universe);
       const rank = rankIcStatsFromSeries(ic?.series?.["1"] || []);
-      const fullBt = await comboBacktest([singleFactor], N, "cps_matrix", constraintMode, universe);
+      const fullBt = await comboBacktest([singleFactor], N, "cps_matrix", constraintMode, universe, options.costBps ?? state.composeCostBps,
+        portfolio.weightingMode, portfolio.maxStockWeight, portfolio.turnoverCap);
       const bt = sliceBacktestByRange(fullBt, startMonth, endMonth);
       const metrics = computeMetrics(bt.retArr, bt.navArr);
       rows.push({
@@ -9476,6 +9706,7 @@ async function comboBestSingleComparison(factors, N, constraintMode, startMonth,
 
 async function comboValidationPayload(factors, N, constraintMode, startMonth, endMonth, options = {}) {
   const universe = normalizeIndexUniverseConfig(options.universe ?? state.composeUniverse);
+  const portfolio = normalizeComposePortfolioConfig(options.portfolio ?? currentComposePortfolioConfig());
   if (normalizeConstraintMode(constraintMode) === "industry") {
     await ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
   }
@@ -9483,7 +9714,8 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
     await ensureDB({ stockMeta: false, descriptors: false, benchmarks: false, corr: false, indexWeights: true });
   }
   await ensureComposeUniverseData(universe);
-  const fullBt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe, options.costBps ?? state.composeCostBps);
+  const fullBt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe, options.costBps ?? state.composeCostBps,
+    portfolio.weightingMode, portfolio.maxStockWeight, portfolio.turnoverCap);
   const bt = sliceBacktestByRange(fullBt, startMonth, endMonth);
   const metrics = computeMetrics(bt.retArr, bt.navArr);
   const icDecay = await comboIcDecay(factors, startMonth, endMonth, universe);
@@ -9492,7 +9724,8 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
   const rolling = comboRollingValidation(rankSeries, bt);
   const group10 = await comboGroupValidation(factors, startMonth, endMonth, universe);
   const correlation = await comboCorrelationWarnings(factors);
-  const singleComparison = await comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, universe);
+  const singleComparison = await comboBestSingleComparison(factors, N, constraintMode, startMonth, endMonth, universe,
+    { portfolio, costBps: options.costBps ?? state.composeCostBps });
   const bm = await ensureBenchmarkSnapshot();
   const bg = {};
   const benchmarkExcess = {};
@@ -9507,6 +9740,8 @@ async function comboValidationPayload(factors, N, constraintMode, startMonth, en
     };
   }
   const basePayload = {
+    ...portfolio,
+    costBps: options.costBps ?? state.composeCostBps,
     factors: cloneComposeFactors(factors),
     N,
     constraintMode: normalizeConstraintMode(constraintMode),
@@ -9562,7 +9797,7 @@ function comboParameterSensitivityScenarios(payload) {
     });
   });
   [
-    { mode: "none", label: "无约束等权" },
+    { mode: "none", label: "无行业约束" },
     { mode: "industry", label: "行业中性约束" },
   ].filter(item => !(universe.mode === "min_share" && item.mode === "industry")).forEach(item => {
     scenarios.push({
@@ -9664,6 +9899,8 @@ async function comboParameterSensitivity(payload, startMonth, endMonth) {
           includeCrowding: false,
           includeParameterSensitivity: false,
           universe: scenario.universe,
+          portfolio: normalizeComposePortfolioConfig(payload),
+          costBps: payload.costBps,
         },
       );
       const row = {
@@ -9847,6 +10084,7 @@ async function runComboAblation() {
   const box = document.getElementById("combo-ablation-result");
   if (!btn || !box) return;
   const original = {
+    ...currentComposePortfolioConfig(),
     factors: cloneComposeFactors(state.composeFactors),
     N: state.composeN,
     constraintMode: state.composeConstraintMode,
@@ -9996,7 +10234,7 @@ function renderComboCorrelationCrowdingDiagnostics(payload) {
       <thead><tr><th>拥挤因子</th><th>名称</th><th>持仓均值</th><th>覆盖数</th><th>提示</th></tr></thead>
       <tbody>${exposureRows || `<tr><td colspan="5">暂无拥挤因子暴露数据</td></tr>`}</tbody>
     </table>
-    <p class="validation-note">相关性 / 拥挤度诊断用于识别多因子组合是否过度依赖相近信号、短期热门交易或低容量股票；它是风险复核工具，不直接替代 RankIC、收益和样本外检验。</p>
+    <p class="validation-note">持仓暴露与集中度按最新目标持仓统计，未应用换手限额；月均换手取已完成月度账本并排除首期建仓。相关性 / 拥挤度是风险复核工具，不直接替代RankIC、收益和样本外检验。</p>
   </div>`;
 }
 
@@ -10195,8 +10433,9 @@ function renderComboWalkForwardShell(payload) {
   const factorCount = payload?.factors?.length || 0;
   const industryUnsupported = normalizeConstraintMode(payload?.constraintMode) === "industry";
   const tooManyFactors = factorCount > 4;
-  const disabled = industryUnsupported || tooManyFactors;
-  const reason = industryUnsupported
+  const portfolioUnsupported = hasCustomComposePortfolio(payload);
+  const disabled = industryUnsupported || tooManyFactors || portfolioUnsupported;
+  const reason = portfolioUnsupported ? "参数搜索目前仅支持等权、个股及换手均不限的组合。当前持仓权重仍用于净值和持仓账本。" : industryUnsupported
     ? "行业中性持仓的滚动权重搜索尚未接入；当前不会退回无约束口径代算。"
     : (tooManyFactors ? "滚动权重搜索最多支持 4 个因子，以控制浏览器计算量。" : "");
   return `<div class="combo-walk-forward">
@@ -10292,6 +10531,10 @@ function bindComboWalkForwardHandler(renderSeq) {
   const output = document.getElementById("combo-walk-forward-result");
   if (!button || !output || button.disabled) return;
   button.onclick = async () => {
+    if (hasCustomComposePortfolio()) {
+      output.textContent = "参数滚动样本外暂仅支持等权、无个股上限和无换手上限组合。";
+      return;
+    }
     const factors = cloneComposeFactors(state.composeFactors);
     const N = state.composeN;
     const universe = normalizeIndexUniverseConfig(state.composeUniverse);
@@ -10641,12 +10884,72 @@ function groupIndexUniverseRowsByMonth(rows, N, universe) {
     || String(a.stock_code).localeCompare(String(b.stock_code)));
 }
 
+function composePortfolioRowsByMonth(rows, N, constraintMode, universe, rawPortfolioConfig) {
+  const constraint = normalizeConstraintMode(constraintMode);
+  const config = normalizeComposePortfolioConfig(rawPortfolioConfig);
+  const byMonth = new Map();
+  for (const row of rows || []) {
+    const key = row.signal_dt || monthOfLabel(row.signal_date || row.dt);
+    if (!byMonth.has(key)) byMonth.set(key, []);
+    byMonth.get(key).push(row);
+  }
+  const out = [];
+  for (const candidates of byMonth.values()) {
+    if (!candidates.some(row => row.period_complete === true || row.period_complete === 1)) continue;
+    const eligible = candidates.filter(row => row.stock_code && (row.is_eligible === true || row.is_eligible === 1));
+    let picked;
+    if (constraint === "industry") {
+      const constrainedCandidates = ["index_only", "stock_pool"].includes(universe.mode)
+        ? eligible.filter(row => row.is_index_member === true || row.is_index_member === 1)
+        : eligible;
+      picked = industryNeutralPickRows(constrainedCandidates, N);
+    } else {
+      const selection = selectRowsByIndexUniverse(eligible, N, universe);
+      if (!selection.stats.requirement_met && universe.mode === "min_share") continue;
+      if (!selection.stats.requirement_met) picked = [];
+      else picked = selection.rows;
+    }
+    const weightedPicks = applyComposeTargetWeights(picked, constraint, config);
+    if (config.turnoverCap < 1) {
+      const targetByCode = new Map(weightedPicks.map(row => [String(row.stock_code), Number(row.weight) || 0]));
+      const candidateRows = candidates.filter(row => row.stock_code);
+      candidateRows.forEach(row => out.push({
+        ...row,
+        target_weight: targetByCode.get(String(row.stock_code)) || 0,
+      }));
+      if (!candidateRows.length) out.push({ ...candidates[0], stock_code: null, target_weight: 0 });
+    } else if (weightedPicks.length) {
+      weightedPicks.forEach(row => out.push(row));
+    } else {
+      const completed = candidates.find(row => row.period_complete === true || row.period_complete === 1);
+      if (completed) out.push({ ...completed, stock_code: null, weight: null });
+    }
+  }
+  return out.sort((a, b) => String(a.signal_dt || a.signal_date || a.dt).localeCompare(String(b.signal_dt || b.signal_date || b.dt))
+    || String(a.stock_code || "").localeCompare(String(b.stock_code || "")));
+}
+
+function buildComposePortfolioBacktest(rows, costPerSide, rawPortfolioConfig) {
+  const config = normalizeComposePortfolioConfig(rawPortfolioConfig);
+  if (!globalThis.FactorPortfolioLedger?.build) {
+    throw new Error("统一组合账本模块未加载");
+  }
+  return globalThis.FactorPortfolioLedger.build(rows, {
+    weighted: true,
+    costPerSide,
+    turnoverCap: config.turnoverCap,
+    missingReturnPolicy: hasCustomComposePortfolio(config) ? "cash" : "observed",
+    ...(config.turnoverCap < 1 ? { targetWeightField: "target_weight" } : {}),
+  });
+}
+
 function matrixBacktestSql(
   factors,
   N,
   baseTable,
   constraintMode = state.composeConstraintMode,
   rawUniverse = state.composeUniverse,
+  includeAllCandidates = false,
 ) {
   const idxMap = new Map(_cpsMatrixCodes.map((key, i) => [key, i]));
   const terms = [];
@@ -10661,7 +10964,7 @@ function matrixBacktestSql(
     if (f.thr !== null && Number.isFinite(Number(f.thr))) conds.push(`${eff} ${f.op} ${Number(f.thr)}`);
   }
   const scoreExpr = terms.length ? terms.join(" + ") : "0";
-  const condSql = conds.length ? "AND " + conds.join(" AND ") : "";
+  const eligibilityParts = [`(${scoreExpr}) IS NOT NULL`, ...conds];
   const needsIndustry = normalizeConstraintMode(constraintMode) === "industry";
   const universe = normalizeIndexUniverseConfig(rawUniverse);
   if (needsIndustry && universe.mode === "min_share") return null;
@@ -10673,8 +10976,20 @@ function matrixBacktestSql(
   const availabilityJoin = composeUniverseAvailabilityJoin(universe, "m.trade_date");
   const weightJoin = composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code");
   const memberSelect = universeActive ? "iw.stock_code IS NOT NULL" : "FALSE";
-  const universeFilter = ["index_only", "stock_pool"].includes(universe.mode) ? "AND iw.stock_code IS NOT NULL" : "";
-  const rankFilter = needsIndustry
+  if (["index_only", "stock_pool"].includes(universe.mode)) eligibilityParts.push("iw.stock_code IS NOT NULL");
+  const eligibilitySql = eligibilityParts.join(" AND ");
+  const scoredFilter = includeAllCandidates ? "" : `WHERE ${eligibilitySql}`;
+  const candidateSource = includeAllCandidates
+    ? `(SELECT COALESCE(r.trade_date, b.trade_date) AS trade_date,
+               COALESCE(r.return_date, b.return_date) AS return_date,
+               COALESCE(r.stock_code, b.stock_code) AS stock_code,
+               COALESCE(r.fwd_return, b.fwd_return) AS fwd_return,
+               COALESCE(r.ln_mv, b.ln_mv) AS ln_mv,
+               ${_cpsMatrixCodes.map((_, i) => `b.f${i}`).join(", ")}
+        FROM read_parquet('${_composeMarketCapPath}') r
+        FULL OUTER JOIN ${baseTable} b ON b.trade_date = r.trade_date AND b.stock_code = r.stock_code)`
+    : baseTable;
+  const rankFilter = needsIndustry || includeAllCandidates
     ? ""
     : (minimumIndexShare
       ? `WHERE rk <= ${N} OR (is_index_member AND member_rk <= ${requiredMemberN})`
@@ -10687,22 +11002,24 @@ function matrixBacktestSql(
       GROUP BY m.trade_date
     ),
     scored AS (
-      SELECT m.trade_date, m.return_date, m.stock_code, m.fwd_return, ROUND(${scoreExpr}, 6) AS cs,
-             ${industrySelect}, ${memberSelect} AS is_index_member
-      FROM ${baseTable} m
+      SELECT m.trade_date, m.return_date, m.stock_code, m.fwd_return, m.ln_mv,
+             ROUND(${scoreExpr}, 6) AS cs,
+             ${industrySelect}, ${memberSelect} AS is_index_member,
+             (${eligibilitySql}) AS is_eligible
+      FROM ${candidateSource} m
       ${industryJoin}
       ${weightJoin}
-      WHERE (${scoreExpr}) IS NOT NULL ${condSql} ${universeFilter}
+      ${scoredFilter}
     ),
     ranked AS (
-      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1, is_index_member,
-             RANK() OVER (PARTITION BY trade_date ORDER BY cs DESC) AS rk,
-             RANK() OVER (PARTITION BY trade_date, is_index_member ORDER BY cs DESC) AS member_rk
+      SELECT trade_date, return_date, stock_code, fwd_return, ln_mv, cs, industry_sw1, is_index_member, is_eligible,
+             RANK() OVER (PARTITION BY trade_date ORDER BY CASE WHEN is_eligible THEN cs END DESC) AS rk,
+             RANK() OVER (PARTITION BY trade_date, is_index_member ORDER BY CASE WHEN is_eligible THEN cs END DESC) AS member_rk
       FROM scored
     ),
     selected AS (
-      SELECT trade_date, return_date, stock_code, fwd_return, cs, industry_sw1, is_index_member,
-             TRUE AS index_available, rk, member_rk
+      SELECT trade_date, return_date, stock_code, fwd_return, ln_mv, cs, industry_sw1, is_index_member,
+             is_eligible, TRUE AS index_available, rk, member_rk
       FROM ranked ${rankFilter}
     )
     SELECT strftime(p.trade_date, '%Y-%m-%d') AS signal_date,
@@ -10710,8 +11027,8 @@ function matrixBacktestSql(
            strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS exit_date,
            strftime(p.trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS dt,
-           s.stock_code, s.fwd_return, s.cs, s.industry_sw1,
-           s.is_index_member, s.index_available,
+           s.stock_code, s.fwd_return, s.ln_mv, s.cs, s.industry_sw1,
+           s.is_index_member, s.index_available, s.is_eligible,
            p.return_date IS NOT NULL AS period_complete
     FROM periods p
     LEFT JOIN selected s ON s.trade_date = p.trade_date
@@ -10727,6 +11044,9 @@ async function comboBacktest(
   constraintMode = state.composeConstraintMode,
   rawUniverse = state.composeUniverse,
   costBps = state.composeCostBps,
+  weightingMode = state.composeWeightingMode,
+  maxStockWeight = state.composeMaxStockWeight,
+  turnoverCap = state.composeTurnoverCap,
 ) {
   const normalizedConstraint = normalizeConstraintMode(constraintMode);
   const universe = normalizeIndexUniverseConfig(rawUniverse);
@@ -10736,21 +11056,25 @@ async function comboBacktest(
   await ensureComposeUniverseData(universe);
   const normalizedCostBps = Number.isFinite(Number(costBps)) ? Math.max(0, Number(costBps)) : 20;
   const costPerSide = normalizedCostBps / 10000;
-  const cacheKey = baseTable === "cps_matrix" ? composeConfigKey(factors, N, normalizedConstraint, universe, normalizedCostBps) : null;
+  const portfolio = normalizeComposePortfolioConfig({ weightingMode, maxStockWeight, turnoverCap });
+  const configError = composePortfolioConstraintError(N, portfolio)
+    || composePortfolioCompatibilityError(normalizedConstraint, universe, portfolio);
+  if (configError) throw new Error(configError);
+  const cacheKey = baseTable === "cps_matrix"
+    ? composeConfigKey(factors, N, normalizedConstraint, universe, normalizedCostBps, portfolio.weightingMode, portfolio.maxStockWeight, portfolio.turnoverCap)
+    : null;
   if (cacheKey && _composeBtCache.has(cacheKey)) return cloneBacktest(_composeBtCache.get(cacheKey));
   if (cacheKey && _composeBtBuilds.has(cacheKey)) return cloneBacktest(await _composeBtBuilds.get(cacheKey));
 
-  const fastSql = baseTable === "cps_matrix" ? matrixBacktestSql(factors, N, baseTable, normalizedConstraint, universe) : null;
+  const fastSql = baseTable === "cps_matrix"
+    ? matrixBacktestSql(factors, N, baseTable, normalizedConstraint, universe, portfolio.turnoverCap < 1)
+    : null;
   if (fastSql) {
     const build = (async () => {
       const res = await state.db.query(fastSql);
       const rows = res.toArray();
-      const selectedRows = universe.mode === "min_share"
-        ? groupIndexUniverseRowsByMonth(rows, N, universe)
-        : rows;
-      const bt = normalizedConstraint === "industry"
-        ? buildWeightedBacktestFromRows(groupIndustryNeutralRowsByMonth(selectedRows, N), costPerSide)
-        : buildBacktestFromRows(selectedRows, N, costPerSide);
+      const selectedRows = composePortfolioRowsByMonth(rows, N, normalizedConstraint, universe, portfolio);
+      const bt = buildComposePortfolioBacktest(selectedRows, costPerSide, portfolio);
       if (cacheKey) rememberComposeBacktest(cacheKey, bt);
       return bt;
     })();
@@ -10762,6 +11086,7 @@ async function comboBacktest(
     }
   }
   if (baseTable === "cps_matrix") throw new Error("cps_matrix does not cover requested factors");
+  if (hasCustomComposePortfolio(portfolio)) throw new Error("自定义持仓权重须通过合成矩阵计算，长表旧路径不支持此配置");
 
   const nF = factors.length;
   const vals = cloneComposeFactors(factors)
@@ -10841,8 +11166,12 @@ async function saveCurrentCombo() {
   const constraintMode = normalizeConstraintMode(state.composeConstraintMode);
   const universe = normalizeIndexUniverseConfig(state.composeUniverse);
   const costBps = state.composeCostBps;
+  const portfolio = currentComposePortfolioConfig();
   const i = state.savedCombos.length;
-  const comboKey = composeConfigKey(factors, N, constraintMode, universe, costBps);
+  const comboKey = composeConfigKey(
+    factors, N, constraintMode, universe, costBps,
+    portfolio.weightingMode, portfolio.maxStockWeight, portfolio.turnoverCap,
+  );
   const combo = {
     name: `组合${i + 1}`,
     factors,
@@ -10850,6 +11179,7 @@ async function saveCurrentCombo() {
     costBps,
     constraintMode,
     universe,
+    ...portfolio,
     color: STRAT_COLORS[i % STRAT_COLORS.length],
     bt: _composeBtCache.has(comboKey)
       ? cloneBacktest(_composeBtCache.get(comboKey))
@@ -10878,8 +11208,9 @@ async function saveCurrentCombo() {
       });
       await ensureComposeData();
       try {
-        await ensureComposeBase();
-        const bt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe, costBps);
+        await ensureComposeBase(factors);
+        const bt = await comboBacktest(factors, N, "cps_matrix", constraintMode, universe, costBps,
+          portfolio.weightingMode, portfolio.maxStockWeight, portfolio.turnoverCap);
         if (bt && bt.x && bt.x.length) combo.bt = bt;
       } catch (e) { console.warn("fast combo backtest failed, lazy recompute later:", e); }
     }
@@ -11000,10 +11331,24 @@ async function renderComboCompare() {
         indexWeights: needsIndexWeights,
       });
       await ensureComposeData();
-      const unionFactors = state.savedCombos.flatMap(c => cloneComposeFactors(c.factors));
-      await ensureCmpBase(unionFactors);
-      for (const c of missing) {
-        c.bt = await comboBacktest(c.factors, c.N, "cps_cmp_base", c.constraintMode, c.universe, c.costBps);
+      try {
+        for (const c of missing) {
+          const portfolio = normalizeComposePortfolioConfig(c);
+          await ensureComposeBase(c.factors);
+          c.bt = await comboBacktest(
+            c.factors,
+            c.N,
+            "cps_matrix",
+            c.constraintMode,
+            c.universe,
+            c.costBps,
+            portfolio.weightingMode,
+            portfolio.maxStockWeight,
+            portfolio.turnoverCap,
+          );
+        }
+      } finally {
+        await ensureComposeBase(state.composeFactors);
       }
     } catch (e) {
       if (titleEl) titleEl.textContent = "暂存组合对比";
@@ -11633,6 +11978,10 @@ async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null)
 
 async function optimizeWeights() {
   const box = document.getElementById("cps-opt");
+  if (hasCustomComposePortfolio()) {
+    box.innerHTML = `<div class="empty">最优因子权重搜索仅支持等权、个股及换手均不限的组合。</div>`;
+    return;
+  }
   const codes = state.composeFactors.map(f => f.code);
   const nF = codes.length;
   if (nF < 2) { box.innerHTML = `<div class="empty" style="color:#c14545">请先选 2 个以上因子</div>`; return; }
@@ -11966,6 +12315,7 @@ window.addEventListener("resize", () => {
     group10ValidationChart, rolling36mChart, segmentHeatmapChart, segmentPortfolioChart,
     cmpNavChart, cmpIcChart, cmpCorrChart,
     cpsNavChart, cpsIcDecayChart, cpsCompareChart,
+    comboGroup10Chart, comboRolling36mChart,
     topMktcapChart, topIndustryChart,
   ].forEach(ch => { if (ch && ch.resize) ch.resize(); });
   stockPoolResearchController?.resize();

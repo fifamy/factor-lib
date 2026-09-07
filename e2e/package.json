@@ -10,6 +10,7 @@
     "compose-walk-forward-validation": "node compose_walk_forward_validation.mjs",
     "index-universe-validation": "node index_universe_validation.mjs",
     "portfolio-ledger-validation": "node portfolio_ledger_validation.mjs",
+    "portfolio-weights-validation": "node portfolio_weights_validation.mjs",
     "frozen-tracking-baseline-validation": "node frozen_tracking_baseline_validation.mjs",
     "stock-pool-research-validation": "node stock_pool_research_validation.mjs",
     "custom-stock-pool-validation": "node custom_stock_pool_validation.mjs",
