@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-09-07T03:53:24+00:00",
-  "deploy_version": "20260907115307",
+  "generated_at": "2026-09-07T06:54:12+00:00",
+  "deploy_version": "20260907145402",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
-  "source_revision": "32bcd954b38e77c1031aee3a3d50d350af1c22089b744215c8642d2684f6590c",
+  "source_revision": "f40ce1c6c6ba87ddf0c68cccec13c8d69b924f625623dcde974e714b6f117f01",
   "source_revision_kind": "content_sha256",
-  "source_content_sha256": "32bcd954b38e77c1031aee3a3d50d350af1c22089b744215c8642d2684f6590c",
+  "source_content_sha256": "f40ce1c6c6ba87ddf0c68cccec13c8d69b924f625623dcde974e714b6f117f01",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "9964fc345dae6107c2b47a28c18d99dea42bf27c",
+  "pages_worktree_git_commit_before_sync": "2a47000201e21c262f78281de31ad33d88c3172f",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "da0e32a0d2c9473193ed887dbc5e93b437bb729a6ebaed47a5da3255092c4ad0",
+      "sha256": "857042fc8667cbe8824d4386d6fa453d9db5891538f02ae1aae3e315d6ff2b0f",
       "bytes": 45178
     },
     "app.js": {
-      "sha256": "52b70bd8061dadc11fc1701cd8363d89b30de2998f35f4e4c9695cf1fe26f1f5",
-      "bytes": 585310
+      "sha256": "8ea60d8d96a05f8a0b0fa72869c056cd6f4322b5db89f2cc14da1db2c902aca3",
+      "bytes": 594756
     },
     "app_portfolio_ledger.js": {
-      "sha256": "d2c9b9f1726fee295fb515d67ce8b85ca94d18d531799bb32a004fcee4cfcf4f",
-      "bytes": 15831
+      "sha256": "25ac349f7a8cfcd7812872f705d71bed4821924eeba4c08d293d62de1bab06b7",
+      "bytes": 19294
     },
     "app_index_universe.js": {
       "sha256": "3660b08f5cfff1363a6dc32889d1facb224b9b69e72f8e56fe62a711bdfd3db8",
@@ -33,11 +33,11 @@
       "bytes": 73173
     },
     "styles.css": {
-      "sha256": "47f23459d79e6af991cc4c08c77078498c106520aa3abec90eef7172bc1ab6d2",
-      "bytes": 65091
+      "sha256": "2fda83bcca4af300b88b9fafeef5df1bffb2ae90947ecba9eefaba32cd29a916",
+      "bytes": 66424
     },
     "factor_audit.html": {
-      "sha256": "ab25bed2190c0890fb29d1cddf55217997d0f8108bd99ae38a3ee4d8b9c48e89",
+      "sha256": "0bb39c350b224b1dccb10a86d466e9bf0345f520ced565fb064230d36bc88a44",
       "bytes": 8627
     },
     "factor_audit.js": {
@@ -69,8 +69,8 @@
       "bytes": 1934190
     },
     "data/market_cap_monthly.parquet": {
-      "sha256": "47f0488414b7b05832448852ccb0382bf736b7bd4dde53bf043e562a460c3bbf",
-      "bytes": 5456029
+      "sha256": "961e719073a9e22b0c44517329292b863b76cfdcf28511d9bf5aba381c69d135",
+      "bytes": 8704888
     },
     "data/stock_pool_research/meta.json": {
       "sha256": "4a7b9335853aac090f8d5f7cbe1fd364da164b5016d7495966f4a2d0b05aee8a",
@@ -81,7 +81,7 @@
       "bytes": 1641199
     },
     "data/factor_audit/index.json": {
-      "sha256": "3cca6c99f8dd319ed75f6816b6d6c0dbbc887b2843eb4b7c1d51484ed65534cb",
+      "sha256": "eddfedc38a13be6d3477bfda45fe163d27931467ca3e59299bdfb24e36ac98f8",
       "bytes": 275191
     }
   },
@@ -145,14 +145,14 @@
     "factor_lib": {
       "exists": true,
       "file_count": 63,
-      "bytes": 742608,
-      "sha256": "79e944090acd4e4103de66339276291d39823decb7f29788721cd3465a814b88"
+      "bytes": 744180,
+      "sha256": "455de4a828bdab31dddcf730a41c95d4a6cc760ff017fe9365e41b8a72be95b4"
     },
     "scripts": {
       "exists": true,
       "file_count": 152,
-      "bytes": 2222119,
-      "sha256": "f3087a0e74795dc526f82aac9bfbf3f019998cfe3355e213ff9e9fc2efd3aaa0"
+      "bytes": 2224612,
+      "sha256": "e130e05fb20928faa08346b9838f25b4c4ee566782b6530493cf7509f5d21015"
     },
     "config": {
       "exists": true,
@@ -168,9 +168,9 @@
       "mtime_ns": 1785805635695873717
     },
     "data/raw/price_panel.parquet": {
-      "sha256": "4b893b767a56339dadca9fcd7940e21806002acc711029ed2b2d4e236cc82765",
-      "bytes": 503598036,
-      "mtime_ns": 1785740569973749880
+      "sha256": "2d3e423bf4b8bd5d61e2dd5ace025815c8b5fe346a6e7770f35e223f5114fea8",
+      "bytes": 389927683,
+      "mtime_ns": 1788758007631876800
     },
     "data/raw/factor_raw.parquet": {
       "sha256": "d44af194f1231b49418dcb3fa02fb92b7cdbc7f37af248cf4602ca05180a4462",
@@ -263,6 +263,7 @@
     "stock_pool_research": true,
     "stock_pool_membership": true,
     "portfolio_ledger": true,
-    "portfolio_allocation": true
+    "portfolio_allocation": true,
+    "portfolio_execution_estimate": true
   }
 }

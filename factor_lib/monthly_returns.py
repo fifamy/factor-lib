@@ -94,7 +94,22 @@ def month_end_panel(panel: pl.DataFrame) -> pl.DataFrame:
         *(
             [pl.col("is_suspended").alias("entry_is_suspended")]
             if "is_suspended" in panel.columns
-            else []
+            else [pl.lit(False).alias("entry_is_suspended")]
+        ),
+        *(
+            [pl.col("amount").cast(pl.Float64).alias("entry_amount")]
+            if "amount" in panel.columns
+            else [pl.lit(None, dtype=pl.Float64).alias("entry_amount")]
+        ),
+        *(
+            [pl.col("volume").cast(pl.Float64).alias("entry_volume")]
+            if "volume" in panel.columns
+            else [pl.lit(None, dtype=pl.Float64).alias("entry_volume")]
+        ),
+        *(
+            [pl.col("limit_status").cast(pl.Int8, strict=False).alias("entry_limit_status")]
+            if "limit_status" in panel.columns
+            else [pl.lit(None, dtype=pl.Int8).alias("entry_limit_status")]
         ),
     ])
     monthly = monthly.join(entry_values, on=["stock_code", "entry_date"], how="left")
@@ -120,6 +135,21 @@ def make_forward_returns(panel: pl.DataFrame, horizons: list[int]) -> pl.DataFra
             [pl.col("is_suspended").alias("return_is_suspended")]
             if "is_suspended" in panel.columns
             else [pl.lit(False).alias("return_is_suspended")]
+        ),
+        *(
+            [pl.col("amount").cast(pl.Float64).alias("return_amount")]
+            if "amount" in panel.columns
+            else [pl.lit(None, dtype=pl.Float64).alias("return_amount")]
+        ),
+        *(
+            [pl.col("volume").cast(pl.Float64).alias("return_volume")]
+            if "volume" in panel.columns
+            else [pl.lit(None, dtype=pl.Float64).alias("return_volume")]
+        ),
+        *(
+            [pl.col("limit_status").cast(pl.Int8, strict=False).alias("return_limit_status")]
+            if "limit_status" in panel.columns
+            else [pl.lit(None, dtype=pl.Int8).alias("return_limit_status")]
         ),
     ])
     frames = []
@@ -205,6 +235,12 @@ def make_forward_returns(panel: pl.DataFrame, horizons: list[int]) -> pl.DataFra
                     "signal_is_suspended",
                     "entry_is_suspended",
                     "return_is_suspended",
+                    "entry_amount",
+                    "entry_volume",
+                    "entry_limit_status",
+                    "return_amount",
+                    "return_volume",
+                    "return_limit_status",
                     "valid_return_reason",
                     "return_quality_flag",
                 ]

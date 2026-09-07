@@ -1,4 +1,5 @@
 import { chromium } from "playwright-core";
+import { readFile } from "node:fs/promises";
 
 const url = process.argv[2] || "http://127.0.0.1:8798/";
 const options = { headless: process.env.PLAYWRIGHT_HEADLESS !== "0" };
@@ -26,28 +27,44 @@ try {
     factorCount: document.querySelectorAll("#cps-controls .cps-frow").length,
     monthCount: document.querySelectorAll("#cps-ledger-month option").length,
     selectedMonth: document.querySelector("#cps-ledger-month")?.value,
-    holdingRows: document.querySelectorAll(".ledger-table tbody tr").length,
+    holdingRows: document.querySelectorAll(".ledger-table:not(.ledger-execution-table) tbody tr").length,
+    executionRows: document.querySelectorAll(".ledger-execution-table tbody tr").length,
     kpiText: document.querySelector("#cps-kpi")?.textContent || "",
     ledgerText: document.querySelector("#cps-stocks")?.textContent || "",
   }));
-  if (initial.factorCount !== 1 || initial.monthCount < 100 || initial.holdingRows < 1) {
+  if (initial.factorCount !== 1 || initial.monthCount < 100 || initial.holdingRows < 1 || initial.executionRows < 1) {
     throw new Error(`单因子月度账本未完整载入：${JSON.stringify(initial)}`);
   }
   for (const required of ["月均换手", "年化换手"]) {
     if (!initial.kpiText.includes(required)) throw new Error(`KPI缺少${required}`);
   }
-  for (const required of ["调入", "调出", "毛收益", "成本后收益", "入场"]) {
+  for (const required of ["调入", "调出", "毛收益", "成本后收益", "入场", "调仓执行估算", "入场日成交额", "涨跌停", "参与率容量"]) {
     if (!initial.ledgerText.includes(required)) throw new Error(`账本缺少${required}`);
   }
 
   await page.locator("#cps-ledger-prev").click();
+  await page.waitForFunction(
+    latest => (document.querySelector("#cps-ledger-month")?.value || "") < latest,
+    initial.selectedMonth,
+    { timeout: 30000 },
+  );
   const previousMonth = await page.locator("#cps-ledger-month").inputValue();
   if (!(previousMonth < initial.selectedMonth)) throw new Error(`上一月导航无效：${initial.selectedMonth} -> ${previousMonth}`);
 
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#cps-ledger-export").click();
   const download = await downloadPromise;
-  if (!download.suggestedFilename().endsWith(".csv")) throw new Error("月度持仓导出不是CSV");
+  if (!download.suggestedFilename().startsWith("factor-portfolio-execution-") || !download.suggestedFilename().endsWith(".csv")) {
+    throw new Error(`月度持仓执行导出文件名无效：${download.suggestedFilename()}`);
+  }
+  const csv = await readFile(await download.path(), "utf8");
+  for (const required of ["交易方向", "拟交易金额(万元)", "入场日成交额(万元)", "执行风险提示"]) {
+    if (!csv.includes(required)) throw new Error(`月度持仓执行CSV缺少${required}`);
+  }
+
+  await page.locator("#cps-execution-capital").fill("500");
+  await page.locator("#cps-execution-capital").press("Enter");
+  await page.waitForFunction(() => document.querySelector("#cps-execution-capital")?.value === "500");
 
   await page.locator("#cps-cost-bps").selectOption("50");
   await page.waitForFunction(() => {

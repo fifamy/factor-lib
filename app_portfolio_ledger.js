@@ -183,6 +183,68 @@
     });
   }
 
+  function executionOrders(period, facts, options = {}) {
+    const factByCode = facts instanceof Map
+      ? facts
+      : new Map((facts || []).filter(row => row?.stock_code).map(row => [String(row.stock_code), row]));
+    const capitalWan = finiteNumber(options.capitalWan);
+    const participationPct = finiteNumber(options.participationPct);
+    const capitalCny = capitalWan !== null && capitalWan > 0 ? capitalWan * 10000 : null;
+    const participationRate = participationPct === null
+      ? 0.05
+      : Math.min(1, Math.max(0, participationPct / 100));
+    return (period?.changes || [])
+      .filter(change => Math.abs(finiteNumber(change.weight_change) || 0) > 1e-12)
+      .map(change => {
+        const stockCode = String(change.stock_code || "");
+        const fact = factByCode.get(stockCode) || null;
+        const weightChange = finiteNumber(change.weight_change) || 0;
+        const side = weightChange > 0 ? "buy" : "sell";
+        const plannedTradeValueCny = capitalCny === null ? null : Math.abs(weightChange) * capitalCny;
+        const rawAmount = finiteNumber(fact?.entry_amount);
+        // Wind S_DQ_AMOUNT 的本地标准单位是千元，转换为人民币元后再应用参与率。
+        const entryAmountCny = rawAmount === null ? null : Math.max(0, rawAmount) * 1000;
+        const maxParticipationValueCny = entryAmountCny === null ? null : entryAmountCny * participationRate;
+        const capacityUtilization = plannedTradeValueCny !== null && maxParticipationValueCny !== null
+          && maxParticipationValueCny > 0
+          ? plannedTradeValueCny / maxParticipationValueCny
+          : null;
+        const limitRaw = finiteNumber(fact?.entry_limit_status);
+        const limitStatus = [-1, 0, 1].includes(limitRaw) ? limitRaw : null;
+        const riskCodes = [];
+        if (!fact) {
+          riskCodes.push("execution_data_unavailable");
+        } else if (fact.entry_is_suspended === true || fact.entry_is_suspended === 1) {
+          riskCodes.push("suspended");
+        } else {
+          if (limitStatus === null) riskCodes.push("limit_status_unavailable");
+          if (side === "buy" && limitStatus === 1) riskCodes.push("limit_up_buy_risk");
+          if (side === "sell" && limitStatus === -1) riskCodes.push("limit_down_sell_risk");
+          if (entryAmountCny === null) riskCodes.push("amount_unavailable");
+          else if (entryAmountCny <= 0) riskCodes.push("no_turnover");
+          else if (capacityUtilization !== null && capacityUtilization > 1 + 1e-12) riskCodes.push("capacity_exceeded");
+        }
+        if (!riskCodes.length) riskCodes.push("estimated_within_capacity");
+        return {
+          stock_code: stockCode,
+          action: change.action,
+          side,
+          previous_weight: finiteNumber(change.previous_weight) || 0,
+          current_weight: finiteNumber(change.current_weight) || 0,
+          weight_change: weightChange,
+          planned_trade_value_cny: plannedTradeValueCny,
+          entry_amount_cny: entryAmountCny,
+          max_participation_value_cny: maxParticipationValueCny,
+          capacity_utilization: capacityUtilization,
+          capital_wan: capitalWan,
+          participation_rate: participationRate,
+          entry_is_suspended: fact ? (fact.entry_is_suspended === true || fact.entry_is_suspended === 1) : null,
+          entry_limit_status: limitStatus,
+          risk_codes: riskCodes,
+        };
+      });
+  }
+
   function build(rows, options = {}) {
     const weighted = options.weighted === true;
     const costPerSide = Math.max(0, finiteNumber(options.costPerSide) || 0);
@@ -367,6 +429,7 @@
     targetWeights,
     normalizeWeightingMode,
     changeRows,
+    executionOrders,
     regularTurnoverStats,
     appendOnlyAfterCutoff,
   };

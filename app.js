@@ -64,6 +64,8 @@ const state = {
   composeWeightingMode: "equal", // equal | score | market_cap：入选股票目标权重
   composeMaxStockWeight: 1,
   composeTurnoverCap: 1,
+  composeExecutionCapitalWan: 1000,
+  composeExecutionParticipationPct: 5,
   composeHoldingMonth: null,
   composeDecisionContext: null,
   composeStart: null,       // 多因子合成回测区间；null=不限
@@ -6397,6 +6399,7 @@ const _composeFilePaths = new Map();
 const _composeFileLoads = new Map();
 let _composeMarketCapPath = null;
 let _composeMarketCapLoad = null;
+const _composeExecutionFactCache = new Map();
 const _composePrefetches = new Map();
 const _composePrefetchBuffers = new Map();
 let _latestComposeBtKey = null;
@@ -8780,28 +8783,107 @@ function composeLedgerPeriodLabel(period) {
   return `${period.signal_date} 信号 · ${period.entry_date} 入场 → ${period.exit_date} 退出`;
 }
 
+async function composeExecutionFacts(signalDate) {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(signalDate || "")) ? String(signalDate) : "";
+  if (!date) return { facts: new Map(), error: "调仓信号日无效" };
+  if (_composeExecutionFactCache.has(date)) return _composeExecutionFactCache.get(date);
+  const task = (async () => {
+    try {
+      const path = await ensureComposeMarketCapFile();
+      const result = await state.db.query(`
+        SELECT stock_code, entry_amount, entry_is_suspended, entry_limit_status
+        FROM read_parquet('${path}')
+        WHERE trade_date = DATE '${date}'
+      `);
+      const facts = new Map(result.toArray().map(row => [String(row.stock_code), {
+        stock_code: String(row.stock_code),
+        entry_amount: snapshotNumber(row.entry_amount),
+        entry_is_suspended: row.entry_is_suspended === null || row.entry_is_suspended === undefined
+          ? null
+          : (row.entry_is_suspended === true || row.entry_is_suspended === 1),
+        entry_limit_status: snapshotNumber(row.entry_limit_status),
+      }]));
+      return { facts, error: facts.size ? "" : "该调仓月没有执行行情" };
+    } catch (error) {
+      console.warn("load compose execution facts failed:", error);
+      return { facts: new Map(), error: "执行行情加载失败" };
+    }
+  })();
+  _composeExecutionFactCache.set(date, task);
+  return task;
+}
+
+function executionRiskText(order) {
+  const labels = {
+    execution_data_unavailable: "执行行情缺失",
+    suspended: "停牌，无法按当日执行",
+    limit_status_unavailable: "涨跌停状态缺失",
+    limit_up_buy_risk: "涨停买入风险",
+    limit_down_sell_risk: "跌停卖出风险",
+    amount_unavailable: "成交额缺失",
+    no_turnover: "当日无成交额",
+    capacity_exceeded: "超过参与率容量",
+    estimated_within_capacity: "参与率估算内",
+  };
+  return (order?.risk_codes || []).map(code => labels[code] || code).join("；") || "—";
+}
+
+function executionLimitText(value) {
+  if (value === null || value === undefined || value === "") return "缺失";
+  const parsed = Number(value);
+  return parsed === 1 ? "涨停" : (parsed === -1 ? "跌停" : (parsed === 0 ? "非涨跌停" : "缺失"));
+}
+
+function executionSideText(value) {
+  return value === "buy" ? "买入" : (value === "sell" ? "卖出" : "—");
+}
+
+function executionMoneyWan(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? (parsed / 10000).toFixed(parsed >= 1000000 ? 1 : 2) : "—";
+}
+
 function composeLedgerActionLabel(action) {
   return action === "added" ? "调入" : (action === "removed" ? "调出" : "持有");
 }
 
-function composeLedgerCsv(period, metaMap) {
+function composeLedgerCsv(period, metaMap, executionOrders = []) {
   const quote = value => `"${String(value ?? "").replaceAll('"', '""')}"`;
   const changeByCode = new Map((period.changes || []).map(row => [row.stock_code, row]));
+  const holdingByCode = new Map((period.holdings || []).map(row => [row.stock_code, row]));
+  const orderByCode = new Map(executionOrders.map(row => [row.stock_code, row]));
   const headers = [
     "信号日", "入场日", "退出日", "股票代码", "股票名称", "权重", "合成得分",
     "申万一级(最新快照)", "是否股票池成分", "相对上月", "上月权重", "权重变化",
+    "交易方向", "拟交易金额(万元)", "入场日成交额(万元)", "成交额参与上限", "估算可用额度(万元)",
+    "容量占用", "入场日停牌", "入场日涨跌停", "执行风险提示",
     "当月单边换手", "当月毛收益", "当月成本后收益",
     "持仓规则", "现金权重", "缺失收益权重", "是否触发换手上限",
   ];
-  const rows = (period.holdings || []).map(holding => {
-    const meta = metaMap.get(holding.stock_code) || {};
-    const change = changeByCode.get(holding.stock_code) || {};
+  const codes = [...holdingByCode.keys()];
+  (period.changes || []).forEach(change => {
+    if (!holdingByCode.has(change.stock_code)) codes.push(change.stock_code);
+  });
+  const rows = codes.map(stockCode => {
+    const holding = holdingByCode.get(stockCode) || {};
+    const meta = metaMap.get(stockCode) || {};
+    const change = changeByCode.get(stockCode) || {};
+    const order = orderByCode.get(stockCode) || {};
     return [
-      period.signal_date, period.entry_date, period.exit_date, holding.stock_code, meta.name || "",
-      holding.weight, holding.score ?? "", meta.industry_sw1 || holding.industry_sw1 || "",
+      period.signal_date, period.entry_date, period.exit_date, stockCode, meta.name || "",
+      holding.weight ?? change.current_weight ?? 0, holding.score ?? "", meta.industry_sw1 || holding.industry_sw1 || "",
       holding.is_index_member ? "是" : "否", composeLedgerActionLabel(change.action),
-      change.previous_weight ?? 0, change.weight_change ?? 0, period.turnover,
-      period.gross_return, period.net_return,
+      change.previous_weight ?? 0, change.weight_change ?? 0,
+      executionSideText(order.side), order.planned_trade_value_cny === undefined ? "" : executionMoneyWan(order.planned_trade_value_cny),
+      order.entry_amount_cny === undefined ? "" : executionMoneyWan(order.entry_amount_cny),
+      order.participation_rate === undefined ? "" : order.participation_rate * 100,
+      order.max_participation_value_cny === undefined ? "" : executionMoneyWan(order.max_participation_value_cny),
+      order.capacity_utilization === null || order.capacity_utilization === undefined ? "" : order.capacity_utilization,
+      order.entry_is_suspended === null || order.entry_is_suspended === undefined ? "" : (order.entry_is_suspended ? "是" : "否"),
+      order.entry_limit_status === null || order.entry_limit_status === undefined ? "" : executionLimitText(order.entry_limit_status),
+      order.risk_codes ? executionRiskText(order) : "",
+      period.turnover, period.gross_return, period.net_return,
       composePortfolioMethodLabel(), period.cash_weight ?? 0,
       period.missing_return_weight ?? 0, period.turnover_limited ? "是" : "否",
     ];
@@ -8809,12 +8891,12 @@ function composeLedgerCsv(period, metaMap) {
   return `\uFEFF${[headers, ...rows].map(row => row.map(quote).join(",")).join("\r\n")}`;
 }
 
-function downloadComposeLedgerPeriod(period, metaMap) {
-  const blob = new Blob([composeLedgerCsv(period, metaMap)], { type: "text/csv;charset=utf-8" });
+function downloadComposeLedgerPeriod(period, metaMap, executionOrders = []) {
+  const blob = new Blob([composeLedgerCsv(period, metaMap, executionOrders)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `factor-portfolio-${period.signal_date}.csv`;
+  anchor.download = `factor-portfolio-execution-${period.signal_date}.csv`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -8835,6 +8917,16 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
   const period = ledger[index];
   const metaMap = await ensureStockMetaSnapshot();
   if (isComposeRenderStale(renderSeq)) return;
+  const executionResult = await composeExecutionFacts(period.signal_date);
+  if (isComposeRenderStale(renderSeq)) return;
+  const executionOrders = FactorPortfolioLedger.executionOrders(
+    period,
+    executionResult.facts,
+    {
+      capitalWan: state.composeExecutionCapitalWan,
+      participationPct: state.composeExecutionParticipationPct,
+    },
+  );
   const changeByCode = new Map((period.changes || []).map(row => [row.stock_code, row]));
   const restricted = isRestrictedUniverse(state.composeUniverse);
   const decisionContext = state.composeDecisionContext;
@@ -8872,6 +8964,57 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
       ${restricted ? `<td class="${holding.is_index_member ? "index-member-yes" : "index-member-no"}">${holding.is_index_member ? "是" : "否"}</td>` : ""}
     </tr>`;
   }).join("");
+  const executionRiskClass = order => {
+    const codes = new Set(order.risk_codes || []);
+    if (codes.has("suspended") || codes.has("no_turnover")) return "blocked";
+    if ([...codes].some(code => code !== "estimated_within_capacity")) return "warn";
+    return "ok";
+  };
+  const executionRows = executionOrders.map((order, rowIndex) => {
+    const meta = metaMap.get(order.stock_code) || {};
+    const utilization = order.capacity_utilization === null
+      ? "—"
+      : `${(Number(order.capacity_utilization) * 100).toFixed(order.capacity_utilization >= 10 ? 0 : 1)}%`;
+    return `<tr>
+      <td>${rowIndex + 1}</td>
+      <td><b class="ledger-code">${htmlText(order.stock_code)}</b></td>
+      <td>${htmlText(meta.name || "—")}</td>
+      <td>${executionSideText(order.side)}</td>
+      <td>${pct(Math.abs(order.weight_change), 2)}</td>
+      <td>${executionMoneyWan(order.planned_trade_value_cny)}</td>
+      <td>${executionMoneyWan(order.entry_amount_cny)}</td>
+      <td>${executionMoneyWan(order.max_participation_value_cny)}</td>
+      <td>${utilization}</td>
+      <td>${order.entry_is_suspended === null ? "缺失" : (order.entry_is_suspended ? "是" : "否")}</td>
+      <td>${executionLimitText(order.entry_limit_status)}</td>
+      <td><span class="ledger-execution-status ${executionRiskClass(order)}">${htmlText(executionRiskText(order))}</span></td>
+    </tr>`;
+  }).join("");
+  const executionAlerts = executionOrders.filter(order => executionRiskClass(order) !== "ok").length;
+  const capacityExceeded = executionOrders.filter(order => order.risk_codes?.includes("capacity_exceeded")).length;
+  const executionPanel = `
+    <section class="ledger-execution" aria-labelledby="ledger-execution-title">
+      <div class="ledger-execution-heading">
+        <div>
+          <h4 id="ledger-execution-title">调仓执行估算</h4>
+          <p>${executionOrders.length}笔非零权重调整；${executionAlerts ? `${executionAlerts}笔需复核` : "未发现风险标记"}${capacityExceeded ? `，其中${capacityExceeded}笔超过参与率容量` : ""}。</p>
+        </div>
+        <div class="ledger-execution-controls">
+          <label for="cps-execution-capital">组合规模（万元）</label>
+          <input id="cps-execution-capital" type="number" min="1" step="100" value="${htmlAttr(state.composeExecutionCapitalWan)}">
+          <label for="cps-execution-participation">成交额参与上限（%）</label>
+          <input id="cps-execution-participation" type="number" min="0.1" max="100" step="0.5" value="${htmlAttr(state.composeExecutionParticipationPct)}">
+        </div>
+      </div>
+      ${executionResult.error ? `<p class="capability-note">${htmlText(executionResult.error)}；缺失值保持缺失，不按零成交或可成交处理。</p>` : ""}
+      ${executionRows ? `<div class="ledger-table-scroll" tabindex="0" role="region" aria-label="调仓执行估算明细，可滚动查看全部交易">
+        <table class="stock-table ledger-table ledger-execution-table">
+          <thead><tr><th>#</th><th>代码</th><th>名称</th><th>方向</th><th>调整权重</th><th>拟交易额（万元）</th><th>入场日成交额（万元）</th><th>参与率容量（万元）</th><th>容量占用</th><th>停牌</th><th>涨跌停</th><th>风险提示</th></tr></thead>
+          <tbody>${executionRows}</tbody>
+        </table>
+      </div>` : '<div class="empty">本月目标权重没有非零调整，无需生成执行订单。</div>'}
+      <p class="ledger-method-note">成交额取入场日实际S_DQ_AMOUNT（原始单位千元，页面换算为万元）；参与率容量 = 入场日成交额 × 参与上限，拟交易额 = 组合规模 × 权重变化绝对值。停牌和涨跌停为当日观测事实；涨停买入、跌停卖出仅标记风险，不推断排队成交。该表不含盘口、冲击成本、最小交易单位和券商回报，因此是调仓前复核工具，不是成交保证或历史收益重算。</p>
+    </section>`;
   target.innerHTML = `
     <div class="ledger-heading">
       <div>
@@ -8903,6 +9046,7 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
       <div><b>调入</b><div>${changeItems(period.added || [], "added")}</div></div>
       <div><b>调出</b><div>${period.initial_position ? '<span class="ledger-change-empty">首期建仓，无上月持仓</span>' : changeItems(period.removed || [], "removed")}</div></div>
     </div>
+    ${executionPanel}
     <div class="ledger-table-scroll" tabindex="0" role="region" aria-label="月度持仓明细，可滚动查看全部股票">
       <table class="stock-table ledger-table">
         <thead><tr><th>#</th><th>代码</th><th>名称</th><th>相对上月</th><th>本月权重</th><th>上月权重</th><th>权重变化</th><th>合成得分</th><th>申万一级（最新快照）</th>${restricted ? "<th>股票池成分</th>" : ""}</tr></thead>
@@ -8922,7 +9066,17 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
     state.composeHoldingMonth = dates[index + 1];
     renderComposeLedger(backtest, renderSeq).catch(error => console.error("render next ledger month failed:", error));
   };
-  document.getElementById("cps-ledger-export").onclick = () => downloadComposeLedgerPeriod(period, metaMap);
+  document.getElementById("cps-ledger-export").onclick = () => downloadComposeLedgerPeriod(period, metaMap, executionOrders);
+  document.getElementById("cps-execution-capital").onchange = event => {
+    const parsed = Number(event.target.value);
+    state.composeExecutionCapitalWan = Number.isFinite(parsed) ? Math.min(1e9, Math.max(1, parsed)) : 1000;
+    renderComposeLedger(backtest, renderSeq).catch(error => console.error("render execution capital failed:", error));
+  };
+  document.getElementById("cps-execution-participation").onchange = event => {
+    const parsed = Number(event.target.value);
+    state.composeExecutionParticipationPct = Number.isFinite(parsed) ? Math.min(100, Math.max(0.1, parsed)) : 5;
+    renderComposeLedger(backtest, renderSeq).catch(error => console.error("render execution participation failed:", error));
+  };
 }
 
 async function renderComposeBacktest(renderSeq) {
