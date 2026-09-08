@@ -399,7 +399,9 @@ def test_frontend_weighted_and_optimizer_paths_keep_signal_and_return_months_sep
     assert result["optimizedNavEnd"] is None
     assert "strftime(p.trade_date,'%Y-%m') AS signal_ym" in optimizer_loader
     assert "AS return_ym" in optimizer_loader
-    assert "loadComposeOptimizerMonths(state.composeFactors, universe, state.composeEnd)" in optimize_ui
+    assert "loadComposeOptimizerMonths(state.composeFactors, universe, state.composeEnd" in optimize_ui
+    assert "constraintMode" in optimize_ui
+    assert "portfolio" in optimize_ui
 
 
 def test_compose_long_only_total_loss_never_creates_negative_nav():
@@ -632,7 +634,9 @@ def test_optimizer_uses_full_common_universe_not_single_factor_top500_union():
     assert "COALESCE(p.period_return_date, p.trade_date)" in loader
     assert "WHERE TRUE${optimizerEndSql}" in loader
     assert "periodComplete: row.period_complete === true" in loader
-    assert "loadComposeOptimizerMonths(state.composeFactors, universe, state.composeEnd)" in optimizer
+    assert "loadComposeOptimizerMonths(state.composeFactors, universe, state.composeEnd" in optimizer
+    assert "constraintMode" in optimizer
+    assert "portfolio" in optimizer
     assert "range: { startMonth: state.composeStart, endMonth: state.composeEnd }" in optimizer
     assert "if (stocks.length) months.push" not in loader
     assert "stocks.length >= state.composeN" not in loader
@@ -900,8 +904,35 @@ def test_combo_walk_forward_ui_states_scope_and_all_required_windows():
     assert "minCoverage: 0.75" in handler
     assert "topNCandidates" in handler
     assert "thresholdProfiles" in handler
-    assert "loadComposeOptimizerMonths(factors, universe, null)" in handler
+    assert "loadComposeOptimizerMonths(factors, universe, null" in handler
+    assert "constraintMode" in handler
+    assert "portfolio" in handler
     assert ".combo-walk-forward-scroll" in styles
+
+
+def test_optimizer_and_walk_forward_inherit_advanced_portfolio_rules():
+    source = APP_JS.read_text(encoding="utf-8")
+    controls = _source_between(source, "function renderComposeControls", "function isComposeRenderStale")
+    shell = _source_between(source, "function renderComboWalkForwardShell", "function comboWalkForwardStatus")
+    handler = _source_between(source, "function bindComboWalkForwardHandler", "async function renderComposeValidation")
+    backtest = _source_between(source, "function backtestWeights", "function nthLargestFinite")
+    rolling = _source_between(source, "function walkForwardMetricsFromRows", "async function loadComposeOptimizerMonths")
+    loader = _source_between(source, "async function loadComposeOptimizerMonths", "async function optimizeWeights")
+    optimizer = _source_between(source, "async function optimizeWeights", "function bindComposeButtons")
+
+    assert "optimizeButton.disabled = false" in controls
+    assert "参数优化暂仅支持默认等权" not in source
+    assert "hasCustomComposePortfolio(payload)" not in shell
+    assert "参数滚动样本外暂仅支持等权" not in source
+    assert "持仓权重、个股上限、换手上限" in shell
+    assert "portfolioLabel" in source
+    assert "constraintMode" in handler and "portfolio" in handler
+    assert "optimizerPortfolioBacktest" in backtest
+    assert "walkForwardMetricsFromRows(trainRows, costPerSide, options)" in rolling
+    assert "walkForwardMetricsFromRows(futureRows, costPerSide, options)" in rolling
+    assert "m.ln_mv" in loader and "m.industry_sw1" in loader
+    assert "includeAllCandidates = portfolio.turnoverCap < 1" in loader
+    assert "constraintMode" in optimizer and "portfolio" in optimizer
 
 
 def test_minimum_index_share_validation_separates_candidate_and_holding_domains():
@@ -2107,8 +2138,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.10</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.10 ' in index
+    assert "<title>因子库 v2.4.11</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.11 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

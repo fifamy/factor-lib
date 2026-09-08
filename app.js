@@ -8367,8 +8367,8 @@ function renderComposeControls() {
   const box = document.getElementById("cps-controls");
   const optimizeButton = document.getElementById("cps-optimize");
   if (optimizeButton) {
-    optimizeButton.disabled = hasCustomComposePortfolio();
-    optimizeButton.title = optimizeButton.disabled ? "参数优化暂仅支持默认等权、无个股上限和无换手上限" : "搜索因子合成权重";
+    optimizeButton.disabled = false;
+    optimizeButton.title = "按当前股票池、行业约束和持仓规则搜索因子合成权重";
   }
   const wsum = state.composeFactors.reduce((s, f) => s + Math.abs(f.weight), 0) || 1;
   const constraint = normalizeConstraintMode(state.composeConstraintMode);
@@ -8390,7 +8390,7 @@ function renderComposeControls() {
     ? `<div class="capability-note"><b>口径限制</b> ${htmlText(composeIndustryApproximationMessage())}</div>`
     : "";
   const industryDisabled = universe.mode === "min_share" ? " disabled" : "";
-  const portfolioNotice = `<div class="capability-note"><b>权重与调仓口径</b> ${portfolio.weightingMode === "score" ? "分数减去组内最小值，再加分差的5%后归一；" : (portfolio.weightingMode === "market_cap" ? "市值权重使用月末PIT对数总市值换算；" : "目标持仓等权；")}行业约束下保留行业预算、仅在行业内重配；个股上限不足以满仓时停止计算。换手上限支持全市场、指数、行业及自定义股票池；先满足当期成分和行业预算，再在可行域内尽量保留上期持仓。若成分强制退出所需换手已超过上限，优先满足硬约束并在账本中标记。换手采用相邻调仓权重差，不含收益漂移与现金项。高级权重下缺失收益份额按零收益假设并单独披露；参数优化和参数滚动样本外暂不支持高级权重。</div>`;
+  const portfolioNotice = `<div class="capability-note"><b>权重与调仓口径</b> ${portfolio.weightingMode === "score" ? "分数减去组内最小值，再加分差的5%后归一；" : (portfolio.weightingMode === "market_cap" ? "市值权重使用月末PIT对数总市值换算；" : "目标持仓等权；")}行业约束下保留行业预算、仅在行业内重配；个股上限不足以满仓时停止计算。换手上限支持全市场、指数、行业及自定义股票池；先满足当期成分和行业预算，再在可行域内尽量保留上期持仓。若成分强制退出所需换手已超过上限，优先满足硬约束并在账本中标记。换手采用相邻调仓权重差，不含收益漂移与现金项。高级权重下缺失收益份额按零收益假设并单独披露；参数优化和参数滚动样本外均继承当前持仓规则。</div>`;
   const constraintBtns = `
     <div style="margin:0 0 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">组合约束：</span>
@@ -10733,13 +10733,9 @@ function comboValidationDomainLabels(rawUniverse) {
 
 function renderComboWalkForwardShell(payload) {
   const factorCount = payload?.factors?.length || 0;
-  const industryUnsupported = normalizeConstraintMode(payload?.constraintMode) === "industry";
   const tooManyFactors = factorCount > 4;
-  const portfolioUnsupported = hasCustomComposePortfolio(payload);
-  const disabled = industryUnsupported || tooManyFactors || portfolioUnsupported;
-  const reason = portfolioUnsupported ? "参数搜索目前仅支持等权、个股及换手均不限的组合。当前持仓权重仍用于净值和持仓账本。" : industryUnsupported
-    ? "行业中性持仓的滚动权重搜索尚未接入；当前不会退回无约束口径代算。"
-    : (tooManyFactors ? "滚动权重搜索最多支持 4 个因子，以控制浏览器计算量。" : "");
+  const disabled = tooManyFactors;
+  const reason = tooManyFactors ? "滚动权重搜索最多支持 4 个因子，以控制浏览器计算量。" : "";
   return `<div class="combo-walk-forward">
     <div class="combo-walk-forward-head">
       <div>
@@ -10748,7 +10744,7 @@ function renderComboWalkForwardShell(payload) {
       </div>
       <button id="combo-walk-forward-run" class="cpsn-btn" type="button"${disabled ? " disabled" : ""}>运行参数滚动样本外</button>
     </div>
-    <p class="combo-walk-forward-boundary">方向、分数口径、阈值运算符、股票池和成本在运行前固定；每折在训练期内联合比较权重网格、当前 TopN 相邻档位，以及“不设阈值 / 当前阈值 / 标准分 0 / 标准分 ±0.5”方案。结果使用完整历史，不受当前页面区间筛选影响。</p>
+    <p class="combo-walk-forward-boundary">方向、分数口径、阈值运算符、股票池、行业约束、持仓权重、个股上限、换手上限和成本在运行前固定；每折在训练期内联合比较权重网格、当前 TopN 相邻档位，以及“不设阈值 / 当前阈值 / 标准分 0 / 标准分 ±0.5”方案。结果使用完整历史，不受当前页面区间筛选影响。</p>
     ${reason ? `<div class="combo-walk-forward-unavailable">${htmlText(reason)}</div>` : ""}
     <div id="combo-walk-forward-result" aria-live="polite"><div class="empty">按需运行，避免进入页面时阻塞持仓和常规检验。</div></div>
   </div>`;
@@ -10810,6 +10806,7 @@ function renderComboWalkForwardResult(result, codes, context = {}) {
       <span><b>网格拆分</b>权重 ${numText(result.weightCandidateCount, 0)} × TopN ${numText(result.topNCandidateCount, 0)} × 阈值 ${numText(result.thresholdProfileCount, 0)}</span>
       <span><b>优化目标</b>训练期成本后夏普</span>
       <span><b>单边成本</b>${numText(context.costBps, 0)} bp</span>
+      <span><b>持仓规则</b>${htmlText(context.portfolioLabel || "等权，个股上限不限，月度换手上限不限")}</span>
     </div>
     <div class="combo-walk-forward-scroll">
       <table class="validation-table combo-walk-forward-table">
@@ -10833,13 +10830,11 @@ function bindComboWalkForwardHandler(renderSeq) {
   const output = document.getElementById("combo-walk-forward-result");
   if (!button || !output || button.disabled) return;
   button.onclick = async () => {
-    if (hasCustomComposePortfolio()) {
-      output.textContent = "参数滚动样本外暂仅支持等权、无个股上限和无换手上限组合。";
-      return;
-    }
     const factors = cloneComposeFactors(state.composeFactors);
     const N = state.composeN;
     const universe = normalizeIndexUniverseConfig(state.composeUniverse);
+    const constraintMode = normalizeConstraintMode(state.composeConstraintMode);
+    const portfolio = currentComposePortfolioConfig();
     const costBps = Number(state.composeCostBps);
     const nF = factors.length;
     button.disabled = true;
@@ -10848,7 +10843,7 @@ function bindComboWalkForwardHandler(renderSeq) {
     try {
       await ensureDB({
         stockMeta: false,
-        descriptors: false,
+        descriptors: constraintMode === "industry",
         benchmarks: false,
         corr: false,
         indexWeights: isIndexUniverse(universe),
@@ -10858,7 +10853,7 @@ function bindComboWalkForwardHandler(renderSeq) {
       await ensureComposeData();
       await ensureComposeBase();
       if (isComposeRenderStale(renderSeq)) return;
-      const months = await loadComposeOptimizerMonths(factors, universe, null);
+      const months = await loadComposeOptimizerMonths(factors, universe, null, { constraintMode, portfolio });
       const conds = factors
         .map((factor, index) => factor.thr !== null && Number.isFinite(Number(factor.thr))
           ? { idx: index, op: factor.op, thr: Number(factor.thr) }
@@ -10876,6 +10871,8 @@ function bindComboWalkForwardHandler(renderSeq) {
         topNCandidates,
         thresholdProfiles,
         universe,
+        constraintMode,
+        portfolio,
         costPerSide: costBps / 10000,
         yieldEvery: 2,
         onProgress: (completed, total) => {
@@ -10890,6 +10887,7 @@ function bindComboWalkForwardHandler(renderSeq) {
         dataCutoffDate: state.dataManifest?.latest_data_date,
         returnEndDate: state.dataManifest?.return_end_date,
         costBps,
+        portfolioLabel: composePortfolioMethodLabel(portfolio),
       });
     } catch (error) {
       if (!isComposeRenderStale(renderSeq)) {
@@ -11761,8 +11759,140 @@ function weightGrid(nF, step) {
   return res;
 }
 
+function optimizerPortfolioLedgerOptions(constraintMode, rawUniverse, rawPortfolio) {
+  const constraint = normalizeConstraintMode(constraintMode);
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  const portfolio = normalizeComposePortfolioConfig(rawPortfolio);
+  return {
+    ...portfolio,
+    constraintEligibleField: constraint === "industry" || ["index_only", "stock_pool"].includes(universe.mode)
+      ? "hard_eligible"
+      : "",
+    constraintGroupField: constraint === "industry" ? "industry_sw1" : "",
+    constraintMemberField: universe.mode === "min_share" ? "is_index_member" : "",
+  };
+}
+
+function prepareOptimizerPortfolioRows(monthsArr, weights, N, conds, rawUniverse, constraintMode, rawPortfolio) {
+  const constraint = normalizeConstraintMode(constraintMode);
+  const universe = normalizeIndexUniverseConfig(rawUniverse);
+  const portfolio = normalizeComposePortfolioConfig(rawPortfolio);
+  if (constraint === "industry" && universe.mode === "min_share") {
+    throw new Error("最低指数成分占比暂不能与行业中性约束同时使用");
+  }
+  const rows = [];
+  for (const month of monthsArr || []) {
+    const signalDate = String(month.signalDate || month.signalDt || month.ym || "");
+    const entryDate = String(month.entryDate || month.entryDt || signalDate);
+    const returnDate = String(month.returnDate || month.returnDt || month.returnYm || signalDate);
+    const periodComplete = month.periodComplete === true
+      || (month.periodComplete !== false && (month.stocks || []).some(stock => isValidForwardReturn(stock.ret)));
+    const stocks = month.stocks || [];
+    for (const stock of stocks) {
+      const scoreValues = (stock.scores || []).map(Number);
+      const hasScores = scoreValues.length >= weights.length
+        && weights.every((_, index) => Number.isFinite(scoreValues[index]));
+      const passes = hasScores && (!conds?.length || conds.every(cond => (
+        cond.op === ">=" ? scoreValues[cond.idx] >= cond.thr : scoreValues[cond.idx] <= cond.thr
+      )));
+      let composite = null;
+      if (passes) {
+        composite = roundCompositeScoreForRanking(weights.reduce(
+          (sum, weight, index) => sum + Number(weight) * scoreValues[index],
+          0,
+        ));
+      }
+      const member = stock.isIndexMember === true;
+      const hardEligible = (constraint !== "industry" || !!stock.industrySw1)
+        && (!["index_only", "stock_pool"].includes(universe.mode) || member);
+      rows.push({
+        signal_date: signalDate,
+        entry_date: entryDate,
+        exit_date: returnDate,
+        signal_dt: String(month.signalDt || month.signalYm || signalDate).slice(0, 7),
+        dt: returnDate,
+        stock_code: stock.code,
+        fwd_return: stock.ret,
+        ln_mv: stock.lnMv,
+        cs: composite,
+        industry_sw1: stock.industrySw1 || null,
+        is_index_member: member,
+        index_available: stock.indexAvailable === true,
+        hard_eligible: hardEligible,
+        is_eligible: Number.isFinite(composite) && hardEligible,
+        period_complete: periodComplete,
+      });
+    }
+    if (!stocks.length) {
+      rows.push({
+        signal_date: signalDate,
+        entry_date: entryDate,
+        exit_date: returnDate,
+        signal_dt: String(month.signalDt || month.signalYm || signalDate).slice(0, 7),
+        dt: returnDate,
+        stock_code: null,
+        period_complete: periodComplete,
+      });
+    }
+  }
+  return composePortfolioRowsByMonth(rows, N, constraint, universe, portfolio);
+}
+
+function optimizerRowsFromLedger(backtest, selectedRows, range = {}) {
+  const bySignal = new Map();
+  for (const row of selectedRows || []) {
+    const signalDate = String(row.signal_date || row.signal_dt || "");
+    if (!bySignal.has(signalDate)) bySignal.set(signalDate, []);
+    bySignal.get(signalDate).push(row);
+  }
+  return (backtest?.ledger || []).filter(period => {
+    const returnMonth = String(period.exit_date || "").slice(0, 7);
+    return (!range.startMonth || !returnMonth || returnMonth >= range.startMonth)
+      && (!range.endMonth || !returnMonth || returnMonth <= range.endMonth);
+  }).map(period => ({
+    signalDate: period.signal_date,
+    returnDate: period.exit_date,
+    signalMonth: String(period.signal_month || period.signal_date || "").slice(0, 7),
+    returnMonth: String(period.exit_date || "").slice(0, 7),
+    ret: period.net_return,
+    grossReturn: period.gross_return,
+    holdings: period.holdings.map(holding => [holding.stock_code, holding.weight]),
+    portfolioRows: bySignal.get(String(period.signal_date)) || [],
+  }));
+}
+
+function optimizerPortfolioBacktest(monthsArr, weights, N, conds, range, universe, costPerSide, options = {}) {
+  const constraintMode = normalizeConstraintMode(options.constraintMode);
+  const portfolio = normalizeComposePortfolioConfig(options.portfolio);
+  const selectedRows = prepareOptimizerPortfolioRows(
+    monthsArr,
+    weights,
+    N,
+    conds,
+    universe,
+    constraintMode,
+    portfolio,
+  );
+  const ledgerOptions = optimizerPortfolioLedgerOptions(constraintMode, universe, portfolio);
+  const fullBacktest = buildComposePortfolioBacktest(selectedRows, costPerSide, ledgerOptions);
+  const rows = optimizerRowsFromLedger(fullBacktest, selectedRows, range);
+  const returns = rows.map(row => row.ret);
+  let nav = 1;
+  const navs = [1];
+  returns.forEach(value => { nav *= 1 + value; navs.push(nav); });
+  const metrics = computeMetrics(returns, navs);
+  return range.returnSeries === true ? { metrics, rows } : metrics;
+}
+
 // 在 JS 内存里对一组权重跑合成回测，返回指标。conds=[{idx,op,thr}] 先过滤再打分。
-function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = null, costPerSide = COST_PER_SIDE) {
+function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = null, costPerSide = COST_PER_SIDE, options = {}) {
+  const advancedPortfolio = options?.constraintMode === "industry"
+    || ["score", "market_cap"].includes(options?.portfolio?.weightingMode)
+    || Number(options?.portfolio?.maxStockWeight) < 1
+    || Number(options?.portfolio?.turnoverCap) < 1;
+  if (advancedPortfolio) {
+    return optimizerPortfolioBacktest(monthsArr, weights, N, conds, range, universe, costPerSide, options);
+  }
   let prev = null, nav = 1;
   const navArr = [1], retArr = [], rows = [];
   for (const mo of monthsArr) {
@@ -11928,6 +12058,7 @@ async function searchOptimalWeights(monthsArr, grid, N, conds, options = {}) {
       options.range || {},
       options.universe || null,
       Number.isFinite(Number(options.costPerSide)) ? Number(options.costPerSide) : COST_PER_SIDE,
+      { constraintMode: options.constraintMode, portfolio: options.portfolio },
     );
     if (m) {
       if (m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
@@ -12043,7 +12174,17 @@ function walkForwardParameterCandidates(grid, currentWeights, N, conds, options 
   };
 }
 
-function walkForwardMetricsFromRows(rows, costPerSide) {
+function walkForwardMetricsFromRows(rows, costPerSide, options = {}) {
+  const advancedPortfolio = options?.constraintMode === "industry"
+    || ["score", "market_cap"].includes(options?.portfolio?.weightingMode)
+    || Number(options?.portfolio?.maxStockWeight) < 1
+    || Number(options?.portfolio?.turnoverCap) < 1;
+  if (advancedPortfolio) {
+    const selectedRows = (rows || []).flatMap(row => row?.portfolioRows || []);
+    const ledgerOptions = optimizerPortfolioLedgerOptions(options.constraintMode, options.universe, options.portfolio);
+    const backtest = buildComposePortfolioBacktest(selectedRows, costPerSide, ledgerOptions);
+    return computeMetrics(backtest.retArr, backtest.navArr);
+  }
   let previous = null;
   const returns = [];
   for (const row of rows || []) {
@@ -12087,6 +12228,7 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
       { returnSeries: true },
       universe,
       costPerSide,
+      { constraintMode: options.constraintMode, portfolio: options.portfolio },
     );
     candidateSeries.push(new Map((detail?.rows || []).map(row => [row.signalDate, row])));
     const completed = index + 1;
@@ -12111,7 +12253,7 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
           .filter(row => row && row.returnDate && row.returnDate <= selectionDate);
         const coverage = trainRows.length / trainMonths;
         if (coverage + 1e-12 < minCoverage) continue;
-        const metrics = walkForwardMetricsFromRows(trainRows, costPerSide);
+        const metrics = walkForwardMetricsFromRows(trainRows, costPerSide, options);
         if (!metrics) continue;
         const sharpe = Number(metrics.sharpe);
         const annual = Number(metrics.annual);
@@ -12141,7 +12283,7 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
           .filter(row => row && row.returnDate && row.returnDate > selectionDate);
         const futureCoverage = futureRows.length / horizonMonths;
         if (futureCoverage + 1e-12 < minCoverage) continue;
-        const futureMetrics = walkForwardMetricsFromRows(futureRows, costPerSide);
+        const futureMetrics = walkForwardMetricsFromRows(futureRows, costPerSide, options);
         if (!futureMetrics) continue;
         const testEndDate = futureRows.reduce(
           (latest, row) => String(row.returnDate) > latest ? String(row.returnDate) : latest,
@@ -12207,11 +12349,14 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
   };
 }
 
-async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null) {
+async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null, options = {}) {
   const normalizedFactors = cloneComposeFactors(factors);
   const codes = normalizedFactors.map(factor => factor.code);
   const nF = codes.length;
   const universe = normalizeIndexUniverseConfig(rawUniverse);
+  const constraintMode = normalizeConstraintMode(options.constraintMode);
+  const portfolio = normalizeComposePortfolioConfig(options.portfolio);
+  const includeAllCandidates = portfolio.turnoverCap < 1;
   const idxMap = new Map(_cpsMatrixCodes.map((key, index) => [key, index]));
   const matrixIndexes = normalizedFactors.map(factor => idxMap.get(composeShardKey(factor.code, factor.scoreMode)));
   if (matrixIndexes.some(index => index === undefined)) {
@@ -12225,28 +12370,50 @@ async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null)
   const optimizerAvailabilityJoin = composeUniverseAvailabilityJoin(universe, "m.trade_date");
   const optimizerWeightJoin = composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code");
   const optimizerMemberSelect = isRestrictedUniverse(universe) ? "iw.stock_code IS NOT NULL" : "FALSE";
-  const optimizerUniverseFilter = ["index_only", "stock_pool"].includes(universe.mode) ? "AND iw.stock_code IS NOT NULL" : "";
+  const optimizerUniverseFilter = !includeAllCandidates && ["index_only", "stock_pool"].includes(universe.mode)
+    ? "AND iw.stock_code IS NOT NULL"
+    : "";
+  const optimizerCandidateFilter = includeAllCandidates ? "" : `WHERE ${scorePresenceSql} ${optimizerUniverseFilter}`;
+  const optimizerCandidateSource = includeAllCandidates
+    ? `(SELECT COALESCE(r.trade_date, b.trade_date) AS trade_date,
+               COALESCE(r.return_date, b.return_date) AS return_date,
+               COALESCE(r.stock_code, b.stock_code) AS stock_code,
+               COALESCE(r.fwd_return, b.fwd_return) AS fwd_return,
+               COALESCE(r.ln_mv, b.ln_mv) AS ln_mv,
+               ${_cpsMatrixCodes.map((_, index) => `b.f${index}`).join(", ")}
+        FROM read_parquet('${_composeMarketCapPath}') r
+        FULL OUTER JOIN cps_matrix b ON b.trade_date = r.trade_date AND b.stock_code = r.stock_code)`
+    : "cps_matrix";
+  const optimizerIndustrySelect = constraintMode === "industry" ? "d.industry_sw1" : "NULL::VARCHAR AS industry_sw1";
+  const optimizerIndustryJoin = constraintMode === "industry"
+    ? "LEFT JOIN stock_descriptors d ON d.stock_code = m.stock_code"
+    : "";
   const res = await state.db.query(`
     WITH optimizer_period_dates AS (
-      SELECT m.trade_date, MAX(m.return_date) AS period_return_date
+      SELECT m.trade_date, MAX(m.entry_date) AS period_entry_date, MAX(m.return_date) AS period_return_date
       FROM cps_matrix m
       ${optimizerAvailabilityJoin}
       GROUP BY m.trade_date
     ),
     optimizer_candidates AS (
       SELECT m.*, ${optimizerMemberSelect} AS is_index_member,
-             ${isRestrictedUniverse(universe) ? "TRUE" : "FALSE"} AS index_available
-      FROM cps_matrix m
+             ${isRestrictedUniverse(universe) ? "TRUE" : "FALSE"} AS index_available,
+             ${optimizerIndustrySelect}
+      FROM ${optimizerCandidateSource} m
+      ${optimizerIndustryJoin}
       ${optimizerWeightJoin}
-      WHERE ${scorePresenceSql} ${optimizerUniverseFilter}
+      ${optimizerCandidateFilter}
     )
     SELECT strftime(p.trade_date,'%Y-%m-%d') AS signal_date,
            strftime(p.trade_date,'%Y-%m') AS signal_ym,
+           strftime(COALESCE(p.period_entry_date, p.trade_date),'%Y-%m-%d') AS entry_date,
            strftime(COALESCE(p.period_return_date, p.trade_date),'%Y-%m-%d') AS return_date,
            strftime(COALESCE(p.period_return_date, p.trade_date),'%Y-%m') AS return_ym,
            m.stock_code,
            ${scoreCols},
            m.fwd_return,
+           m.ln_mv,
+           m.industry_sw1,
            m.is_index_member,
            m.index_available,
            p.period_return_date IS NOT NULL AS period_complete
@@ -12264,6 +12431,7 @@ async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null)
     periodBySignal.set(signalDate, {
       signalDate,
       signalYm: String(row.signal_ym || signalDate).slice(0, 7),
+      entryDate: String(row.entry_date || signalDate),
       returnDate: String(row.return_date || signalDate),
       returnYm: String(row.return_ym || row.return_date || signalDate).slice(0, 7),
       periodComplete: row.period_complete === true || row.period_complete === 1,
@@ -12272,6 +12440,8 @@ async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null)
       month.set(row.stock_code, {
         scores: codes.map((_, index) => row[`f${index}`]),
         ret: row.fwd_return,
+        lnMv: row.ln_mv,
+        industrySw1: row.industry_sw1 || null,
         isIndexMember: row.is_index_member === true || row.is_index_member === 1,
         indexAvailable: row.index_available === true || row.index_available === 1,
       });
@@ -12285,6 +12455,7 @@ async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null)
       ym: period.signalYm,
       signalDate: period.signalDate,
       signalDt: period.signalYm,
+      entryDate: period.entryDate,
       returnDate: period.returnDate,
       returnDt: period.returnYm,
       periodComplete: period.periodComplete,
@@ -12296,23 +12467,17 @@ async function loadComposeOptimizerMonths(factors, rawUniverse, endMonth = null)
 
 async function optimizeWeights() {
   const box = document.getElementById("cps-opt");
-  if (hasCustomComposePortfolio()) {
-    box.innerHTML = `<div class="empty">最优因子权重搜索仅支持等权、个股及换手均不限的组合。</div>`;
-    return;
-  }
   const codes = state.composeFactors.map(f => f.code);
   const nF = codes.length;
   if (nF < 2) { box.innerHTML = `<div class="empty" style="color:#c14545">请先选 2 个以上因子</div>`; return; }
   if (nF > 4) { box.innerHTML = `<div class="empty" style="color:#c14545">最优权重仅支持 ≤4 个因子（组合爆炸）</div>`; return; }
-  if (normalizeConstraintMode(state.composeConstraintMode) === "industry") {
-    box.innerHTML = `<div class="empty" style="color:#c14545">最优权重暂仅支持「无约束等权」。请先切回无约束，再搜索权重。</div>`;
-    return;
-  }
   const universe = normalizeIndexUniverseConfig(state.composeUniverse);
+  const constraintMode = normalizeConstraintMode(state.composeConstraintMode);
+  const portfolio = currentComposePortfolioConfig();
   box.innerHTML = `<div class="loading">搜索中…</div>`;
   await ensureDB({
     stockMeta: false,
-    descriptors: false,
+    descriptors: constraintMode === "industry",
     benchmarks: false,
     corr: false,
     indexWeights: isIndexUniverse(universe),
@@ -12325,7 +12490,10 @@ async function optimizeWeights() {
   await ensureComposeData();
   await ensureComposeBase();
   // 使用全部所选因子均有分数的股票；不能按单因子 Top500 并集裁剪。
-  const monthsArr = await loadComposeOptimizerMonths(state.composeFactors, universe, state.composeEnd);
+  const monthsArr = await loadComposeOptimizerMonths(state.composeFactors, universe, state.composeEnd, {
+    constraintMode,
+    portfolio,
+  });
 
   // 过滤条件（JS 端）：因子在 codes 中的位置 idx + op + 阈值
   const conds = state.composeFactors
@@ -12339,6 +12507,8 @@ async function optimizeWeights() {
     yieldEvery: 2,
     range: { startMonth: state.composeStart, endMonth: state.composeEnd },
     universe,
+    constraintMode,
+    portfolio,
     costPerSide: Number(state.composeCostBps) / 10000,
     onProgress: (completed, total) => {
       const loading = box.querySelector(".loading");
@@ -12368,7 +12538,7 @@ async function optimizeWeights() {
       <thead><tr><th>优化目标</th><th>最优权重</th><th>年化收益</th><th>年化波动率</th><th>夏普</th><th>回撤</th><th>操作</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="color:#888;font-size:11px;margin-top:4px">网格步长${step}（${grid.length}组组合），目标基于Top${state.composeN}、${indexUniverseModeLabel(universe)}、${composeRangeLabel()}历史回测。点“应用”把权重填回。</p>
+    <p style="color:#888;font-size:11px;margin-top:4px">网格步长${step}（${grid.length}组组合），目标基于Top${state.composeN}、${composeConstraintModeLabel(constraintMode)}、${indexUniverseModeLabel(universe)}、${composePortfolioMethodLabel(portfolio)}、${composeRangeLabel()}历史回测。点“应用”把权重填回。</p>
     <p style="color:#c08040;font-size:11px;margin-top:2px">⚠ 这是<b>样本内</b>最优（当前回测区间内最好的权重），不保证未来同样最优——实务中需警惕过拟合，建议结合因子逻辑而非只追历史最优。</p>`;
   // 应用按钮：把最优权重填回 composeFactors
   box.querySelectorAll(".cps-apply").forEach(btn => {

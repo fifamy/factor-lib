@@ -9,7 +9,7 @@ page.on('pageerror', error => errors.push(error.message));
 // Test-only module access; no diagnostic global is shipped.
 await page.route('**/app.js?*', async route => {
   const response = await route.fetch();
-  await route.fulfill({ response, body: await response.text() + '\n;globalThis.portfolioTest = { state, comboBacktest, currentComboPublishPayload, rawComboFromCurrent, validatePublishedCombo, comboToTempCompare, renderCompose, ensureDB, monthEndDisplayDate };' });
+  await route.fulfill({ response, body: await response.text() + '\n;globalThis.portfolioTest = { state, comboBacktest, currentComboPublishPayload, rawComboFromCurrent, validatePublishedCombo, comboToTempCompare, renderCompose, ensureDB, ensureComposeBase, loadComposeOptimizerMonths, searchOptimalWeights, rollingWeightWalkForward, monthEndDisplayDate };' });
 });
 try {
   await page.goto(url, { waitUntil: 'networkidle', timeout: 90000 });
@@ -50,6 +50,27 @@ try {
     for (const period of industryLimited.ledger) {
       if (period.holdings.some(holding => !holding.industry_sw1)) throw Error(`行业组合存在无行业持仓：${period.signal_date}`);
     }
+    const portfolio = { weightingMode: 'score', maxStockWeight: .1, turnoverCap: .25 };
+    const optimizerMonths = await t.loadComposeOptimizerMonths(s.composeFactors, { mode: 'all' }, null,
+      { constraintMode: 'none', portfolio });
+    const optimized = await t.searchOptimalWeights(optimizerMonths, [[1]], 30, [], {
+      universe: { mode: 'all' }, constraintMode: 'none', portfolio, costPerSide: .002,
+    });
+    if (!optimized.sharpe.w || !Number.isFinite(optimized.sharpe.m?.sharpe)) throw Error('高级持仓规则下样本内搜索失败');
+    const rolling = await t.rollingWeightWalkForward(optimizerMonths, [[1]], 30, [], {
+      trainWindows: [12], horizons: [3], minCoverage: .75, currentWeights: [1],
+      topNCandidates: [30], thresholdProfiles: [{ name: '当前阈值', conds: [] }],
+      universe: { mode: 'all' }, constraintMode: 'none', portfolio, costPerSide: .002, yieldEvery: 999,
+    });
+    if (!rolling.folds.length || rolling.folds.some(fold => fold.trainEndDate > fold.selectionDate || fold.testEndDate <= fold.selectionDate)) {
+      throw Error('高级持仓规则下参数滚动样本外失败或发生时点泄漏');
+    }
+    const industryOptimizerMonths = await t.loadComposeOptimizerMonths(s.composeFactors, { mode: 'all' }, null,
+      { constraintMode: 'industry', portfolio });
+    const industryOptimized = await t.searchOptimalWeights(industryOptimizerMonths, [[1]], 30, [], {
+      universe: { mode: 'all' }, constraintMode: 'industry', portfolio, costPerSide: .002,
+    });
+    if (!industryOptimized.sharpe.w) throw Error('行业约束下样本内搜索失败');
     if (t.monthEndDisplayDate(limited.ledger.at(-1).exit_date) !== '2026-07-31') throw Error('最新月频净值没有显示在7月末');
     s.composeWeightingMode = 'score'; s.composeMaxStockWeight = .1; s.composeTurnoverCap = .25;
     const raw = t.rawComboFromCurrent('权重回归', new Set(), limited);
@@ -68,6 +89,8 @@ try {
       limitedMonths: limited.ledger.filter(p => p.turnover_limited).length,
       indexLimitedMonths: indexLimited.ledger.filter(p => p.turnover_limited).length,
       industryLimitedMonths: industryLimited.ledger.filter(p => p.turnover_limited).length,
+      advancedOptimizerMonths: optimizerMonths.length,
+      advancedWalkForwardFolds: rolling.folds.length,
       nav: { equal: defaults.navArr.at(-1), score: score.navArr.at(-1), marketCap: cap.navArr.at(-1), limited: limited.navArr.at(-1) },
     };
   });
@@ -92,8 +115,8 @@ try {
   assert.equal(await page.locator('#cps-max-stock-weight').inputValue(), '0.1');
   assert.equal(await page.locator('#cps-turnover-cap').inputValue(), '0.25');
   await page.waitForSelector('.combo-validation', { timeout: 300000 });
-  assert.equal(await page.locator('#combo-walk-forward-run').isDisabled(), true);
-  assert.equal(await page.locator('#cps-optimize').isDisabled(), true);
+  assert.equal(await page.locator('#combo-walk-forward-run').isDisabled(), false);
+  assert.equal(await page.locator('#cps-optimize').isDisabled(), false);
   await page.evaluate(() => scrollTo(0, 0));
   if (process.env.PORTFOLIO_WEIGHTS_SCREENSHOT) await page.screenshot({ path: process.env.PORTFOLIO_WEIGHTS_SCREENSHOT, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
