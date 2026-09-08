@@ -115,7 +115,10 @@ try {
     throw new Error(`切换股票池后有效性筛选未复位：status=${resetStatus}, rows=${resetRows}`);
   }
   const industryScope = await page.locator("#pool-scope-note").innerText();
-  if (!industryScope.includes("电子") || !industryScope.includes("严格") && !industryScope.includes("只使用截止日以前已实现的收益") || !industryScope.includes("各股票池不强行统一起点")) {
+  if (!industryScope.includes("电子")
+    || !industryScope.includes("收益归属月末")
+    || !industryScope.includes("底层仍按实际退出交易日判断收益是否已经实现")
+    || !industryScope.includes("各股票池不强行统一起点")) {
     throw new Error(`申万一级行业口径提示异常：${industryScope}`);
   }
 
