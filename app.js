@@ -12072,10 +12072,10 @@ async function searchOptimalWeights(monthsArr, grid, N, conds, options = {}) {
       { constraintMode: options.constraintMode, portfolio: options.portfolio },
     );
     if (m) {
-      if (m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
+      if (Number.isFinite(m.annual) && m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
       if (Number.isFinite(m.sharpe) && m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
-      if (m.vol < best.vol.val) best.vol = { val: m.vol, w, m };
-      if (m.mdd > best.mdd.val) best.mdd = { val: m.mdd, w, m };
+      if (Number.isFinite(m.vol) && m.vol < best.vol.val) best.vol = { val: m.vol, w, m };
+      if (Number.isFinite(m.mdd) && m.mdd > best.mdd.val) best.mdd = { val: m.mdd, w, m };
     }
     const completed = i + 1;
     if (completed < grid.length && completed % yieldEvery === 0) {
@@ -12266,12 +12266,18 @@ async function rollingWeightWalkForward(monthsArr, grid, N, conds, options = {})
         if (coverage + 1e-12 < minCoverage) continue;
         const metrics = walkForwardMetricsFromRows(trainRows, costPerSide, options);
         if (!metrics) continue;
-        const sharpe = Number(metrics.sharpe);
-        const annual = Number(metrics.annual);
-        const score = Number.isFinite(sharpe) ? sharpe : (Number.isFinite(annual) ? -1e6 + annual : -Infinity);
-        if (!best || score > best.score || (score === best.score && annual > best.annual)) {
+        const hasSharpe = Number.isFinite(metrics.sharpe);
+        const annual = Number.isFinite(metrics.annual) ? metrics.annual : -Infinity;
+        if (!hasSharpe && !Number.isFinite(annual)) continue;
+        // Prefer defined Sharpe ratios, even when negative. Use annual return
+        // only as a tie-break or when every eligible candidate lacks Sharpe.
+        const score = hasSharpe ? metrics.sharpe : annual;
+        if (!best || (hasSharpe && !best.hasSharpe)
+          || (hasSharpe === best.hasSharpe
+            && (score > best.score || (score === best.score && annual > best.annual)))) {
           best = {
             candidateIndex,
+            hasSharpe,
             score,
             annual,
             metrics,

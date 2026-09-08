@@ -804,6 +804,58 @@ def test_advanced_optimizer_preserves_missing_score_rows_only_for_accounting():
     assert holdings["7"] == pytest.approx(0.25)
 
 
+@pytest.mark.parametrize("target", ["annual", "vol", "mdd", "sharpe"])
+@pytest.mark.parametrize("valid", [-0.5, 0])
+@pytest.mark.parametrize("invalid", ["null", "undefined", "NaN", "Infinity", "-Infinity", "''", "false", "'0'"])
+def test_optimizer_all_objectives_reject_nonfinite_or_nonnumeric_metrics(target, valid, invalid):
+    source = APP_JS.read_text(encoding="utf-8")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0; const yieldToEventLoop = async () => {};",
+        f"const target = {json.dumps(target)};",
+        f"const backtestWeights = (months, w) => ({{[target]:w[0] === 1 ? {invalid} : {valid}}});",
+        _source_between(source, "async function searchOptimalWeights", "function uniqueWeightGrid"),
+        "(async () => {",
+        "const first = await searchOptimalWeights([], [[1,0],[0,1]], 1, []);",
+        "const last = await searchOptimalWeights([], [[0,1],[1,0]], 1, []);",
+        "const invalidOnly = await searchOptimalWeights([], [[1,0]], 1, []);",
+        "console.log(JSON.stringify([first[target].w,last[target].w,invalidOnly[target].w]));",
+        "})();",
+    ])
+    assert result == [[0, 1], [0, 1], None]
+
+
+@pytest.mark.parametrize("metrics,expected", [
+    ([{"sharpe": None, "annual": 10000000}, {"sharpe": -2000000, "annual": -0.1}], [0, 1]),
+    ([{"sharpe": None, "annual": -0.2}, {"sharpe": None, "annual": -0.1}], [0, 1]),
+    ([{"sharpe": None, "annual": None}, {"sharpe": None, "annual": None}], None),
+    ([{"sharpe": 0, "annual": 0}, {"sharpe": -0.1, "annual": 0.3}], [1, 0]),
+    ([{"sharpe": 1, "annual": None}, {"sharpe": 1, "annual": -0.1}], [0, 1]),
+])
+def test_rolling_optimizer_ranks_defined_sharpe_before_annual_fallback(metrics, expected):
+    source = APP_JS.read_text(encoding="utf-8")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0; const yieldToEventLoop = async () => {};",
+        "const medianFinite = values => values.filter(Number.isFinite)[0] ?? null;",
+        f"const metrics = {json.dumps(metrics)};",
+        "const candidates = [[1,0],[0,1]].map(weights => ({weights,topN:1,conds:[],thresholdName:'current'}));",
+        "const walkForwardParameterCandidates = () => ({candidates});",
+        "const backtestWeights = (months,weights) => ({rows:months.map(m => ({...m, candidate:weights[0] === 1 ? 0 : 1}))});",
+        "const walkForwardMetricsFromRows = rows => metrics[rows[0].candidate];",
+        _source_between(source, "async function rollingWeightWalkForward", "async function loadComposeOptimizerMonths"),
+        "const months = Array.from({length:18}, (_,i) => ({",
+        "signalDate:new Date(Date.UTC(2020,i+1,0)).toISOString().slice(0,10),",
+        "returnDate:new Date(Date.UTC(2020,i+2,0)).toISOString().slice(0,10)}));",
+        "(async () => {const result = await rollingWeightWalkForward(months, [], 1, [],",
+        "{trainWindows:[6],horizons:[3],minCoverage:1});",
+        "console.log(JSON.stringify(result.folds.map(f => ({weights:f.weights, safe:f.trainEndDate <= f.selectionDate}))));})();",
+    ])
+    if expected is None:
+        assert result == []
+    else:
+        assert result
+        assert all(row["weights"] == expected and row["safe"] for row in result)
+
+
 def test_optimizer_undefined_sharpe_cannot_beat_valid_negative_sharpe():
     source = APP_JS.read_text(encoding="utf-8")
     result = _frontend_eval_json([
@@ -2205,8 +2257,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.12</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.12 ' in index
+    assert "<title>因子库 v2.4.13</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.13 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 
