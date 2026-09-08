@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "research_only": true,
+  "base_factors": [
+    "MOM12_1",
+    "REV1M",
+    "PB",
+    "ROE",
+    "TURN20",
+    "VOL1M60"
+  ],
+  "operations": [
+    "mean",
+    "minimum",
+    "maximum",
+    "spread"
+  ],
+  "max_base_factors": 12,
+  "max_candidates": 100,
+  "min_cross_section": 100,
+  "min_outer_train_months": 60,
+  "inner_validation_months": 12,
+  "test_months": 12,
+  "step_months": 12,
+  "min_discovery_months": 36,
+  "min_validation_months": 9,
+  "min_test_months": 6,
+  "fdr_alpha": 0.1,
+  "min_validation_positive_rate": 0.55,
+  "complexity_penalty": 0.001,
+  "top_k": 3
+}

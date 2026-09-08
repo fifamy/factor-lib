@@ -2258,8 +2258,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.14</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.14 ' in index
+    assert "<title>因子库 v2.4.15</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.15 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

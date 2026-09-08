@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "status": "research_candidates_only",
+  "production_registration": false,
+  "pool": {
+    "pool_id": "HS300",
+    "pool_type": "broad_index",
+    "pool_name": "沪深300"
+  },
+  "as_of_return_date": "2026-07-01",
+  "config_path": "config/expression_mining_hs300_v1.json",
+  "config_sha256": "f27d6ad65bcd18ac3d974e0774c94306b6d37cffd1df5f4c88cc5544d73fde0f",
+  "score_path": "data/factor_score.parquet",
+  "returns_path": "frontend/data/monthly_return.parquet",
+  "membership_path": "frontend/data/stock_pool_research/membership/HS300.parquet",
+  "counts": {
+    "base_factors": 6,
+    "candidates": 75,
+    "score_rows_loaded": 3006711,
+    "return_rows_loaded": 893221,
+    "membership_rows": 41700,
+    "monthly_rows": 10275,
+    "finite_monthly_rows": 10275,
+    "selection_rows": 18,
+    "evaluated_outer_test_rows": 18,
+    "folds_with_selection": 6
+  },
+  "methodology": {
+    "candidate_generation": "仅使用配置中的结构化白名单操作；不执行任意表达式文本",
+    "common_sample": "每个表达式只在两个输入分数与远期收益均有效的股票共同样本上计算RankIC",
+    "timing": "按真实return_date切分；选择只使用决策日已经实现的收益",
+    "selection": "发现期HAC显著性经BH-FDR校正，内层验证要求均值与符号一致，再扣复杂度惩罚",
+    "outer_test": "候选选定后的未来测试期只用于报告，不参与选择"
+  },
+  "limitations": [
+    "结果只是研究候选，不会自动登记为正式因子",
+    "还需经济含义、数据可得时点、稳健性、交易成本和独立复算复核",
+    "更换基础因子、操作白名单或股票池属于新的假设族，必须重新执行FDR与嵌套样本外检验"
+  ]
+}
