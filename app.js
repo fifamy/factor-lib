@@ -11789,7 +11789,12 @@ function prepareOptimizerPortfolioRows(monthsArr, weights, N, conds, rawUniverse
       || (month.periodComplete !== false && (month.stocks || []).some(stock => isValidForwardReturn(stock.ret)));
     const stocks = month.stocks || [];
     for (const stock of stocks) {
-      const scoreValues = (stock.scores || []).map(Number);
+      // Missing factor observations are not zero scores. Keep these rows for
+      // retained-position accounting, but never admit them as new candidates.
+      const scoreValues = Array.from(stock.scores || [], value => (
+        value === null || value === undefined || typeof value === "boolean"
+          || (typeof value === "string" && !value.trim()) ? NaN : Number(value)
+      ));
       const hasScores = scoreValues.length >= weights.length
         && weights.every((_, index) => Number.isFinite(scoreValues[index]));
       const passes = hasScores && (!conds?.length || conds.every(cond => (
@@ -11909,6 +11914,12 @@ function backtestWeights(monthsArr, weights, N, conds, range = {}, universe = nu
     let eligibleCount = 0;
     for (let stockIdx = 0; stockIdx < stocks.length; stockIdx += 1) {
       const stock = stocks[stockIdx];
+      if (!stock.scores || stock.scores.length < weights.length
+        || !weights.every((_, index) => {
+          const value = stock.scores[index];
+          return value !== null && value !== undefined && typeof value !== "boolean"
+            && !(typeof value === "string" && !value.trim()) && Number.isFinite(Number(value));
+        })) continue;
       const passes = !conds?.length || conds.every(c =>
         c.op === ">=" ? stock.scores[c.idx] >= c.thr : stock.scores[c.idx] <= c.thr);
       if (!passes) continue;
@@ -12062,7 +12073,7 @@ async function searchOptimalWeights(monthsArr, grid, N, conds, options = {}) {
     );
     if (m) {
       if (m.annual > best.annual.val) best.annual = { val: m.annual, w, m };
-      if (Number.isFinite(Number(m.sharpe)) && m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
+      if (Number.isFinite(m.sharpe) && m.sharpe > best.sharpe.val) best.sharpe = { val: m.sharpe, w, m };
       if (m.vol < best.vol.val) best.vol = { val: m.vol, w, m };
       if (m.mdd > best.mdd.val) best.mdd = { val: m.mdd, w, m };
     }

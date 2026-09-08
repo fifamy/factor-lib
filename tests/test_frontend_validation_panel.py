@@ -753,6 +753,73 @@ def test_optimizer_heap_boundary_matches_full_sort_and_keeps_all_ties():
     assert result[2]["heapBoundary"] is None
 
 
+@pytest.mark.parametrize("bad_score", [None, "", "  ", False, "NaN", "Infinity"])
+def test_optimizer_missing_scores_cannot_outrank_valid_negative_scores(bad_score):
+    source = APP_JS.read_text(encoding="utf-8")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0; const MIN_VALID_FORWARD_RETURN = -1;",
+        _source_between(source, "function memberForwardReturn", "function medianNumber"),
+        _source_between(source, "function computeMetrics(rets, navs)", "function metricsFromReturns"),
+        _source_between(source, "function backtestWeights", "async function optimizeWeights"),
+        f"const badScore = {json.dumps(bad_score)};",
+        "const stocks = [{code:'missing', scores:[badScore], ret:0.9},",
+        "  {code:'valid', scores:[-2], ret:0.1}, {code:'short', scores:[], ret:0.8}];",
+        "const result = backtestWeights([{stocks}], [1], 1, [], {returnSeries:true});",
+        "console.log(JSON.stringify(result.rows));",
+    ])
+    assert result[0]["holdings"] == [["valid", 1]]
+
+
+def test_advanced_optimizer_preserves_missing_score_rows_only_for_accounting():
+    source = APP_JS.read_text(encoding="utf-8")
+    result = _frontend_eval_json([
+        "const normalizeConstraintMode = v => v;",
+        "const normalizeIndexUniverseConfig = v => v;",
+        "const normalizeComposePortfolioConfig = v => v;",
+        "const roundCompositeScoreForRanking = v => v;",
+        "const composePortfolioRowsByMonth = rows => rows;",
+        _source_between(source, "function prepareOptimizerPortfolioRows", "function optimizerRowsFromLedger"),
+        "const values = [null, undefined, '', '  ', false, NaN, Infinity, -2, 0, '0'];",
+        "const stocks = values.map((value,i) => ({code:String(i), scores:[value], ret:0.1}));",
+        "stocks.push({code:'short',scores:[],ret:0.1});",
+        "const rows = prepareOptimizerPortfolioRows([{signalDate:'2024-01-31',",
+        "  returnDate:'2024-03-01', periodComplete:true, stocks}], [1], 1, [],",
+        "  {mode:'all'}, 'none', {turnoverCap:0.25});",
+        "const zeroWeightedMissing = prepareOptimizerPortfolioRows([{periodComplete:true, stocks:[",
+        "  {code:'missing',scores:[2,null],ret:0.1}]}], [1,0], 1, [], {mode:'all'}, 'none', {});",
+        f"const ledger = require({json.dumps(str(FRONTEND_ROOT / 'app_portfolio_ledger.js'))});",
+        "const history = [{signal_date:'2023-12-29', exit_date:'2024-02-01',",
+        "  stock_code:'0', target_weight:1, fwd_return:0.1, period_complete:true},",
+        "  ...rows.map(row => ({...row, target_weight:row.stock_code === '7' ? 1 : 0}))];",
+        "const retained = ledger.build(history, {weighted:true, targetWeightField:'target_weight',",
+        "  turnoverCap:0.25, maxStockWeight:1, costPerSide:0, missingReturnPolicy:'cash'});",
+        "console.log(JSON.stringify({rows, zeroWeightedMissing, retained}));",
+    ])
+    assert len(result["rows"]) == 11
+    assert [r["stock_code"] for r in result["rows"] if r["is_eligible"]] == ["7", "8", "9"]
+    assert all(r["hard_eligible"] and r["fwd_return"] == 0.1 for r in result["rows"])
+    assert result["zeroWeightedMissing"][0]["is_eligible"] is False
+    holdings = {row["stock_code"]: row["weight"] for row in result["retained"]["ledger"][1]["holdings"]}
+    assert holdings["0"] == pytest.approx(0.75)
+    assert holdings["7"] == pytest.approx(0.25)
+
+
+def test_optimizer_undefined_sharpe_cannot_beat_valid_negative_sharpe():
+    source = APP_JS.read_text(encoding="utf-8")
+    result = _frontend_eval_json([
+        "const COST_PER_SIDE = 0; const yieldToEventLoop = async () => {};",
+        "const backtestWeights = (months, weights) => ({annual:0, vol:0, mdd:0,",
+        "  sharpe:weights[0] === 1 ? null : -0.5});",
+        _source_between(source, "async function searchOptimalWeights", "function uniqueWeightGrid"),
+        "(async () => {",
+        "  const mixed = await searchOptimalWeights([], [[1,0],[0,1]], 1, []);",
+        "  const unavailable = await searchOptimalWeights([], [[1,0]], 1, []);",
+        "  console.log(JSON.stringify({mixed:mixed.sharpe.w, unavailable:unavailable.sharpe.w}));",
+        "})();",
+    ])
+    assert result == {"mixed": [0, 1], "unavailable": None}
+
+
 def test_optimizer_search_yields_every_two_grid_points_and_matches_manual_best():
     source = APP_JS.read_text(encoding="utf-8")
     helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
@@ -2138,8 +2205,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.11</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.11 ' in index
+    assert "<title>因子库 v2.4.12</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.12 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 
