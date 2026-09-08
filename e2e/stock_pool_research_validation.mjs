@@ -49,11 +49,11 @@ try {
   if (candidateCells !== 146) throw new Error(`候选分列未完整渲染：${candidateCells}`);
   const defaultAsOf = await page.locator("#pool-as-of").inputValue();
   const asOfOptions = await page.locator("#pool-as-of option").allTextContents();
-  if (defaultAsOf !== "2026-07-01" || asOfOptions.includes("2026-07-31")) {
-    throw new Error(`收益截止日混入冗余截面：default=${defaultAsOf}, options=${asOfOptions}`);
+  if (defaultAsOf !== "2026-07-01" || asOfOptions[0] !== "2026-07-31" || asOfOptions.includes("2026-08-31")) {
+    throw new Error(`收益截止底层值或月末展示异常：default=${defaultAsOf}, options=${asOfOptions}`);
   }
   const defaultScope = await page.locator("#pool-scope-note").innerText();
-  if (!defaultScope.includes("收益截止 2026-07-01") || !defaultScope.includes("冗余截面 2026-05-29")) {
+  if (!defaultScope.includes("收益归属月末 2026-07-31") || !defaultScope.includes("冗余截面 2026-05-29")) {
     throw new Error(`收益截止与冗余截面未分开说明：${defaultScope}`);
   }
   const defaultUniqueness = await page.locator("#pool-factor-table-body tr td:nth-child(13)").allTextContents();
@@ -93,7 +93,7 @@ try {
   await page.locator("#pool-selector").selectOption("CSI2000");
   await waitForResults();
   const csi2000Scope = await page.locator("#pool-scope-note").innerText();
-  if (!csi2000Scope.includes("中证2000") || !csi2000Scope.includes("2023-08-31") || !csi2000Scope.includes("收益截止")) {
+  if (!csi2000Scope.includes("中证2000") || !csi2000Scope.includes("2023-08-31") || !csi2000Scope.includes("收益归属月末")) {
     throw new Error(`中证2000独立历史范围异常：${csi2000Scope}`);
   }
 

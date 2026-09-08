@@ -159,6 +159,106 @@
     return limited;
   }
 
+  function blendWeights(left, right, alpha) {
+    const ratio = Math.min(1, Math.max(0, finiteNumber(alpha) || 0));
+    const codes = new Set([...left.keys(), ...right.keys()]);
+    const blended = new Map();
+    codes.forEach(code => {
+      const weight = (left.get(code) || 0) + ratio * ((right.get(code) || 0) - (left.get(code) || 0));
+      if (weight > 1e-12) blended.set(code, weight);
+    });
+    return blended;
+  }
+
+  function fillAllocationGap(result, target, candidateCodes, rawGap, maxStockWeight) {
+    let gap = Math.max(0, finiteNumber(rawGap) || 0);
+    const cap = normalizeFraction(maxStockWeight, 1);
+    for (let pass = 0; pass < 100 && gap > 1e-12; pass += 1) {
+      const active = candidateCodes
+        .map(code => ({
+          code,
+          headroom: Math.max(0, cap - (result.get(code) || 0)),
+          signal: Math.max(0, (target.get(code) || 0) - (result.get(code) || 0)),
+        }))
+        .filter(item => item.headroom > 1e-12);
+      if (!active.length) break;
+      let signalTotal = active.reduce((sum, item) => sum + item.signal, 0);
+      if (signalTotal <= 1e-12) {
+        active.forEach(item => { item.signal = item.headroom; });
+        signalTotal = active.reduce((sum, item) => sum + item.signal, 0);
+      }
+      let added = 0;
+      active.forEach(item => {
+        const increment = Math.min(item.headroom, gap * item.signal / signalTotal);
+        if (increment > 1e-12) {
+          result.set(item.code, (result.get(item.code) || 0) + increment);
+          added += increment;
+        }
+      });
+      if (added <= 1e-12) break;
+      gap -= added;
+    }
+    if (gap > 1e-9) throw new Error("constraint-aware turnover projection is infeasible under the stock weight cap");
+  }
+
+  function constraintAwareBaseline(target, previous, rows, options = {}) {
+    const eligibleField = String(options.constraintEligibleField || "");
+    const groupField = String(options.constraintGroupField || "");
+    const memberField = String(options.constraintMemberField || "");
+    const maxStockWeight = normalizeFraction(options.maxStockWeight, 1);
+    const rowByCode = new Map((rows || []).filter(row => row?.stock_code)
+      .map(row => [String(row.stock_code), row]));
+    const allowed = code => {
+      const row = rowByCode.get(code);
+      return !!row && (!eligibleField || row[eligibleField] === true || row[eligibleField] === 1);
+    };
+    const groupOf = code => {
+      const row = rowByCode.get(code) || {};
+      if (groupField) return String(row[groupField] || "未分类");
+      if (memberField) return row[memberField] === true || row[memberField] === 1 ? "member" : "other";
+      return "all";
+    };
+    const targetBudgets = new Map();
+    target.forEach((weight, code) => {
+      const group = groupOf(code);
+      targetBudgets.set(group, (targetBudgets.get(group) || 0) + weight);
+    });
+    const baseline = new Map();
+    for (const [group, budget] of targetBudgets) {
+      const candidateCodes = [...rowByCode.keys()].filter(code => allowed(code) && groupOf(code) === group);
+      const preserved = candidateCodes
+        .map(code => [code, Math.min(maxStockWeight, Math.max(0, previous.get(code) || 0))])
+        .filter(([, weight]) => weight > 1e-12);
+      const preservedTotal = preserved.reduce((sum, [, weight]) => sum + weight, 0);
+      if (preservedTotal > budget + 1e-12) {
+        const scale = budget / preservedTotal;
+        preserved.forEach(([code, weight]) => baseline.set(code, weight * scale));
+      } else {
+        preserved.forEach(([code, weight]) => baseline.set(code, weight));
+        fillAllocationGap(baseline, target, candidateCodes, budget - preservedTotal, maxStockWeight);
+      }
+    }
+    return baseline;
+  }
+
+  function limitTurnoverWithConstraints(target, previous, rawCap, rows, options = {}) {
+    if (!previous) return { weights: new Map(target), forced: false };
+    const cap = normalizeFraction(rawCap, 1);
+    const desired = normalizeWeightMap(target);
+    const baseline = constraintAwareBaseline(desired, previous, rows, options);
+    const forcedTurnover = turnover(baseline, previous);
+    if (forcedTurnover > cap + 1e-12) return { weights: baseline, forced: true };
+    if (turnover(desired, previous) <= cap + 1e-12) return { weights: desired, forced: false };
+    let low = 0;
+    let high = 1;
+    for (let i = 0; i < 60; i += 1) {
+      const middle = (low + high) / 2;
+      if (turnover(blendWeights(baseline, desired, middle), previous) <= cap + 1e-12) low = middle;
+      else high = middle;
+    }
+    return { weights: blendWeights(baseline, desired, low), forced: false };
+  }
+
   function changeRows(current, previous) {
     const prior = previous || new Map();
     const codes = new Set([...current.keys(), ...prior.keys()]);
@@ -314,7 +414,13 @@
         code,
         totalWeight > 0 ? value / totalWeight : 0,
       ]));
-      const constrainedCurrent = previous === null || turnoverCap >= 1 ? current : limitTurnover(current, previous, turnoverCap);
+      const constraintAware = !!(options.constraintEligibleField || options.constraintGroupField || options.constraintMemberField);
+      const turnoverResult = previous === null || turnoverCap >= 1
+        ? { weights: current, forced: false }
+        : (constraintAware
+          ? limitTurnoverWithConstraints(current, previous, turnoverCap, period.rows, options)
+          : { weights: limitTurnover(current, previous, turnoverCap), forced: false });
+      const constrainedCurrent = turnoverResult.weights;
 
       let weightedReturn = 0;
       let observedWeight = 0;
@@ -365,6 +471,8 @@
         missing_return_weight: Math.max(0, investedWeight - observedWeight),
         target_turnover: turnover(current, previous),
         turnover_limited: turnoverCap < 1 && previous !== null && turnover(current, previous) > turnoverCap + 1e-12,
+        turnover_cap: turnoverCap,
+        turnover_cap_overridden: turnoverResult.forced,
         nav,
         holdings,
         changes,
@@ -426,6 +534,7 @@
     build,
     turnover,
     limitTurnover,
+    limitTurnoverWithConstraints,
     targetWeights,
     normalizeWeightingMode,
     changeRows,

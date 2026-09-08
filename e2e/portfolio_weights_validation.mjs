@@ -9,7 +9,7 @@ page.on('pageerror', error => errors.push(error.message));
 // Test-only module access; no diagnostic global is shipped.
 await page.route('**/app.js?*', async route => {
   const response = await route.fetch();
-  await route.fulfill({ response, body: await response.text() + '\n;globalThis.portfolioTest = { state, comboBacktest, currentComboPublishPayload, rawComboFromCurrent, validatePublishedCombo, comboToTempCompare, renderCompose };' });
+  await route.fulfill({ response, body: await response.text() + '\n;globalThis.portfolioTest = { state, comboBacktest, currentComboPublishPayload, rawComboFromCurrent, validatePublishedCombo, comboToTempCompare, renderCompose, ensureDB, monthEndDisplayDate };' });
 });
 try {
   await page.goto(url, { waitUntil: 'networkidle', timeout: 90000 });
@@ -30,7 +30,7 @@ try {
         const weight = period.holdings.reduce((sum, h) => sum + h.weight, 0);
         if (Math.abs(weight + period.cash_weight - 1) > 1e-9) throw Error('权重与现金不守恒');
         if (period.holdings.some(h => h.weight > .1 + 1e-9)) throw Error('个股超过上限');
-        if (!period.initial_position && period.turnover > ceiling + 1e-9) throw Error('换手超过上限');
+        if (!period.initial_position && !period.turnover_cap_overridden && period.turnover > ceiling + 1e-9) throw Error('非强制换手超过上限');
         const gross = period.holdings.reduce((sum, h) => sum + h.weight * (h.fwd_return ?? 0), 0);
         if (Math.abs(gross - period.gross_return) > 1e-10) throw Error('毛收益与实际持仓不一致');
         const cost = period.turnover * (period.initial_position ? .002 : .004);
@@ -38,6 +38,19 @@ try {
       }
     };
     validate(score); validate(cap); validate(limited, .25);
+    const indexLimited = await t.comboBacktest(s.composeFactors, 30, 'cps_matrix', 'none',
+      { mode: 'index_only', indexAlias: 'HS300' }, 20, 'score', .1, .25);
+    await t.ensureDB({ stockMeta: false, descriptors: true, benchmarks: false, corr: false });
+    const industryLimited = await t.comboBacktest(s.composeFactors, 30, 'cps_matrix', 'industry',
+      { mode: 'all' }, 20, 'score', .1, .25);
+    validate(indexLimited, .25); validate(industryLimited, .25);
+    for (const period of indexLimited.ledger) {
+      if (period.holdings.some(holding => !holding.is_index_member)) throw Error(`指数组合持有非成分：${period.signal_date}`);
+    }
+    for (const period of industryLimited.ledger) {
+      if (period.holdings.some(holding => !holding.industry_sw1)) throw Error(`行业组合存在无行业持仓：${period.signal_date}`);
+    }
+    if (t.monthEndDisplayDate(limited.ledger.at(-1).exit_date) !== '2026-07-31') throw Error('最新月频净值没有显示在7月末');
     s.composeWeightingMode = 'score'; s.composeMaxStockWeight = .1; s.composeTurnoverCap = .25;
     const raw = t.rawComboFromCurrent('权重回归', new Set(), limited);
     const restored = t.validatePublishedCombo(JSON.parse(JSON.stringify(raw)), 0, new Set(s.catalog.map(f => f.code)));
@@ -53,10 +66,14 @@ try {
       periods: limited.ledger.length,
       maxTurnover: Math.max(...limited.ledger.filter(p => !p.initial_position).map(p => p.turnover)),
       limitedMonths: limited.ledger.filter(p => p.turnover_limited).length,
+      indexLimitedMonths: indexLimited.ledger.filter(p => p.turnover_limited).length,
+      industryLimitedMonths: industryLimited.ledger.filter(p => p.turnover_limited).length,
       nav: { equal: defaults.navArr.at(-1), score: score.navArr.at(-1), marketCap: cap.navArr.at(-1), limited: limited.navArr.at(-1) },
     };
   });
   assert(evidence.limitedMonths > 0);
+  assert(evidence.indexLimitedMonths > 0);
+  assert(evidence.industryLimitedMonths > 0);
   assert.notEqual(evidence.nav.equal, evidence.nav.score);
   assert.notEqual(evidence.nav.score, evidence.nav.marketCap);
   await page.waitForSelector('#cps-ledger-month', { timeout: 180000 });

@@ -557,10 +557,6 @@ function composePortfolioConstraintError(N, raw = currentComposePortfolioConfig(
 }
 
 function composePortfolioCompatibilityError(constraintMode, universe, raw) {
-  const config = normalizeComposePortfolioConfig(raw);
-  if (config.turnoverCap < 1 && (normalizeConstraintMode(constraintMode) === "industry" || normalizeIndexUniverseConfig(universe).mode !== "all")) {
-    return "换手上限目前仅支持全市场、无行业约束组合；保留旧持仓可能违反本期股票池或行业配额，请将换手上限设为不限。";
-  }
   return "";
 }
 
@@ -2001,7 +1997,7 @@ function renderFactorDetail(meta, snap = null) {
   const snapMonths = monthsFromSnapshot(viewSnap);
   const snapReturns = returnDatesFromSnapshot(viewSnap);
   const coverageStart = snapMonths[0] || manifest.backtest_start_month || "—";
-  const coverageEnd = snapReturns[snapReturns.length - 1] || manifest.return_end_date || manifest.backtest_end_month || "—";
+  const coverageEnd = monthEndDisplayDate(snapReturns[snapReturns.length - 1] || manifest.return_end_date || manifest.backtest_end_month || "—");
   const backtestUniverseText = manifest.backtest_universe || (
     "历史回测股票池按每月末因子对应 Word 股票池排序选股；不按最新 active 过滤。"
   );
@@ -2604,7 +2600,7 @@ async function renderNavChart(code) {
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
     tooltip: { trigger: "axis" },
     legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 32 },
-    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: monthlyNavDisplayLabels(x), axisLabel: { fontSize: 10 } },
     yAxis: { type: "value", scale: true },
     series,
   });
@@ -2656,7 +2652,7 @@ async function renderNavChartFast(code, snap) {
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
     tooltip: { trigger: "axis" },
     legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 32 },
-    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: monthlyNavDisplayLabels(x), axisLabel: { fontSize: 10 } },
     yAxis: { type: "value", scale: true },
     series,
   });
@@ -2947,6 +2943,21 @@ function monthOfLabel(label) {
   return String(label || "").slice(0, 7);
 }
 
+function monthEndDisplayDate(value) {
+  const text = String(value || "");
+  const matched = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(text);
+  if (!matched) return text;
+  const year = Number(matched[1]);
+  const month = Number(matched[2]);
+  if (!Number.isInteger(year) || month < 1 || month > 12) return text;
+  const day = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${matched[1]}-${matched[2]}-${String(day).padStart(2, "0")}`;
+}
+
+function monthlyNavDisplayLabels(labels) {
+  return (labels || []).map(monthEndDisplayDate);
+}
+
 function rangeFilterIndexes(months, startMonth, endMonth) {
   const out = [];
   for (let i = 0; i < months.length; i++) {
@@ -3151,7 +3162,7 @@ async function renderQuantileChartFast(code, snap) {
     grid: { left: 50, right: 20, top: 34, bottom: 30 },
     tooltip: { trigger: "axis" },
     legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 28 },
-    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: monthlyNavDisplayLabels(x), axisLabel: { fontSize: 10 } },
     yAxis: { type: "value", scale: true },
     series,
   });
@@ -4100,7 +4111,7 @@ async function renderNavChartSide(code, side, snap = null) {
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
     tooltip: { trigger: "axis" },
     legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 32 },
-    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: monthlyNavDisplayLabels(x), axisLabel: { fontSize: 10 } },
     yAxis: { type: "value", scale: true },
     series,
   });
@@ -4558,6 +4569,7 @@ function ensureStockPoolResearchController() {
     ensureDB,
     dbState: state,
     catalog: state.catalog,
+    monthEndDisplayDate,
     getCustomSignalDates,
     registerCustomPool: registerCustomStockPoolDefinition,
     loadCustomFactorData: loadCustomStockPoolFactorData,
@@ -5058,7 +5070,7 @@ async function renderCmpNav() {
   cmpNavChart.setOption({
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
     tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 32 },
-    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: monthlyNavDisplayLabels(x), axisLabel: { fontSize: 10 } },
     yAxis: { type: "value", scale: true }, series,
   });
 }
@@ -5119,7 +5131,7 @@ async function renderCmpNavFast() {
   cmpNavChart.setOption({
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
     tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 32 },
-    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: monthlyNavDisplayLabels(x), axisLabel: { fontSize: 10 } },
     yAxis: { type: "value", scale: true }, series,
   });
 }
@@ -8378,7 +8390,7 @@ function renderComposeControls() {
     ? `<div class="capability-note"><b>口径限制</b> ${htmlText(composeIndustryApproximationMessage())}</div>`
     : "";
   const industryDisabled = universe.mode === "min_share" ? " disabled" : "";
-  const portfolioNotice = `<div class="capability-note"><b>权重与调仓口径</b> ${portfolio.weightingMode === "score" ? "分数减去组内最小值，再加分差的5%后归一；" : (portfolio.weightingMode === "market_cap" ? "市值权重使用月末PIT对数总市值换算；" : "目标持仓等权；")}行业约束下保留行业预算、仅在行业内重配；个股上限不足以满仓时停止计算。换手上限仅支持全市场且无行业约束，首期建仓不受限，触发后保留部分上期持仓。换手采用相邻调仓权重差，不含收益漂移与现金项。高级权重下缺失收益份额按零收益假设并单独披露；参数优化和参数滚动样本外暂不支持高级权重。</div>`;
+  const portfolioNotice = `<div class="capability-note"><b>权重与调仓口径</b> ${portfolio.weightingMode === "score" ? "分数减去组内最小值，再加分差的5%后归一；" : (portfolio.weightingMode === "market_cap" ? "市值权重使用月末PIT对数总市值换算；" : "目标持仓等权；")}行业约束下保留行业预算、仅在行业内重配；个股上限不足以满仓时停止计算。换手上限支持全市场、指数、行业及自定义股票池；先满足当期成分和行业预算，再在可行域内尽量保留上期持仓。若成分强制退出所需换手已超过上限，优先满足硬约束并在账本中标记。换手采用相邻调仓权重差，不含收益漂移与现金项。高级权重下缺失收益份额按零收益假设并单独披露；参数优化和参数滚动样本外暂不支持高级权重。</div>`;
   const constraintBtns = `
     <div style="margin:0 0 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="color:#666;font-size:11px">组合约束：</span>
@@ -8420,7 +8432,7 @@ function renderComposeControls() {
       </select>
       <label for="cps-turnover-cap">月度换手上限</label>
       <select id="cps-turnover-cap">
-        ${[1, 0.75, 0.5, 0.25, 0.1].map(value => `<option value="${value}"${Math.abs(portfolio.turnoverCap - value) < 1e-9 ? " selected" : ""}${value < 1 && (constraint !== "none" || universe.mode !== "all") ? " disabled" : ""}>${composeCapLabel(value)}</option>`).join("")}
+        ${[1, 0.75, 0.5, 0.25, 0.1].map(value => `<option value="${value}"${Math.abs(portfolio.turnoverCap - value) < 1e-9 ? " selected" : ""}>${composeCapLabel(value)}</option>`).join("")}
       </select>
       <span class="index-universe-summary">${htmlText(composeUniverseMethodNote(universe))}</span>
     </fieldset>`;
@@ -8780,7 +8792,7 @@ async function renderComposeStocks(renderSeq) {
 }
 
 function composeLedgerPeriodLabel(period) {
-  return `${period.signal_date} 信号 · ${period.entry_date} 入场 → ${period.exit_date} 退出`;
+  return `${period.signal_date} 信号 · ${period.entry_date} 入场 → ${monthEndDisplayDate(period.exit_date)} 月末净值`;
 }
 
 async function composeExecutionFacts(signalDate) {
@@ -9031,9 +9043,9 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
         <button id="cps-ledger-export" class="cpsn-btn" type="button">导出本月 CSV</button>
       </div>
     </div>
-    ${decisionSignal ? `<div class="frozen-combo-meta"><b>冻结跟踪口径</b><span>决策日 ${htmlText(decisionContext.decisionDate || "—")}</span><span>因子数据截面 ${htmlText(decisionContext.dataCutoffDate || "—")}</span><span>最后已完成信号 ${htmlText(decisionSignal)}</span><span>收益实现截止 ${htmlText(decisionContext.realizedReturnEndDate || "—")}</span><span>${trackingMonths ? `已追加 ${trackingMonths} 个决策后月份` : "尚无新增已完成月份"}</span></div>` : ""}
+    ${decisionSignal ? `<div class="frozen-combo-meta"><b>冻结跟踪口径</b><span>决策日 ${htmlText(decisionContext.decisionDate || "—")}</span><span>因子数据截面 ${htmlText(decisionContext.dataCutoffDate || "—")}</span><span>最后已完成信号 ${htmlText(decisionSignal)}</span><span>收益实现截止 ${htmlText(monthEndDisplayDate(decisionContext.realizedReturnEndDate || "—"))}</span><span>${trackingMonths ? `已追加 ${trackingMonths} 个决策后月份` : "尚无新增已完成月份"}</span></div>` : ""}
     <div class="ledger-kpis">
-      <div><span>现金权重</span><b>${pct(period.cash_weight ?? 0, 2)}</b><small>${period.turnover_limited ? "本月换手上限生效" : "本月未触发换手上限"}</small></div>
+      <div><span>现金权重</span><b>${pct(period.cash_weight ?? 0, 2)}</b><small>${period.turnover_cap_overridden ? "硬约束强制换手，实际超过上限" : (period.turnover_limited ? "本月换手上限生效" : "本月未触发换手上限")}</small></div>
       <div><span>实际持股</span><b>${period.holdings.length} 只</b></div>
       <div><span>${period.initial_position ? "首期建仓" : "当月单边换手"}</span><b>${pct(period.turnover, 1)}</b><small>${period.initial_position ? "不计入常规月均" : `调入 ${period.added.length} / 调出 ${period.removed.length}`}</small></div>
       <div><span>当月毛收益</span><b>${pct(period.gross_return, 2, true)}</b></div>
@@ -9053,7 +9065,7 @@ async function renderComposeLedger(backtest, renderSeq = _composeRenderSeq) {
         <tbody>${holdingRows}</tbody>
       </table>
     </div>
-    <p class="ledger-method-note">账本只列已完成持有期；调仓按竞争秩边界保留同分股票。${htmlText(composePortfolioMethodLabel())}。换手为相邻两次调仓权重差绝对值之和的一半，不计月内收益漂移和现金项，不等同于实盘成交换手；首期建仓固定记 100%且不受换手上限约束。上限触发时，实际权重沿上期持仓到本期目标权重的路径同比例调整，未调整部分继续持有，实际持股数可能超过TopN；成本按受限换手扣除。${decisionSignal ? "决策前样本按当前数据与当前引擎复算，冻结时指标保存在组合详情；决策后月份首次出现时追加，已保存月份不覆盖。" : ""}</p>`;
+    <p class="ledger-method-note">账本只列已完成持有期；调仓按竞争秩边界保留同分股票。${htmlText(composePortfolioMethodLabel())}。净值日期按收益所属自然月的最后一天展示，入场日和CSV仍保留实际交易日。换手为相邻两次调仓权重差绝对值之和的一半，不计月内收益漂移和现金项，不等同于实盘成交换手；首期建仓固定记100%且不受换手上限约束。上限触发时，在当期股票池和行业预算内尽量保留上期持仓；若成分退出等硬约束所需换手已经超过上限，则优先满足硬约束并明确标记，成本按实际换手扣除。${decisionSignal ? "决策前样本按当前数据与当前引擎复算，冻结时指标保存在组合详情；决策后月份首次出现时追加，已保存月份不覆盖。" : ""}</p>`;
   document.getElementById("cps-ledger-month").onchange = event => {
     state.composeHoldingMonth = event.target.value;
     renderComposeLedger(backtest, renderSeq).catch(error => console.error("render ledger month failed:", error));
@@ -9138,7 +9150,7 @@ async function renderComposeBacktest(renderSeq) {
   cpsNavChart.setOption({
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
     tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 32 },
-    xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: monthlyNavDisplayLabels(x), axisLabel: { fontSize: 10 } },
     yAxis: [
       { type: "value", scale: true, name: "净值" },
       { type: "value", min: 0, name: "换手 %", axisLabel: { formatter: "{value}%" }, splitLine: { show: false } },
@@ -10793,7 +10805,7 @@ function renderComboWalkForwardResult(result, codes, context = {}) {
   return `<div class="combo-walk-forward-evidence">
     <div class="combo-walk-forward-meta">
       <span><b>数据截止</b>${htmlText(context.dataCutoffDate || "—")}</span>
-      <span><b>收益截止</b>${htmlText(context.returnEndDate || "—")}</span>
+      <span><b>收益截止</b>${htmlText(monthEndDisplayDate(context.returnEndDate || "—"))}</span>
       <span><b>参数候选</b>${numText(result.candidateCount, 0)} 组</span>
       <span><b>网格拆分</b>权重 ${numText(result.weightCandidateCount, 0)} × TopN ${numText(result.topNCandidateCount, 0)} × 阈值 ${numText(result.thresholdProfileCount, 0)}</span>
       <span><b>优化目标</b>训练期成本后夏普</span>
@@ -11228,6 +11240,10 @@ function buildComposePortfolioBacktest(rows, costPerSide, rawPortfolioConfig) {
     weighted: true,
     costPerSide,
     turnoverCap: config.turnoverCap,
+    maxStockWeight: config.maxStockWeight,
+    constraintEligibleField: rawPortfolioConfig.constraintEligibleField || "",
+    constraintGroupField: rawPortfolioConfig.constraintGroupField || "",
+    constraintMemberField: rawPortfolioConfig.constraintMemberField || "",
     missingReturnPolicy: hasCustomComposePortfolio(config) ? "cash" : "observed",
     ...(config.turnoverCap < 1 ? { targetWeightField: "target_weight" } : {}),
   });
@@ -11266,6 +11282,10 @@ function matrixBacktestSql(
   const availabilityJoin = composeUniverseAvailabilityJoin(universe, "m.trade_date");
   const weightJoin = composeUniverseMemberJoin(universe, "m.trade_date", "m.stock_code");
   const memberSelect = universeActive ? "iw.stock_code IS NOT NULL" : "FALSE";
+  const hardEligibilityParts = ["m.stock_code IS NOT NULL"];
+  if (needsIndustry) hardEligibilityParts.push("d.industry_sw1 IS NOT NULL");
+  if (["index_only", "stock_pool"].includes(universe.mode)) hardEligibilityParts.push("iw.stock_code IS NOT NULL");
+  const hardEligibilitySql = hardEligibilityParts.join(" AND ");
   if (["index_only", "stock_pool"].includes(universe.mode)) eligibilityParts.push("iw.stock_code IS NOT NULL");
   const eligibilitySql = eligibilityParts.join(" AND ");
   const scoredFilter = includeAllCandidates ? "" : `WHERE ${eligibilitySql}`;
@@ -11295,6 +11315,7 @@ function matrixBacktestSql(
       SELECT m.trade_date, m.return_date, m.stock_code, m.fwd_return, m.ln_mv,
              ROUND(${scoreExpr}, 6) AS cs,
              ${industrySelect}, ${memberSelect} AS is_index_member,
+             (${hardEligibilitySql}) AS hard_eligible,
              (${eligibilitySql}) AS is_eligible
       FROM ${candidateSource} m
       ${industryJoin}
@@ -11302,14 +11323,14 @@ function matrixBacktestSql(
       ${scoredFilter}
     ),
     ranked AS (
-      SELECT trade_date, return_date, stock_code, fwd_return, ln_mv, cs, industry_sw1, is_index_member, is_eligible,
+      SELECT trade_date, return_date, stock_code, fwd_return, ln_mv, cs, industry_sw1, is_index_member, hard_eligible, is_eligible,
              RANK() OVER (PARTITION BY trade_date ORDER BY CASE WHEN is_eligible THEN cs END DESC) AS rk,
              RANK() OVER (PARTITION BY trade_date, is_index_member ORDER BY CASE WHEN is_eligible THEN cs END DESC) AS member_rk
       FROM scored
     ),
     selected AS (
       SELECT trade_date, return_date, stock_code, fwd_return, ln_mv, cs, industry_sw1, is_index_member,
-             is_eligible, TRUE AS index_available, rk, member_rk
+             hard_eligible, is_eligible, TRUE AS index_available, rk, member_rk
       FROM ranked ${rankFilter}
     )
     SELECT strftime(p.trade_date, '%Y-%m-%d') AS signal_date,
@@ -11318,7 +11339,7 @@ function matrixBacktestSql(
            strftime(p.trade_date, '%Y-%m') AS signal_dt,
            strftime(COALESCE(p.return_date, p.trade_date), '%Y-%m-%d') AS dt,
            s.stock_code, s.fwd_return, s.ln_mv, s.cs, s.industry_sw1,
-           s.is_index_member, s.index_available, s.is_eligible,
+           s.is_index_member, s.index_available, s.hard_eligible, s.is_eligible,
            p.return_date IS NOT NULL AS period_complete
     FROM periods p
     LEFT JOIN selected s ON s.trade_date = p.trade_date
@@ -11364,7 +11385,14 @@ async function comboBacktest(
       const res = await state.db.query(fastSql);
       const rows = res.toArray();
       const selectedRows = composePortfolioRowsByMonth(rows, N, normalizedConstraint, universe, portfolio);
-      const bt = buildComposePortfolioBacktest(selectedRows, costPerSide, portfolio);
+      const bt = buildComposePortfolioBacktest(selectedRows, costPerSide, {
+        ...portfolio,
+        constraintEligibleField: normalizedConstraint === "industry" || ["index_only", "stock_pool"].includes(universe.mode)
+          ? "hard_eligible"
+          : "",
+        constraintGroupField: normalizedConstraint === "industry" ? "industry_sw1" : "",
+        constraintMemberField: universe.mode === "min_share" ? "is_index_member" : "",
+      });
       if (cacheKey) rememberComposeBacktest(cacheKey, bt);
       return bt;
     })();
@@ -11692,7 +11720,7 @@ async function renderComboCompare() {
     cpsCompareChart.setOption({
       grid: { left: 50, right: 20, top: 30, bottom: 30 },
       tooltip: { trigger: "axis" }, legend: { top: 0, textStyle: { fontSize: 11 }, itemWidth: 28 },
-      xAxis: { type: "category", data: allMonths, axisLabel: { fontSize: 10 } },
+      xAxis: { type: "category", data: monthlyNavDisplayLabels(allMonths), axisLabel: { fontSize: 10 } },
       yAxis: { type: "value", scale: true }, series,
     });
   }

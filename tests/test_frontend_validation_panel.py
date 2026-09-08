@@ -1368,6 +1368,44 @@ def test_snapshot_backtest_filters_return_label_and_return_as_pairs():
     assert result["turnoverArr"] == pytest.approx([0.5, 0.8])
 
 
+def test_monthly_nav_dates_display_at_calendar_month_end_without_changing_exact_dates():
+    source = APP_JS.read_text(encoding="utf-8")
+    helpers = _source_between(source, "function monthOfLabel", "function rangeFilterIndexes")
+    result = _frontend_eval_json([
+        helpers,
+        "const exact=['2024-02-01','2025-04-01','2026-07-01','2024-02-29'];",
+        "console.log(JSON.stringify({display:monthlyNavDisplayLabels(exact),exact}));",
+    ])
+
+    assert result["display"] == ["2024-02-29", "2025-04-30", "2026-07-31", "2024-02-29"]
+    assert result["exact"] == ["2024-02-01", "2025-04-01", "2026-07-01", "2024-02-29"]
+    for marker in (
+        'data: monthlyNavDisplayLabels(x)',
+        'data: monthlyNavDisplayLabels(allMonths)',
+        'monthEndDisplayDate(period.exit_date)',
+        'monthEndDisplayDate(decisionContext.realizedReturnEndDate',
+    ):
+        assert marker in source
+
+
+def test_turnover_cap_is_available_for_constrained_compose_portfolios():
+    source = APP_JS.read_text(encoding="utf-8")
+    compatibility = _source_between(
+        source,
+        "function composePortfolioCompatibilityError",
+        "function resetComposePortfolioConfig",
+    )
+    controls = _source_between(source, "function renderComposeControls", "function isComposeRenderStale")
+    matrix = _source_between(source, "function matrixBacktestSql", "async function comboBacktest")
+
+    assert 'return "";' in compatibility
+    assert "换手上限目前仅支持全市场" not in source
+    assert 'value < 1 && (constraint !== "none" || universe.mode !== "all")' not in controls
+    assert "hard_eligible" in matrix
+    assert "constraintGroupField" in source
+    assert "turnover_cap_overridden" in source
+
+
 def test_single_reverse_uses_low_score_holdings_not_positive_return_sign_flip():
     source = APP_JS.read_text(encoding="utf-8")
     return_helpers = _source_between(source, "function memberForwardReturn", "function medianNumber")
@@ -2069,8 +2107,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.9</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.9 ' in index
+    assert "<title>因子库 v2.4.10</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.10 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 
