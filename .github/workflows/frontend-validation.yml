@@ -37,6 +37,7 @@ jobs:
       - name: Static frontend contract tests
         run: |
           python3 -m pytest tests/test_frontend_validation_panel.py -q
+          python3 -m pytest tests/test_optimizer_grid.py tests/test_frontend_storage_audit.py -q
           python3 -m pytest tests/test_frontend_accessibility.py -q
           python3 -m pytest tests/test_index_universe_frontend.py -q
 
