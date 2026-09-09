@@ -11,7 +11,9 @@ import argparse
 from datetime import date
 import hashlib
 import json
+import math
 from pathlib import Path
+import shutil
 from typing import Any
 
 import polars as pl
@@ -86,6 +88,143 @@ def _parse_as_of(value: str | None) -> date | None:
         return date.fromisoformat(value)
     except ValueError as exc:
         raise ValueError(f"invalid --as-of date: {value!r}") from exc
+
+
+def _json_value(value: Any) -> Any:
+    """把 Polars 行转换为浏览器可直接读取的稳定 JSON 值。"""
+    if isinstance(value, (date,)):
+        return value.isoformat()
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
+
+
+def _build_read_only_summary(
+    metadata: dict[str, Any],
+    config: dict[str, Any],
+    nested: pl.DataFrame,
+) -> dict[str, Any]:
+    selection_columns = [
+        "fold",
+        "decision_date",
+        "test_start_date",
+        "test_end_date",
+        "selection_rank",
+        "candidate_code",
+        "operation",
+        "left_factor",
+        "right_factor",
+        "complexity",
+        "discovery_n_months",
+        "discovery_rank_ic_mean",
+        "discovery_q_value",
+        "validation_n_months",
+        "validation_rank_ic_mean",
+        "validation_positive_rate",
+        "outer_test_n_months",
+        "outer_test_rank_ic_mean",
+        "outer_test_positive_rate",
+        "outer_test_status",
+    ]
+    rows = nested.select(selection_columns).sort(["fold", "selection_rank"]).to_dicts()
+    selections = [
+        {key: _json_value(value) for key, value in row.items()}
+        for row in rows
+    ]
+    recurrence = []
+    if not nested.is_empty():
+        recurrence_frame = (
+            nested.group_by(
+                ["candidate_code", "operation", "left_factor", "right_factor", "complexity"]
+            )
+            .agg(
+                pl.col("fold").n_unique().alias("selected_folds"),
+                (pl.col("outer_test_status") == "evaluated").sum().alias("evaluated_folds"),
+                pl.col("outer_test_rank_ic_mean").mean().alias("outer_test_rank_ic_mean"),
+                pl.col("outer_test_positive_rate").mean().alias("outer_test_positive_rate"),
+            )
+            .sort(
+                ["selected_folds", "outer_test_rank_ic_mean", "candidate_code"],
+                descending=[True, True, False],
+            )
+        )
+        recurrence = [
+            {key: _json_value(value) for key, value in row.items()}
+            for row in recurrence_frame.to_dicts()
+        ]
+    return {
+        "schema_version": 1,
+        "status": metadata["status"],
+        "production_registration": False,
+        "pool": metadata["pool"],
+        "as_of_return_date": metadata["as_of_return_date"],
+        "counts": metadata["counts"],
+        "config": {
+            "base_factors": list(config["base_factors"]),
+            "operations": list(config["operations"]),
+            "fdr_alpha": float(config["fdr_alpha"]),
+            "min_validation_positive_rate": float(config["min_validation_positive_rate"]),
+            "top_k": int(config["top_k"]),
+            "test_months": int(config["test_months"]),
+        },
+        "methodology": metadata["methodology"],
+        "limitations": metadata["limitations"],
+        "promotion_gates": [
+            {
+                "key": "economic_rationale",
+                "label": "经济含义与方向",
+                "status": "not_evaluated",
+                "requirement": "说明表达式为何可能提供增量信息，并固定预期方向。",
+            },
+            {
+                "key": "point_in_time",
+                "label": "时点与数据可得性",
+                "status": "not_evaluated",
+                "requirement": "逐字段核对PIT可得时点、修订历史和缺失处理。",
+            },
+            {
+                "key": "independent_recompute",
+                "label": "独立复算",
+                "status": "not_evaluated",
+                "requirement": "使用独立实现复算数值、共同样本和嵌套切分。",
+            },
+            {
+                "key": "robustness",
+                "label": "跨样本稳健性",
+                "status": "not_evaluated",
+                "requirement": "在其他股票池、时期和参数扰动下复核稳定性。",
+            },
+            {
+                "key": "cost_capacity",
+                "label": "成本与容量",
+                "status": "not_evaluated",
+                "requirement": "补充分层回测、换手、冲击成本和容量边界。",
+            },
+        ],
+        "candidate_recurrence": recurrence,
+        "selections": selections,
+        "assets": [
+            "candidates.parquet",
+            "candidate_monthly_rank_ic.parquet",
+            "nested_walk_forward.parquet",
+            "run_meta.json",
+        ],
+    }
+
+
+def _sync_research_artifacts(out_dir: Path, publish_dir: Path) -> None:
+    publish_dir.mkdir(parents=True, exist_ok=True)
+    for name in [
+        "candidates.parquet",
+        "candidate_monthly_rank_ic.parquet",
+        "nested_walk_forward.parquet",
+        "run_meta.json",
+        "summary.json",
+    ]:
+        source = out_dir / name
+        temporary = (publish_dir / name).with_suffix(Path(name).suffix + ".tmp")
+        shutil.copyfile(source, temporary)
+        temporary.replace(publish_dir / name)
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
@@ -206,6 +345,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         ],
     }
     _write_json_atomic(metadata, out_dir / "run_meta.json")
+    _write_json_atomic(
+        _build_read_only_summary(metadata, config, nested),
+        out_dir / "summary.json",
+    )
+    if args.publish_dir:
+        _sync_research_artifacts(out_dir, Path(args.publish_dir))
     return metadata
 
 
@@ -220,6 +365,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--as-of", default=None, help="仅使用不晚于该日期实现的收益，YYYY-MM-DD")
     parser.add_argument("--out-dir", default="data/research/expression_mining_hs300_v1")
+    parser.add_argument(
+        "--publish-dir",
+        default=None,
+        help="可选：把同一组只读研究证据同步到前端数据目录",
+    )
     return parser.parse_args()
 
 

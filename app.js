@@ -20,6 +20,7 @@ const BENCHMARK_SNAPSHOT = DATA_DIR + "benchmark_snapshot.json" + V;
 const RANKING_SNAPSHOT = DATA_DIR + "factor_ranking_snapshot.json" + V;
 const CORR_SNAPSHOT = DATA_DIR + "factor_corr_snapshot.json" + V;
 const CORR_NEUTRAL_SNAPSHOT = DATA_DIR + "factor_corr_neutral_snapshot.json" + V;
+const CORRELATION_HINTS = DATA_DIR + "factor_correlation_hints.json" + V;
 const DATA_MANIFEST = DATA_DIR + "data_manifest.json" + V;
 const INDEX_WEIGHT_MONTHLY = DATA_DIR + "index_weight_monthly.parquet" + V;
 const STOCK_POOL_MEMBERSHIP_DIR = DATA_DIR + "stock_pool_research/membership/";
@@ -50,7 +51,7 @@ const state = {
   scanMetric: "annual",    // 指标-N 曲线的纵轴：annual / sharpe / mdd / vol
   singleStart: null,       // 单因子回测区间起/止月（YYYY-MM）；null=不限
   singleEnd: null,
-  mode: "single",          // single | compare | compose | library | ranking | stock-pool
+  mode: "single",          // single | compare | compose | library | ranking | stock-pool | expression
   compareFactors: [],      // 对比模式：[{code, n, side}]，每个因子可设不同持仓数/方向
   compareDefaultN: 30,     // 新加入因子的默认持仓数
   compareStart: null,      // 多因子对比回测区间；null=不限
@@ -96,6 +97,7 @@ const state = {
   rankingSnapshot: null,
   corrSnapshot: null,
   corrNeutralSnapshot: null,
+  correlationHints: null,
   dataManifest: null,
   hasStockMeta: false,
   hasDescriptors: false,
@@ -123,6 +125,8 @@ let cpsIcDecayChart = null;
 let comboGroup10Chart = null;
 let comboRolling36mChart = null;
 let stockPoolResearchController = null;
+let expressionResearchController = null;
+let _correlationHintsPromise = null;
 
 // 多条策略线的配色（按 selectedNs 顺序取）
 const STRAT_COLORS = ["#1a4d80", "#e07b39", "#3a9d6e", "#9b59b6", "#c0392b", "#16a085"];
@@ -293,6 +297,23 @@ async function fetchJson(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
   return res.json();
+}
+
+async function ensureCorrelationHints() {
+  if (state.correlationHints) return state.correlationHints;
+  if (!_correlationHintsPromise) {
+    _correlationHintsPromise = fetchJson(CORRELATION_HINTS)
+      .then(payload => {
+        state.correlationHints = payload;
+        return payload;
+      })
+      .catch(error => {
+        console.warn("factor correlation hints unavailable:", error.message || error);
+        return null;
+      })
+      .finally(() => { _correlationHintsPromise = null; });
+  }
+  return _correlationHintsPromise;
 }
 
 function singleSnapshotUrl(code) {
@@ -4529,7 +4550,7 @@ function switchMode(mode) {
     const active = b.dataset.mode === mode;
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", String(active));
-    b.tabIndex = active || !["single", "compare", "compose", "ranking", "stock-pool"].includes(mode) ? 0 : -1;
+    b.tabIndex = active || !["single", "compare", "compose", "ranking", "stock-pool", "expression"].includes(mode) ? 0 : -1;
   });
   document.getElementById("single-view").style.display = mode === "single" ? "flex" : "none";
   document.getElementById("compare-view").style.display = mode === "compare" ? "flex" : "none";
@@ -4538,6 +4559,7 @@ function switchMode(mode) {
   document.getElementById("admin-view").style.display = mode === "admin" ? "flex" : "none";
   document.getElementById("ranking-view").style.display = mode === "ranking" ? "flex" : "none";
   document.getElementById("stock-pool-view").style.display = mode === "stock-pool" ? "flex" : "none";
+  document.getElementById("expression-view").style.display = mode === "expression" ? "flex" : "none";
   updateTreeHighlight();
   if (mode === "compare") {
     initCompareRangeControls().catch(e => console.warn("compare range init failed:", e));
@@ -4556,6 +4578,20 @@ function switchMode(mode) {
   }
   if (mode === "ranking") renderRanking();
   if (mode === "stock-pool") ensureStockPoolResearchController().render();
+  if (mode === "expression") ensureExpressionResearchController().render();
+}
+
+function ensureExpressionResearchController() {
+  if (expressionResearchController) return expressionResearchController;
+  if (!window.FactorExpressionResearch?.create) {
+    throw new Error("表达式研究模块未加载，请刷新页面重试");
+  }
+  expressionResearchController = window.FactorExpressionResearch.create({
+    root: "#expression-research-content",
+    dataDir: DATA_DIR,
+    version: V,
+  });
+  return expressionResearchController;
 }
 
 function ensureStockPoolResearchController() {
@@ -5596,6 +5632,9 @@ const RANK_COLS = [
       .map(t => `<span class="ftag ftag-${htmlAttr(t)}" data-help="${htmlAttr(tagHelpText(t))}" aria-label="${htmlAttr(`${t}：${tagHelpText(t)}`)}" tabindex="0">${htmlText(t)}</span>`)
       .join(" ") || "—",
     help: "辅助标签由市场环境表现和近12个月RankIC变化生成；悬停标签可查看触发口径。" },
+  { key: "correlation", label: "高相关提示", lcol: true, sortable: false,
+    fmt: (_, r) => rankCorrelationHintHtml(r.code),
+    help: "基于当前得分口径的全样本月末横截面相关矩阵；展示|corr|≥0.90的潜在重复暴露，不影响排名。" },
   { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => htmlText(v), help: "最新名义 Top30 完整实际持仓的前三行业，不使用展示截断样本。" },
 ];
 
@@ -5630,6 +5669,24 @@ const TAG_HELP = {
 
 function tagHelpText(tag) {
   return TAG_HELP[tag] || "辅助标签仅用于快速筛选，需结合RankIC、IC_IR、收益、回撤、换手和样本月数复核。";
+}
+
+function rankCorrelationHintHtml(code) {
+  const mode = normalizeScoreMode(_rankState.scoreMode) === "neutral" ? "neutral" : "raw";
+  const root = state.correlationHints;
+  const hint = root?.modes?.[mode]?.by_factor?.[code];
+  const strongest = hint?.peers?.[0];
+  if (!strongest) return "—";
+  const corr = Number(strongest.corr);
+  const corrText = Number.isFinite(corr) ? `${corr > 0 ? "+" : ""}${corr.toFixed(3)}` : "—";
+  const members = hint.cluster_members || [];
+  const peerText = (hint.peers || [])
+    .map(peer => `${peer.code} ${Number(peer.corr) > 0 ? "+" : ""}${Number(peer.corr).toFixed(3)}（${Number(peer.n_months) || 0}个月）`)
+    .join("；");
+  const scope = root?.scope || "全样本月末横截面得分相关性";
+  const title = `${scope}；阈值|corr|≥${Number(root?.threshold_abs_corr || 0.9).toFixed(2)}；${peerText}。仅提示潜在重复暴露，不表示因果关系。`;
+  const clusterText = members.length > 2 ? ` · 簇${members.length}项` : "";
+  return `<span class="rank-corr-hint${corr < 0 ? " negative" : ""}" title="${htmlAttr(title)}" aria-label="${htmlAttr(`高相关提示：${strongest.code}，相关系数${corrText}${clusterText}`)}" tabindex="0"><b>${htmlText(strongest.code)}</b><span>${corrText}${clusterText}</span></span>`;
 }
 
 // 构建标签筛选 chip（点击切换；多选为「与」关系）。绑定一次。
@@ -5767,6 +5824,7 @@ function bindRankHorizontalScroll() {
 async function renderRanking() {
   const box = document.getElementById("rank-table");
   try {
+    await ensureCorrelationHints();
     if (!_rankBarBound) {
       document.getElementById("rank-to-single").onclick = () => rankSendTo("single");
       document.getElementById("rank-to-compare").onclick = () => rankSendTo("compare");

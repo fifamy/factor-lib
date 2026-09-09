@@ -71,6 +71,8 @@ const FLAG_LABEL = {
   neutralization_sparse: ["稀疏中性化", NEUTRALIZATION_SPARSE_TIP],
   recon_mismatch: ["对账不符", "独立重算 ≠ 系统存储值 —— 实现可能有 bug"],
   recon_source_missing: ["源缺失", "回查不到对应的 Wind 源数据"],
+  recon_coverage_reference_extra: ["参考侧额外覆盖", "共同键数值一致，但参考实现还产生了生产表未保留的键；需披露覆盖边界，不等同于数值计算错误。"],
+  recon_coverage_stored_extra: ["生产侧额外覆盖", "生产表产生了参考实现明确不应产生的键，属于阻断性覆盖错误。"],
 };
 function flagInfo(f) {
   if (f.indexOf("coverage_late") === 0) {

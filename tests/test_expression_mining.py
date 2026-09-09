@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import date
+import json
+from pathlib import Path
 
 import polars as pl
 import pytest
@@ -200,3 +202,37 @@ def test_duplicate_score_keys_and_invalid_return_timing_fail_closed():
     unique_scores = scores.unique(subset=["trade_date", "stock_code", "factor_code"])
     with pytest.raises(ValueError, match="return_date after trade_date"):
         candidate_monthly_rank_ic(unique_scores, returns, [candidate], min_cross_section=3)
+
+
+def test_read_only_research_summary_is_synced_for_local_preview():
+    root = Path(__file__).parents[1]
+    research_path = root / "data/research/expression_mining_hs300_v1/summary.json"
+    frontend_root = root / "frontend" if (root / "frontend").is_dir() else root
+    frontend_path = frontend_root / "data/expression_mining/HS300/summary.json"
+    if not research_path.is_file():
+        pytest.skip("Pages精简包不包含源码侧研究目录")
+    research = json.loads(research_path.read_text(encoding="utf-8"))
+    frontend = json.loads(frontend_path.read_text(encoding="utf-8"))
+
+    assert frontend == research
+    assert research["status"] == "research_candidates_only"
+    assert research["production_registration"] is False
+    assert research["counts"]["candidates"] == 75
+    assert research["counts"]["folds_with_selection"] == 6
+    assert len(research["selections"]) == 18
+    assert len(research["promotion_gates"]) == 5
+    assert {gate["status"] for gate in research["promotion_gates"]} == {"not_evaluated"}
+
+
+def test_expression_research_has_read_only_frontend_entry():
+    root = Path(__file__).parents[1]
+    frontend_root = root / "frontend" if (root / "frontend").is_dir() else root
+    index = (frontend_root / "index.html").read_text(encoding="utf-8")
+    app = (frontend_root / "app.js").read_text(encoding="utf-8")
+    module = (frontend_root / "app_expression_research.js").read_text(encoding="utf-8")
+
+    assert 'data-mode="expression"' in index
+    assert 'id="expression-view"' in index
+    assert "ensureExpressionResearchController().render()" in app
+    assert "production_registration !== false" in module
+    assert "不提供“加入因子库”或“加入组合”操作" in module

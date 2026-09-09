@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>因子库 v2.4.15</title>
+  <title>因子库 v2.4.16</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260908161851">
+  <link rel="stylesheet" href="styles.css?v=20260909101020">
   <link rel="stylesheet" href="vendor/katex.min.css">
   <script type="importmap">
     {
@@ -18,9 +18,9 @@
 <body>
   <a class="skip-link" href="#content">跳到主要内容</a>
   <header id="topbar">
-    <h1 class="app-title">因子库 v2.4.15 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
+    <h1 class="app-title">因子库 v2.4.16 <span>· A股 · <span id="factor-count-label">加载中</span></span></h1>
     <div id="top-actions">
-      <a href="factor_audit.html?v=20260908161851" class="nav-link">因子核对</a>
+      <a href="factor_audit.html?v=20260909101020" class="nav-link">因子核对</a>
       <button id="combo-manager-btn" type="button">组合管理</button>
       <button id="admin-manager-btn" type="button">管理员</button>
       <span id="meta" aria-live="polite">加载中…</span>
@@ -40,6 +40,7 @@
         <button id="mode-compose" class="mode-btn" type="button" role="tab" aria-selected="false" aria-controls="compose-view" tabindex="-1" data-mode="compose">多因子合成</button>
         <button id="mode-ranking" class="mode-btn" type="button" role="tab" aria-selected="false" aria-controls="ranking-view" tabindex="-1" data-mode="ranking">因子排行榜</button>
         <button id="mode-stock-pool" class="mode-btn" type="button" role="tab" aria-selected="false" aria-controls="stock-pool-view" tabindex="-1" data-mode="stock-pool">股票池研究</button>
+        <button id="mode-expression" class="mode-btn" type="button" role="tab" aria-selected="false" aria-controls="expression-view" tabindex="-1" data-mode="expression">表达式研究</button>
       </div>
 
       <!-- 单因子视图 -->
@@ -347,10 +348,10 @@
               </div>
               <div class="rank-guide-item">
                 <b>最后看落地成本</b>
-                <span>收益接近时关注月均换手、中位市值、市值风格和前三行业，避免交易成本或适用范围问题。</span>
+                <span>先用高相关提示识别潜在重复暴露，再看月均换手、中位市值、市值风格和前三行业。</span>
               </div>
             </div>
-            <div class="rank-guide-note">表头可悬停查看口径，点击列头排序；经验等级提示仍以单因子检验页的 ● / ▲ 和参考区间为准。</div>
+            <div class="rank-guide-note">高相关提示按当前原始/中性得分口径切换，只做风险披露，不改变综合分或自动剔除因子。表头可悬停查看口径，点击列头排序。</div>
           </div>
           <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span style="color:#666;font-size:12px">排行口径：</span>
@@ -452,6 +453,22 @@
             <div id="rank-table"><div class="empty">加载中…</div></div>
           </div>
         </div>
+      </div>
+
+      <!-- 受控因子表达式挖掘的只读研究证据 -->
+      <div id="expression-view" role="tabpanel" aria-labelledby="mode-expression" style="display:none">
+        <section class="panel expression-research-intro" aria-labelledby="expression-research-title">
+          <div class="expression-research-heading">
+            <div>
+              <h2 id="expression-research-title">因子表达式研究</h2>
+              <p>查看结构化候选的嵌套样本外检验结果与人工晋级门槛。候选结果不会自动注册为正式因子。</p>
+            </div>
+            <span class="expression-readonly-badge">只读证据</span>
+          </div>
+          <div id="expression-research-content" aria-live="polite">
+            <div class="expression-loading"><span></span><span></span><span></span><span></span></div>
+          </div>
+        </section>
       </div>
 
       <!-- 宽基指数 / 申万一级行业股票池因子研究 -->
@@ -622,11 +639,12 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="vendor/katex.min.js"></script>
-  <script src="app_holding_scope.js?v=20260908161851"></script>
-  <script src="app_portfolio_ledger.js?v=20260908161851"></script>
-  <script src="app_optimizer_grid.js?v=20260908161851"></script>
-  <script src="app_index_universe.js?v=20260908161851"></script>
-  <script src="app_stock_pool_research.js?v=20260908161851"></script>
-  <script type="module" src="app.js?v=20260908161851"></script>
+  <script src="app_holding_scope.js?v=20260909101020"></script>
+  <script src="app_portfolio_ledger.js?v=20260909101020"></script>
+  <script src="app_optimizer_grid.js?v=20260909101020"></script>
+  <script src="app_index_universe.js?v=20260909101020"></script>
+  <script src="app_stock_pool_research.js?v=20260909101020"></script>
+  <script src="app_expression_research.js?v=20260909101020"></script>
+  <script type="module" src="app.js?v=20260909101020"></script>
 </body>
 </html>
