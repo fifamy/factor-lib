@@ -28,7 +28,12 @@ const NEUTRALIZATION_SPARSE_TIP = "稀疏中性化质量提示：部分因子-�
 const DIRECTION_IC_FLIP_TIP = "按登记方向统一后的score，其实测RankIC均值仍显著为负（|t|>2），表示“高分预期高收益”在样本期内未成立。这不等同于程序错误，常见原因包括：经济方向登记反了、样本期内因子失效或出现反转、样本较短，或市场/行业环境导致方向不稳定。建议先看Raw/Neutral RankIC、样本月数和近期滚动结果，再决定是否调整方向配置。";
 const UNIVERSE_ALIGNED_TIP = "系统已按 Word 股票池/样本空间规则执行。";
 const UNIVERSE_PROFILE_TIP = "Word 未单列该因子时，系统按分类映射的 Word 公共股票池执行。";
-const ERROR_FLAGS = new Set(["nonfinite", "recon_mismatch", "recon_source_missing"]);
+const ERROR_FLAGS = new Set([
+  "nonfinite",
+  "recon_mismatch",
+  "recon_source_missing",
+  "recon_coverage_stored_extra",
+]);
 const SUPABASE_URL = "https://tsyplhfshxzoduynzixk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_6osvaEI8pookLkmkzBUbHQ_kyUU2SKn";
 const REVIEW_TABLE = "factor_reviews";
@@ -1003,9 +1008,20 @@ async function openDetail(code, trigger = document.activeElement) {
   }
   const s = d.sample || {};
   const recon = d.recon || {};
-  const reconOk = recon.overall_status === "exact_match";
+  const reconTone = recon.overall_status === "exact_match"
+    ? "fa-recon-ok"
+    : recon.overall_status === "coverage_difference"
+      ? "fa-recon-warn"
+      : "fa-recon-bad";
   const storedOnly = Number(recon.n_stored_only) || 0;
   const refOnly = Number(recon.n_ref_only) || 0;
+  const valueChecked = Number(recon.n_value_checked)
+    || (Number(recon.n_match) || 0) + (Number(recon.n_value_mismatch) || 0);
+  const coverageNote = storedOnly > 0
+    ? `生产侧另有${storedOnly}个参考实现未产生的键；这是阻断性覆盖错误。`
+    : refOnly > 0
+      ? `参考侧另有${refOnly}个生产表未保留的合格键；共同键数值仍单独判定，覆盖差异不等同于数值错误。`
+      : "共同键数值与双向覆盖均未发现差异。";
   const sampleLine = (s.recomputed !== null && s.recomputed !== undefined)
     ? `重算 ${fmt(s.recomputed)} vs 存储 ${fmt(s.stored)} → <span class="${s.match ? "fa-recon-ok" : "fa-recon-bad"}">${s.match ? "✓一致" : "✗不符"}</span>`
     : `存储值 ${fmt(s.stored)}（外部源类，见对账）`;
@@ -1041,16 +1057,16 @@ async function openDetail(code, trigger = document.activeElement) {
         `<tr><td>${esc(i.label)}</td><td class="fa-mono">${sampleInputValue(i.value)}</td></tr>`).join("")}</table>` : ""}
       ${(s.steps || []).length ? `<div class="fa-steps">${s.steps.map(esc).join("<br>")}</div>` : ""}
       <p class="fa-mono" style="margin-top:8px">${sampleLine}</p></div>
-    <div class="fa-block"><h3>对账（抽样 ${recon.n_checked || 0} 个单元）</h3>
+    <div class="fa-block"><h3>对账（共同键 ${valueChecked} 个；另查双向覆盖）</h3>
       <p>方式 ${esc(RECON_METHOD_LABEL[recon.method] || recon.method || "—")} ·
       证据级别 ${esc(TRUTH_LEVEL_LABEL[recon.truth_level] || recon.truth_level || "未分类")} ·
-      整体结果 <span class="${reconOk ? "fa-recon-ok" : "fa-recon-bad"}">${(RECON_LABEL[recon.overall_status] || ["—"])[0]}</span> ·
+      整体结果 <span class="${reconTone}">${(RECON_LABEL[recon.overall_status] || ["—"])[0]}</span> ·
       共同键数值 ${(RECON_LABEL[recon.status] || ["—"])[0]} ·
-      一致 ${recon.n_match || 0}/${recon.n_checked || 0} ·
+      共同键一致 ${recon.n_match || 0}/${valueChecked} ·
       <span class="${storedOnly === 0 ? "fa-recon-ok" : "fa-recon-bad"}">抽样仅生产有值 ${storedOnly}</span> ·
-      <span class="${refOnly === 0 ? "fa-recon-ok" : "fa-recon-bad"}">抽样仅参考有值 ${refOnly}</span> ·
+      <span class="${refOnly === 0 ? "fa-recon-ok" : "fa-recon-warn"}">抽样仅参考有值 ${refOnly}</span> ·
       最大绝对差 ${fmt(recon.max_abs_diff)}</p>
-      <p class="fa-note">注：同源/同生产路径通过只能证明存盘值与当前代码自洽，不等于研究定义已被独立证实。</p>
+      <p class="fa-note">${esc(coverageNote)}同源/同生产路径通过只能证明存盘值与当前代码自洽，不等于研究定义已被独立证实。</p>
       ${(recon.mismatches || []).length ? `<table class="fa-kv">
         <tr><td>股票</td><td>重算 / 存储 / 差</td></tr>
         ${recon.mismatches.map(m => `<tr><td>${esc(m.stock_code)} @ ${esc(m.trade_date)}</td>

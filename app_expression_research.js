@@ -7,6 +7,12 @@
     maximum: "较大值",
     spread: "差值",
   };
+  const GATE_STATUS = {
+    not_evaluated: { label: "未完成", className: "pending" },
+    pending: { label: "复核中", className: "pending" },
+    passed: { label: "已通过", className: "passed" },
+    failed: { label: "未通过", className: "failed" },
+  };
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -79,11 +85,14 @@
   }
 
   function gatesHtml(gates) {
-    return (gates || []).map(gate => `
+    return (gates || []).map(gate => {
+      const status = GATE_STATUS[gate.status] || GATE_STATUS.not_evaluated;
+      return `
       <li>
-        <span class="expression-gate-status">未完成</span>
+        <span class="expression-gate-status ${status.className}">${status.label}</span>
         <div><b>${escapeHtml(gate.label)}</b><span>${escapeHtml(gate.requirement)}</span></div>
-      </li>`).join("");
+      </li>`;
+    }).join("");
   }
 
   function renderPayload(payload) {
@@ -91,6 +100,11 @@
     const config = payload.config || {};
     const pool = payload.pool || {};
     const selectionCount = (payload.selections || []).length;
+    const gates = payload.promotion_gates || [];
+    const passedGates = gates.filter(gate => gate.status === "passed").length;
+    const gateSummary = passedGates === gates.length && gates.length
+      ? "五项门槛均已通过数据复核，但仍需独立审批后才能登记生产因子。"
+      : `当前通过${passedGates}/${gates.length}项；未全部通过，因此页面不提供“加入因子库”或“加入组合”操作。`;
     const operationText = (config.operations || []).map(item => OPERATION_LABELS[item] || item).join("、");
     return `
       <div class="expression-status" role="status">
@@ -136,10 +150,10 @@
 
       <section class="expression-section expression-gates" aria-labelledby="expression-gates-title">
         <div class="expression-section-head">
-          <div><h3 id="expression-gates-title">人工晋级门槛</h3><p>当前五项均未完成，因此页面不提供“加入因子库”或“加入组合”操作。</p></div>
+          <div><h3 id="expression-gates-title">人工晋级门槛</h3><p>${escapeHtml(gateSummary)}</p></div>
           <a href="docs/2026-09-08_因子表达式挖掘研究框架.md" target="_blank" rel="noopener">查看完整研究口径</a>
         </div>
-        <ol>${gatesHtml(payload.promotion_gates)}</ol>
+        <ol>${gatesHtml(gates)}</ol>
       </section>
 
       <details class="expression-methodology">
@@ -169,6 +183,10 @@
       const next = await response.json();
       if (next.production_registration !== false || next.status !== "research_candidates_only") {
         throw new Error("研究证据状态不符合只读展示约束");
+      }
+      const allowedGateStatuses = new Set(Object.keys(GATE_STATUS));
+      if (!(next.promotion_gates || []).every(gate => allowedGateStatuses.has(gate.status))) {
+        throw new Error("研究证据包含未知的晋级门槛状态");
       }
       return next;
     }

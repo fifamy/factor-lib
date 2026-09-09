@@ -2087,8 +2087,8 @@
     "positive_only": false,
     "is_event": false,
     "usage_status": "standard",
-    "combo_policy": "allow",
-    "usage_note": "",
+    "combo_policy": "warn",
+    "usage_note": "近20日典型价格乘实际成交量的资金流量与AMOUNT20当前历史得分相关性约0.99998；两者不得同时计权，单独使用MFLOW20时也应先复核规模暴露和边际信息。",
     "data_end_date": null,
     "combo_exclusion_groups": [
       {

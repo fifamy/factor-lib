@@ -79,6 +79,7 @@ body.fa-drawer-open { overflow: hidden; }
 .fa-kv td:first-child { color: var(--fa-muted); width: 38%; }
 .fa-mono { font-family: ui-monospace, Menlo, monospace; }
 .fa-recon-ok { color: #2e7d32; font-weight: 600; }
+.fa-recon-warn { color: var(--fa-warning); font-weight: 600; }
 .fa-recon-bad { color: #c0392b; font-weight: 600; }
 .fa-steps { background: #f6f8fb; border-radius: 6px; padding: 10px 12px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.7; }
 .fa-flag { display: inline-block; background: #fff3e0; color: var(--fa-warning); padding: 1px 8px; border-radius: 4px; font-size: 11px; margin: 2px 4px 2px 0; }

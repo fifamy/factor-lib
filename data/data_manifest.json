@@ -28,13 +28,15 @@
     "segment_validation_parquet": false,
     "rolling_validation_parquet": false,
     "single_snapshots": false,
+    "single_slim_snapshots": true,
     "index_universe": true,
     "stock_pool_research": true,
     "stock_pool_membership": true,
     "portfolio_ledger": true,
     "portfolio_allocation": true,
     "portfolio_execution_estimate": true,
-    "expression_mining_research": true
+    "expression_mining_research": true,
+    "tracking_combos_remote": false
   },
   "has_neutralized_scores": true,
   "neutralization": "中性化口径使用月末时点有效的申万一级行业哑变量 + log(市值) 截面回归残差。",

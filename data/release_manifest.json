@@ -1,24 +1,24 @@
 {
-  "generated_at": "2026-09-09T02:10:31+00:00",
-  "deploy_version": "20260909101020",
+  "generated_at": "2026-09-09T06:14:47+00:00",
+  "deploy_version": "20260909141415",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
-  "source_revision": "cc4bea17536bff5f0dbe5dcaeb8257425f2ac9c6818e9f50ea5c919ba5f2ecf0",
+  "source_revision": "72006132b26596e592ca1619d253ccc911dfe00b639dd52d81250bf09a342751",
   "source_revision_kind": "content_sha256",
-  "source_content_sha256": "cc4bea17536bff5f0dbe5dcaeb8257425f2ac9c6818e9f50ea5c919ba5f2ecf0",
+  "source_content_sha256": "72006132b26596e592ca1619d253ccc911dfe00b639dd52d81250bf09a342751",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "8f4450fc5be04022d989803e26986dc90d7eb3db",
+  "pages_worktree_git_commit_before_sync": "9c0807eb2db025608b8d3bacb95e4d889f4aeb24",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "6c367e56af9a442b6e901e9a304fe58ac749a622c8529a8f2b1781bdfb54ace2",
-      "bytes": 46432
+      "sha256": "a8f23be377596d2a1e9c994dc94b5733c0c6c6a2b40187aad2a4416698d0eb15",
+      "bytes": 46469
     },
     "app.js": {
-      "sha256": "b370a97289ff5ad7ae3a0e20afe4fb7b53ce79de751e954543248f81a7e94f52",
-      "bytes": 606038
+      "sha256": "55aae72c88b67d0fce87a0361e352024a192e34bea9197f6b86fdd5e7b367983",
+      "bytes": 609586
     },
     "app_portfolio_ledger.js": {
       "sha256": "54aa0c615714557a9d4d20faeeaec79a99fb7809bc8083f4581d9267b738f4af",
@@ -37,28 +37,28 @@
       "bytes": 73469
     },
     "app_expression_research.js": {
-      "sha256": "ec54e6e970be99815ed7cf7a96e5d4779f8e8f5600af929222cbc4006e688920",
-      "bytes": 10417
+      "sha256": "0cbba5a97afc9ba8b116cd2e0582ccf4da4cb8bb6df36863b6b27fab8f5245b6",
+      "bytes": 11411
     },
     "styles.css": {
-      "sha256": "8f6972536280480b9319aa711ce9c29162167baf6419517a201e350feac48462",
-      "bytes": 74468
+      "sha256": "ae0f6dcf1b7f497c5264b644807f3074c117560ff5f9fbe7bfe6b560a04e5224",
+      "bytes": 74982
     },
     "factor_audit.html": {
-      "sha256": "bbe9c027982df7549524e29d89a937e709b5c3c89e7a092152514e41247ba0eb",
+      "sha256": "f4168a3946fdc0c03566106683842509bb9c176f882be5825e37b6951e5784a9",
       "bytes": 8628
     },
     "factor_audit.js": {
-      "sha256": "50e1610c472db087abab82fdbb23a161228fc66e5d6b10aca1d416a36ecc6001",
-      "bytes": 63537
+      "sha256": "075d6f165c90ca5cb5b1118824484aba9d54c1b499027a913d5c6159e311b6e5",
+      "bytes": 64189
     },
     "factor_audit.css": {
-      "sha256": "64eb0e369591c46b15bf9d2220110c818d40c8747528c1bcf0b7922927cc30ba",
-      "bytes": 20029
+      "sha256": "4cd30f56dc86b156331df7ea2f3933129654aba05c531ee35afec03c2ada9d07",
+      "bytes": 20092
     },
     "data/factor_catalog.json": {
-      "sha256": "4c16c649c7af7631de16512b511be9acdf9ac2f4aa1cc230738e4c71d73844e7",
-      "bytes": 128808
+      "sha256": "e98c6726eb780173caa12a50308da7b70b823b4040a6c06c12e1a7a24c24206c",
+      "bytes": 129005
     },
     "data/factor_ranking_snapshot.json": {
       "sha256": "e069d1ab534a17f04c4838f5bff7a70f0c8bd3187ea9aa5032404e694f9db050",
@@ -101,8 +101,8 @@
       "bytes": 17474
     },
     "data/factor_audit/index.json": {
-      "sha256": "08b96eebbefd67e356383a8c335a314483eb0cab74948a4c28e0db661977ffda",
-      "bytes": 276274
+      "sha256": "fef0dcc62e910dff9a3554b7eb04942aca65b38efd6ebc625c8034e46a9bd23e",
+      "bytes": 274732
     }
   },
   "directory_summaries": {
@@ -171,20 +171,20 @@
     "factor_lib": {
       "exists": true,
       "file_count": 64,
-      "bytes": 764526,
-      "sha256": "a5f460fe78628c24d30a3011137285a0c58c43dd248a3dfcb1c9e0d6b3197e6f"
+      "bytes": 764866,
+      "sha256": "78bbccddfa19112a1a52a6cc6f26e02e99f1509ac4c0d10d0b6efc4aa518499a"
     },
     "scripts": {
       "exists": true,
       "file_count": 155,
-      "bytes": 2250618,
-      "sha256": "19ee8990b91e9e2b359a7f0f5b252b8fd8ea6a701659c6157ef9446e1580471a"
+      "bytes": 2253538,
+      "sha256": "d690953b2559aaa34c455efeaa9f27efab4aef25a4121e92afdb09256cf6e21b"
     },
     "config": {
       "exists": true,
       "file_count": 4,
-      "bytes": 140711,
-      "sha256": "ab8e6e50cfb72bd29cd70e1b8990a598881884499aa0f18daa892b689f7bd78e"
+      "bytes": 140996,
+      "sha256": "88fc7ee816da18f98c699ac2f93b246fc3b5e62ab3e5bce7ae566792b9087b9b"
     }
   },
   "source_data_files": {
@@ -281,27 +281,27 @@
     "data/research/expression_mining_hs300_v1/candidates.parquet": {
       "sha256": "8cfb53b86913f63cef4f84688d22b374384d3a67bd45d4e8aec0d32d9dcd7ee0",
       "bytes": 2757,
-      "mtime_ns": 1788917347879451301
+      "mtime_ns": 1788931334062675627
     },
     "data/research/expression_mining_hs300_v1/candidate_monthly_rank_ic.parquet": {
       "sha256": "ee4c26d8197d256191de9240404240e95ebdf978e68e5fdd7cb9d031d0b6b9a2",
       "bytes": 84428,
-      "mtime_ns": 1788917347886247064
+      "mtime_ns": 1788931334067995042
     },
     "data/research/expression_mining_hs300_v1/nested_walk_forward.parquet": {
       "sha256": "fe360bf9e1d0ff4dd67b2b6fca3cfc741eac531c9b93b0d14e5f1c558ad4d245",
       "bytes": 12280,
-      "mtime_ns": 1788917347891946959
+      "mtime_ns": 1788931334071020616
     },
     "data/research/expression_mining_hs300_v1/run_meta.json": {
       "sha256": "735f78992cac9bf5d8e2d25ffe262b9f0c97a5b603a43cb37022617d7bf18e5f",
       "bytes": 1760,
-      "mtime_ns": 1788917347898061187
+      "mtime_ns": 1788931334074378740
     },
     "data/research/expression_mining_hs300_v1/summary.json": {
       "sha256": "6a641ca5046fb8a11fa5629b157212a9908bdc7ea5649cce046a67b9f76d01b8",
       "bytes": 22248,
-      "mtime_ns": 1788917347908739448
+      "mtime_ns": 1788931334079703976
     }
   },
   "capabilities": {
@@ -310,12 +310,14 @@
     "segment_validation_parquet": false,
     "rolling_validation_parquet": false,
     "single_snapshots": false,
+    "single_slim_snapshots": true,
     "index_universe": true,
     "stock_pool_research": true,
     "stock_pool_membership": true,
     "portfolio_ledger": true,
     "portfolio_allocation": true,
     "portfolio_execution_estimate": true,
-    "expression_mining_research": true
+    "expression_mining_research": true,
+    "tracking_combos_remote": false
   }
 }

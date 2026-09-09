@@ -236,3 +236,6 @@ def test_expression_research_has_read_only_frontend_entry():
     assert "ensureExpressionResearchController().render()" in app
     assert "production_registration !== false" in module
     assert "不提供“加入因子库”或“加入组合”操作" in module
+    assert "gate.status === \"passed\"" in module
+    assert "GATE_STATUS[gate.status]" in module
+    assert "未知的晋级门槛状态" in module

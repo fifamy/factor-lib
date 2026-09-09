@@ -268,11 +268,11 @@ def test_compare_respects_snapshot_capability_and_normalizes_duckdb_bigints():
     corr = _source_between(source, "async function renderCmpCorr()", "async function renderCmpCorrFast()")
     range_controls = _source_between(source, "async function initCompareRangeControls", "function setupCompareRangeControls")
 
-    assert "state.dataManifest?.capabilities?.single_snapshots !== false" in compare
+    assert "hasAdvancedCompareSnapshots()" in compare
     assert "if (fastSnapshotsEnabled)" in compare
-    assert "loadSingleSnapshot(code)" in compare
-    assert "state.dataManifest?.capabilities?.single_snapshots !== false" in range_controls
-    assert "loadSingleSnapshot(state.compareFactors[0].code)" in range_controls
+    assert "loadCompareSnapshot(factor)" in compare
+    assert "hasAdvancedCompareSnapshots()" in range_controls
+    assert "loadCompareSnapshot(state.compareFactors[0])" in range_controls
     assert "nObs: snapshotNumber(r.n_obs)" in corr
     assert "nMonths: snapshotNumber(r.n_months)" in corr
 
@@ -290,17 +290,18 @@ def test_compare_fallback_does_not_silently_downgrade_score_constraint_or_side_m
     assert "constraintMode" in source
 
 
-def test_compare_fast_ic_keeps_score_mode_and_slim_release_disables_advanced_controls():
+def test_compare_fast_ic_keeps_score_mode_and_slim_release_enables_advanced_controls():
     source = APP_JS.read_text(encoding="utf-8")
     fast_ic = _source_between(source, "async function renderCmpIcFast", "async function renderCmpCorr")
     controls = _source_between(source, "function renderCmpControls", "function compareFallbackBlockedReason")
 
     assert "scoreMode: normalizeScoreMode(f.scoreMode)" in fast_ic
     assert "`${item.code}|${item.side}|${item.scoreMode}`" in fast_ic
-    assert "activeScoreSnapshotFor(snap, item.scoreMode)" in fast_ic
+    assert "loadCompareScoreSnapshot(item)" in fast_ic
     assert "function hasAdvancedCompareSnapshots()" in source
+    assert "hasSingleSlimSnapshots()" in source
     assert "const advancedDisabled = advancedAvailable ? \"\" : \" disabled\"" in controls
-    assert "当前精简发布包未包含完整单因子快照" in source
+    assert "既没有完整单因子快照，也没有四种口径的精简快照" in source
 
 
 def test_rank_ic_stats_from_series_uses_effective_annualization_scale():
@@ -1946,6 +1947,43 @@ def test_combo_correlation_crowding_static_contract():
     assert "多因子相关性 / 拥挤度诊断" in docs
 
 
+def test_ranking_correlation_hints_fail_visibly_and_explain_connected_clusters():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = STYLES_CSS.read_text(encoding="utf-8")
+
+    assert 'correlationHintsStatus: "idle"' in source
+    assert 'state.correlationHintsStatus = "unavailable"' in source
+    assert "提示数据不可用" in source
+    assert "无≥0.90直接相关项" in source
+    assert "连通簇按直接相关边的传递可达关系生成" in source
+    assert "连通簇${members.length}项" in source
+    assert ".rank-corr-unavailable" in styles
+
+
+def test_slim_single_snapshots_enable_advanced_compare_without_full_snapshots():
+    source = APP_JS.read_text(encoding="utf-8")
+
+    assert "function hasSingleSlimSnapshots()" in source
+    assert "function loadCompareSnapshot(rawFactor)" in source
+    assert "function loadCompareScoreSnapshot(rawFactor)" in source
+    assert "const fastSnapshotsEnabled = hasAdvancedCompareSnapshots();" in source
+    assert "Promise.all(sel.map(factor => loadCompareSnapshot(factor)))" in source
+    assert "const portSnap = await loadCompareSnapshot(f);" in source
+    assert "state.compareFactors.map(f => loadCompareSnapshot(f))" in source
+
+
+def test_remote_tracking_controls_follow_release_capability():
+    source = APP_JS.read_text(encoding="utf-8")
+    index = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert "function hasRemoteTracking()" in source
+    assert "tracking_combos_remote === true" in source
+    assert "跨设备跟踪服务尚未启用" in source
+    assert "importButton.disabled = !hasRemoteTracking()" in source
+    assert 'id="tracking-remote-status"' in index
+    assert 'id="tracking-import" class="cpsn-btn" type="button" disabled' in index
+
+
 def test_combo_parameter_sensitivity_static_contract():
     source = APP_JS.read_text(encoding="utf-8")
     styles = STYLES_CSS.read_text(encoding="utf-8")
@@ -2258,8 +2296,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.16</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.16 ' in index
+    assert "<title>因子库 v2.4.17</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.17 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

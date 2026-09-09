@@ -98,6 +98,8 @@ const state = {
   corrSnapshot: null,
   corrNeutralSnapshot: null,
   correlationHints: null,
+  correlationHintsStatus: "idle",
+  correlationHintsError: "",
   dataManifest: null,
   hasStockMeta: false,
   hasDescriptors: false,
@@ -302,12 +304,20 @@ async function fetchJson(url) {
 async function ensureCorrelationHints() {
   if (state.correlationHints) return state.correlationHints;
   if (!_correlationHintsPromise) {
+    state.correlationHintsStatus = "loading";
+    state.correlationHintsError = "";
     _correlationHintsPromise = fetchJson(CORRELATION_HINTS)
       .then(payload => {
+        if (!payload?.modes?.raw?.by_factor || !payload?.modes?.neutral?.by_factor) {
+          throw new Error("相关性提示文件缺少raw/neutral因子映射");
+        }
         state.correlationHints = payload;
+        state.correlationHintsStatus = "ready";
         return payload;
       })
       .catch(error => {
+        state.correlationHintsStatus = "unavailable";
+        state.correlationHintsError = error.message || String(error);
         console.warn("factor correlation hints unavailable:", error.message || error);
         return null;
       })
@@ -328,6 +338,24 @@ function singleSlimSnapshotUrl(code, scoreMode = state.singleScoreMode, constrai
   return `${SINGLE_SLIM_SNAPSHOT_DIR}${singleSlimSnapshotMode(scoreMode, constraintMode)}/${code}.json${V}`;
 }
 
+async function loadSingleSlimSnapshot(code, scoreMode = state.singleScoreMode, constraintMode = state.singleConstraintMode) {
+  const mode = singleSlimSnapshotMode(scoreMode, constraintMode);
+  const key = `${mode}|${code}`;
+  if (!state.singleSlimSnapshots.has(key)) {
+    const promise = fetchJson(singleSlimSnapshotUrl(code, scoreMode, constraintMode))
+      .then(payload => {
+        state.singleSlimSnapshots.set(key, payload);
+        return payload;
+      })
+      .catch(err => {
+        state.singleSlimSnapshots.delete(key);
+        throw err;
+      });
+    state.singleSlimSnapshots.set(key, promise);
+  }
+  return state.singleSlimSnapshots.get(key);
+}
+
 async function loadSingleSnapshot(code) {
   if (!state.singleSnapshots.has(code)) {
     const promise = fetchJson(singleSnapshotUrl(code))
@@ -345,22 +373,8 @@ async function loadSingleSnapshot(code) {
 }
 
 async function loadActiveSingleSnapshot(code) {
-  const mode = singleSlimSnapshotMode();
-  const key = `${mode}|${code}`;
-  if (!state.singleSlimSnapshots.has(key)) {
-    const promise = fetchJson(singleSlimSnapshotUrl(code))
-      .then(payload => {
-        state.singleSlimSnapshots.set(key, payload);
-        return payload;
-      })
-      .catch(err => {
-        state.singleSlimSnapshots.delete(key);
-        throw err;
-      });
-    state.singleSlimSnapshots.set(key, promise);
-  }
   try {
-    return await state.singleSlimSnapshots.get(key);
+    return await loadSingleSlimSnapshot(code);
   } catch (err) {
     console.warn("single slim snapshot unavailable, using full snapshot:", err.message || err);
     return activePortfolioSnapshot(await loadSingleSnapshot(code));
@@ -492,12 +506,21 @@ function hasComposeNeutralScores() {
   return state.dataManifest?.has_compose_scores_neutral !== false;
 }
 
+function hasSingleSlimSnapshots() {
+  return state.dataManifest?.capabilities?.single_slim_snapshots === true;
+}
+
 function hasAdvancedCompareSnapshots() {
-  return state.dataManifest?.capabilities?.single_snapshots !== false;
+  return hasSingleSlimSnapshots()
+    || state.dataManifest?.capabilities?.single_snapshots === true;
+}
+
+function hasRemoteTracking() {
+  return state.dataManifest?.capabilities?.tracking_combos_remote === true;
 }
 
 function compareAdvancedUnavailableMessage() {
-  return "当前精简发布包未包含完整单因子快照，仅支持默认方向、原始口径和无约束等权对比。";
+  return "当前发布包既没有完整单因子快照，也没有四种口径的精简快照，仅支持默认方向、原始口径和无约束等权对比。";
 }
 
 function composeNeutralUnavailableMessage() {
@@ -937,12 +960,16 @@ function activeSingleSnapshot(snap) {
 }
 
 function hasNeutralSnapshot(snap) {
-  if (state.dataManifest?.has_neutralized_scores) return true;
+  if (hasSingleSlimSnapshots()) return true;
+  if (state.dataManifest?.capabilities?.single_snapshots === true) return true;
+  if (snap?.score_mode === "neutral" && Array.isArray(snap.months) && snap.months.length) return true;
   return !!(snap?.neutral && Array.isArray(snap.neutral.months) && snap.neutral.months.length);
 }
 
 function hasIndustryNeutralSnapshot(snap) {
-  if (state.dataManifest?.has_industry_neutral_portfolio) return true;
+  if (hasSingleSlimSnapshots()) return true;
+  if (state.dataManifest?.capabilities?.single_snapshots === true) return true;
+  if (snap?.constraint_mode === "industry" && Array.isArray(snap.months) && snap.months.length) return true;
   const scoreSnap = activeScoreSnapshot(snap);
   return !!(scoreSnap?.industry_neutral && Array.isArray(scoreSnap.industry_neutral.months) && scoreSnap.industry_neutral.months.length);
 }
@@ -956,6 +983,28 @@ function activePortfolioSnapshotFor(snap, scoreMode = "raw", constraintMode = "n
   return normalizeConstraintMode(constraintMode) === "industry" && scoreSnap?.industry_neutral
     ? scoreSnap.industry_neutral
     : scoreSnap;
+}
+
+async function loadCompareSnapshot(rawFactor) {
+  const factor = normalizeCompareFactor(rawFactor);
+  if (hasSingleSlimSnapshots()) {
+    return loadSingleSlimSnapshot(
+      factor.code,
+      factor.scoreMode,
+      factor.constraintMode,
+    );
+  }
+  const full = await loadSingleSnapshot(factor.code);
+  return activePortfolioSnapshotFor(full, factor.scoreMode, factor.constraintMode);
+}
+
+async function loadCompareScoreSnapshot(rawFactor) {
+  const factor = normalizeCompareFactor(rawFactor);
+  if (hasSingleSlimSnapshots()) {
+    return loadSingleSlimSnapshot(factor.code, factor.scoreMode, "none");
+  }
+  const full = await loadSingleSnapshot(factor.code);
+  return activeScoreSnapshotFor(full, factor.scoreMode);
 }
 
 function normalizeCompareFactor(f) {
@@ -4782,12 +4831,12 @@ async function renderCompare() {
       document.getElementById("cmp-table").innerHTML = `<div class="empty">从左侧选 1 个以上因子开始对比</div>`;
       return;
     }
-    const fastSnapshotsEnabled = state.dataManifest?.capabilities?.single_snapshots !== false;
+    const fastSnapshotsEnabled = hasAdvancedCompareSnapshots();
     let fastErr = null;
     if (fastSnapshotsEnabled) {
       try {
         await Promise.all([
-          Promise.all([...new Set(sel.map(f => f.code))].map(code => loadSingleSnapshot(code))),
+          Promise.all(sel.map(factor => loadCompareSnapshot(factor))),
           ensureBenchmarkSnapshot(),
           ensureCorrSnapshot(),
         ]);
@@ -4945,9 +4994,9 @@ async function renderCmpTableFast() {
   const factors = [];
   for (const f of state.compareFactors) {
     Object.assign(f, normalizeCompareFactor(f));
-    const snap = await loadSingleSnapshot(f.code);
-    const scoreSnap = activeScoreSnapshotFor(snap, f.scoreMode);
-    const portSnap = activePortfolioSnapshotFor(snap, f.scoreMode, f.constraintMode);
+    const portSnap = await loadCompareSnapshot(f);
+    // 精简快照已经固定了分数口径和组合约束，并携带同口径IC。
+    const scoreSnap = portSnap;
     let m = null;
     let bt = null;
     if (f.side === 1) {
@@ -5125,14 +5174,13 @@ async function renderCmpNavFast() {
   div.innerHTML = "";
   if (state.compareFactors.length === 0) { div.innerHTML = `<div class="empty">选因子后显示</div>`; return; }
 
-  const snaps = await Promise.all(state.compareFactors.map(f => loadSingleSnapshot(f.code)));
+  const snaps = await Promise.all(state.compareFactors.map(f => loadCompareSnapshot(f)));
   let x = [];
   const series = [];
   const portfolioSeries = [];
   for (const [i, f] of state.compareFactors.entries()) {
     Object.assign(f, normalizeCompareFactor(f));
-    const snap = snaps[i];
-    const portSnap = activePortfolioSnapshotFor(snap, f.scoreMode, f.constraintMode);
+    const portSnap = snaps[i];
     let bt = null;
     if (f.side === 1) {
       bt = snapshotBacktestByRange(portSnap, f.n, state.compareStart, state.compareEnd);
@@ -5235,14 +5283,14 @@ async function renderCmpIcFast() {
     seen.add(key);
     uniqItems.push(item);
   }
-  const snaps = await Promise.all(uniqItems.map(item => loadSingleSnapshot(item.code)));
-  const firstScoreSnap = activeScoreSnapshotFor(snaps[0], uniqItems[0]?.scoreMode);
+  const snaps = await Promise.all(uniqItems.map(item => loadCompareScoreSnapshot(item)));
+  const firstScoreSnap = snaps[0];
   const icMonths = firstScoreSnap?.ic?.months || [];
   const idxs = rangeFilterIndexes(icMonths, state.compareStart, state.compareEnd);
   const x = idxs.map(i => icMonths[i]);
   const series = snaps.map((snap, i) => {
     const item = uniqItems[i];
-    const scoreSnap = activeScoreSnapshotFor(snap, item.scoreMode);
+    const scoreSnap = snap;
     const vals = scoreSnap.ic?.ic || [];
     const rolling = vals.map((_, idx) => {
       const win = vals.slice(Math.max(0, idx - 11), idx + 1)
@@ -5470,10 +5518,10 @@ let _cmpRangeBound = false;
 let _cmpMonths = null;
 async function initCompareRangeControls() {
   let months = [];
-  // 正式 Pages 包不含完整 single_snapshots；区间控件优先复用已发布的
-  // ranking / benchmark 月份，避免在 renderCompare 的能力判断前先触发 404。
-  if (state.compareFactors[0] && state.dataManifest?.capabilities?.single_snapshots !== false) {
-    months = monthsFromSnapshot(await loadSingleSnapshot(state.compareFactors[0].code));
+  // 正式 Pages 包发布四种 slim 快照而不发布完整 single_snapshots；区间控件
+  // 复用当前所选口径的快照月份，既避免无意义 404，也不把非默认口径降级。
+  if (state.compareFactors[0] && hasAdvancedCompareSnapshots()) {
+    months = monthsFromSnapshot(await loadCompareSnapshot(state.compareFactors[0]));
   }
   if (!months.length) {
     months = state.rankingSnapshot?.months || state.benchmarkSnapshot?.months || [];
@@ -5634,7 +5682,7 @@ const RANK_COLS = [
     help: "辅助标签由市场环境表现和近12个月RankIC变化生成；悬停标签可查看触发口径。" },
   { key: "correlation", label: "高相关提示", lcol: true, sortable: false,
     fmt: (_, r) => rankCorrelationHintHtml(r.code),
-    help: "基于当前得分口径的全样本月末横截面相关矩阵；展示|corr|≥0.90的潜在重复暴露，不影响排名。" },
+    help: "基于当前得分口径的全样本月末横截面相关矩阵；展示直接达到|corr|≥0.90的潜在重复暴露。连通簇可能包含经其他因子传递关联的成员，不代表簇内任意两项都达到阈值；提示不影响排名。" },
   { key: "top3ind",   label: "前三行业(最新选股)", lcol: true, fmt: v => htmlText(v), help: "最新名义 Top30 完整实际持仓的前三行业，不使用展示截断样本。" },
 ];
 
@@ -5672,11 +5720,17 @@ function tagHelpText(tag) {
 }
 
 function rankCorrelationHintHtml(code) {
+  if (state.correlationHintsStatus === "unavailable") {
+    const detail = state.correlationHintsError
+      ? `：${state.correlationHintsError}`
+      : "";
+    return `<span class="rank-corr-unavailable" title="${htmlAttr(`相关性提示数据加载失败${detail}`)}" role="status">提示数据不可用</span>`;
+  }
   const mode = normalizeScoreMode(_rankState.scoreMode) === "neutral" ? "neutral" : "raw";
   const root = state.correlationHints;
   const hint = root?.modes?.[mode]?.by_factor?.[code];
   const strongest = hint?.peers?.[0];
-  if (!strongest) return "—";
+  if (!strongest) return `<span class="rank-corr-none">无≥0.90直接相关项</span>`;
   const corr = Number(strongest.corr);
   const corrText = Number.isFinite(corr) ? `${corr > 0 ? "+" : ""}${corr.toFixed(3)}` : "—";
   const members = hint.cluster_members || [];
@@ -5684,8 +5738,8 @@ function rankCorrelationHintHtml(code) {
     .map(peer => `${peer.code} ${Number(peer.corr) > 0 ? "+" : ""}${Number(peer.corr).toFixed(3)}（${Number(peer.n_months) || 0}个月）`)
     .join("；");
   const scope = root?.scope || "全样本月末横截面得分相关性";
-  const title = `${scope}；阈值|corr|≥${Number(root?.threshold_abs_corr || 0.9).toFixed(2)}；${peerText}。仅提示潜在重复暴露，不表示因果关系。`;
-  const clusterText = members.length > 2 ? ` · 簇${members.length}项` : "";
+  const title = `${scope}；阈值|corr|≥${Number(root?.threshold_abs_corr || 0.9).toFixed(2)}；直接相关项：${peerText}。连通簇按直接相关边的传递可达关系生成，不表示簇内任意两项都达到阈值；仅提示潜在重复暴露，不表示因果关系。`;
+  const clusterText = members.length > 2 ? ` · 连通簇${members.length}项` : "";
   return `<span class="rank-corr-hint${corr < 0 ? " negative" : ""}" title="${htmlAttr(title)}" aria-label="${htmlAttr(`高相关提示：${strongest.code}，相关系数${corrText}${clusterText}`)}" tabindex="0"><b>${htmlText(strongest.code)}</b><span>${corrText}${clusterText}</span></span>`;
 }
 
@@ -7295,6 +7349,9 @@ async function sha256Hex(textValue) {
 }
 
 async function syncFrozenCombo(combo, options = {}) {
+  if (!hasRemoteTracking()) {
+    throw new Error("跨设备跟踪服务尚未启用；当前冻结组合只保存在本机");
+  }
   if (!combo?.decisionDate) throw new Error("只有已冻结组合可以同步跟踪账本");
   if (isCustomStockPoolUniverse(combo.universe)) {
     throw new Error("自定义股票池成分只保存在当前浏览器，不能同步到跨设备跟踪服务");
@@ -7335,6 +7392,9 @@ async function syncFrozenComboById(id, button) {
 }
 
 async function importFrozenComboByTrackingKey() {
+  if (!hasRemoteTracking()) {
+    throw new Error("跨设备跟踪服务尚未启用；当前不能使用跟踪码导入");
+  }
   const trackingKey = prompt("输入私密跟踪码");
   if (!trackingKey?.trim()) return;
   const key = trackingKey.trim();
@@ -7446,12 +7506,19 @@ function renderComboCards(box, combos, source, emptyText) {
       ? `<button class="cpsn-btn my-rename" data-source="${safeSource}" data-id="${safeId}"${disabled}>改名</button>`
       : "";
     const externalBlocked = isCustomStockPoolUniverse(combo.universe);
-    const externalDisabled = externalBlocked ? ' disabled title="自定义股票池成分不上传，不能公开发布或跨设备同步"' : disabled;
+    const publishDisabled = externalBlocked
+      ? ' disabled title="自定义股票池成分不上传，不能公开发布"'
+      : disabled;
+    const trackingDisabled = externalBlocked
+      ? ' disabled title="自定义股票池成分不上传，不能跨设备同步"'
+      : !hasRemoteTracking()
+        ? ' disabled title="跨设备跟踪服务尚未启用；当前冻结组合只保存在本机"'
+        : disabled;
     const publishBtn = source === "mine"
-      ? `<button class="cpsn-btn my-publish" data-source="${safeSource}" data-id="${safeId}"${externalDisabled}>申请发布</button>`
+      ? `<button class="cpsn-btn my-publish" data-source="${safeSource}" data-id="${safeId}"${publishDisabled}>申请发布</button>`
       : "";
     const trackingButtons = source === "mine" && combo.decisionDate
-      ? `<button class="cpsn-btn my-tracking-sync" data-id="${safeId}"${externalDisabled}>同步跟踪</button>${combo.trackingKey && !externalBlocked ? `<button class="cpsn-btn my-tracking-copy" data-id="${safeId}"${disabled}>复制跟踪码</button>` : ""}`
+      ? `<button class="cpsn-btn my-tracking-sync" data-id="${safeId}"${trackingDisabled}>同步跟踪</button>${combo.trackingKey && !externalBlocked ? `<button class="cpsn-btn my-tracking-copy" data-id="${safeId}"${disabled}>复制跟踪码</button>` : ""}`
       : "";
     const deleteRequestBtn = source === "published" && combo.source === "supabase"
       ? `<button class="cpsn-btn published-delete-request" data-id="${safeId}"${disabled}>申请删除</button>`
@@ -7563,10 +7630,24 @@ function renderComboLibrary() {
   renderPublishedCombos();
   renderMyCombos();
   const importButton = document.getElementById("tracking-import");
-  if (importButton) importButton.onclick = () => importFrozenComboByTrackingKey().catch(error => {
-    console.error("import tracking failed:", error);
-    alert(supabaseUserMessage(error, "导入跟踪账本"));
-  });
+  const remoteStatus = document.getElementById("tracking-remote-status");
+  if (remoteStatus) {
+    remoteStatus.textContent = hasRemoteTracking()
+      ? "冻结组合可用私密跟踪码跨设备同步；草稿仍只保存在本机。"
+      : "跨设备跟踪服务未启用；冻结组合和草稿当前只保存在本机。";
+  }
+  if (importButton) {
+    importButton.disabled = !hasRemoteTracking();
+    importButton.title = hasRemoteTracking()
+      ? "输入私密跟踪码，从远端导入冻结组合"
+      : "跨设备跟踪服务尚未启用";
+    importButton.onclick = hasRemoteTracking()
+      ? () => importFrozenComboByTrackingKey().catch(error => {
+          console.error("import tracking failed:", error);
+          alert(supabaseUserMessage(error, "导入跟踪账本"));
+        })
+      : null;
+  }
   document.querySelectorAll(".combo-tab").forEach(btn => {
     btn.onclick = () => {
       state.comboLibraryTab = btn.dataset.tab === "mine" ? "mine" : "published";

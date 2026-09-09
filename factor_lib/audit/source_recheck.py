@@ -209,13 +209,20 @@ def recheck_external(
             .select(["stock_code", "trade_date", "ref"])
         )
     elif transform == "event_first":
-        s = src.filter(pl.col("EXPRESS_AGE").cast(pl.Float64, strict=False).is_not_null())
+        s = src.with_columns(
+            pl.col("EXPRESS_AGE").cast(pl.Float64, strict=False).alias("_express_age")
+        ).filter(pl.col("_express_age").is_not_null())
         s = s.with_columns(
             (pl.col("trade_date").dt.year() * 12 + pl.col("trade_date").dt.month()
-             - pl.col("EXPRESS_AGE").cast(pl.Float64, strict=False)).alias("rp_idx")
+             - pl.col("_express_age")).alias("rp_idx")
         ).sort(["stock_code", "trade_date"])
         prev = pl.col("rp_idx").shift(1).over("stock_code")
-        first = s.filter(prev.is_null() | (pl.col("rp_idx") > prev))
+        # 与生产导入保持相同的首次披露定义：源文件起始处若已是旧报告期
+        # carry-forward（age > 1），不能把该股票在文件中的首行误判成事件。
+        first = s.filter(
+            (prev.is_null() & (pl.col("_express_age") <= 1))
+            | (prev.is_not_null() & (pl.col("rp_idx") > prev))
+        )
         ref_df = first.select(["stock_code", "trade_date", pl.col(field).alias("ref")])
     elif transform != "mv_ebitda_asof":
         return base
