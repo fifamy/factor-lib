@@ -1819,6 +1819,7 @@ async function selectFactor(code, opts = {}) {
     const portfolioSnap = snap;
     await initSingleRangeControlsFast(portfolioSnap);
     renderFactorDetail(meta, snap);
+    prepareNScan(code, state.singleSide);
     await renderValidationPanel(code, scoreSnap);
     const tQ = performance.now();
     if (state.singleSide === 1) {
@@ -4421,11 +4422,31 @@ async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
   `;
 }
 
+const N_SCAN_METRIC_LABELS = { annual: "年化收益", vol: "年化波动率", sharpe: "夏普比率", mdd: "最大回撤" };
+
+function setNScanTitle(code, side = state.singleSide, scoreMode = state.singleScoreMode, constraintMode = state.singleConstraintMode) {
+  const factorName = normalizeSide(side) === 1 ? code : factorSideName(code, side);
+  document.getElementById("scan-title").textContent =
+    `${factorName} · ${scoreModeLabel(scoreMode)} / ${constraintModeLabel(constraintMode)} ${N_SCAN_METRIC_LABELS[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
+}
+
+function prepareNScan(code, side = state.singleSide) {
+  setNScanTitle(code, side);
+  const chartDiv = document.getElementById("scan-chart");
+  if (scanChart) { scanChart.dispose(); scanChart = null; }
+  chartDiv.innerHTML = '<div class="empty">正在加载当前口径的持仓数扫描…</div>';
+}
+
+function renderNScanUnavailable(code, side = state.singleSide) {
+  setNScanTitle(code, side);
+  const chartDiv = document.getElementById("scan-chart");
+  if (scanChart) { scanChart.dispose(); scanChart = null; }
+  chartDiv.innerHTML = '<div class="empty" role="status">当前口径的持仓数扫描快照加载失败，请刷新后重试。</div>';
+}
+
 // 指标-N 曲线：横轴持仓数 1-100，纵轴当前选定指标
 async function renderNScan(code) {
-  const metricLabels = { annual: "年化收益", vol: "年化波动率", sharpe: "夏普比率", mdd: "最大回撤" };
-  document.getElementById("scan-title").textContent =
-    `${code} · ${scoreModeLabel()} / ${constraintModeLabel()} ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
+  setNScanTitle(code, 1, "raw", "none");
   const chartDiv = document.getElementById("scan-chart");
   if (scanChart) { scanChart.dispose(); scanChart = null; }
   chartDiv.innerHTML = "";
@@ -4463,7 +4484,7 @@ async function renderNScan(code) {
   scanChart = echarts.init(chartDiv);
   scanChart.setOption({
     grid: { left: 55, right: 20, top: 20, bottom: 36 },
-    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${metricLabels[state.scanMetric]}: ${p[0].data}` },
+    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${N_SCAN_METRIC_LABELS[state.scanMetric]}: ${p[0].data}` },
     xAxis: { type: "category", data: xs, name: "持仓数 N", nameLocation: "middle", nameGap: 24, axisLabel: { fontSize: 10 } },
     yAxis: { type: "value", scale: true },
     series: [{
@@ -4476,9 +4497,9 @@ async function renderNScan(code) {
 }
 
 async function renderNScanFast(code, snap) {
-  const metricLabels = { annual: "年化收益", vol: "年化波动率", sharpe: "夏普比率", mdd: "最大回撤" };
-  document.getElementById("scan-title").textContent =
-    `${code} · ${scoreModeLabel()} / ${constraintModeLabel()} ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
+  const snapScoreMode = normalizeScoreMode(snap?.score_mode || state.singleScoreMode);
+  const snapConstraintMode = normalizeConstraintMode(snap?.constraint_mode || state.singleConstraintMode);
+  setNScanTitle(code, 1, snapScoreMode, snapConstraintMode);
   const chartDiv = document.getElementById("scan-chart");
   if (scanChart) { scanChart.dispose(); scanChart = null; }
   chartDiv.innerHTML = "";
@@ -4501,7 +4522,7 @@ async function renderNScanFast(code, snap) {
   scanChart = echarts.init(chartDiv);
   scanChart.setOption({
     grid: { left: 55, right: 20, top: 20, bottom: 36 },
-    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${metricLabels[state.scanMetric]}: ${p[0].data}` },
+    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${N_SCAN_METRIC_LABELS[state.scanMetric]}: ${p[0].data}` },
     xAxis: { type: "category", data: xs, name: "持仓数 N", nameLocation: "middle", nameGap: 24, axisLabel: { fontSize: 10 } },
     yAxis: { type: "value", scale: true },
     series: [{
@@ -4514,9 +4535,7 @@ async function renderNScanFast(code, snap) {
 }
 
 async function renderNScanSide(code, side, snap = null) {
-  const metricLabels = { annual: "年化收益", vol: "年化波动率", sharpe: "夏普比率", mdd: "最大回撤" };
-  document.getElementById("scan-title").textContent =
-    `${factorSideName(code, side)} · ${scoreModeLabel()} / ${constraintModeLabel()} ${metricLabels[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
+  setNScanTitle(code, side);
   const chartDiv = document.getElementById("scan-chart");
   if (scanChart) { scanChart.dispose(); scanChart = null; }
   chartDiv.innerHTML = "";
@@ -4540,7 +4559,7 @@ async function renderNScanSide(code, side, snap = null) {
   scanChart = echarts.init(chartDiv);
   scanChart.setOption({
     grid: { left: 55, right: 20, top: 20, bottom: 36 },
-    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${metricLabels[state.scanMetric]}: ${p[0].data}` },
+    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${N_SCAN_METRIC_LABELS[state.scanMetric]}: ${p[0].data}` },
     xAxis: { type: "category", data: xs, name: "持仓数 N", nameLocation: "middle", nameGap: 24, axisLabel: { fontSize: 10 } },
     yAxis: { type: "value", scale: true },
     series: [{
@@ -6456,7 +6475,12 @@ function drawRankTable() {
 
 function updateRankSelCount() {
   const el = document.getElementById("rank-sel-count");
-  if (el) el.textContent = `已选 ${_rankState.checked.size} 个`;
+  if (!el) return;
+  const factors = [..._rankState.checked].map(code => ({ code }));
+  const violations = comboConstraintViolations(factors);
+  el.textContent = `已选 ${_rankState.checked.size} 个${violations.length ? ` · 含 ${violations.length} 项组合约束` : ""}`;
+  el.classList.toggle("has-warning", violations.length > 0);
+  el.title = violations.join("\n");
 }
 
 // 把排行榜勾选的因子带入 对比 / 合成，并切到对应 tab
@@ -12706,13 +12730,21 @@ function bindScanButtons() {
       btn.classList.add("active");
       state.scanMetric = btn.dataset.metric;
       if (state.activeFactor) {
-        loadSingleSnapshot(state.activeFactor)
+        const code = state.activeFactor;
+        const side = state.singleSide;
+        const seq = _singleRenderSeq;
+        prepareNScan(code, side);
+        loadActiveSingleSnapshot(code)
           .then(snap => {
-            const viewSnap = activeSingleSnapshot(snap);
-            if (state.singleSide === 1) return renderNScanFast(state.activeFactor, viewSnap);
-            return renderNScanSide(state.activeFactor, state.singleSide, viewSnap);
+            if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
+            if (side === 1) return renderNScanFast(code, snap);
+            return renderNScanSide(code, side, snap);
           })
-          .catch(() => renderNScan(state.activeFactor));
+          .catch(err => {
+            if (seq !== _singleRenderSeq || state.activeFactor !== code) return;
+            console.warn("N-scan snapshot reload failed:", err);
+            renderNScanUnavailable(code, side);
+          });
       }
     };
   });

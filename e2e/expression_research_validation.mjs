@@ -8,7 +8,11 @@ const browser = await chromium.launch({
 
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 const errors = [];
+const fullSnapshotRequests = [];
 page.on("pageerror", error => errors.push(`pageerror: ${error.message}`));
+page.on("request", request => {
+  if (request.url().includes("/data/single_snapshots/")) fullSnapshotRequests.push(request.url());
+});
 page.on("requestfailed", request => {
   const url = request.url();
   if (url.includes("expression_mining") || url.includes("factor_correlation_hints")) {
@@ -20,7 +24,7 @@ try {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForSelector('.mode-btn[data-mode="expression"]', { timeout: 15000 });
   const title = await page.title();
-  if (!title.includes("v2.4.17")) throw new Error(`unexpected title: ${title}`);
+  if (!title.includes("v2.4.18")) throw new Error(`unexpected title: ${title}`);
 
   await page.locator('.mode-btn[data-mode="expression"]').click();
   await page.waitForSelector("#expression-view .expression-table tbody tr", { timeout: 15000 });
@@ -47,6 +51,17 @@ try {
   if (!correlationText.includes("MFLOW20") || !correlationText.includes("+1.000")) {
     throw new Error(`AMOUNT20 correlation hint mismatch: ${correlationText}`);
   }
+  const stomCorrelationText = await page.locator("#rank-table tbody tr").filter({ hasText: "STOM" }).first().locator(".rank-corr-hint").innerText();
+  if (!stomCorrelationText.includes("连通簇3项")) {
+    throw new Error(`STOM correlation cluster disclosure mismatch: ${stomCorrelationText}`);
+  }
+  await page.locator('.rank-chk[data-code="AMOUNT20"]').check();
+  await page.locator('.rank-chk[data-code="MFLOW20"]').check();
+  const rankSelectionWarning = await page.locator("#rank-sel-count").innerText();
+  if (!rankSelectionWarning.includes("组合约束")) {
+    throw new Error(`ranking selection constraint warning missing: ${rankSelectionWarning}`);
+  }
+  await page.locator("#rank-clear-sel").click();
 
   const trackingBoundary = await page.evaluate(() => ({
     status: document.querySelector("#tracking-remote-status")?.textContent?.trim(),
@@ -79,6 +94,17 @@ try {
   if (singleModes.neutralDisabled || singleModes.industryDisabled || !singleModes.neutralActive || !singleModes.industryActive) {
     throw new Error(`single slim mode mismatch: ${JSON.stringify(singleModes)}`);
   }
+  fullSnapshotRequests.length = 0;
+  await page.locator('.scan-btn[data-metric="sharpe"]').click();
+  await page.waitForFunction(() => {
+    const title = document.querySelector("#scan-title")?.textContent || "";
+    const chart = document.querySelector("#scan-chart");
+    return title.includes("行业市值中性 / 行业中性 夏普比率") && chart && !chart.textContent.includes("正在加载");
+  }, null, { timeout: 30000 });
+  const scanTitle = await page.locator("#scan-title").innerText();
+  if (fullSnapshotRequests.length) {
+    throw new Error(`metric switch requested unpublished full snapshots: ${fullSnapshotRequests.join(", ")}`);
+  }
 
   await page.locator('.mode-btn[data-mode="compare"]').click();
   await page.locator('.tree-l3[data-code="AMOUNT20"]').click();
@@ -97,16 +123,61 @@ try {
     const constraintMode = document.querySelector("#cmp-controls .cmp-constraint-mode")?.value;
     return scoreMode === "neutral" && constraintMode === "industry" && document.querySelector("#cmp-table table") && !text.includes("未渲染");
   }, null, { timeout: 30000 });
+  await page.locator('.tree-l3[data-code="MOM12_1"]').click();
+  await page.waitForFunction(() => document.querySelectorAll("#cmp-controls .cmp-score-mode").length === 2, null, { timeout: 30000 });
+  await page.locator("#cmp-controls .cmp-score-mode").nth(1).selectOption("neutral");
+  await page.waitForFunction(() => document.querySelectorAll("#cmp-controls .cmp-score-mode").length === 2, null, { timeout: 30000 });
+  await page.locator("#cmp-controls .cmp-constraint-mode").nth(1).selectOption("industry");
+  await page.waitForFunction(() => {
+    const controls = [...document.querySelectorAll("#cmp-controls .cmp-frow")];
+    const text = document.querySelector("#cmp-table")?.textContent || "";
+    return controls.length === 2 && text.includes("AMOUNT20") && text.includes("MOM12_1") && document.querySelector("#cmp-table table");
+  }, null, { timeout: 30000 });
   const compareModes = await page.evaluate(() => ({
     capabilityNote: document.querySelector("#cmp-capability-note")?.textContent?.trim() || "",
-    scoreMode: document.querySelector("#cmp-controls .cmp-score-mode")?.value,
-    constraintMode: document.querySelector("#cmp-controls .cmp-constraint-mode")?.value,
+    scoreModes: [...document.querySelectorAll("#cmp-controls .cmp-score-mode")].map(item => item.value),
+    constraintModes: [...document.querySelectorAll("#cmp-controls .cmp-constraint-mode")].map(item => item.value),
     tableText: document.querySelector("#cmp-table")?.textContent?.trim() || "",
   }));
-  if (compareModes.capabilityNote || compareModes.scoreMode !== "neutral" || compareModes.constraintMode !== "industry"
+  if (compareModes.capabilityNote || compareModes.scoreModes.some(mode => mode !== "neutral") || compareModes.constraintModes.some(mode => mode !== "industry")
       || compareModes.tableText.includes("当前发布包未包含") || compareModes.tableText.includes("原始错误")) {
     throw new Error(`advanced compare slim mode mismatch: ${JSON.stringify(compareModes)}`);
   }
+
+  const composeBoundaryPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await composeBoundaryPage.route("**/data/data_manifest.json*", async route => {
+    const response = await route.fetch();
+    const manifest = await response.json();
+    manifest.has_compose_scores_neutral = false;
+    await route.fulfill({ response, json: manifest });
+  });
+  await composeBoundaryPage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await composeBoundaryPage.locator('.mode-btn[data-mode="ranking"]').click();
+  await composeBoundaryPage.locator("#rank-param-score").selectOption("neutral");
+  await composeBoundaryPage.waitForSelector('.rank-chk[data-code="AMOUNT20"]', { timeout: 30000 });
+  await composeBoundaryPage.locator('.rank-chk[data-code="AMOUNT20"]').check();
+  const composeDialogPromise = new Promise(resolve => composeBoundaryPage.once("dialog", async dialog => {
+    const message = dialog.message();
+    await dialog.accept();
+    resolve(message);
+  }));
+  await composeBoundaryPage.locator("#rank-to-compose").click();
+  const composeFallbackMessage = await composeDialogPromise;
+  if (!composeFallbackMessage.includes("neutral 多因子合成分片")) {
+    throw new Error(`compose neutral fallback disclosure mismatch: ${composeFallbackMessage}`);
+  }
+  await composeBoundaryPage.waitForSelector("#cps-controls .cps-score-mode", { timeout: 30000 });
+  const composeFallback = await composeBoundaryPage.evaluate(() => {
+    const select = document.querySelector("#cps-controls .cps-score-mode");
+    return {
+      value: select?.value,
+      neutralDisabled: select?.querySelector('option[value="neutral"]')?.disabled,
+    };
+  });
+  if (composeFallback.value !== "raw" || !composeFallback.neutralDisabled) {
+    throw new Error(`compose neutral fallback state mismatch: ${JSON.stringify(composeFallback)}`);
+  }
+  await composeBoundaryPage.close();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('.mode-btn[data-mode="expression"]').click();
@@ -118,11 +189,36 @@ try {
   if (!mobile.tabVisible) throw new Error("mobile expression view is hidden");
   if (mobile.bodyOverflow) throw new Error("mobile expression view overflows the document viewport");
 
+  const failurePage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await failurePage.route("**/data/factor_correlation_hints.json*", route => route.abort());
+  await failurePage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await failurePage.locator('.mode-btn[data-mode="ranking"]').click();
+  await failurePage.waitForSelector(".rank-corr-unavailable", { timeout: 30000 });
+  const correlationFailureText = await failurePage.locator(".rank-corr-unavailable").first().innerText();
+  if (!correlationFailureText.includes("不可用")) {
+    throw new Error(`correlation failure state mismatch: ${correlationFailureText}`);
+  }
+  await failurePage.close();
+
+  const auditUrl = new URL("factor_audit.html", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).href;
+  const auditPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await auditPage.goto(auditUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await auditPage.waitForSelector('.fa-row[data-code="PE"]', { timeout: 30000 });
+  const coverageFilter = auditPage.locator('[data-filter="recon_coverage_difference"]');
+  if (!(await coverageFilter.isDisabled())) {
+    throw new Error("zero-count coverage-difference filter should be disabled");
+  }
+  await auditPage.locator('.fa-row[data-code="PE"]').click();
+  await auditPage.waitForFunction(() => (document.querySelector("#fa-detail")?.textContent || "").includes("共同键一致 500/500"), null, { timeout: 30000 });
+  const auditDetailText = await auditPage.locator("#fa-detail").innerText();
+  if (auditDetailText.includes("500/200")) throw new Error("audit detail still exposes stale 500/200 denominator");
+  await auditPage.close();
+
   if (process.env.EXPRESSION_RESEARCH_SCREENSHOT) {
     await page.screenshot({ path: process.env.EXPRESSION_RESEARCH_SCREENSHOT, fullPage: true });
   }
   if (errors.length) throw new Error(errors.join("\n"));
-  console.log(JSON.stringify({ baseUrl, summary, correlationText, trackingBoundary, singleModes, compareModes, mobile }, null, 2));
+  console.log(JSON.stringify({ baseUrl, summary, correlationText, stomCorrelationText, rankSelectionWarning, trackingBoundary, singleModes, scanTitle, compareModes, composeFallbackMessage, composeFallback, mobile, correlationFailureText }, null, 2));
 } finally {
   await browser.close();
 }

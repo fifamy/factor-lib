@@ -889,6 +889,14 @@ function rowHtml(f) {
     </tr>`;
 }
 function render() {
+  const coverageDiffCount = ALL.filter(f => f.recon === "coverage_difference").length;
+  const coverageDiffButton = document.querySelector('[data-filter="recon_coverage_difference"]');
+  if (coverageDiffButton) {
+    coverageDiffButton.disabled = coverageDiffCount === 0;
+    coverageDiffButton.title = coverageDiffCount === 0
+      ? "当前发布包没有对账覆盖差异"
+      : `查看 ${coverageDiffCount} 个对账覆盖差异因子`;
+  }
   // 按 一级/二级分类 分组：每组前插一行分类标题
   const rows = ALL.filter(matchRow).slice().sort((a, b) =>
     `${a.l1}${a.l2}${a.code}`.localeCompare(`${b.l1}${b.l2}${b.code}`, "zh"));
@@ -913,7 +921,7 @@ function render() {
   const pendingCompletion = ALL.filter(f => ["pending_technical", "pending_data", "pending_research"].includes(f.resolution_status)).length;
   const retainedCount = ALL.filter(f => f.resolution_status === "not_planned").length;
   document.getElementById("fa-stat").textContent =
-    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · 对账覆盖差异 ${ALL.filter(f => f.recon === "coverage_difference").length} · 数据起步晚 ${ALL.filter(hasCoverageLateFlag).length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length} · 样本空间不一致 ${ALL.filter(f => f.universe_mismatch).length} · 参数待补 ${ALL.filter(f => f.parameter_mismatch).length} · 已修改 ${fixed} · 待完成 ${pendingCompletion} · 已评估保留 ${retainedCount} · ${reviewText}`;
+    `${rows.length}/${ALL.length} 个因子 · 可疑 ${ALL.filter(f => f.health === "warn").length} · 错误 ${ALL.filter(f => f.health === "error").length} · 对账覆盖差异 ${coverageDiffCount} · 数据起步晚 ${ALL.filter(hasCoverageLateFlag).length} · Word未收录 ${ALL.filter(f => f.doc_missing).length} · 口径不一致 ${ALL.filter(f => f.formula_mismatch).length} · 样本空间不一致 ${ALL.filter(f => f.universe_mismatch).length} · 参数待补 ${ALL.filter(f => f.parameter_mismatch).length} · 已修改 ${fixed} · 待完成 ${pendingCompletion} · 已评估保留 ${retainedCount} · ${reviewText}`;
   document.querySelectorAll(".fa-row").forEach(tr => {
     tr.addEventListener("click", () => openDetail(tr.dataset.code, tr));
     tr.addEventListener("keydown", event => {

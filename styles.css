@@ -392,6 +392,8 @@ table.rank-table td.score-cell { font-weight: 600; color: #1a4d80; }
   transform: translate(-50%, -2px);
   transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
 }
+.rank-sel-count { color: var(--text-secondary); font-size: 12px; }
+.rank-sel-count.has-warning { color: #7a5600; font-weight: 600; }
 .ftag[data-help]:hover::after,
 .ftag[data-help]:focus-visible::after {
   opacity: 1;
