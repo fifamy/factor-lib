@@ -4444,56 +4444,10 @@ function renderNScanUnavailable(code, side = state.singleSide) {
   chartDiv.innerHTML = '<div class="empty" role="status">当前口径的持仓数扫描快照加载失败，请刷新后重试。</div>';
 }
 
-// 指标-N 曲线：横轴持仓数 1-100，纵轴当前选定指标
-async function renderNScan(code) {
-  setNScanTitle(code, 1, "raw", "none");
-  const chartDiv = document.getElementById("scan-chart");
-  if (scanChart) { scanChart.dispose(); scanChart = null; }
-  chartDiv.innerHTML = "";
-
-  const res = await state.db.query(`
-    SELECT top_n, port_ret FROM preset_backtest
-    WHERE factor_code = '${code}'
-      ${backtestRangeWhere(state.singleStart, state.singleEnd)}
-    ORDER BY top_n, trade_date
-  `);
-  const byN = {};
-  for (const r of res.toArray()) {
-    if (!byN[r.top_n]) byN[r.top_n] = { rets: [], navs: [1] };   // navs 以起点 1.0 开头
-    if (r.port_ret !== null) {
-      const o = byN[r.top_n];
-      o.rets.push(r.port_ret);
-      o.navs.push(o.navs[o.navs.length - 1] * (1 + r.port_ret));
-    }
-  }
-  const xs = Object.keys(byN).map(Number).sort((a, b) => a - b);
-  const ys = xs.map(n => {
-    const m = computeMetrics(byN[n].rets, byN[n].navs);
-    if (!m) return null;
-    if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
-    if (state.scanMetric === "sharpe") return Number.isFinite(Number(m.sharpe)) ? +Number(m.sharpe).toFixed(3) : null;
-    if (state.scanMetric === "mdd") return +(m.mdd * 100).toFixed(2);
-    return +(m.vol * 100).toFixed(2);   // 波动率（年化，%）
-  });
-  // 标出当前所选的 N
-  const marks = state.selectedNs.map(n => {
-    const idx = xs.indexOf(n);
-    return idx >= 0 ? { xAxis: n, yAxis: ys[idx] } : null;
-  }).filter(Boolean);
-
-  scanChart = echarts.init(chartDiv);
-  scanChart.setOption({
-    grid: { left: 55, right: 20, top: 20, bottom: 36 },
-    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${N_SCAN_METRIC_LABELS[state.scanMetric]}: ${p[0].data}` },
-    xAxis: { type: "category", data: xs, name: "持仓数 N", nameLocation: "middle", nameGap: 24, axisLabel: { fontSize: 10 } },
-    yAxis: { type: "value", scale: true },
-    series: [{
-      type: "line", data: ys, symbol: "none", smooth: true,
-      lineStyle: { color: "#1a4d80", width: 1.8 },
-      markPoint: { data: marks.map(m => ({ coord: [String(m.xAxis), m.yAxis] })), symbol: "pin", symbolSize: 36,
-                   itemStyle: { color: "#e07b39" }, label: { fontSize: 9, formatter: p => "N=" + p.data.coord[0] } },
-    }],
-  });
+// 快照路径不可用时不再使用 preset_backtest 画原始/无约束曲线。
+// 这个函数只保留给旧版 DuckDB 回退调用，统一显示当前口径不可用，避免标题与数据口径分叉。
+async function renderNScan(code, side = state.singleSide) {
+  renderNScanUnavailable(code, side);
 }
 
 async function renderNScanFast(code, snap) {

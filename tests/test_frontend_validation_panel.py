@@ -1630,10 +1630,13 @@ def test_all_single_reverse_portfolio_paths_require_exact_reranking():
 def test_n_scan_metric_switch_keeps_snapshot_data_and_title_on_same_mode():
     source = APP_JS.read_text(encoding="utf-8")
     scan_fast = _source_between(source, "async function renderNScanFast", "async function renderNScanSide")
+    scan_legacy = _source_between(source, "async function renderNScan(code", "async function renderNScanFast")
     scan_binding = _source_between(source, "function bindScanButtons", "// ===================== 个股")
 
     assert "snap?.score_mode || state.singleScoreMode" in scan_fast
     assert "snap?.constraint_mode || state.singleConstraintMode" in scan_fast
+    assert "renderNScanUnavailable(code, side)" in scan_legacy
+    assert "preset_backtest" not in scan_legacy
     assert "loadActiveSingleSnapshot(code)" in scan_binding
     assert "loadSingleSnapshot(state.activeFactor)" not in scan_binding
     assert "renderNScanUnavailable(code, side)" in scan_binding
@@ -2318,8 +2321,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.18</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.18 ' in index
+    assert "<title>因子库 v2.4.19</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.19 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

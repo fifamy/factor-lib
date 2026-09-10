@@ -24,7 +24,7 @@ try {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForSelector('.mode-btn[data-mode="expression"]', { timeout: 15000 });
   const title = await page.title();
-  if (!title.includes("v2.4.18")) throw new Error(`unexpected title: ${title}`);
+  if (!title.includes("v2.4.19")) throw new Error(`unexpected title: ${title}`);
 
   await page.locator('.mode-btn[data-mode="expression"]').click();
   await page.waitForSelector("#expression-view .expression-table tbody tr", { timeout: 15000 });
