@@ -1,24 +1,24 @@
 {
-  "generated_at": "2026-09-10T06:03:37+00:00",
-  "deploy_version": "20260910140313",
+  "generated_at": "2026-09-10T08:19:13+00:00",
+  "deploy_version": "20260910161902",
   "source_root": "/Users/menyao/Documents/trae_projects/因子库",
   "source_root_git_commit": null,
-  "source_revision": "795797269f8881469ca68d6a0a4325b4e9b00d806fccbe6b2d1e8fcee4cf33af",
+  "source_revision": "432bf6fd297033117803360c9809e72e4f856556fb9866e795364327b16fe452",
   "source_revision_kind": "content_sha256",
-  "source_content_sha256": "795797269f8881469ca68d6a0a4325b4e9b00d806fccbe6b2d1e8fcee4cf33af",
+  "source_content_sha256": "432bf6fd297033117803360c9809e72e4f856556fb9866e795364327b16fe452",
   "pages_worktree": "/private/tmp/factor-lib-pages-publish-20260701/repo",
-  "pages_worktree_git_commit_before_sync": "54bf68a621fa5659bbac4a55a5019c00f903dda2",
+  "pages_worktree_git_commit_before_sync": "5c6752e1c125befbc4e4f9a18d109617de01c8c2",
   "factor_count": 146,
   "audit_factor_count": 146,
   "audit_factor_rows": 146,
   "files": {
     "index.html": {
-      "sha256": "96038d3950fd69e0d291f63988f5ed80dc202fbc9ae1a39b72591b3730855d4b",
-      "bytes": 46458
+      "sha256": "01cedc143b4b9607ff6a21c00df3621c6091ac13ec9bb7e4ad7127b3b07cd6d5",
+      "bytes": 46590
     },
     "app.js": {
-      "sha256": "527ab06a99a6e3bbf3b2735b7533fb0e78a8674326f80bb7e6543b0557d055a0",
-      "bytes": 608825
+      "sha256": "a275994970ac33fb6b0531be3f4fbb1f55ca7fb9d39556d6bc51b24202e8d017",
+      "bytes": 603436
     },
     "app_portfolio_ledger.js": {
       "sha256": "54aa0c615714557a9d4d20faeeaec79a99fb7809bc8083f4581d9267b738f4af",
@@ -27,6 +27,14 @@
     "app_optimizer_grid.js": {
       "sha256": "54dd559c7544b78dc9a7c908ca13cde51fe026dc0f9f618f3fd04c7784cd899d",
       "bytes": 3677
+    },
+    "app_single_factor_scan.js": {
+      "sha256": "93e706c26b3eebb090bd0910315a7c1293e0549c5c2ec14946ed37e2a90a76a7",
+      "bytes": 2659
+    },
+    "app_stock_detail.js": {
+      "sha256": "ded9e80a062bf33cf408adf00ccdfd818802ae4b49e424177305d9e540240fbc",
+      "bytes": 4266
     },
     "app_index_universe.js": {
       "sha256": "3660b08f5cfff1363a6dc32889d1facb224b9b69e72f8e56fe62a711bdfd3db8",
@@ -45,7 +53,7 @@
       "bytes": 75115
     },
     "factor_audit.html": {
-      "sha256": "2ea3e5f3f7a7bfca14dca6b7367a3d1f8cd1debd5bf643d96a9cacc1e6ab0588",
+      "sha256": "ca41bdfa0992d58c7c66232e73ce0e84a7d5e8b574acf6c37ad13e7de5adf84f",
       "bytes": 8628
     },
     "factor_audit.js": {
@@ -101,7 +109,7 @@
       "bytes": 17474
     },
     "data/factor_audit/index.json": {
-      "sha256": "4f62885f38bc4d3cde9560fcd9f107176d29485f26cace195f709a9f1b648a2d",
+      "sha256": "f43113ae59ea26d56501c2fd2768981a97c549e96866e077a8da716513a78fde",
       "bytes": 274732
     }
   },
@@ -177,8 +185,8 @@
     "scripts": {
       "exists": true,
       "file_count": 155,
-      "bytes": 2261128,
-      "sha256": "39de23653d5b49a3c3daea80b624f335f85352aeb59e003c5a3dfeb6da8d8401"
+      "bytes": 2261644,
+      "sha256": "ba4a8230088a450da937420e64431a2d16f3ffc78a7c73c1039aa5bfdcffb955"
     },
     "config": {
       "exists": true,
@@ -281,27 +289,27 @@
     "data/research/expression_mining_hs300_v1/candidates.parquet": {
       "sha256": "8cfb53b86913f63cef4f84688d22b374384d3a67bd45d4e8aec0d32d9dcd7ee0",
       "bytes": 2757,
-      "mtime_ns": 1789017937474864503
+      "mtime_ns": 1789024831423502208
     },
     "data/research/expression_mining_hs300_v1/candidate_monthly_rank_ic.parquet": {
       "sha256": "ee4c26d8197d256191de9240404240e95ebdf978e68e5fdd7cb9d031d0b6b9a2",
       "bytes": 84428,
-      "mtime_ns": 1789017937480257839
+      "mtime_ns": 1789024831429069981
     },
     "data/research/expression_mining_hs300_v1/nested_walk_forward.parquet": {
       "sha256": "fe360bf9e1d0ff4dd67b2b6fca3cfc741eac531c9b93b0d14e5f1c558ad4d245",
       "bytes": 12280,
-      "mtime_ns": 1789017937483449671
+      "mtime_ns": 1789024831434671587
     },
     "data/research/expression_mining_hs300_v1/run_meta.json": {
       "sha256": "735f78992cac9bf5d8e2d25ffe262b9f0c97a5b603a43cb37022617d7bf18e5f",
       "bytes": 1760,
-      "mtime_ns": 1789017937487844560
+      "mtime_ns": 1789024831442209846
     },
     "data/research/expression_mining_hs300_v1/summary.json": {
       "sha256": "6a641ca5046fb8a11fa5629b157212a9908bdc7ea5649cce046a67b9f76d01b8",
       "bytes": 22248,
-      "mtime_ns": 1789017937496946208
+      "mtime_ns": 1789024831452954654
     }
   },
   "capabilities": {

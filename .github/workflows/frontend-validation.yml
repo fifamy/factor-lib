@@ -37,7 +37,7 @@ jobs:
       - name: Static frontend contract tests
         run: |
           python3 -m pytest tests/test_frontend_validation_panel.py -q
-          python3 -m pytest tests/test_optimizer_grid.py tests/test_frontend_storage_audit.py tests/test_expression_mining.py -q
+          python3 -m pytest tests/test_optimizer_grid.py tests/test_frontend_modules.py tests/test_frontend_storage_audit.py tests/test_expression_mining.py -q
           python3 -m pytest tests/test_frontend_accessibility.py -q
           python3 -m pytest tests/test_index_universe_frontend.py -q
 
@@ -62,10 +62,14 @@ jobs:
         run: |
           if [ -f frontend/app.js ]; then
             node --check frontend/app_holding_scope.js
+            node --check frontend/app_single_factor_scan.js
+            node --check frontend/app_stock_detail.js
             node --check frontend/app_index_universe.js
             node --check frontend/app.js
           else
             node --check app_holding_scope.js
+            node --check app_single_factor_scan.js
+            node --check app_stock_detail.js
             node --check app_index_universe.js
             node --check app.js
           fi

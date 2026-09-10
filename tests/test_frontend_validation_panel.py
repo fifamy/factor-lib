@@ -1841,9 +1841,10 @@ def test_catalog_and_stock_metadata_are_escaped_before_inner_html_rendering():
         "<p>${htmlText(meta.description)}</p>",
         "<td>${htmlText(r.name || \"\")}</td>",
         "<td>${htmlText(r.industry_sw1 || \"—\")}</td>",
-        "${htmlText(r.name_cn || r.factor_code)}<span class=\"sd-l2\">${htmlText(r.l2)}</span>",
     ]:
         assert needle in source
+    stock_detail = (FRONTEND_ROOT / "app_stock_detail.js").read_text(encoding="utf-8")
+    assert '${htmlText(row.name_cn || row.factor_code)}<span class="sd-l2">${htmlText(row.l2)}</span>' in stock_detail
 
 
 def test_compose_industry_constraint_loads_descriptors_and_discloses_static_approximation():
@@ -2321,8 +2322,8 @@ def test_top_meta_only_uses_latest_cross_section_date():
 def test_frontend_visible_version_is_current():
     index = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "<title>因子库 v2.4.19</title>" in index
-    assert '<h1 class="app-title">因子库 v2.4.19 ' in index
+    assert "<title>因子库 v2.4.20</title>" in index
+    assert '<h1 class="app-title">因子库 v2.4.20 ' in index
     assert "因子库 v2.0</title>" not in index
     assert "v1.1.0" not in index
 

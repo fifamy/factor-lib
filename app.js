@@ -4422,12 +4422,14 @@ async function renderKpiTableSide(code, side, snap = null, scoreSnap = snap) {
   `;
 }
 
-const N_SCAN_METRIC_LABELS = { annual: "年化收益", vol: "年化波动率", sharpe: "夏普比率", mdd: "最大回撤" };
-
 function setNScanTitle(code, side = state.singleSide, scoreMode = state.singleScoreMode, constraintMode = state.singleConstraintMode) {
   const factorName = normalizeSide(side) === 1 ? code : factorSideName(code, side);
-  document.getElementById("scan-title").textContent =
-    `${factorName} · ${scoreModeLabel(scoreMode)} / ${constraintModeLabel(constraintMode)} ${N_SCAN_METRIC_LABELS[state.scanMetric]} vs 持仓数（top-1 ~ top-100 全扫描）`;
+  document.getElementById("scan-title").textContent = globalThis.FactorSingleFactorScan.titleText(
+    factorName,
+    scoreModeLabel(scoreMode),
+    constraintModeLabel(constraintMode),
+    state.scanMetric,
+  );
 }
 
 function prepareNScan(code, side = state.singleSide) {
@@ -4450,78 +4452,38 @@ async function renderNScan(code, side = state.singleSide) {
   renderNScanUnavailable(code, side);
 }
 
+function drawNScan(xs, metricsAt) {
+  const chartDiv = document.getElementById("scan-chart");
+  if (scanChart) { scanChart.dispose(); scanChart = null; }
+  chartDiv.innerHTML = "";
+  const series = globalThis.FactorSingleFactorScan.buildSeries(
+    xs,
+    state.selectedNs,
+    state.scanMetric,
+    metricsAt,
+  );
+  scanChart = echarts.init(chartDiv);
+  scanChart.setOption(globalThis.FactorSingleFactorScan.chartOption(series, state.scanMetric));
+}
+
 async function renderNScanFast(code, snap) {
   const snapScoreMode = normalizeScoreMode(snap?.score_mode || state.singleScoreMode);
   const snapConstraintMode = normalizeConstraintMode(snap?.constraint_mode || state.singleConstraintMode);
   setNScanTitle(code, 1, snapScoreMode, snapConstraintMode);
-  const chartDiv = document.getElementById("scan-chart");
-  if (scanChart) { scanChart.dispose(); scanChart = null; }
-  chartDiv.innerHTML = "";
-
   const xs = Object.keys(snap.backtests || {}).map(Number).sort((a, b) => a - b);
-  const ys = xs.map(n => {
+  drawNScan(xs, n => {
     const bt = snapshotBacktestByRange(snap, n);
-    const m = bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
-    if (!m) return null;
-    if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
-    if (state.scanMetric === "sharpe") return Number.isFinite(Number(m.sharpe)) ? +Number(m.sharpe).toFixed(3) : null;
-    if (state.scanMetric === "mdd") return +(m.mdd * 100).toFixed(2);
-    return +(m.vol * 100).toFixed(2);
-  });
-  const marks = state.selectedNs.map(n => {
-    const idx = xs.indexOf(n);
-    return idx >= 0 ? { xAxis: n, yAxis: ys[idx] } : null;
-  }).filter(Boolean);
-
-  scanChart = echarts.init(chartDiv);
-  scanChart.setOption({
-    grid: { left: 55, right: 20, top: 20, bottom: 36 },
-    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${N_SCAN_METRIC_LABELS[state.scanMetric]}: ${p[0].data}` },
-    xAxis: { type: "category", data: xs, name: "持仓数 N", nameLocation: "middle", nameGap: 24, axisLabel: { fontSize: 10 } },
-    yAxis: { type: "value", scale: true },
-    series: [{
-      type: "line", data: ys, symbol: "none", smooth: true,
-      lineStyle: { color: "#1a4d80", width: 1.8 },
-      markPoint: { data: marks.map(m => ({ coord: [String(m.xAxis), m.yAxis] })), symbol: "pin", symbolSize: 36,
-                   itemStyle: { color: "#e07b39" }, label: { fontSize: 9, formatter: p => "N=" + p.data.coord[0] } },
-    }],
+    return bt.retArr.length ? computeMetrics(bt.retArr, bt.navArr) : null;
   });
 }
 
 async function renderNScanSide(code, side, snap = null) {
   setNScanTitle(code, side);
-  const chartDiv = document.getElementById("scan-chart");
-  if (scanChart) { scanChart.dispose(); scanChart = null; }
-  chartDiv.innerHTML = "";
-
   const xs = PRESET_NS.slice();
   const rankedRows = await factorSideRankedRows(code, side, 100);
-  const ys = xs.map(n => {
+  drawNScan(xs, n => {
     const sliced = sliceBacktestByRange(buildBacktestFromRows(rankedRows.filter(r => r.rk <= n), n), state.singleStart, state.singleEnd);
-    const m = sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
-    if (!m) return null;
-    if (state.scanMetric === "annual") return +(m.annual * 100).toFixed(2);
-    if (state.scanMetric === "sharpe") return Number.isFinite(Number(m.sharpe)) ? +Number(m.sharpe).toFixed(3) : null;
-    if (state.scanMetric === "mdd") return +(m.mdd * 100).toFixed(2);
-    return +(m.vol * 100).toFixed(2);
-  });
-  const marks = state.selectedNs.map(n => {
-    const idx = xs.indexOf(n);
-    return idx >= 0 ? { xAxis: n, yAxis: ys[idx] } : null;
-  }).filter(Boolean);
-
-  scanChart = echarts.init(chartDiv);
-  scanChart.setOption({
-    grid: { left: 55, right: 20, top: 20, bottom: 36 },
-    tooltip: { trigger: "axis", formatter: p => `top${p[0].axisValue}<br/>${N_SCAN_METRIC_LABELS[state.scanMetric]}: ${p[0].data}` },
-    xAxis: { type: "category", data: xs, name: "持仓数 N", nameLocation: "middle", nameGap: 24, axisLabel: { fontSize: 10 } },
-    yAxis: { type: "value", scale: true },
-    series: [{
-      type: "line", data: ys, symbol: "none", smooth: true,
-      lineStyle: { color: "#1a4d80", width: 1.8 },
-      markPoint: { data: marks.map(m => ({ coord: [String(m.xAxis), m.yAxis] })), symbol: "pin", symbolSize: 36,
-                   itemStyle: { color: "#e07b39" }, label: { fontSize: 9, formatter: p => "N=" + p.data.coord[0] } },
-    }],
+    return sliced.retArr.length ? computeMetrics(sliced.retArr, sliced.navArr) : null;
   });
 }
 
@@ -12705,14 +12667,6 @@ function bindScanButtons() {
 }
 
 // ===================== 个股「为什么入选」弹窗 =====================
-// 标准正态 CDF（Abramowitz-Stegun 近似）：把标准正态分数转成「强于全市场 X%」
-function _ncdf(z) {
-  const t = 1 / (1 + 0.2316419 * Math.abs(z));
-  const d = 0.3989423 * Math.exp(-z * z / 2);
-  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-  return z > 0 ? 1 - p : p;
-}
-
 let _stockModalTrigger = null;
 
 function openStockModal() {
@@ -12775,50 +12729,10 @@ function metaRowFromSnapshot(code) {
 }
 
 function renderStockDetailBody(scoreRows, metaRow) {
-  const cat = new Map((state.catalog || []).map(f => [f.code, f]));
-  const groups = new Map();
-  for (const r of scoreRows) {
-    const f = cat.get(r.factor_code);
-    if (!f) continue;
-    if (!groups.has(f.l1)) groups.set(f.l1, []);
-    groups.get(f.l1).push({ ...r, name_cn: f.name_cn, l2: f.l2 });
-  }
-  const active = state.activeFactor;
-  let head = `<div class="sd-meta">`;
-  if (metaRow) {
-    const mv = metaRow.market_cap != null ? (Number(metaRow.market_cap) / 1e4).toFixed(0) + " 亿" : "—";
-    head += `<span>申万：${htmlText(metaRow.industry_sw1 || "—")} / ${htmlText(metaRow.industry_sw2 || "—")}</span>`
-          + `<span>市值 ${mv}</span><span>PE ${metaRow.pe != null ? Number(metaRow.pe).toFixed(1) : "—"}</span>`
-          + `<span>PB ${metaRow.pb != null ? Number(metaRow.pb).toFixed(2) : "—"}</span>`;
-  }
-  head += `</div><p class="sd-note">每行一个因子：<b>原始值</b>＝因子原始数值（分位类显示为 %）；`
-        + `<b>得分z</b>＝横截面标准化（已统一方向，越大越好）；<b>百分位</b>＝该股强于全市场的比例。`
-        + `${active && cat.has(active) ? ` 当前因子 <b>${htmlText(cat.get(active).name_cn)}</b> 已高亮。` : ""}</p>`;
-  let bodyHtml = "";
-  for (const [l1, arr] of groups) {
-    arr.sort((a, b) => b.score - a.score);
-    bodyHtml += `<div class="sd-group"><h4>${htmlText(l1)}（${arr.length}）</h4><table class="sd-table">`
-      + `<thead><tr><th class="sd-name">因子</th><th class="sd-raw">原始值</th>`
-      + `<th class="sd-bar">强弱</th><th class="sd-z">得分z</th><th class="sd-pct">百分位</th></tr></thead><tbody>`;
-    for (const r of arr) {
-      const pct = Math.min(99, Math.max(1, Math.round(_ncdf(r.score) * 100)));
-      const pos = r.score >= 0;
-      const hl = (r.factor_code === active) ? " sd-active" : "";
-      const isPct = (r.name_cn || "").includes("分位");
-      const raw = (r.raw_value != null)
-        ? (isPct ? (Number(r.raw_value) * 100).toFixed(2) + "%" : Number(r.raw_value).toPrecision(4))
-        : "—";
-      bodyHtml += `<tr class="sd-row${hl}">`
-        + `<td class="sd-name">${htmlText(r.name_cn || r.factor_code)}<span class="sd-l2">${htmlText(r.l2)}</span></td>`
-        + `<td class="sd-raw">${raw}</td>`
-        + `<td class="sd-bar"><div class="sd-barwrap"><div class="sd-barfill ${pos ? "pos" : "neg"}" style="width:${pct}%"></div></div></td>`
-        + `<td class="sd-z">${r.score.toFixed(2)}</td>`
-        + `<td class="sd-pct">${pct}%</td>`
-        + `</tr>`;
-    }
-    bodyHtml += `</tbody></table></div>`;
-  }
-  return head + bodyHtml;
+  return globalThis.FactorStockDetail.renderBody(scoreRows, metaRow, {
+    catalog: state.catalog,
+    activeFactor: state.activeFactor,
+  });
 }
 
 async function showStockDetail(code, name) {
