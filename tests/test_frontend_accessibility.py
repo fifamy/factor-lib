@@ -7,6 +7,7 @@ INDEX = (FRONTEND / "index.html").read_text(encoding="utf-8")
 APP = (FRONTEND / "app.js").read_text(encoding="utf-8")
 STYLES = (FRONTEND / "styles.css").read_text(encoding="utf-8")
 AUDIT_STYLES = (FRONTEND / "factor_audit.css").read_text(encoding="utf-8")
+AUDIT_APP = (FRONTEND / "factor_audit.js").read_text(encoding="utf-8")
 
 
 def test_page_has_mobile_and_landmark_contracts():
@@ -74,6 +75,16 @@ def test_stock_modal_traps_and_restores_focus():
     assert "el.inert = false" in APP
     assert "requestAnimationFrame(() => trigger.focus())" in APP
     assert 'overlay.querySelector(".sd-close")?.focus()' in APP
+
+
+def test_audit_drawer_restores_focus_before_and_after_hidden_focus_retargeting():
+    close_detail = AUDIT_APP[AUDIT_APP.index("function closeDetail()"):
+                             AUDIT_APP.index("function trapDetailFocus")]
+
+    assert "restoreFocus();" in close_detail
+    assert "requestAnimationFrame(() =>" in close_detail
+    assert "document.activeElement !== trigger" in close_detail
+    assert "drawer.contains(document.activeElement)" in close_detail
 
 
 def test_styles_remove_locked_viewport_and_cover_mobile_layout():

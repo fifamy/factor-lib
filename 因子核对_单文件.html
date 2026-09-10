@@ -1327,11 +1327,19 @@ function closeDetail() {
   drawerReturnFocus = null;
   drawerReturnCode = null;
   if (resolveTrigger()) {
-    requestAnimationFrame(restoreFocus);
+    // Restore immediately after removing inert; keep animation-frame and delayed retries for
+    // browsers that move focus out of a newly hidden drawer asynchronously.
+    restoreFocus();
+    requestAnimationFrame(() => {
+      const trigger = resolveTrigger();
+      if (trigger && document.activeElement !== trigger) trigger.focus();
+    });
     // 复核数据可能在抽屉关闭后异步重绘列表。仅当焦点因此掉回页面空白处时，
     // 再定位同一因子的新行；若用户已经主动移到其他控件，不抢回焦点。
     [100, 400].forEach(delay => setTimeout(() => {
-      if (!document.activeElement || document.activeElement === document.body) restoreFocus();
+      if (!document.activeElement || document.activeElement === document.body || drawer.contains(document.activeElement)) {
+        restoreFocus();
+      }
     }, delay));
   }
 }
