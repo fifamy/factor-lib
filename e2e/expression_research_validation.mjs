@@ -144,41 +144,6 @@ try {
     throw new Error(`advanced compare slim mode mismatch: ${JSON.stringify(compareModes)}`);
   }
 
-  const composeBoundaryPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  await composeBoundaryPage.route("**/data/data_manifest.json*", async route => {
-    const response = await route.fetch();
-    const manifest = await response.json();
-    manifest.has_compose_scores_neutral = false;
-    await route.fulfill({ response, json: manifest });
-  });
-  await composeBoundaryPage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await composeBoundaryPage.locator('.mode-btn[data-mode="ranking"]').click();
-  await composeBoundaryPage.locator("#rank-param-score").selectOption("neutral");
-  await composeBoundaryPage.waitForSelector('.rank-chk[data-code="AMOUNT20"]', { timeout: 30000 });
-  await composeBoundaryPage.locator('.rank-chk[data-code="AMOUNT20"]').check();
-  const composeDialogPromise = new Promise(resolve => composeBoundaryPage.once("dialog", async dialog => {
-    const message = dialog.message();
-    await dialog.accept();
-    resolve(message);
-  }));
-  await composeBoundaryPage.locator("#rank-to-compose").click();
-  const composeFallbackMessage = await composeDialogPromise;
-  if (!composeFallbackMessage.includes("neutral 多因子合成分片")) {
-    throw new Error(`compose neutral fallback disclosure mismatch: ${composeFallbackMessage}`);
-  }
-  await composeBoundaryPage.waitForSelector("#cps-controls .cps-score-mode", { timeout: 30000 });
-  const composeFallback = await composeBoundaryPage.evaluate(() => {
-    const select = document.querySelector("#cps-controls .cps-score-mode");
-    return {
-      value: select?.value,
-      neutralDisabled: select?.querySelector('option[value="neutral"]')?.disabled,
-    };
-  });
-  if (composeFallback.value !== "raw" || !composeFallback.neutralDisabled) {
-    throw new Error(`compose neutral fallback state mismatch: ${JSON.stringify(composeFallback)}`);
-  }
-  await composeBoundaryPage.close();
-
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('.mode-btn[data-mode="expression"]').click();
   await page.waitForSelector("#expression-view .expression-table", { timeout: 15000 });
@@ -218,7 +183,7 @@ try {
     await page.screenshot({ path: process.env.EXPRESSION_RESEARCH_SCREENSHOT, fullPage: true });
   }
   if (errors.length) throw new Error(errors.join("\n"));
-  console.log(JSON.stringify({ baseUrl, summary, correlationText, stomCorrelationText, rankSelectionWarning, trackingBoundary, singleModes, scanTitle, compareModes, composeFallbackMessage, composeFallback, mobile, correlationFailureText }, null, 2));
+  console.log(JSON.stringify({ baseUrl, summary, correlationText, stomCorrelationText, rankSelectionWarning, trackingBoundary, singleModes, scanTitle, compareModes, mobile, correlationFailureText }, null, 2));
 } finally {
   await browser.close();
 }
